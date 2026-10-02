@@ -10,10 +10,10 @@ The current seed bankroll is **$10**.
 
 ## Project status
 
-**Version:** 0.1.0  
+**Version:** 0.2.0  
 **Platform:** Windows x64  
 **State:** Functional autonomous sandbox  
-**Live-money execution:** Not connected yet
+**Live-money execution:** Wallet infrastructure added; autonomous mainnet execution not connected yet
 
 The current application is fully runnable against a persistent synthetic market. It already exercises the complete autonomous loop without requiring a brokerage account, wallet, API key, or internet connection.
 
@@ -38,6 +38,11 @@ Once autonomy is started, the agent does not ask for per-trade human approval.
 - Versioned ZIP package
 - SHA-256 package checksum
 - GitHub Actions Windows build pipeline
+- Coinbase CDP non-custodial wallet adapter
+- Windows Credential Manager storage for CDP secrets
+- Named EVM wallet creation/retrieval
+- Base and Base Sepolia balance inspection
+- Base Sepolia test-fund bootstrap
 
 ## The loop
 
@@ -142,6 +147,101 @@ CI:
 
 That keeps local builds and CI from quietly becoming two different systems.
 
+## Coinbase CDP wallet setup
+
+Version 0.2 adds the first real capital rail.
+
+The wallet is a **non-custodial CDP API-key wallet**. The app can create or retrieve a named EVM account and inspect it on Base or Base Sepolia.
+
+### 1. Create the CDP project
+
+Sign in to the Coinbase Developer Platform portal with the dedicated project identity.
+
+Create:
+
+- A **Secret API key**
+- A **Wallet Secret**
+
+Do **not** paste either secret into ChatGPT, an issue, a commit, or a README.
+
+### 2. Store the credentials locally
+
+From PowerShell in the repository:
+
+```powershell
+.\configure-cdp.ps1
+```
+
+The script prompts for:
+
+```text
+CDP API key ID
+CDP API key secret
+CDP wallet secret
+```
+
+The secret fields are not echoed.
+
+They are stored through the Windows credential backend under:
+
+```text
+AutonomousCapitalLab/CDP
+```
+
+They are not written to the repository or SQLite database.
+
+The setup then creates or retrieves the named EVM account:
+
+```text
+autonomous-capital
+```
+
+### 3. Check the wallet
+
+```powershell
+.\.venv\Scripts\python.exe scripts\cdp_wallet.py status
+```
+
+Default network:
+
+```text
+base-sepolia
+```
+
+Check Base mainnet without executing anything:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\cdp_wallet.py --network base status
+```
+
+### 4. Test with fake money first
+
+Request testnet USDC:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\cdp_wallet.py faucet --token usdc
+```
+
+Or Base Sepolia ETH:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\cdp_wallet.py faucet --token eth
+```
+
+Faucet calls are hard-blocked unless the selected network is `base-sepolia`.
+
+### Remove the stored CDP credentials
+
+```powershell
+.\.venv\Scripts\python.exe scripts\cdp_wallet.py clear
+```
+
+### What this does not do yet
+
+Version 0.2 **does not autonomously trade the live wallet yet**.
+
+The wallet/custody layer is being validated first. The next execution adapter will add token quote, swap, transaction reconciliation, and autonomous Base trading while keeping the wallet credentials and risk governor separate.
+
 ## Decision engines
 
 ### Built-in autonomous engine
@@ -245,6 +345,6 @@ $env:AUTOCAPITAL_BUILD_NAME="NewName"
 
 ## Next major milestone
 
-Replace the synthetic execution venue with the first real $10-capable account or marketplace adapter while preserving the existing autonomous decision loop, bankroll isolation, ledger, and governor.
+Add the Base live-execution adapter on top of the now-implemented CDP wallet: quotes, swaps, transaction confirmation, onchain balance reconciliation, and autonomous trading of the isolated $10 bankroll.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the current component boundaries and invariants.
