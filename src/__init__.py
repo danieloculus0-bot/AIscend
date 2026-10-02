@@ -1,0 +1,1 @@
+"""Autonomous capital desktop application."""
