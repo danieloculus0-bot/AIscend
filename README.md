@@ -105,7 +105,7 @@ The build script:
 1. Reads the version from `VERSION`
 2. Installs dependencies
 3. Runs the regression suite
-4. Compiles Python sources as a syntax/import sanity check
+4. Compiles Python sources as a syntax sanity check
 5. Builds a single-file Windows executable with PyInstaller
 6. Creates a versioned Windows ZIP package
 7. Generates a SHA-256 checksum
