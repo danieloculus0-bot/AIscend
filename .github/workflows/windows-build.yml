@@ -3,41 +3,78 @@ name: Windows Build
 on:
   push:
     branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test-and-build:
+  test-build-package:
+    name: Test, build, package
     runs-on: windows-latest
+    timeout-minutes: 20
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
+          cache-dependency-path: requirements.txt
 
-      - name: Install dependencies
+      - name: Show build context
         shell: pwsh
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
+          Write-Host "Commit: ${{ github.sha }}"
+          Write-Host "Ref:    ${{ github.ref }}"
+          Write-Host "Python:"
+          python --version
+          Write-Host "Version:"
+          Get-Content VERSION
 
-      - name: Run tests
+      - name: Run canonical Windows build
         shell: pwsh
         run: |
-          python -m unittest discover -s tests -v
+          .\build.ps1
 
-      - name: Build Windows executable
+      - name: Verify packaged checksum
         shell: pwsh
         run: |
-          python -m PyInstaller --noconfirm --clean --onefile --noconsole --name "AutonomousCapitalLab" main.py
+          $hashFile = Get-ChildItem dist\*.sha256 | Select-Object -First 1
+          if (-not $hashFile) { throw "Missing SHA-256 file." }
 
-      - name: Upload executable
+          $line = (Get-Content $hashFile.FullName -Raw).Trim()
+          $parts = $line -split "\s+", 2
+          if ($parts.Count -ne 2) { throw "Malformed checksum file." }
+
+          $expected = $parts[0].ToLowerInvariant()
+          $zipPath = Join-Path "dist" $parts[1]
+          if (-not (Test-Path $zipPath)) { throw "Checksum target missing: $zipPath" }
+
+          $actual = (Get-FileHash $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw "SHA-256 verification failed." }
+
+          Write-Host "Checksum verified: $actual" -ForegroundColor Green
+
+      - name: Upload Windows build
         uses: actions/upload-artifact@v4
         with:
-          name: AutonomousCapitalLab-Windows
-          path: dist/AutonomousCapitalLab.exe
+          name: AutonomousCapitalLab-Windows-${{ github.run_number }}
+          path: |
+            dist/*.exe
+            dist/*.zip
+            dist/*.sha256
           if-no-files-found: error
+          retention-days: 30
