@@ -1,9 +1,9 @@
-$ErrorActionPreference = "Stop"
-
 param(
     [switch]$SkipInstall,
     [switch]$SkipTests
 )
+
+$ErrorActionPreference = "Stop"
 
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $Root
