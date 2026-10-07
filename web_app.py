@@ -12,6 +12,7 @@ from src.core import StateStore, app_data_dir
 from src.live import LiveEngine
 from src.opportunities import OpportunityUniverse
 from src.venues import capability_snapshot
+from src.wallets.advanced_trade import AdvancedTradeSpot, AdvancedTradeVault
 from src.wallets.cdp_wallet import CdpWallet, CredentialVault
 
 
@@ -116,7 +117,43 @@ def credentials():
 
 @app.get("/api/capabilities")
 def capabilities():
-    return jsonify({"ok": True, **capability_snapshot()})
+    data = capability_snapshot()
+    data["advanced_trade_configured"] = AdvancedTradeVault().configured()
+    return jsonify({"ok": True, **data})
+
+
+@app.get("/api/advanced-status")
+def advanced_status():
+    vault = AdvancedTradeVault()
+    if not vault.configured():
+        return jsonify({"ok": True, "configured": False})
+    try:
+        return jsonify({"ok": True, **AdvancedTradeSpot(vault).status().as_dict()})
+    except Exception as exc:
+        return jsonify({"ok": False, "configured": True, "error": str(exc)}), 400
+
+
+@app.post("/api/configure-advanced")
+def configure_advanced():
+    key_file = request.files.get("key_file")
+    if key_file is None:
+        return jsonify({"ok": False, "error": "Advanced Trade API key JSON is required."}), 400
+
+    try:
+        data = json.load(key_file)
+        api_key_id = str(data.get("id") or data.get("name") or "").strip()
+        api_key_secret = str(
+            data.get("privateKey") or data.get("private_key") or ""
+        ).strip()
+        if not api_key_id or not api_key_secret:
+            raise ValueError("Advanced Trade key JSON is missing id/name or privateKey.")
+
+        vault = AdvancedTradeVault()
+        vault.configure(api_key_id, api_key_secret)
+        status = AdvancedTradeSpot(vault).status()
+        return jsonify({"ok": True, **status.as_dict()})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
 
 
 @app.get("/api/opportunities")
