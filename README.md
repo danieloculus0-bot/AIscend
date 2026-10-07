@@ -10,7 +10,7 @@ The live experiment is intended to start with a tiny bankroll, currently around 
 
 ## Project status
 
-**Version:** 0.6.0  
+**Version:** 0.7.0  
 **Platform:** Windows x64 + browser via GitHub Codespaces  
 **State:** Synthetic desktop sandbox + Coinbase live desktop mode  
 **Live-money execution:** CDP smart-account swaps on Base are implemented
@@ -53,6 +53,7 @@ Once autonomy is started, the agent does not ask for per-trade human approval.
 - GitHub Codespaces environment that auto-starts the browser app
 - Game score with exactly one point per completed bankroll doubling
 - Deliberately shitty dot-matrix trader pet whose face barely reacts to what the bot is doing
+- Mandatory **Level 1** win condition at **$100,000 net liquidation value**
 
 ## The loop
 
@@ -93,7 +94,9 @@ That means:
 - Trading more often does not itself earn points. Only net wealth and speed matter.
 - HOLD is valid when waiting has better expected value than churn.
 - No additional capital is added after the run starts.
-- Milestones are 2x, 5x, 10x, 25x, 100x, and 1000x.
+- Point milestones are pure doublings: 2x, 4x, 8x, 16x, 32x, and so on.
+- **Level 1 is not won until the bankroll reaches $100,000 net liquidation value.**
+- $100,000 is the first level success measure, not the end of the overall game.
 
 ## Run it in a browser with GitHub Codespaces
 
