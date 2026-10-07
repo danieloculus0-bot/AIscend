@@ -294,17 +294,31 @@ def _runner(network: str, interval: float, rail: str) -> None:
 
 
 def _request_is_remote() -> bool:
+    peer = str(request.remote_addr or "").strip()
+    if not peer:
+        return False
+
+    try:
+        peer_is_loopback = ipaddress.ip_address(peer).is_loopback
+    except ValueError:
+        peer_is_loopback = peer.lower() == "localhost"
+
+    # Only trust forwarding headers from a loopback reverse proxy such as a
+    # locally-running tunnel. A LAN client must not be able to spoof
+    # X-Forwarded-For: 127.0.0.1 and unlock the trading API.
+    if not peer_is_loopback:
+        return True
+
     forwarded = (
         request.headers.get("CF-Connecting-IP", "").strip()
         or request.headers.get("X-Forwarded-For", "").split(",", 1)[0].strip()
     )
-    address = forwarded or str(request.remote_addr or "").strip()
-    if not address:
+    if not forwarded:
         return False
     try:
-        return not ipaddress.ip_address(address).is_loopback
+        return not ipaddress.ip_address(forwarded).is_loopback
     except ValueError:
-        return address.lower() not in {"localhost"}
+        return forwarded.lower() not in {"localhost"}
 
 
 def _monitor_token_ok() -> bool:
