@@ -116,6 +116,12 @@
 
       <div class="panel" style="margin-top:14px">
         <h2>LIVE ENGINE</h2>
+        <label>Execution rail</label>
+        <select id="executionRail" onchange="refreshStatus()">
+          <option value="base" selected>Base smart wallet</option>
+          <option value="advanced">Coinbase Advanced spot</option>
+        </select>
+
         <label>Network</label>
         <select id="network" onchange="refreshStatus()">
           <option value="base" selected>Base - live money</option>
@@ -242,6 +248,7 @@ let petBob = false;
 let previousPoints = null;
 
 function network(){ return $('network').value; }
+function rail(){ return $('executionRail').value; }
 function msg(text, ok=false){ $('message').className = ok ? 'success' : 'error'; $('message').textContent = text || ''; }
 
 function renderCapabilities(data){
@@ -337,7 +344,7 @@ async function configure(){
 }
 
 async function refreshStatus(){
-  const r = await fetch('/api/status?network='+encodeURIComponent(network()));
+  const r = await fetch('/api/status?network='+encodeURIComponent(network())+'&rail='+encodeURIComponent(rail()));
   const j = await r.json();
   if(!j.ok){ msg(j.error || 'Status unavailable'); renderRunner(j.runner); petState='dead'; drawPet(); return; }
   msg('');
@@ -468,7 +475,7 @@ function renderDecisions(rows){
 
 function renderRunner(r){
   if(!r) return;
-  $('runnerPill').textContent = r.running ? 'RUNNING - '+r.network : 'STOPPED';
+  $('runnerPill').textContent = r.running ? 'RUNNING - '+(r.rail==='advanced'?'advanced':r.network) : 'STOPPED';
   if(r.last_error){ msg(r.last_error); petState='dead'; drawPet(); }
 }
 
@@ -486,7 +493,7 @@ function choosePetState(s, d){
 async function runOnce(){
   msg('Running one autonomous cycle...', true);
   petState='think'; drawPet();
-  const r=await fetch('/api/run-once',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({network:network()})});
+  const r=await fetch('/api/run-once',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({network:network(),rail:rail()})});
   const j=await r.json();
   if(!j.ok){ msg(j.error); petState='dead'; drawPet(); return; }
   msg('Cycle complete.', true);
@@ -495,7 +502,7 @@ async function runOnce(){
 
 async function startRunner(){
   const interval=Number($('interval').value);
-  const r=await fetch('/api/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({network:network(),interval})});
+  const r=await fetch('/api/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({network:network(),rail:rail(),interval})});
   const j=await r.json();
   if(!j.ok){ msg(j.error); petState='dead'; drawPet(); return; }
   petState='think'; drawPet();
