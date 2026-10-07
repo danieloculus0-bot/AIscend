@@ -307,19 +307,52 @@ function renderCapabilities(data){
 
 async function scanUniverse(){
   const box=$('opportunityList');
-  box.textContent='Scanning crypto + prediction markets...';
+  box.textContent='Scanning Coinbase crypto + prediction markets...';
   try{
     const r=await fetch('/api/opportunities');
     const j=await r.json();
     if(!j.ok){ box.textContent=j.error || 'Opportunity scan failed.'; return; }
-    const rows=(j.opportunities || []).slice(0,10);
-    if(!rows.length){ box.textContent='No live opportunities returned.'; return; }
-    box.innerHTML=rows.map(o=>{
+
+    const rows=(j.opportunities || []).slice(0,16);
+    const meta=j.prediction_scan || {};
+    const sports=meta.sports_counts || {};
+    const sportsText=Object.entries(sports)
+      .sort((a,b)=>Number(b[1])-Number(a[1]))
+      .slice(0,6)
+      .map(([k,v])=>k+' '+v)
+      .join(' · ');
+
+    const summary =
+      '<div style="padding:0 0 8px 0;color:#8f99a8">'+
+      'Predictions sniffed: '+Number(meta.open_markets_seen||0)+
+      ' open · '+Number(meta.quoted_markets||0)+' quoted'+
+      (sportsText ? ' · sports '+escapeHtml(sportsText) : '')+
+      (meta.truncated ? ' · scan capped' : '')+
+      '</div>';
+
+    if(!rows.length){ box.innerHTML=summary+'No live opportunities returned.'; return; }
+
+    box.innerHTML=summary+rows.map(o=>{
       const mode=o.execution_ready ? 'LIVE' : 'RESEARCH';
-      const extra=o.venue==='predictions'
-        ? ('YES '+Number(o.details?.yes_bid||0).toFixed(2)+' / '+Number(o.details?.yes_ask||0).toFixed(2))
-        : ((o.details?.prediction||'')+' '+Number(o.score||0).toFixed(3));
-      return '<div style="padding:7px 0;border-bottom:1px solid #252b33"><b>'+escapeHtml(o.venue.toUpperCase())+'</b> · '+mode+'<br>'+escapeHtml(o.title)+'<br><span style="color:#8f99a8">'+escapeHtml(extra)+'</span></div>';
+      let extra='';
+      if(o.venue==='predictions'){
+        const d=o.details || {};
+        const lane=d.category==='sports'
+          ? ('SPORTS'+(d.sport ? ' / '+d.sport : ''))
+          : String(d.category||'PREDICTION').toUpperCase();
+        extra=lane+
+          ' · YES '+Number(d.yes_bid||0).toFixed(2)+' / '+Number(d.yes_ask||0).toFixed(2)+
+          ' · quality '+Number(d.market_quality_score||0).toFixed(3)+
+          ' · edge '+String(d.edge_status||'UNMODELED');
+      } else {
+        extra=(o.details?.prediction||'')+
+          ' · edge '+Number(o.score||0).toFixed(3)+
+          ' · priority '+Number(o.priority||0).toFixed(3);
+      }
+      return '<div style="padding:7px 0;border-bottom:1px solid #252b33"><b>'+
+        escapeHtml(o.venue.toUpperCase())+'</b> · '+mode+
+        '<br>'+escapeHtml(o.title)+
+        '<br><span style="color:#8f99a8">'+escapeHtml(extra)+'</span></div>';
     }).join('');
   }catch(e){ box.textContent='Opportunity scan failed: '+e; }
 }
@@ -891,6 +924,7 @@ setInterval(()=>{
 },5300);
 
 setInterval(()=>{ if($('runnerPill').textContent.startsWith('RUNNING')) refreshStatus(); },5000);
+setInterval(()=>{ if($('runnerPill').textContent.startsWith('RUNNING')) scanUniverse(); },60000);
 fetch('/api/credentials').then(r=>r.json()).then(j=>{ if(j.configured) msg('CDP credentials detected.', true); });
 fetch('/api/capabilities').then(r=>r.json()).then(renderCapabilities).catch(()=>{ $('venueSummary').textContent='Venue capabilities unavailable.'; });
 scanUniverse();

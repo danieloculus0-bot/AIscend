@@ -605,9 +605,42 @@ The dashboard/monitor and autonomous loop now operate on one combined Base + Coi
 - Manual bridge controls remain explicit. The coordinator does not silently move money between rails.
 - Trade cycles and bridge transfers share one capital-operation lock so a transfer cannot race a live order.
 - Counterpart rail snapshots are cached briefly for dashboard refreshes to avoid hammering provider APIs.
-- Human Weather remains visible as global context while Advanced is the active execution rail.
+- Human Weather is fused into the Advanced candidate score while Advanced is active; the linked portfolio preserves that candidate-specific context instead of replacing it with a display-only Base copy.
 
 
 ## v0.16.1 repo audit
 
 The linked-capital coordinator now refuses to select the Base execution adapter for BUY/SELL signals when Base has no executable cash/position. This closes the empty-rail failure mode exposed after moving the bankroll to Coinbase Advanced. The live runner also reports the actual rail selected on each linked-auto cycle so the dashboard shows whether AIS-0 is currently operating through Base or Advanced.
+
+
+## v0.17 Coinbase-wide market arsenal
+
+AIscend now treats Coinbase as a multi-market research surface rather than only a
+crypto execution screen.
+
+- Coinbase Advanced keeps live linked-rail crypto execution across every
+  account-tradable spot quote currency.
+- Human Weather is a real Advanced scoring input. The same cached public
+  news/social/Fear & Greed/politics/weirdness observation used by Base is
+  contextualized against each Advanced candidate's own momentum and volume.
+- The prediction-market scanner walks the open underlying Kalshi market feed
+  used by Coinbase predictions with cursor pagination instead of sampling only
+  the first page.
+- Prediction markets are classified into sports, politics, crypto, weather,
+  economics, culture and other research buckets. Sports markets are also tagged
+  by league/sport when identifiable.
+- Prediction-market priority is explicitly a market-quality score based on
+  liquidity, spread and time-to-close. It is not mislabeled as directional edge.
+  Until an independent probability model exists, YES/NO prices remain
+  market-implied probabilities and the edge state is UNMODELED.
+- The Market Arsenal ranks crypto directional opportunities and prediction
+  market-quality opportunities with the score type shown in the UI. While the
+  live runner is active, the browser refreshes the arsenal roughly once per
+  minute.
+- Prediction-market autonomous execution remains disabled. Coinbase exposes the
+  products through Coinbase Financial Markets, but AIscend will not pretend a
+  Coinbase-native programmatic order path exists until a supported connector is
+  available for the account.
+- Stocks/ETFs, futures, perpetuals and options remain declared future lanes.
+  Their capability text now says plainly that live discovery/execution adapters
+  are not connected yet.
