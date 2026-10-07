@@ -18,6 +18,10 @@ class GameScore:
     elapsed_days: float
     next_milestone: str
     next_milestone_multiple: float
+    level: int
+    level_target: float
+    level_progress: float
+    level_complete: bool
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -50,12 +54,25 @@ def score_game(
 
     _record_crossed_milestones(store, multiple, now, started)
 
+    level = 1
+    level_target = 100000.0
+    level_progress = min(1.0, net / level_target)
+    level_complete = net >= level_target
+
+    if level_complete and store.get_meta("level_1_complete_at") is None:
+        store.set_meta("level_1_complete_at", str(now))
+        store.set_meta("level_1_complete_value", f"{net:.8f}")
+
     return GameScore(
         points=points,
         multiple=multiple,
         elapsed_days=elapsed_days,
         next_milestone=next_name,
         next_milestone_multiple=next_multiple,
+        level=level,
+        level_target=level_target,
+        level_progress=level_progress,
+        level_complete=level_complete,
     )
 
 
