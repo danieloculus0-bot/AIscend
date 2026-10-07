@@ -1,12 +1,14 @@
 # Architecture
 
-The application is split into five concerns:
+The application is split into seven concerns:
 
 - **Decision engine**: chooses BUY, SELL, or HOLD and a bankroll fraction.
 - **Risk governor**: validates that an action stays inside the experiment account.
 - **Execution/state engine**: executes the action and persists cash, positions, decisions, and ledger entries.
 - **Wallet / venue adapters**: connect isolated capital to external systems without exposing unrelated accounts.
 - **Windows UI**: starts or stops autonomy and displays state. It does not approve individual trades.
+- **Browser UI**: exposes the same live engine through Flask for GitHub Codespaces.
+- **Game scorer**: rewards bankroll doublings and penalizes elapsed time toward the FORTY ACRES target.
 
 The desktop application still defaults to the persistent synthetic market.
 
@@ -86,3 +88,31 @@ The application loads those values into process memory only when the CDP adapter
 8. External wallet credentials never belong in the repository.
 9. Wallet custody and trading execution remain separate components.
 10. Live execution uses the named AIscend smart account and reconciles state from onchain balances after each swap.
+
+
+## Browser / Codespaces path
+
+```text
+private GitHub repository
+    |
+GitHub Codespace
+    |
+Flask browser dashboard
+    |
+LiveEngine
+    |
+CDP smart account
+    |
+Base
+```
+
+The Codespace accepts the downloaded CDP key JSON and Wallet Secret into the running process, creates or retrieves the same named smart account, and can run one autonomous cycle or a timed loop.
+
+## Game objective
+
+```text
+score = 1000 * log2(net liquidation / starting bankroll)
+        - 10 * elapsed days
+```
+
+The terminal victory condition is reaching the configurable **FORTY ACRES** dollar target. Trading frequency is not directly rewarded; only wealth growth and speed affect score.
