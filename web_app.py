@@ -329,6 +329,7 @@ def _monitor_token_ok() -> bool:
         return not _request_is_remote()
     supplied = (
         request.headers.get("X-AIscend-Token", "").strip()
+        or request.cookies.get("aiscend_monitor", "").strip()
         or request.args.get("token", "").strip()
     )
     return bool(supplied) and hmac.compare_digest(supplied, configured)
@@ -395,10 +396,24 @@ def index():
 def monitor():
     if not _monitor_token_ok():
         return "Unauthorized", 401
-    return render_template(
-        "monitor.html",
-        token=request.args.get("token", ""),
+
+    supplied = request.args.get("token", "").strip()
+    response = app.make_response(
+        render_template(
+            "monitor.html",
+            token=supplied,
+        )
     )
+    if supplied:
+        response.set_cookie(
+            "aiscend_monitor",
+            supplied,
+            max_age=12 * 60 * 60,
+            httponly=True,
+            samesite="Strict",
+            secure=bool(request.is_secure),
+        )
+    return response
 
 
 @app.get("/api/monitor/status")
