@@ -31,6 +31,9 @@ class FakeRail:
     def preview_market_buy(self, product_id, quote_size):
         return {"preview_id": "preview", "product_id": product_id, "quote_size": str(quote_size)}
 
+    def preview_market_sell(self, product_id, base_size):
+        return {"preview_id": "preview-sell", "product_id": product_id, "base_size": str(base_size)}
+
     def market_buy(self, product_id, quote_size, client_order_id):
         spend = Decimal(str(quote_size))
         self.usdc -= spend
@@ -740,6 +743,30 @@ class AdvancedLiveTests(unittest.TestCase):
             0.40,
         )
         self.assertIsNone(adjusted)
+
+    def test_execution_preview_rejects_pathological_spread(self):
+        with self.assertRaisesRegex(RuntimeError, "execution spread"):
+            AdvancedSpotEngine._validate_execution_preview(
+                {
+                    "best_bid": "1.00",
+                    "best_ask": "1.02",
+                    "order_total": "10",
+                    "commission_total": "0.01",
+                },
+                "TEST-USDC",
+            )
+
+    def test_execution_preview_rejects_excessive_fee(self):
+        with self.assertRaisesRegex(RuntimeError, "preview fee"):
+            AdvancedSpotEngine._validate_execution_preview(
+                {
+                    "best_bid": "1.00",
+                    "best_ask": "1.001",
+                    "order_total": "10",
+                    "commission_total": "0.50",
+                },
+                "TEST-USDC",
+            )
 
     def test_coinbase_order_size_is_floored_to_product_increment(self):
         self.assertEqual(
