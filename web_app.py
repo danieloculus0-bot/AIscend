@@ -356,7 +356,10 @@ def candles():
         end_ts = int(time.time())
         start_ts = end_ts - (60 * 5 * 60)
         client = AdvancedTradeVault().client()
-        payload = client.get_public_candles(
+        # Use the authenticated Advanced Trade candle endpoint. Some products
+        # available to the portfolio return 404 from Coinbase's public-market
+        # candle route even though the authenticated product route works.
+        payload = client.get_candles(
             product_id=product,
             start=str(start_ts),
             end=str(end_ts),
