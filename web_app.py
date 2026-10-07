@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import hmac
+import ipaddress
 import json
 import os
 import threading
 import time
 import uuid
 import re
-import urllib.parse
-import urllib.request
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -293,15 +293,66 @@ def _runner(network: str, interval: float, rail: str) -> None:
 
 
 
+def _request_is_remote() -> bool:
+    forwarded = (
+        request.headers.get("CF-Connecting-IP", "").strip()
+        or request.headers.get("X-Forwarded-For", "").split(",", 1)[0].strip()
+    )
+    address = forwarded or str(request.remote_addr or "").strip()
+    if not address:
+        return False
+    try:
+        return not ipaddress.ip_address(address).is_loopback
+    except ValueError:
+        return address.lower() not in {"localhost"}
+
+
 def _monitor_token_ok() -> bool:
     configured = os.getenv("AISCEND_REMOTE_TOKEN", "").strip()
     if not configured:
-        return True
+        # Localhost remains convenient, but LAN/tunnel traffic is never allowed
+        # to fall back to an unauthenticated monitor.
+        return not _request_is_remote()
     supplied = (
-        request.args.get("token", "").strip()
-        or request.headers.get("X-AIscend-Token", "").strip()
+        request.headers.get("X-AIscend-Token", "").strip()
+        or request.args.get("token", "").strip()
     )
-    return supplied == configured
+    return bool(supplied) and hmac.compare_digest(supplied, configured)
+
+
+_REMOTE_SAFE_PATHS = {"/monitor", "/api/monitor/status", "/api/candles"}
+
+
+@app.before_request
+def _remote_surface_guard():
+    if not _request_is_remote():
+        return None
+    if request.path not in _REMOTE_SAFE_PATHS:
+        return jsonify(
+            {
+                "ok": False,
+                "error": "Remote access is read-only. Use /monitor.",
+            }
+        ), 403
+    if not _monitor_token_ok():
+        return jsonify(
+            {
+                "ok": False,
+                "error": (
+                    "Remote monitor token required. Set AISCEND_REMOTE_TOKEN "
+                    "on the AIscend host."
+                ),
+            }
+        ), 401
+    return None
+
+
+@app.after_request
+def _no_store_remote_monitor(response):
+    if request.path in _REMOTE_SAFE_PATHS:
+        response.headers["Cache-Control"] = "no-store, private"
+        response.headers["Pragma"] = "no-cache"
+    return response
 
 
 def _active_monitor_payload() -> dict[str, Any]:
@@ -348,6 +399,8 @@ def monitor_status():
 
 @app.get("/api/candles")
 def candles():
+    if _request_is_remote() and not _monitor_token_ok():
+        return jsonify({"ok": False, "error": "Unauthorized"}), 401
     product = str(request.args.get("product") or "").strip().upper()
     if not re.fullmatch(r"[A-Z0-9-]{3,40}", product):
         return jsonify({"ok": False, "error": "Invalid Coinbase product."}), 400
