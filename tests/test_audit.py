@@ -23,8 +23,7 @@ class AuditTrailTests(unittest.TestCase):
                 quote_asset="USDC",
                 base_quantity=Decimal("0.0001234500"),
                 quote_quantity=Decimal("12.3400"),
-                unit_price_quote=Decimal("99959.497772")
-                ,
+                unit_price_quote=Decimal("99959.497772"),
                 order_id="order-1",
                 client_order_id="client-1",
                 status="complete",
@@ -40,7 +39,10 @@ class AuditTrailTests(unittest.TestCase):
             jsonl = next(root.glob("aiscend-audit-*.jsonl"))
             csv_path = next(root.glob("aiscend-audit-*.csv"))
 
-            rows = [json.loads(line) for line in jsonl.read_text(encoding="utf-8").splitlines()]
+            rows = [
+                json.loads(line)
+                for line in jsonl.read_text(encoding="utf-8").splitlines()
+            ]
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0]["event_id"], event["event_id"])
             self.assertEqual(rows[0]["base_quantity"], "0.0001234500")
