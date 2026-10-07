@@ -24,6 +24,10 @@
     .scroll { max-height:310px; overflow:auto; }
     .good { color:#8ee2ad; }
     .bad { color:#ff9d9d; }
+    .asset-link { color:#a9c7ff; text-decoration:none; font-weight:700; }
+    .asset-link:hover { text-decoration:underline; }
+    .candle-wrap { height:220px; background:#10141a; border:1px solid #262c34; border-radius:8px; overflow:hidden; }
+    #candleChart { width:100%; height:100%; display:block; }
     @media(max-width:800px){ .grid{grid-template-columns:1fr 1fr}.layout{grid-template-columns:1fr} }
   </style>
 </head>
@@ -69,6 +73,11 @@
       <div class="label">Positions</div>
       <div id="positions" class="small" style="margin-top:8px">--</div>
     </div>
+    <div class="panel">
+      <div id="candleTitle" class="label">Market · --</div>
+      <div class="candle-wrap" style="margin-top:8px"><canvas id="candleChart"></canvas></div>
+      <div id="candleMeta" class="small">5-minute candles</div>
+    </div>
   </div>
 
   <div class="panel" style="margin-top:12px">
@@ -88,6 +97,33 @@ const token={{ token|tojson }};
 const $=id=>document.getElementById(id);
 const money=n=>'$'+Number(n??0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:6});
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+let activeCandleProduct=null;
+
+async function loadCandles(product){
+  activeCandleProduct=product;
+  $('candleTitle').textContent='Market · '+product;
+  try{
+    const r=await fetch('/api/candles?product='+encodeURIComponent(product));
+    const j=await r.json();
+    if(!j.ok) throw new Error(j.error||'unavailable');
+    drawCandles(j.candles||[]);
+    const last=(j.candles||[]).at(-1);
+    $('candleMeta').textContent=last ? '5-minute candles · last '+money(last.close) : 'No candle data.';
+  }catch(e){ $('candleMeta').textContent='Candle feed: '+e; }
+}
+
+function drawCandles(rows){
+  const canvas=$('candleChart'), rect=canvas.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
+  canvas.width=Math.max(320,Math.floor(rect.width*dpr));
+  canvas.height=Math.max(160,Math.floor(rect.height*dpr));
+  const ctx=canvas.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
+  const w=rect.width,h=rect.height; ctx.clearRect(0,0,w,h); if(!rows.length)return;
+  const pad={l:10,r:54,t:12,b:20},lo=Math.min(...rows.map(x=>+x.low)),hi=Math.max(...rows.map(x=>+x.high)),span=Math.max(1e-12,hi-lo);
+  const y=v=>pad.t+(hi-Number(v))/span*(h-pad.t-pad.b),step=(w-pad.l-pad.r)/rows.length,body=Math.max(2,Math.min(8,step*.58));
+  ctx.font='11px system-ui'; ctx.textAlign='left'; ctx.textBaseline='middle';
+  for(let i=0;i<=4;i++){const yy=pad.t+(h-pad.t-pad.b)*(i/4),price=hi-span*(i/4);ctx.strokeStyle='#2d353f';ctx.fillStyle='#8f99a8';ctx.beginPath();ctx.moveTo(pad.l,yy);ctx.lineTo(w-pad.r,yy);ctx.stroke();ctx.fillText(price.toLocaleString(undefined,{maximumSignificantDigits:7}),w-pad.r+6,yy);}
+  rows.forEach((x,i)=>{const cx=pad.l+step*(i+.5),open=+x.open,close=+x.close,up=close>=open;ctx.strokeStyle=up?'#8ee2ad':'#ff9d9d';ctx.fillStyle=ctx.strokeStyle;ctx.beginPath();ctx.moveTo(cx,y(x.high));ctx.lineTo(cx,y(x.low));ctx.stroke();const top=Math.min(y(open),y(close)),bh=Math.max(1,Math.abs(y(open)-y(close)));ctx.fillRect(cx-body/2,top,body,bh);});
+}
 
 async function refresh(){
   try{
@@ -127,9 +163,17 @@ async function refresh(){
       : '--';
 
     const pos=Object.entries(s.positions||{});
+    let firstProduct=null;
     $('positions').innerHTML=pos.length
-      ? pos.map(([sym,p])=>'<div><b>'+esc(sym)+'</b> · '+Number(p.qty||0).toFixed(8)+'</div>').join('')
+      ? pos.map(([sym,p])=>{
+          const product=String(sym||'').replace(/^ADV:/,'').toUpperCase();
+          if(!firstProduct && product.includes('-')) firstProduct=product;
+          return product.includes('-')
+            ? '<div><a class="asset-link" href="https://www.coinbase.com/advanced-trade/spot/'+encodeURIComponent(product)+'" target="_blank" rel="noopener">'+esc(sym)+'</a> · '+Number(p.qty||0).toFixed(8)+'</div>'
+            : '<div><b>'+esc(sym)+'</b> · '+Number(p.qty||0).toFixed(8)+'</div>';
+        }).join('')
       : 'No open positions.';
+    if(firstProduct && activeCandleProduct!==firstProduct) loadCandles(firstProduct);
 
     const tbody=$('decisions'); tbody.innerHTML='';
     for(const d of (j.decisions||[])){
