@@ -5,6 +5,7 @@ import math
 import time
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from typing import Any
 
@@ -73,60 +74,93 @@ class HumanSignalResearch:
 
     def collect(self) -> HumanSignals:
         errors: list[str] = []
-
         fng_value: float | None = None
         fng_class = "UNKNOWN"
         fng_change = 0.0
-        try:
-            payload = self._get_json(ALT_FNG + "?limit=2&format=json")
-            rows = payload.get("data") or []
-            if rows:
-                fng_value = self._num(rows[0].get("value"))
-                fng_class = str(rows[0].get("value_classification") or "UNKNOWN").upper()
-                if len(rows) > 1:
-                    fng_change = fng_value - self._num(rows[1].get("value"))
-        except Exception as exc:
-            errors.append(f"fear_greed: {exc}")
-
-        news_titles = self._gdelt_titles(
-            '(bitcoin OR ethereum OR crypto OR cryptocurrency OR "digital assets" OR markets OR stocks)',
-            "6h",
-            60,
-            errors,
-            "news",
-        )
-        politics_titles = self._gdelt_titles(
-            '(election OR tariff OR tariffs OR sanctions OR regulation OR "federal reserve" OR treasury OR '
-            '"white house" OR congress OR war OR ceasefire OR china OR russia OR ukraine OR israel OR iran)',
-            "6h",
-            60,
-            errors,
-            "politics",
-        )
-        weird_titles = self._gdelt_titles(
-            '(cyberattack OR hack OR outage OR explosion OR earthquake OR hurricane OR pandemic OR coup OR '
-            '"bank run" OR default OR emergency OR assassination OR "supply chain")',
-            "6h",
-            40,
-            errors,
-            "weird",
-        )
-
+        news_titles: list[str] = []
+        politics_titles: list[str] = []
+        weird_titles: list[str] = []
         social_posts: list[dict[str, Any]] = []
-        for subreddit in ("CryptoCurrency", "Bitcoin", "ethereum", "wallstreetbets", "stocks"):
-            try:
-                social_posts.extend(self._reddit_hot(subreddit, 18))
-            except Exception as exc:
-                errors.append(f"reddit/{subreddit}: {exc}")
 
-        social_titles = [str(p.get("title") or "") for p in social_posts if p.get("title")]
+        gdelt_specs = {
+            "news": (
+                '(bitcoin OR ethereum OR crypto OR cryptocurrency OR "digital assets" OR markets OR stocks)',
+                "6h",
+                60,
+            ),
+            "politics": (
+                '(election OR tariff OR tariffs OR sanctions OR regulation OR "federal reserve" OR treasury OR '
+                '"white house" OR congress OR war OR ceasefire OR china OR russia OR ukraine OR israel OR iran)',
+                "6h",
+                60,
+            ),
+            "weird": (
+                '(cyberattack OR hack OR outage OR explosion OR earthquake OR hurricane OR pandemic OR coup OR '
+                '"bank run" OR default OR emergency OR assassination OR "supply chain")',
+                "6h",
+                40,
+            ),
+        }
+        subreddits = ("CryptoCurrency", "Bitcoin", "ethereum", "wallstreetbets", "stocks")
+
+        def fetch_fng() -> tuple[str, Any]:
+            payload = self._get_json(ALT_FNG + "?limit=2&format=json")
+            return "fear_greed", payload
+
+        def fetch_gdelt(label: str, spec: tuple[str, str, int]) -> tuple[str, Any]:
+            query, timespan, maxrecords = spec
+            return label, self._gdelt_titles(query, timespan, maxrecords)
+
+        def fetch_reddit(subreddit: str) -> tuple[str, Any]:
+            return f"reddit/{subreddit}", self._reddit_hot(subreddit, 18)
+
+        futures = {}
+        with ThreadPoolExecutor(max_workers=9, thread_name_prefix="aiscend-signal") as pool:
+            futures[pool.submit(fetch_fng)] = "fear_greed"
+            for label, spec in gdelt_specs.items():
+                futures[pool.submit(fetch_gdelt, label, spec)] = label
+            for subreddit in subreddits:
+                futures[pool.submit(fetch_reddit, subreddit)] = f"reddit/{subreddit}"
+
+            for future in as_completed(futures):
+                label = futures[future]
+                try:
+                    result_label, payload = future.result()
+                    if result_label == "fear_greed":
+                        rows = payload.get("data") or []
+                        if rows:
+                            fng_value = self._num(rows[0].get("value"))
+                            fng_class = str(
+                                rows[0].get("value_classification") or "UNKNOWN"
+                            ).upper()
+                            if len(rows) > 1:
+                                fng_change = fng_value - self._num(rows[1].get("value"))
+                    elif result_label == "news":
+                        news_titles = payload
+                    elif result_label == "politics":
+                        politics_titles = payload
+                    elif result_label == "weird":
+                        weird_titles = payload
+                    elif result_label.startswith("reddit/"):
+                        social_posts.extend(payload)
+                except Exception as exc:
+                    errors.append(f"{label}: {exc}")
+
+        social_titles = [
+            str(p.get("title") or "") for p in social_posts if p.get("title")
+        ]
 
         news_sentiment = self._sentiment(news_titles)
         social_sentiment = self._sentiment(social_titles)
         politics_sentiment = self._sentiment(politics_titles)
 
-        politics_risk = self._keyword_density(politics_titles, PANIC_WORDS | NEGATIVE_WORDS)
-        weirdness = self._keyword_density(weird_titles, PANIC_WORDS | {"outage", "earthquake", "explosion", "coup"})
+        politics_risk = self._keyword_density(
+            politics_titles, PANIC_WORDS | NEGATIVE_WORDS
+        )
+        weirdness = self._keyword_density(
+            weird_titles,
+            PANIC_WORDS | {"outage", "earthquake", "explosion", "coup"},
+        )
         news_attention = min(1.0, len(news_titles) / 45.0)
         social_attention = self._social_attention(social_posts)
 
@@ -152,7 +186,12 @@ class HumanSignalResearch:
             "weird": len(weird_titles),
             "social": len(social_titles),
         }
-        available = bool(fng_value is not None or news_titles or politics_titles or social_titles)
+        available = bool(
+            fng_value is not None
+            or news_titles
+            or politics_titles
+            or social_titles
+        )
 
         return HumanSignals(
             generated_at=time.time(),
@@ -180,34 +219,28 @@ class HumanSignalResearch:
         query: str,
         timespan: str,
         maxrecords: int,
-        errors: list[str],
-        label: str,
     ) -> list[str]:
-        try:
-            params = urllib.parse.urlencode(
-                {
-                    "query": query,
-                    "mode": "artlist",
-                    "format": "json",
-                    "sort": "datedesc",
-                    "timespan": timespan,
-                    "maxrecords": maxrecords,
-                }
-            )
-            payload = self._get_json(f"{GDELT_DOC}?{params}")
-            rows = payload.get("articles") or []
-            out: list[str] = []
-            seen: set[str] = set()
-            for row in rows:
-                title = str(row.get("title") or "").strip()
-                key = title.lower()
-                if title and key not in seen:
-                    seen.add(key)
-                    out.append(title)
-            return out
-        except Exception as exc:
-            errors.append(f"{label}: {exc}")
-            return []
+        params = urllib.parse.urlencode(
+            {
+                "query": query,
+                "mode": "artlist",
+                "format": "json",
+                "sort": "datedesc",
+                "timespan": timespan,
+                "maxrecords": maxrecords,
+            }
+        )
+        payload = self._get_json(f"{GDELT_DOC}?{params}")
+        rows = payload.get("articles") or []
+        out: list[str] = []
+        seen: set[str] = set()
+        for row in rows:
+            title = str(row.get("title") or "").strip()
+            key = title.lower()
+            if title and key not in seen:
+                seen.add(key)
+                out.append(title)
+        return out
 
     def _reddit_hot(self, subreddit: str, limit: int) -> list[dict[str, Any]]:
         url = f"{REDDIT}/r/{urllib.parse.quote(subreddit)}/hot.json?limit={int(limit)}&raw_json=1"
