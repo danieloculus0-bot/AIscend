@@ -10,7 +10,7 @@ The live experiment is intended to start with a tiny bankroll, currently around 
 
 ## Project status
 
-**Version:** 0.11.0  
+**Version:** 0.12.0  
 **Platform:** Windows x64 + browser via GitHub Codespaces  
 **State:** Synthetic desktop sandbox + Coinbase live desktop mode  
 **Live-money execution:** CDP smart-account swaps on Base are implemented
@@ -477,3 +477,15 @@ BEAN does not erase disagreement. Technical and human evidence can coexist as co
 The research layer now discovers active Coinbase public USD and USDC products and scans them in rotating batches. This gives AIscend broad market awareness without making hundreds of public API calls every few seconds. The dashboard reports the number of discovered products, how many were recently scored, and the strongest current candidates.
 
 This is deliberately separated from execution. The current funded CDP smart-account rail is still Base USDC/WETH, so broader Coinbase assets can be researched and learned from before their execution adapters exist.
+
+
+## Signal reliability and memory compression
+
+Version 0.12 hardens the two systems exposed by the first live BEAN run:
+
+- Human Weather now has redundant public-source paths instead of silently returning zeros when one provider blocks a cloud runtime.
+- GDELT remains the primary global-news source, with Google News RSS as a fallback.
+- Reddit JSON falls back to subreddit RSS while it remains available, and Bluesky public search provides an additional social signal source.
+- Feed health and fallback diagnostics are visible in the dashboard.
+- BEAN compresses repeated observations from the same epistemic object into persistent rollups rather than counting every 60-second refresh as a new claim.
+- Predictions and resolved outcomes remain separate records and are never compressed away.
