@@ -6,7 +6,7 @@ from src.venues import capability_snapshot
 
 class FakeUniverse(OpportunityUniverse):
     def __init__(self):
-        pass
+        super().__init__(max_prediction_pages=1)
 
     def _get_json(self, path):
         return {
