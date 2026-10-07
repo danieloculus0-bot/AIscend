@@ -10,7 +10,7 @@ The live experiment is intended to start with a tiny bankroll, currently around 
 
 ## Project status
 
-**Version:** 0.16.0  
+**Version:** 0.16.1  
 **Platform:** Windows x64 + browser via GitHub Codespaces  
 **State:** Synthetic desktop sandbox + Coinbase live desktop mode  
 **Live-money execution:** Base smart-account swaps and Coinbase Advanced spot orders are implemented
@@ -591,3 +591,18 @@ Live executions and bridge transfers write an append-only reconciliation trail u
 - credential-like fields redacted from stored provider responses
 
 Audit-write failures are isolated from already-executed trades so a logging problem cannot cause an order to be retried.
+
+
+## v0.16.1 linked portfolio coordinator
+
+The dashboard/monitor and autonomous loop now operate on one combined Base + Coinbase Advanced bankroll.
+
+- `Linked portfolio - auto choose rail` is the default execution mode.
+- Net liquidation, P/L, wealth multiple, Level 1 progress, and game points use the sum of both live rails.
+- Capital can be split across Base and Advanced without AIS-0 interpreting the other rail as a loss.
+- Each autonomous cycle evaluates both live adapters and selects one funded rail to execute/journal for that cycle.
+- Exit signals are prioritized before new entries; otherwise the strongest executable funded setup wins.
+- Manual bridge controls remain explicit. The coordinator does not silently move money between rails.
+- Trade cycles and bridge transfers share one capital-operation lock so a transfer cannot race a live order.
+- Counterpart rail snapshots are cached briefly for dashboard refreshes to avoid hammering provider APIs.
+- Human Weather remains visible as global context while Advanced is the active execution rail.
