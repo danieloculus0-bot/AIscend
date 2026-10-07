@@ -192,6 +192,69 @@ class AdvancedLiveTests(unittest.TestCase):
             self.assertGreater(snap["balance_values_usd"].get("EUR", 0.0), 0.0)
             store.close()
 
+    def test_fresh_public_listing_signal_can_trigger_candidate(self):
+        class FreshRail(FakeRail):
+            def status(self):
+                return AdvancedTradeStatus(
+                    configured=True,
+                    balances=(AdvancedBalance("USDC", self.usdc, Decimal("0")),),
+                    tradable_spot_products=1,
+                    product_ids=("SHIT-USDC",),
+                )
+
+            def market_buy(self, product_id, quote_size, client_order_id):
+                spend = Decimal(str(quote_size))
+                self.usdc -= spend
+                self.buys.append((product_id, spend, client_order_id))
+                return {"success": True, "order_id": "fresh-buy"}
+
+        class FreshUniverse:
+            def collect(self, priority_products=None):
+                return {
+                    "available": True,
+                    "product_count": 1,
+                    "scanned_count": 1,
+                    "errors": [],
+                    "top": [{
+                        "product": "SHIT-USDC",
+                        "base": "SHIT",
+                        "quote": "USDC",
+                        "price": 0.01,
+                        "return_5m": 0.0,
+                        "return_1h": 0.0,
+                        "return_6h": 0.0,
+                        "volume_ratio": 1.0,
+                        "spread_bps": 12.0,
+                        "score": 0.0,
+                    }],
+                }
+
+        event = {
+            "ts": __import__("time").time(),
+            "product": "SHIT-USDC",
+            "base": "SHIT",
+            "quote": "USDC",
+            "event": "NEW_PRODUCT",
+            "stage": "FULL_TRADING",
+        }
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "advanced.db")
+            rail = FreshRail()
+            engine = AdvancedSpotEngine(
+                store,
+                rail=rail,
+                asset_universe=FreshUniverse(),
+                listing_sentinel=FakeListingSentinel(hot=[event]),
+            )
+            engine.step()
+            row = store.latest_decisions(1)[0]
+            self.assertEqual(row["action"], "BUY")
+            self.assertEqual(row["symbol"], "SHIT-USDC")
+            self.assertEqual(row["status"], "LIVE_EXECUTED")
+            self.assertIn("Public listing signal", row["rationale"])
+            store.close()
+
     def test_execution_failure_still_hits_decision_journal(self):
         class BrokenRail(FakeRail):
             def preview_market_buy(self, product_id, quote_size):
