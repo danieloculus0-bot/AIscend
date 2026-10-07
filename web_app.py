@@ -241,6 +241,11 @@ def _active_monitor_payload() -> dict[str, Any]:
         rail = "base"
 
     data = _status_payload(network, rail)
+    suggested = str(data.get("suggested_rail") or rail)
+    if not bool((data.get("runner") or {}).get("running")) and suggested != rail:
+        rail = suggested
+        data = _status_payload(network, rail)
+
     snapshot = data.get("snapshot") or {}
     # Explicitly omit anything credential-like. This endpoint is read-only.
     return {
