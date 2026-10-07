@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import math
+import time
 from typing import Protocol
 
+from .asset_universe import CoinbaseAssetUniverse
+from .bean import BeanMemory
 from .core import Decider, Decision, RiskGovernor, StateStore
 from .game import score_game
 from .research import MarketResearch, ResearchDecider
@@ -30,10 +33,13 @@ class LiveEngine:
         wallet: LiveWallet,
         decider: Decider | None = None,
         researcher: MarketResearch | None = None,
+        asset_universe: CoinbaseAssetUniverse | None = None,
     ) -> None:
         self.store = store
         self.wallet = wallet
         self.researcher = researcher or MarketResearch()
+        self.asset_universe = asset_universe or CoinbaseAssetUniverse()
+        self.bean = BeanMemory(self.store.conn)
         self.decider: Decider = decider or ResearchDecider()
         self._snapshot: dict | None = None
 
@@ -48,6 +54,7 @@ class LiveEngine:
     def sync(self) -> dict:
         wallet_state = asyncio.run(self.wallet.trading_snapshot())
         research = self.researcher.collect().as_dict()
+        universe = self.asset_universe.collect()
 
         price = float(wallet_state.weth_price_usdc)
         eth_research = research.get("eth") or {}
@@ -82,6 +89,22 @@ class LiveEngine:
             }
 
         change = ((price / previous) - 1.0) if previous and price else 0.0
+        last_bean = float(self.store.get_meta("bean_last_observation") or "0")
+        if time.time() - last_bean >= 55.0:
+            self.bean.record_research(research)
+            self.bean.record_universe(universe)
+
+            bean_prices = {"ETH": price}
+            for item in universe.get("top") or []:
+                base = str(item.get("base") or "")
+                asset_price = float(item.get("price") or 0.0)
+                if base and asset_price > 0:
+                    bean_prices[base] = asset_price
+            self.bean.resolve_due(bean_prices)
+            self.store.set_meta("bean_last_observation", str(time.time()))
+
+        bean = self.bean.snapshot()
+
         game = score_game(self.store, net, start) if start > 0 else {
             "points": 0,
             "multiple": 0.0,
@@ -108,6 +131,8 @@ class LiveEngine:
             "network": wallet_state.network,
             "game": game.as_dict() if hasattr(game, "as_dict") else game,
             "research": research,
+            "asset_universe": universe,
+            "bean": bean,
         }
         return self._snapshot
 
