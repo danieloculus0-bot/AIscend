@@ -12,7 +12,7 @@ from typing import Any
 from flask import Flask, jsonify, render_template, request
 
 from src.advanced_live import AdvancedSpotEngine
-from src.core import StateStore, app_data_dir
+from src.core import Decision, StateStore, app_data_dir
 from src.live import LiveEngine
 from src.opportunities import OpportunityUniverse
 from src.venues import capability_snapshot
@@ -105,7 +105,21 @@ def _status_payload(network: str, rail: str = "base") -> dict[str, Any]:
 def _run_once(network: str, rail: str = "base") -> dict[str, Any]:
     store, engine = _make_engine(network, rail)
     try:
-        snap = engine.step()
+        try:
+            snap = engine.step()
+        except Exception as exc:
+            # Do not let pre-decision sync/discovery/API failures make the bot
+            # look inert. Every attempted cycle leaves a visible journal row.
+            store.add_decision(
+                Decision(
+                    "HOLD",
+                    None,
+                    0.0,
+                    f"{rail} cycle failed before completion: {exc}",
+                ),
+                "CYCLE_ERROR",
+            )
+            raise
         decision_rows = store.latest_decisions(1)
         decision = dict(decision_rows[0]) if decision_rows else None
         return {
