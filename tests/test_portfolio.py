@@ -48,6 +48,60 @@ class PortfolioCoordinatorTests(unittest.TestCase):
         self.assertEqual(snap["portfolio"]["advanced_net"], 15.0)
         self.assertTrue(snap["portfolio"]["complete"])
 
+    def test_advanced_candidate_human_weather_is_not_overwritten_by_base(self):
+        base = {
+            "cash": 10.0,
+            "net_liquidation": 10.0,
+            "market_value": 0.0,
+            "positions": {},
+            "prices": {},
+            "research": {
+                "available": True,
+                "composite_score": 0.1,
+                "human": {"crowd_regime": "BASE", "fomo_index": 40},
+            },
+            "bean": {},
+        }
+        advanced = {
+            "cash": 15.0,
+            "net_liquidation": 15.0,
+            "market_value": 0.0,
+            "positions": {},
+            "prices": {},
+            "research": {
+                "available": True,
+                "composite_score": 0.2,
+                "human": {
+                    "crowd_regime": "ADVANCED_CONTEXT",
+                    "fomo_index": 67,
+                    "advanced_human_weight": 0.28,
+                },
+            },
+            "market_radar": {},
+        }
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "portfolio.db")
+            try:
+                store.set_meta("live_starting_value", "25.0")
+                snap = combine_portfolio(
+                    base=base,
+                    advanced=advanced,
+                    active_rail="advanced",
+                    game_store=store,
+                )
+            finally:
+                store.close()
+
+        self.assertEqual(
+            snap["research"]["human"]["crowd_regime"],
+            "ADVANCED_CONTEXT",
+        )
+        self.assertEqual(
+            snap["research"]["human"]["advanced_human_weight"],
+            0.28,
+        )
+
     def test_coordinator_chooses_funded_advanced_trade(self):
         base = {
             "cash": 0.0,

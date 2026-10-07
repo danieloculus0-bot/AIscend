@@ -132,11 +132,16 @@ def combine_portfolio(
             prices[display] = float((snap.get("prices") or {}).get(symbol) or 0.0)
 
     research = dict(active.get("research") or {})
-    # Human Weather is global context. Keep it visible while Advanced is the
-    # execution rail instead of blanking the brain panel.
+    # Human Weather is global context, but Advanced may contextualize the same
+    # feed against a specific candidate's momentum/volume. Preserve that richer
+    # Advanced view when it exists; only fall back to Base if Advanced has no
+    # usable human payload.
     if active_rail == "advanced":
+        advanced_human = research.get("human") or {}
         base_human = ((base.get("research") or {}).get("human") or {})
-        if base_human:
+        advanced_available = bool(advanced_human.get("available"))
+        base_available = bool(base_human.get("available"))
+        if not advanced_available and base_available:
             research["human"] = base_human
             research["global_context_score"] = float(
                 (base.get("research") or {}).get("composite_score") or 0.0

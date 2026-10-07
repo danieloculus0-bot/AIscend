@@ -27,11 +27,11 @@ VENUES: tuple[VenueCapability, ...] = (
         enabled=True,
         research_ready=True,
         execution_ready=True,
-        account_requirement="CDP smart account now; Advanced Trade optional",
+        account_requirement="Linked Base smart wallet + Coinbase Advanced",
         execution_note=(
-            "Coinbase-wide USD/USDC research is enabled. The current funded Base rail "
-            "executes USDC/WETH; an Advanced Trade rail can unlock account-eligible "
-            "spot products when separately connected and funded."
+            "Live execution is enabled across the funded linked crypto rails. "
+            "Coinbase Advanced scans all account-tradable spot quote currencies, "
+            "including newly listed and small-cap assets."
         ),
     ),
     VenueCapability(
@@ -43,8 +43,9 @@ VENUES: tuple[VenueCapability, ...] = (
         execution_ready=False,
         account_requirement="Coinbase Financial Markets predictions account",
         execution_note=(
-            "Enabled as an opportunity lane. Public market discovery is live; "
-            "autonomous execution remains connector-dependent."
+            "Live public discovery now paginates and ranks open Coinbase/Kalshi "
+            "prediction markets, including sports. Autonomous Coinbase execution "
+            "is not claimed until a supported CFM programmatic order path is connected."
         ),
     ),
     VenueCapability(
@@ -56,7 +57,8 @@ VENUES: tuple[VenueCapability, ...] = (
         execution_ready=False,
         account_requirement="Coinbase Capital Markets brokerage account",
         execution_note=(
-            "Enabled as an opportunity lane. Execution remains connector-dependent."
+            "Lane is reserved in the common opportunity model. Live Coinbase stock/ETF "
+            "discovery and execution adapters are not connected yet."
         ),
     ),
     VenueCapability(
