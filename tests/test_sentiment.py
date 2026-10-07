@@ -4,6 +4,48 @@ from src.research import MarketResearch, ResearchDecider
 from src.sentiment import HumanSignalResearch
 
 
+class FallbackHumanResearch(HumanSignalResearch):
+    def __init__(self):
+        super().__init__(timeout=0.1, cache_seconds=0)
+
+    def _get_json(self, url):
+        if "alternative.me" in url:
+            return {
+                "data": [
+                    {"value": "70", "value_classification": "Greed"},
+                    {"value": "65", "value_classification": "Greed"},
+                ]
+            }
+        raise AssertionError(url)
+
+    def _gdelt_titles(self, query, timespan, maxrecords):
+        raise RuntimeError("gdelt blocked")
+
+    def _google_news_titles(self, query, limit):
+        return ["Bitcoin rally after policy update", "Ethereum adoption surge"]
+
+    def _reddit_json(self, subreddit, limit):
+        raise RuntimeError("reddit json blocked")
+
+    def _reddit_rss(self, subreddit, limit):
+        return [{
+            "title": f"{subreddit} market rally discussion",
+            "score": 0,
+            "comments": 0,
+            "upvote_ratio": 0.5,
+            "source": "reddit_rss",
+        }]
+
+    def _bluesky_search(self, query, limit):
+        return [{
+            "title": f"{query} breakout chatter",
+            "score": 10,
+            "comments": 3,
+            "upvote_ratio": 0.5,
+            "source": "bluesky",
+        }]
+
+
 class SentimentTests(unittest.TestCase):
     def test_fomo_is_continuation_fuel_when_price_confirms(self):
         edge = MarketResearch._crowd_edge(
@@ -41,6 +83,15 @@ class SentimentTests(unittest.TestCase):
         )
         self.assertGreater(positive, 0)
         self.assertLess(negative, 0)
+
+    def test_human_weather_uses_fallback_feeds(self):
+        pack = FallbackHumanResearch()._collect_uncached()
+        self.assertTrue(pack.available)
+        self.assertGreater(pack.source_counts["news"], 0)
+        self.assertGreater(pack.source_counts["social"], 0)
+        self.assertIn("fallback", pack.source_status["news"].lower())
+        self.assertIn("bluesky", pack.source_status)
+        self.assertGreater(pack.social_sentiment, 0)
 
     def test_decider_can_ride_confirmed_fomo(self):
         decision = ResearchDecider().decide(

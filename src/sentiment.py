@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import json
 import math
-import time
 import threading
+import time
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from typing import Any
@@ -13,7 +14,9 @@ from typing import Any
 
 ALT_FNG = "https://api.alternative.me/fng/"
 GDELT_DOC = "https://api.gdeltproject.org/api/v2/doc/doc"
+GOOGLE_NEWS = "https://news.google.com/rss/search"
 REDDIT = "https://www.reddit.com"
+BLUESKY = "https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts"
 
 POSITIVE_WORDS = {
     "adoption", "approve", "approved", "approval", "breakout", "bullish", "ceasefire",
@@ -35,11 +38,6 @@ PANIC_WORDS = {
     "emergency", "exploit", "fear", "hack", "liquidation", "panic", "plunge",
     "recession", "rout", "selloff", "war",
 }
-POLITICAL_WORDS = {
-    "congress", "election", "fed", "federal reserve", "government", "iran", "israel",
-    "policy", "regulation", "russia", "sanctions", "sec", "senate", "tariff",
-    "tariffs", "treasury", "ukraine", "white house", "china",
-}
 
 
 @dataclass(frozen=True)
@@ -60,6 +58,7 @@ class HumanSignals:
     fomo_index: float
     crowd_regime: str
     source_counts: dict[str, int]
+    source_status: dict[str, str]
     top_headlines: tuple[str, ...]
     errors: tuple[str, ...]
 
@@ -68,7 +67,7 @@ class HumanSignals:
 
 
 class HumanSignalResearch:
-    """Collects crowd psychology and event pressure without requiring API keys."""
+    """Crowd psychology with redundant public feeds and visible source health."""
 
     _cache_lock = threading.Lock()
     _cached_pack: HumanSignals | None = None
@@ -84,13 +83,15 @@ class HumanSignalResearch:
         with cls._cache_lock:
             if cls._cached_pack is not None and now < cls._cache_until:
                 return cls._cached_pack
-            pack = self._collect_uncached()
+        pack = self._collect_uncached()
+        with cls._cache_lock:
             cls._cached_pack = pack
             cls._cache_until = time.time() + self.cache_seconds
-            return pack
+        return pack
 
     def _collect_uncached(self) -> HumanSignals:
         errors: list[str] = []
+        status: dict[str, str] = {}
         fng_value: float | None = None
         fng_class = "UNKNOWN"
         fng_change = 0.0
@@ -99,50 +100,67 @@ class HumanSignalResearch:
         weird_titles: list[str] = []
         social_posts: list[dict[str, Any]] = []
 
-        gdelt_specs = {
+        news_specs = {
             "news": (
-                '(bitcoin OR ethereum OR crypto OR cryptocurrency OR "digital assets" OR markets OR stocks)',
-                "6h",
+                '(bitcoin OR ethereum OR crypto OR cryptocurrency)',
+                'bitcoin OR ethereum OR crypto OR cryptocurrency',
                 60,
             ),
             "politics": (
-                '(election OR tariff OR tariffs OR sanctions OR regulation OR "federal reserve" OR treasury OR '
-                '"white house" OR congress OR war OR ceasefire OR china OR russia OR ukraine OR israel OR iran)',
-                "6h",
+                '(election OR tariff OR sanctions OR regulation OR "federal reserve" OR war)',
+                'markets election tariff sanctions regulation federal reserve war',
                 60,
             ),
             "weird": (
-                '(cyberattack OR hack OR outage OR explosion OR earthquake OR hurricane OR pandemic OR coup OR '
-                '"bank run" OR default OR emergency OR assassination OR "supply chain")',
-                "6h",
+                '(cyberattack OR outage OR explosion OR earthquake OR hurricane OR coup OR "bank run")',
+                'markets cyberattack outage explosion earthquake hurricane coup bank run',
                 40,
             ),
         }
-        subreddits = ("CryptoCurrency", "Bitcoin", "ethereum", "wallstreetbets", "stocks")
 
-        def fetch_fng() -> tuple[str, Any]:
+        def fetch_fng() -> tuple[str, Any, str]:
             payload = self._get_json(ALT_FNG + "?limit=2&format=json")
-            return "fear_greed", payload
+            return "fear_greed", payload, "Alternative.me"
 
-        def fetch_gdelt(label: str, spec: tuple[str, str, int]) -> tuple[str, Any]:
-            query, timespan, maxrecords = spec
-            return label, self._gdelt_titles(query, timespan, maxrecords)
+        def fetch_news(label: str, spec: tuple[str, str, int]) -> tuple[str, Any, str]:
+            gdelt_query, rss_query, limit = spec
+            try:
+                titles = self._gdelt_titles(gdelt_query, "6h", limit)
+                if titles:
+                    return label, titles, f"GDELT ({len(titles)})"
+            except Exception as exc:
+                errors.append(f"{label}/gdelt: {exc}")
+            titles = self._google_news_titles(rss_query, limit)
+            return label, titles, f"Google News fallback ({len(titles)})"
 
-        def fetch_reddit(subreddit: str) -> tuple[str, Any]:
-            return f"reddit/{subreddit}", self._reddit_hot(subreddit, 18)
+        def fetch_reddit(subreddit: str) -> tuple[str, Any, str]:
+            try:
+                posts = self._reddit_json(subreddit, 18)
+                if posts:
+                    return f"reddit/{subreddit}", posts, "Reddit JSON"
+            except Exception as exc:
+                errors.append(f"reddit/{subreddit}/json: {exc}")
+            posts = self._reddit_rss(subreddit, 18)
+            return f"reddit/{subreddit}", posts, "Reddit RSS fallback"
 
-        futures = {}
-        with ThreadPoolExecutor(max_workers=9, thread_name_prefix="aiscend-signal") as pool:
+        def fetch_bluesky(query: str) -> tuple[str, Any, str]:
+            posts = self._bluesky_search(query, 25)
+            return f"bluesky/{query}", posts, "Bluesky public AppView"
+
+        futures: dict[Any, str] = {}
+        with ThreadPoolExecutor(max_workers=8, thread_name_prefix="aiscend-signal") as pool:
             futures[pool.submit(fetch_fng)] = "fear_greed"
-            for label, spec in gdelt_specs.items():
-                futures[pool.submit(fetch_gdelt, label, spec)] = label
-            for subreddit in subreddits:
+            for label, spec in news_specs.items():
+                futures[pool.submit(fetch_news, label, spec)] = label
+            for subreddit in ("CryptoCurrency", "Bitcoin", "ethereum", "wallstreetbets", "stocks"):
                 futures[pool.submit(fetch_reddit, subreddit)] = f"reddit/{subreddit}"
+            for query in ("bitcoin", "ethereum", "crypto"):
+                futures[pool.submit(fetch_bluesky, query)] = f"bluesky/{query}"
 
             for future in as_completed(futures):
                 label = futures[future]
                 try:
-                    result_label, payload = future.result()
+                    result_label, payload, source_name = future.result()
                     if result_label == "fear_greed":
                         rows = payload.get("data") or []
                         if rows:
@@ -152,17 +170,26 @@ class HumanSignalResearch:
                             ).upper()
                             if len(rows) > 1:
                                 fng_change = fng_value - self._num(rows[1].get("value"))
+                        status["fear_greed"] = source_name
                     elif result_label == "news":
                         news_titles = payload
+                        status["news"] = source_name
                     elif result_label == "politics":
                         politics_titles = payload
+                        status["politics"] = source_name
                     elif result_label == "weird":
                         weird_titles = payload
+                        status["weird"] = source_name
                     elif result_label.startswith("reddit/"):
                         social_posts.extend(payload)
+                        status["reddit"] = source_name
+                    elif result_label.startswith("bluesky/"):
+                        social_posts.extend(payload)
+                        status["bluesky"] = source_name
                 except Exception as exc:
                     errors.append(f"{label}: {exc}")
 
+        social_posts = self._dedupe_posts(social_posts)
         social_titles = [
             str(p.get("title") or "") for p in social_posts if p.get("title")
         ]
@@ -170,7 +197,6 @@ class HumanSignalResearch:
         news_sentiment = self._sentiment(news_titles)
         social_sentiment = self._sentiment(social_titles)
         politics_sentiment = self._sentiment(politics_titles)
-
         politics_risk = self._keyword_density(
             politics_titles, PANIC_WORDS | NEGATIVE_WORDS
         )
@@ -194,9 +220,10 @@ class HumanSignalResearch:
                 + 0.20 * social_attention,
             ),
         )
-        crowd_regime = self._crowd_regime(raw_fomo)
 
-        headlines = tuple((news_titles + politics_titles + weird_titles)[:12])
+        headlines = tuple(
+            self._dedupe_strings(news_titles + politics_titles + weird_titles)[:12]
+        )
         counts = {
             "news": len(news_titles),
             "politics": len(politics_titles),
@@ -207,6 +234,7 @@ class HumanSignalResearch:
             fng_value is not None
             or news_titles
             or politics_titles
+            or weird_titles
             or social_titles
         )
 
@@ -225,18 +253,14 @@ class HumanSignalResearch:
             social_attention=social_attention,
             raw_fomo_index=raw_fomo,
             fomo_index=raw_fomo,
-            crowd_regime=crowd_regime,
+            crowd_regime=self._crowd_regime(raw_fomo),
             source_counts=counts,
+            source_status=status,
             top_headlines=headlines,
-            errors=tuple(errors),
+            errors=tuple(errors[-20:]),
         )
 
-    def _gdelt_titles(
-        self,
-        query: str,
-        timespan: str,
-        maxrecords: int,
-    ) -> list[str]:
+    def _gdelt_titles(self, query: str, timespan: str, maxrecords: int) -> list[str]:
         params = urllib.parse.urlencode(
             {
                 "query": query,
@@ -248,23 +272,39 @@ class HumanSignalResearch:
             }
         )
         payload = self._get_json(f"{GDELT_DOC}?{params}")
-        rows = payload.get("articles") or []
-        out: list[str] = []
-        seen: set[str] = set()
-        for row in rows:
-            title = str(row.get("title") or "").strip()
-            key = title.lower()
-            if title and key not in seen:
-                seen.add(key)
-                out.append(title)
-        return out
+        return self._dedupe_strings(
+            [
+                str(row.get("title") or "").strip()
+                for row in (payload.get("articles") or [])
+                if row.get("title")
+            ]
+        )
 
-    def _reddit_hot(self, subreddit: str, limit: int) -> list[dict[str, Any]]:
-        url = f"{REDDIT}/r/{urllib.parse.quote(subreddit)}/hot.json?limit={int(limit)}&raw_json=1"
+    def _google_news_titles(self, query: str, limit: int) -> list[str]:
+        params = urllib.parse.urlencode(
+            {"q": query, "hl": "en-US", "gl": "US", "ceid": "US:en"}
+        )
+        request = urllib.request.Request(
+            f"{GOOGLE_NEWS}?{params}",
+            headers={"User-Agent": "Mozilla/5.0 AIscend/0.12"},
+        )
+        with urllib.request.urlopen(request, timeout=self.timeout) as response:
+            root = ET.fromstring(response.read())
+        titles = [
+            (node.text or "").strip()
+            for node in root.findall(".//item/title")
+            if (node.text or "").strip()
+        ]
+        return self._dedupe_strings(titles)[:limit]
+
+    def _reddit_json(self, subreddit: str, limit: int) -> list[dict[str, Any]]:
+        url = (
+            f"{REDDIT}/r/{urllib.parse.quote(subreddit)}/hot.json"
+            f"?limit={int(limit)}&raw_json=1"
+        )
         payload = self._get_json(url)
-        children = ((payload.get("data") or {}).get("children") or [])
         out: list[dict[str, Any]] = []
-        for child in children:
+        for child in ((payload.get("data") or {}).get("children") or []):
             data = child.get("data") or {}
             if data.get("stickied"):
                 continue
@@ -274,6 +314,62 @@ class HumanSignalResearch:
                     "score": self._num(data.get("score")),
                     "comments": self._num(data.get("num_comments")),
                     "upvote_ratio": self._num(data.get("upvote_ratio")),
+                    "source": "reddit",
+                }
+            )
+        return out
+
+    def _reddit_rss(self, subreddit: str, limit: int) -> list[dict[str, Any]]:
+        url = f"{REDDIT}/r/{urllib.parse.quote(subreddit)}/hot/.rss"
+        request = urllib.request.Request(
+            url,
+            headers={
+                "Accept": "application/atom+xml,application/rss+xml,text/xml",
+                "User-Agent": "Mozilla/5.0 (compatible; AIscend/0.12; market research)",
+            },
+        )
+        with urllib.request.urlopen(request, timeout=self.timeout) as response:
+            root = ET.fromstring(response.read())
+        titles: list[str] = []
+        for node in root.findall(".//{http://www.w3.org/2005/Atom}entry/{http://www.w3.org/2005/Atom}title"):
+            if node.text:
+                titles.append(node.text.strip())
+        if not titles:
+            titles = [
+                (node.text or "").strip()
+                for node in root.findall(".//item/title")
+                if (node.text or "").strip()
+            ]
+        return [
+            {
+                "title": title,
+                "score": 0.0,
+                "comments": 0.0,
+                "upvote_ratio": 0.5,
+                "source": "reddit_rss",
+            }
+            for title in self._dedupe_strings(titles)[:limit]
+        ]
+
+    def _bluesky_search(self, query: str, limit: int) -> list[dict[str, Any]]:
+        params = urllib.parse.urlencode(
+            {"q": query, "limit": min(100, int(limit)), "sort": "latest"}
+        )
+        payload = self._get_json(f"{BLUESKY}?{params}")
+        out: list[dict[str, Any]] = []
+        for post in payload.get("posts") or []:
+            record = post.get("record") or {}
+            text = str(record.get("text") or "").strip()
+            if not text:
+                continue
+            out.append(
+                {
+                    "title": text[:500],
+                    "score": self._num(post.get("likeCount"))
+                    + 2.0 * self._num(post.get("repostCount")),
+                    "comments": self._num(post.get("replyCount")),
+                    "upvote_ratio": 0.5,
+                    "source": "bluesky",
                 }
             )
         return out
@@ -283,11 +379,37 @@ class HumanSignalResearch:
             url,
             headers={
                 "Accept": "application/json",
-                "User-Agent": "AIscend/0.10 sentiment-research (+private research project)",
+                "User-Agent": "Mozilla/5.0 (compatible; AIscend/0.12; market research)",
             },
         )
         with urllib.request.urlopen(request, timeout=self.timeout) as response:
             return json.loads(response.read().decode("utf-8"))
+
+    @staticmethod
+    def _dedupe_strings(values: list[str]) -> list[str]:
+        out: list[str] = []
+        seen: set[str] = set()
+        for value in values:
+            text = " ".join(str(value).split()).strip()
+            key = text.lower()
+            if text and key not in seen:
+                seen.add(key)
+                out.append(text)
+        return out
+
+    @classmethod
+    def _dedupe_posts(cls, posts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for post in posts:
+            title = " ".join(str(post.get("title") or "").split()).strip()
+            key = title.lower()
+            if title and key not in seen:
+                seen.add(key)
+                item = dict(post)
+                item["title"] = title
+                out.append(item)
+        return out
 
     @staticmethod
     def _num(value: Any) -> float:
@@ -295,10 +417,6 @@ class HumanSignalResearch:
             return float(value or 0.0)
         except (TypeError, ValueError):
             return 0.0
-
-    @staticmethod
-    def _contains(text: str, term: str) -> bool:
-        return term in text.lower()
 
     @classmethod
     def _sentiment(cls, texts: list[str]) -> float:
@@ -319,11 +437,11 @@ class HumanSignalResearch:
     def _keyword_density(texts: list[str], lexicon: set[str]) -> float:
         if not texts:
             return 0.0
-        hits = 0
-        for text in texts:
-            lower = text.lower()
-            if any(term in lower for term in lexicon):
-                hits += 1
+        hits = sum(
+            1
+            for text in texts
+            if any(term in text.lower() for term in lexicon)
+        )
         return max(0.0, min(1.0, hits / max(1, len(texts))))
 
     @staticmethod
