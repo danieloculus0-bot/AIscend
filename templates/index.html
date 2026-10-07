@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AIscend</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #0b0d10; color: #eef1f5; }
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 24px; }
+    .top { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:18px; }
+    h1 { margin:0; font-size:30px; }
+    .sub { color:#8f99a8; margin-top:4px; }
+    .pill { padding:8px 12px; border:1px solid #303743; border-radius:999px; color:#aab4c1; }
+    .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:14px; }
+    .card, .panel { background:#15191f; border:1px solid #282f39; border-radius:10px; padding:16px; }
+    .label { color:#8f99a8; font-size:12px; letter-spacing:.08em; text-transform:uppercase; }
+    .value { font-size:25px; font-weight:750; margin-top:6px; }
+    .layout { display:grid; grid-template-columns:350px 1fr; gap:14px; }
+    .panel h2 { font-size:13px; letter-spacing:.08em; color:#9aa5b4; margin:0 0 12px; }
+    label { display:block; color:#9aa5b4; font-size:13px; margin-top:12px; }
+    input, select, button { width:100%; padding:10px; border-radius:7px; border:1px solid #333b47; background:#0f1318; color:#eef1f5; margin-top:5px; }
+    button { cursor:pointer; font-weight:700; background:#222934; }
+    button.primary { background:#1f6247; border-color:#2b805e; }
+    button.stop { background:#4b2528; border-color:#6f3439; }
+    .row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .score { font-size:34px; font-weight:800; }
+    .goal { margin-top:10px; height:10px; background:#262c34; border-radius:10px; overflow:hidden; }
+    .goal > div { height:100%; background:#69b98e; width:0%; }
+    .small { color:#8f99a8; font-size:12px; margin-top:7px; overflow-wrap:anywhere; }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    th, td { text-align:left; padding:8px; border-bottom:1px solid #262c34; vertical-align:top; }
+    th { color:#9aa5b4; }
+    .error { color:#ff9d9d; margin-top:8px; white-space:pre-wrap; }
+    .success { color:#8ee2ad; margin-top:8px; }
+    @media(max-width:850px){ .grid{grid-template-columns:1fr 1fr}.layout{grid-template-columns:1fr} }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div><h1>AIscend</h1><div class="sub">Autonomous capital game · objective: buy 40 acres</div></div>
+    <div id="runnerPill" class="pill">STOPPED</div>
+  </div>
+
+  <div class="grid">
+    <div class="card"><div class="label">Net liquidation</div><div id="net" class="value">--</div></div>
+    <div class="card"><div class="label">Cash / USDC</div><div id="cash" class="value">--</div></div>
+    <div class="card"><div class="label">P/L</div><div id="pnl" class="value">--</div></div>
+    <div class="card"><div class="label">Wealth multiple</div><div id="multiple" class="value">--</div></div>
+  </div>
+
+  <div class="layout">
+    <div>
+      <div class="panel">
+        <h2>GAME SCORE</h2>
+        <div id="points" class="score">0</div>
+        <div class="small">+1000 points per bankroll doubling · -10 points per elapsed day</div>
+        <div class="goal"><div id="goalbar"></div></div>
+        <div id="goaltext" class="small">Forty Acres target: --</div>
+        <div id="nextMilestone" class="small">Next milestone: --</div>
+
+        <label>Forty Acres target ($)</label>
+        <div class="row">
+          <input id="target" type="number" min="1" step="1000" value="100000">
+          <button onclick="saveTarget()">SET</button>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:14px">
+        <h2>LIVE ENGINE</h2>
+        <label>Network</label>
+        <select id="network" onchange="refreshStatus()">
+          <option value="base" selected>Base · live money</option>
+          <option value="base-sepolia">Base Sepolia</option>
+        </select>
+
+        <label>Decision interval (seconds)</label>
+        <input id="interval" type="number" min="5" step="5" value="60">
+
+        <div class="row" style="margin-top:12px">
+          <button onclick="runOnce()">RUN ONCE</button>
+          <button class="primary" onclick="startRunner()">START</button>
+        </div>
+        <button class="stop" onclick="stopRunner()">STOP</button>
+        <button onclick="refreshStatus()">REFRESH</button>
+      </div>
+
+      <div class="panel" style="margin-top:14px">
+        <h2>COINBASE CDP</h2>
+        <label>API key JSON</label>
+        <input id="keyfile" type="file" accept=".json,application/json">
+        <label>Wallet Secret</label>
+        <input id="walletSecret" type="password" autocomplete="off">
+        <button onclick="configure()" class="primary">CONNECT WALLET</button>
+        <div id="wallet" class="small">Wallet: --</div>
+        <div id="message"></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel">
+        <h2>POSITIONS</h2>
+        <table>
+          <thead><tr><th>Asset</th><th>Qty</th><th>Price</th><th>Value</th></tr></thead>
+          <tbody id="positions"></tbody>
+        </table>
+      </div>
+
+      <div class="panel" style="margin-top:14px">
+        <h2>DECISION JOURNAL</h2>
+        <table>
+          <thead><tr><th>Time</th><th>Action</th><th>Asset</th><th>Size</th><th>Status</th><th>Reason</th></tr></thead>
+          <tbody id="decisions"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const money = n => '$' + Number(n ?? 0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:6});
+
+function network(){ return $('network').value; }
+function msg(text, ok=false){ $('message').className = ok ? 'success' : 'error'; $('message').textContent = text || ''; }
+
+async function configure(){
+  const file = $('keyfile').files[0];
+  const secret = $('walletSecret').value;
+  if(!file || !secret){ msg('Select the API key JSON and enter the Wallet Secret.'); return; }
+  const fd = new FormData();
+  fd.append('key_file', file);
+  fd.append('wallet_secret', secret);
+  fd.append('network', network());
+  msg('Connecting…', true);
+  const r = await fetch('/api/configure',{method:'POST',body:fd});
+  const j = await r.json();
+  if(!j.ok){ msg(j.error); return; }
+  $('walletSecret').value = '';
+  $('wallet').textContent = 'Wallet: ' + j.address;
+  msg('Connected.', true);
+  refreshStatus();
+}
+
+async function refreshStatus(){
+  const r = await fetch('/api/status?network='+encodeURIComponent(network()));
+  const j = await r.json();
+  if(!j.ok){ msg(j.error || 'Status unavailable'); renderRunner(j.runner); return; }
+  msg('');
+  renderSnapshot(j.snapshot);
+  renderRunner(j.runner);
+  $('target').value = Number(j.target || 100000);
+  renderDecisions(j.decisions || []);
+}
+
+function renderSnapshot(s){
+  $('net').textContent = money(s.net_liquidation);
+  $('cash').textContent = money(s.cash);
+  $('pnl').textContent = (Number(s.pnl)>=0?'+':'') + money(s.pnl);
+  $('multiple').textContent = Number(s.multiple || 0).toFixed(4) + 'x';
+  $('wallet').textContent = 'Wallet: ' + (s.wallet_address || '--');
+
+  const g=s.game || {};
+  $('points').textContent = Math.round(Number(g.points || 0)).toLocaleString();
+  $('goalbar').style.width = Math.min(100, Number(g.target_progress || 0)*100) + '%';
+  $('goaltext').textContent = 'Forty Acres: ' + money(g.target_value) + ' · ' + (Number(g.target_progress||0)*100).toFixed(4) + '%';
+  $('nextMilestone').textContent = g.victory ? 'VICTORY: FORTY ACRES UNLOCKED' : 'Next milestone: ' + (g.next_milestone || '--');
+
+  const tbody=$('positions'); tbody.innerHTML='';
+  for(const [sym,p] of Object.entries(s.positions || {})){
+    const price=Number((s.prices||{})[sym]||0);
+    tbody.insertAdjacentHTML('beforeend', '<tr><td>'+sym+'</td><td>'+Number(p.qty).toFixed(10)+'</td><td>'+money(price)+'</td><td>'+money(Number(p.qty)*price)+'</td></tr>');
+  }
+}
+
+function renderDecisions(rows){
+  const tbody=$('decisions'); tbody.innerHTML='';
+  for(const d of rows){
+    const t=new Date(Number(d.ts)*1000).toLocaleTimeString();
+    tbody.insertAdjacentHTML('beforeend','<tr><td>'+t+'</td><td>'+d.action+'</td><td>'+(d.symbol||'')+'</td><td>'+(Number(d.fraction)*100).toFixed(1)+'%</td><td>'+d.status+'</td><td>'+escapeHtml(d.rationale||'')+'</td></tr>');
+  }
+}
+
+function renderRunner(r){
+  if(!r) return;
+  $('runnerPill').textContent = r.running ? 'RUNNING · '+r.network : 'STOPPED';
+  if(r.last_error) msg(r.last_error);
+}
+
+async function saveTarget(){
+  const target=Number($('target').value);
+  const r=await fetch('/api/target',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({network:network(),target})});
+  const j=await r.json();
+  if(j.ok) refreshStatus(); else msg(j.error||'Could not set target');
+}
+
+async function runOnce(){
+  msg('Running one autonomous cycle…', true);
+  const r=await fetch('/api/run-once',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({network:network()})});
+  const j=await r.json();
+  if(!j.ok){ msg(j.error); return; }
+  msg('Cycle complete.', true);
+  refreshStatus();
+}
+
+async function startRunner(){
+  const interval=Number($('interval').value);
+  const r=await fetch('/api/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({network:network(),interval})});
+  const j=await r.json();
+  if(!j.ok){ msg(j.error); return; }
+  renderRunner(j.runner);
+}
+
+async function stopRunner(){
+  const r=await fetch('/api/stop',{method:'POST'});
+  const j=await r.json();
+  renderRunner(j.runner);
+  setTimeout(refreshStatus,700);
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+}
+
+setInterval(()=>{ if($('runnerPill').textContent.startsWith('RUNNING')) refreshStatus(); },5000);
+fetch('/api/credentials').then(r=>r.json()).then(j=>{ if(j.configured) msg('CDP credentials detected.', true); });
+refreshStatus();
+</script>
+</body>
+</html>
