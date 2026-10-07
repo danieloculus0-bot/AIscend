@@ -165,3 +165,28 @@ weird-event pressure -------->|
 ```
 
 The final direction is a weighted blend of technical and human scores. Event intensity dynamically increases the human-information weight. Crowd heat is interpreted by regime rather than as a one-way signal: momentum-confirmed FOMO can be continuation fuel, euphoric reversal can indicate exhaustion, and extreme fear plus positive reversal can create a contrarian edge. External human feeds are fetched in parallel and cached to keep live cycles responsive.
+
+
+## BEAN epistemic learning
+
+Version 0.11 adds persistent epistemic memory beside the trading ledger.
+
+BEAN stores typed claims, contradictions, predictions, outcomes, and source trust. Predictions are graded after their horizon expires. Signal trust is updated by realized direction and magnitude, with shrinkage toward neutral until enough samples exist.
+
+```text
+evidence -> typed claims -> contradictions -> predictions
+                                      |
+future price -------------------------+
+                                      |
+                                  grading
+                                      |
+                               learned trust
+```
+
+The first horizons are 5 minutes, 1 hour, and 6 hours for ETH, plus 1-hour predictions for strong candidates found by the rotating Coinbase asset-universe scanner.
+
+## Coinbase research universe
+
+The public research adapter discovers active USD/USDC Coinbase products and rotates through a bounded batch each trading cadence. Results are cached so browser refreshes do not create new market scans. BEAN records high-signal universe observations and eventually grades their predictions when the relevant asset is observed again.
+
+Execution remains a separate capability. Research breadth does not imply the Base smart wallet can execute every Coinbase product.
