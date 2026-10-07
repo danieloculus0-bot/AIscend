@@ -346,6 +346,7 @@ class OpenAICompatibleDecider:
             "prices": snapshot["prices"],
             "returns": snapshot["returns"],
             "game": snapshot.get("game"),
+            "research": snapshot.get("research"),
         }
         prompt = (
             "You are the autonomous decision engine for AIscend, a capital-growth game. "
@@ -356,7 +357,10 @@ class OpenAICompatibleDecider:
             "net liquidation value. LEVEL 1 has a mandatory success measure: grow the bankroll to "
             "$100,000 net liquidation value. The game is not won before that threshold is reached. "
             "Once Level 1 is complete, preserve the result and continue compounding for later levels. "
-            "HOLD is valid when it improves expected score; pointless churn is not rewarded. "
+            "Use the supplied research pack as evidence: multi-timeframe ETH momentum, BTC regime confirmation, "
+            "volatility, volume, spread, confidence, and the current prediction. Prefer high-quality setups "
+            "over blind activity, but act decisively when evidence is strong. HOLD is valid when it improves "
+            "expected score; pointless churn is not rewarded. "
             "You may BUY, SELL, or HOLD without asking the human for approval. No borrowing "
             "is available. Return ONLY JSON with "
             'keys action, symbol, fraction, rationale. "fraction" must be 0..1 and means the '
