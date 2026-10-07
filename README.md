@@ -10,9 +10,9 @@ The current seed bankroll is **$10**.
 
 ## Project status
 
-**Version:** 0.3.0  
+**Version:** 0.4.0  
 **Platform:** Windows x64  
-**State:** Synthetic desktop sandbox + Coinbase live runner  
+**State:** Synthetic desktop sandbox + Coinbase live desktop mode  
 **Live-money execution:** CDP smart-account swaps on Base are implemented
 
 The current application is fully runnable against a persistent synthetic market. It already exercises the complete autonomous loop without requiring a brokerage account, wallet, API key, or internet connection.
@@ -47,6 +47,8 @@ Once autonomy is started, the agent does not ask for per-trade human approval.
 - Automatic Permit2 approval when required
 - Autonomous USDC/WETH swaps with onchain reconciliation
 - Separate live SQLite journal and decision history
+- Coinbase setup directly in the Windows UI
+- Execution selector for Synthetic, Base Sepolia, or Base
 
 ## The loop
 
@@ -237,6 +239,19 @@ Faucet calls are hard-blocked unless the selected network is `base-sepolia`.
 
 ### Live execution
 
+The Windows UI now supports the full live path without requiring terminal setup.
+
+1. Launch the application.
+2. Click **CONFIGURE COINBASE**.
+3. Select the downloaded CDP API key JSON.
+4. Enter the Wallet Secret.
+5. Choose **Coinbase live · Base Sepolia** or **Coinbase live · Base** under Execution.
+6. Start autonomy.
+
+The app stores the CDP credentials through Windows Credential Manager and creates/retrieves the dedicated AIscend smart account.
+
+The command-line runner remains available for diagnostics and automation.
+
 Inspect the live/testnet portfolio without trading:
 
 ```powershell
@@ -360,6 +375,6 @@ $env:AUTOCAPITAL_BUILD_NAME="NewName"
 
 ## Next major milestone
 
-Wire the live engine into the Windows desktop UI and expand the live asset universe beyond the first WETH/USDC pair.
+Expand the live asset universe beyond the first WETH/USDC pair and add richer live-market intelligence to the autonomous decision engine.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the current component boundaries and invariants.
