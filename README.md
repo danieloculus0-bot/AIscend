@@ -529,3 +529,10 @@ Version 0.15 adds direct USDC plumbing between the Base smart wallet and the Coi
 - Coinbase transfer/receive permissions are checked separately from trade permission.
 - Decision Journal is now fixed-height and scrollable.
 - Human Weather, BEAN Memory, Coinbase Asset Universe, and Market Arsenal are collapsible to keep the dashboard compact.
+
+
+## Remote monitor
+
+The Flask app already binds to `0.0.0.0:8000`. Version 0.15 adds a read-only `/monitor` page that auto-refreshes bankroll, current rail, research, BEAN, Coinbase candidates, positions, and the decision journal without exposing trade controls.
+
+For a private home-PC to work-PC link, the included Windows helper `scripts/start_remote_monitor.ps1` detects a Tailscale IPv4 address and prints the monitor URL. Both PCs need to be on the same Tailnet. Optional `AISCEND_REMOTE_TOKEN` protects the monitor route with a query/header token when desired.
