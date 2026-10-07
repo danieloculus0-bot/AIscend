@@ -94,6 +94,50 @@ class AdvancedTradeSpot:
             return method()
         return {}
 
+    @classmethod
+    def _require_order_success(
+        cls,
+        response: Any,
+        operation: str,
+    ) -> dict[str, Any]:
+        payload = cls._dict(response)
+        success = payload.get("success")
+        success_response = payload.get("success_response") or {}
+        order_id = str(
+            success_response.get("order_id")
+            or payload.get("order_id")
+            or ""
+        ).strip()
+
+        if success is False:
+            error = payload.get("error_response") or payload.get("failure_reason") or {}
+            if isinstance(error, dict):
+                code = str(
+                    error.get("error")
+                    or error.get("error_details")
+                    or error.get("failure_reason")
+                    or ""
+                ).strip()
+                message = str(
+                    error.get("message")
+                    or error.get("error_details")
+                    or error.get("preview_failure_reason")
+                    or ""
+                ).strip()
+                detail = ": ".join(part for part in (code, message) if part)
+            else:
+                detail = str(error).strip()
+            raise RuntimeError(
+                f"Coinbase rejected {operation}"
+                + (f": {detail}" if detail else ".")
+            )
+
+        if not order_id:
+            raise RuntimeError(
+                f"Coinbase did not return an order id for {operation}: {payload}"
+            )
+        return payload
+
     def status(self) -> AdvancedTradeStatus:
         client = self.vault.client()
         accounts_raw = self._dict(client.get_accounts())
@@ -292,7 +336,10 @@ class AdvancedTradeSpot:
             product_id=product_id.upper(),
             quote_size=str(quote_size),
         )
-        return self._dict(response)
+        return self._require_order_success(
+            response,
+            f"market buy {product_id.upper()}",
+        )
 
     def market_sell(self, product_id: str, base_size: Decimal, client_order_id: str) -> dict[str, Any]:
         if base_size <= 0:
@@ -302,4 +349,14 @@ class AdvancedTradeSpot:
             product_id=product_id.upper(),
             base_size=str(base_size),
         )
+        return self._require_order_success(
+            response,
+            f"market sell {product_id.upper()}",
+        )
+
+    def order(self, order_id: str) -> dict[str, Any]:
+        order_id = str(order_id or "").strip()
+        if not order_id:
+            raise ValueError("order_id is required")
+        response = self.vault.client().get_order(order_id=order_id)
         return self._dict(response)
