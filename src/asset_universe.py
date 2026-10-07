@@ -272,6 +272,13 @@ class CoinbaseAssetUniverse:
         spread_penalty = min(0.20, spread_bps / 150.0)
         score *= max(0.25, 1.0 - spread_penalty)
 
+        # Thin markets can show violent momentum on almost no participation.
+        # Compress both bullish and bearish conviction toward zero until current
+        # five-minute volume is at least in line with its recent median. This
+        # keeps illiquid noise from dominating the absolute-score ranking while
+        # preserving full strength for normal or elevated volume.
+        score *= self._liquidity_factor(volume_ratio)
+
         return UniverseAsset(
             product=product_id,
             base=str(product["base_currency"]),
@@ -285,6 +292,12 @@ class CoinbaseAssetUniverse:
             score=max(-1.0, min(1.0, score)),
             scanned_at=time.time(),
         )
+
+    @staticmethod
+    def _liquidity_factor(volume_ratio: float) -> float:
+        if not math.isfinite(volume_ratio) or volume_ratio <= 0.0:
+            return 0.12
+        return max(0.12, min(1.0, volume_ratio ** 0.55))
 
     def _get_json(self, path: str) -> Any:
         request = urllib.request.Request(
