@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AIscend Remote Monitor</title>
+  <style>
+    :root { color-scheme:dark; font-family:Inter,ui-sans-serif,system-ui,sans-serif; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:#0b0d10; color:#eef1f5; }
+    .wrap { max-width:1100px; margin:0 auto; padding:20px; }
+    .top { display:flex; justify-content:space-between; gap:14px; align-items:center; margin-bottom:16px; }
+    h1 { margin:0; font-size:25px; }
+    .sub,.small { color:#8f99a8; font-size:12px; }
+    .pill { padding:7px 11px; border:1px solid #303743; border-radius:999px; color:#aab4c1; }
+    .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+    .card,.panel { background:#15191f; border:1px solid #282f39; border-radius:10px; padding:14px; }
+    .label { color:#8f99a8; font-size:11px; letter-spacing:.08em; text-transform:uppercase; }
+    .value { font-size:23px; font-weight:760; margin-top:5px; }
+    .layout { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px; }
+    table { width:100%; border-collapse:collapse; font-size:12px; }
+    th,td { text-align:left; padding:7px; border-bottom:1px solid #262c34; vertical-align:top; }
+    th { color:#9aa5b4; position:sticky; top:0; background:#15191f; }
+    .scroll { max-height:310px; overflow:auto; }
+    .good { color:#8ee2ad; }
+    .bad { color:#ff9d9d; }
+    @media(max-width:800px){ .grid{grid-template-columns:1fr 1fr}.layout{grid-template-columns:1fr} }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>AIscend Remote Monitor</h1>
+      <div class="sub">Read-only. Watching the little bastard from elsewhere.</div>
+    </div>
+    <div id="runner" class="pill">LOADING</div>
+  </div>
+
+  <div class="grid">
+    <div class="card"><div class="label">Net liquidation</div><div id="net" class="value">--</div></div>
+    <div class="card"><div class="label">Cash</div><div id="cash" class="value">--</div></div>
+    <div class="card"><div class="label">P/L</div><div id="pnl" class="value">--</div></div>
+    <div class="card"><div class="label">Rail</div><div id="rail" class="value" style="font-size:18px">--</div></div>
+  </div>
+
+  <div class="layout">
+    <div class="panel">
+      <div class="label">Research brain</div>
+      <div id="prediction" class="value">--</div>
+      <div id="confidence" class="small">Confidence: --</div>
+      <div id="score" class="small">Composite: --</div>
+      <div id="thesis" class="small" style="margin-top:8px">--</div>
+    </div>
+
+    <div class="panel">
+      <div class="label">BEAN</div>
+      <div id="bean" class="value">--</div>
+      <div id="beanLatest" class="small">--</div>
+      <div id="beanTrust" class="small" style="margin-top:8px">--</div>
+    </div>
+
+    <div class="panel">
+      <div class="label">Best Coinbase candidates</div>
+      <div id="universe" class="small" style="margin-top:8px">--</div>
+    </div>
+
+    <div class="panel">
+      <div class="label">Positions</div>
+      <div id="positions" class="small" style="margin-top:8px">--</div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:12px">
+    <div class="label">Decision journal</div>
+    <div class="scroll" style="margin-top:8px">
+      <table>
+        <thead><tr><th>Time</th><th>Action</th><th>Asset</th><th>Status</th><th>Reason</th></tr></thead>
+        <tbody id="decisions"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="error" class="small bad" style="margin-top:10px"></div>
+</div>
+<script>
+const token={{ token|tojson }};
+const $=id=>document.getElementById(id);
+const money=n=>'$'+Number(n??0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:6});
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+
+async function refresh(){
+  try{
+    const qs=token ? ('?token='+encodeURIComponent(token)) : '';
+    const r=await fetch('/api/monitor/status'+qs);
+    const j=await r.json();
+    if(!j.ok){ $('error').textContent=j.error||'Monitor unavailable.'; return; }
+    $('error').textContent='';
+    const s=j.snapshot||{};
+    const run=j.runner||{};
+    $('runner').textContent=run.running ? 'RUNNING · '+(run.rail||j.rail||'--') : 'STOPPED';
+    $('net').textContent=money(s.net_liquidation);
+    $('cash').textContent=money(s.cash);
+    $('pnl').textContent=(Number(s.pnl)>=0?'+':'')+money(s.pnl);
+    $('rail').textContent=(s.execution_rail||j.rail||'--').replace('coinbase-','');
+
+    const research=s.research||{};
+    $('prediction').textContent=research.prediction||'UNKNOWN';
+    $('confidence').textContent='Confidence: '+(Number(research.confidence||0)*100).toFixed(1)+'%';
+    $('score').textContent='Composite: '+Number(research.composite_score||0).toFixed(3);
+    $('thesis').textContent=research.thesis||'--';
+
+    const bean=s.bean||{};
+    $('bean').textContent=Number(bean.pending_predictions||0)+' pending · '+Number(bean.resolved_predictions||0)+' resolved';
+    const bp=bean.latest_prediction;
+    $('beanLatest').textContent=bp
+      ? 'Latest: '+bp.subject+' · '+(Number(bp.predicted_direction)>=0?'UP':'DOWN')+' · '+Math.round(Number(bp.horizon_seconds||0)/60)+'m'
+      : 'Latest: --';
+    const trust=(bean.trust||[]).slice(0,5);
+    $('beanTrust').innerHTML=trust.length
+      ? trust.map(t=>esc(t.source)+' '+(Number(t.trust||0)*100).toFixed(0)+'%').join(' · ')
+      : '--';
+
+    const top=((s.asset_universe||{}).top||[]).slice(0,8);
+    $('universe').innerHTML=top.length
+      ? top.map(a=>'<div><b>'+esc(a.product)+'</b> · '+(Number(a.score||0)>=0?'+':'')+Number(a.score||0).toFixed(3)+' · 1h '+(Number(a.return_1h||0)*100).toFixed(2)+'%</div>').join('')
+      : '--';
+
+    const pos=Object.entries(s.positions||{});
+    $('positions').innerHTML=pos.length
+      ? pos.map(([sym,p])=>'<div><b>'+esc(sym)+'</b> · '+Number(p.qty||0).toFixed(8)+'</div>').join('')
+      : 'No open positions.';
+
+    const tbody=$('decisions'); tbody.innerHTML='';
+    for(const d of (j.decisions||[])){
+      const t=new Date(Number(d.ts)*1000).toLocaleTimeString();
+      tbody.insertAdjacentHTML('beforeend',
+        '<tr><td>'+esc(t)+'</td><td>'+esc(d.action)+'</td><td>'+esc(d.symbol||'')+'</td><td>'+esc(d.status)+'</td><td>'+esc(d.rationale||'')+'</td></tr>');
+    }
+  }catch(e){
+    $('error').textContent=String(e);
+  }
+}
+refresh();
+setInterval(refresh,5000);
+</script>
+</body>
+</html>
