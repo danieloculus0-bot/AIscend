@@ -87,14 +87,76 @@ class BeanMemory:
                 severity REAL NOT NULL,
                 note TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS bean_claim_rollups (
+                fingerprint TEXT PRIMARY KEY,
+                claim_id INTEGER NOT NULL,
+                first_seen REAL NOT NULL,
+                last_seen REAL NOT NULL,
+                occurrences INTEGER NOT NULL DEFAULT 1
+            );
             """
         )
         self.conn.commit()
 
-    def add_claim(self, claim: BeanClaim) -> int:
+    def add_claim(self, claim: BeanClaim, dedupe_seconds: float = 600.0) -> int:
+        """
+        Store a meaningful claim once, then roll repeated observations into it.
+
+        The live loop may see the same epistemic object every minute. BEAN keeps
+        the latest wording/confidence while counting repeats instead of pretending
+        each refresh is a brand-new memory.
+        """
         kind = claim.claim_type.upper().strip()
         if kind not in CLAIM_TYPES:
             raise ValueError(f"Unsupported BEAN claim type: {kind}")
+
+        now = time.time()
+        horizon = int(claim.horizon_seconds) if claim.horizon_seconds is not None else -1
+        fingerprint = "|".join(
+            (
+                kind,
+                claim.subject.strip().upper(),
+                claim.source.strip().lower(),
+                str(horizon),
+            )
+        )
+        row = self.conn.execute(
+            """
+            SELECT fingerprint,claim_id,last_seen,occurrences
+            FROM bean_claim_rollups
+            WHERE fingerprint=?
+            """,
+            (fingerprint,),
+        ).fetchone()
+
+        if row is not None and now - float(row["last_seen"]) <= float(dedupe_seconds):
+            claim_id = int(row["claim_id"])
+            with self.conn:
+                self.conn.execute(
+                    """
+                    UPDATE bean_claims
+                    SET ts=?, statement=?, confidence=?, evidence_json=?, status='ACTIVE'
+                    WHERE id=?
+                    """,
+                    (
+                        now,
+                        claim.statement,
+                        max(0.0, min(1.0, float(claim.confidence))),
+                        json.dumps(list(claim.evidence), separators=(",", ":")),
+                        claim_id,
+                    ),
+                )
+                self.conn.execute(
+                    """
+                    UPDATE bean_claim_rollups
+                    SET last_seen=?, occurrences=occurrences+1
+                    WHERE fingerprint=?
+                    """,
+                    (now, fingerprint),
+                )
+            return claim_id
+
         with self.conn:
             cur = self.conn.execute(
                 """
@@ -104,7 +166,7 @@ class BeanMemory:
                 ) VALUES(?,?,?,?,?,?,?,?)
                 """,
                 (
-                    time.time(),
+                    now,
                     kind,
                     claim.subject,
                     claim.statement,
@@ -114,7 +176,21 @@ class BeanMemory:
                     claim.horizon_seconds,
                 ),
             )
-        return int(cur.lastrowid)
+            claim_id = int(cur.lastrowid)
+            self.conn.execute(
+                """
+                INSERT INTO bean_claim_rollups(
+                    fingerprint,claim_id,first_seen,last_seen,occurrences
+                ) VALUES(?,?,?,?,1)
+                ON CONFLICT(fingerprint) DO UPDATE SET
+                    claim_id=excluded.claim_id,
+                    first_seen=excluded.first_seen,
+                    last_seen=excluded.last_seen,
+                    occurrences=1
+                """,
+                (fingerprint, claim_id, now, now),
+            )
+        return claim_id
 
     def record_research(self, research: dict[str, Any]) -> None:
         if not research.get("available"):
@@ -427,6 +503,11 @@ class BeanMemory:
         contradictions = int(
             self.conn.execute("SELECT COUNT(*) AS n FROM bean_contradictions").fetchone()["n"]
         )
+        rolled_up = int(
+            self.conn.execute(
+                "SELECT COALESCE(SUM(occurrences - 1),0) AS n FROM bean_claim_rollups"
+            ).fetchone()["n"]
+        )
         stats = self.conn.execute(
             """
             SELECT source,horizon_seconds,samples,hits,trust
@@ -448,6 +529,7 @@ class BeanMemory:
             "pending_predictions": pending,
             "resolved_predictions": resolved,
             "contradictions": contradictions,
+            "compressed_repeats": rolled_up,
             "trust": [dict(row) for row in stats],
             "latest_prediction": dict(latest) if latest else None,
         }

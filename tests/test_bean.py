@@ -1,7 +1,7 @@
 import sqlite3
 import unittest
 
-from src.bean import BeanMemory
+from src.bean import BeanClaim, BeanMemory
 
 
 class BeanTests(unittest.TestCase):
@@ -28,6 +28,32 @@ class BeanTests(unittest.TestCase):
         snap = self.bean.snapshot()
         self.assertEqual(snap["resolved_predictions"], 1)
         self.assertGreater(self.bean.trust("technical", 0), 0.5)
+
+    def test_repeated_claims_are_compressed(self):
+        claim = BeanClaim(
+            "OBSERVATION",
+            "ETH",
+            "ETH momentum remains negative.",
+            0.8,
+            "coinbase_market",
+            ("price",),
+        )
+        first = self.bean.add_claim(claim, dedupe_seconds=600)
+        second = self.bean.add_claim(
+            BeanClaim(
+                "OBSERVATION",
+                "ETH",
+                "ETH momentum remains negative with updated price.",
+                0.9,
+                "coinbase_market",
+                ("price",),
+            ),
+            dedupe_seconds=600,
+        )
+        self.assertEqual(first, second)
+        snap = self.bean.snapshot()
+        self.assertEqual(snap["claims"], 1)
+        self.assertEqual(snap["compressed_repeats"], 1)
 
     def test_contradiction_is_retained(self):
         self.bean.record_contradiction(
