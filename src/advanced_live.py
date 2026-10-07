@@ -68,6 +68,7 @@ class AdvancedSpotEngine:
         product_id: str,
         product_ids: tuple[str, ...],
         cash_by_quote: dict[str, float],
+        funding_value_usd: dict[str, float] | None = None,
     ) -> dict[str, Any] | None:
         base, target_quote = self._split_product(product_id)
         direct = float(cash_by_quote.get(target_quote, 0.0))
@@ -81,13 +82,17 @@ class AdvancedSpotEngine:
                 "available": direct,
             }
 
+        funding_value_usd = funding_value_usd or {}
         funded_quotes = sorted(
             (
                 (str(quote).upper(), float(amount))
                 for quote, amount in cash_by_quote.items()
                 if float(amount) > 0.0
             ),
-            key=lambda row: row[1],
+            key=lambda row: (
+                float(funding_value_usd.get(row[0], 0.0)),
+                row[1],
+            ),
             reverse=True,
         )
 
@@ -532,6 +537,7 @@ class AdvancedSpotEngine:
             universe,
             product_ids,
             cash_by_quote,
+            balance_values_usd,
             positions,
             listing,
             human,
@@ -585,6 +591,7 @@ class AdvancedSpotEngine:
         universe: dict[str, Any],
         product_ids: tuple[str, ...],
         cash_by_quote: dict[str, float],
+        funding_value_usd: dict[str, float],
         positions: dict[str, dict[str, float | str]],
         listing: dict[str, Any],
         human: HumanSignals | None,
@@ -635,6 +642,7 @@ class AdvancedSpotEngine:
                 product,
                 product_ids,
                 cash_by_quote,
+                funding_value_usd,
             )
             rows.append(item)
 
