@@ -369,7 +369,7 @@ def candles():
             rows = json.loads(response.read().decode("utf-8"))
 
         candles = []
-        for row in reversed(rows[-60:] if isinstance(rows, list) else []):
+        for row in reversed(rows[:60] if isinstance(rows, list) else []):
             if not isinstance(row, list) or len(row) < 6:
                 continue
             candles.append(
