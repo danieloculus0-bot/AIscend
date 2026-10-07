@@ -8,6 +8,7 @@ from typing import Any
 
 from flask import Flask, jsonify, render_template, request
 
+from src.advanced_live import AdvancedSpotEngine
 from src.core import StateStore, app_data_dir
 from src.live import LiveEngine
 from src.opportunities import OpportunityUniverse
@@ -23,13 +24,16 @@ _stop_event = threading.Event()
 _loop_thread: threading.Thread | None = None
 _loop_state: dict[str, Any] = {
     "running": False,
+    "rail": "base",
     "network": "base",
     "interval": 60.0,
     "last_error": None,
 }
 
 
-def _db_path(network: str) -> Path:
+def _db_path(network: str, rail: str = "base") -> Path:
+    if rail == "advanced":
+        return app_data_dir() / "live-advanced.db"
     return app_data_dir() / f"live-{network}.db"
 
 
@@ -39,10 +43,20 @@ def _validate_network(network: str) -> str:
     return network
 
 
-def _make_engine(network: str) -> tuple[StateStore, LiveEngine]:
+def _validate_rail(rail: str) -> str:
+    if rail not in {"base", "advanced"}:
+        raise ValueError("rail must be base or advanced")
+    return rail
+
+
+def _make_engine(network: str, rail: str = "base"):
+    rail = _validate_rail(rail)
     network = _validate_network(network)
-    store = StateStore(_db_path(network))
-    engine = LiveEngine(store=store, wallet=CdpWallet(network=network))
+    store = StateStore(_db_path(network, rail))
+    if rail == "advanced":
+        engine = AdvancedSpotEngine(store=store, rail=AdvancedTradeSpot())
+    else:
+        engine = LiveEngine(store=store, wallet=CdpWallet(network=network))
     return store, engine
 
 
@@ -50,8 +64,8 @@ def _rows_to_dicts(rows) -> list[dict[str, Any]]:
     return [dict(row) for row in rows]
 
 
-def _status_payload(network: str) -> dict[str, Any]:
-    store, engine = _make_engine(network)
+def _status_payload(network: str, rail: str = "base") -> dict[str, Any]:
+    store, engine = _make_engine(network, rail)
     try:
         snap = engine.sync()
         return {
@@ -65,8 +79,8 @@ def _status_payload(network: str) -> dict[str, Any]:
         store.close()
 
 
-def _run_once(network: str) -> dict[str, Any]:
-    store, engine = _make_engine(network)
+def _run_once(network: str, rail: str = "base") -> dict[str, Any]:
+    store, engine = _make_engine(network, rail)
     try:
         snap = engine.step()
         decision_rows = store.latest_decisions(1)
@@ -79,11 +93,12 @@ def _run_once(network: str) -> dict[str, Any]:
         store.close()
 
 
-def _runner(network: str, interval: float) -> None:
+def _runner(network: str, interval: float, rail: str) -> None:
     with _loop_lock:
         _loop_state.update(
             {
                 "running": True,
+                "rail": rail,
                 "network": network,
                 "interval": interval,
                 "last_error": None,
@@ -93,7 +108,7 @@ def _runner(network: str, interval: float) -> None:
     try:
         while not _stop_event.is_set():
             try:
-                _run_once(network)
+                _run_once(network, rail)
                 with _loop_lock:
                     _loop_state["last_error"] = None
             except Exception as exc:
@@ -199,8 +214,9 @@ def configure():
 @app.get("/api/status")
 def status():
     network = _validate_network(request.args.get("network", "base"))
+    rail = _validate_rail(request.args.get("rail", "base"))
     try:
-        return jsonify(_status_payload(network))
+        return jsonify(_status_payload(network, rail))
     except Exception as exc:
         return jsonify(
             {
@@ -215,8 +231,9 @@ def status():
 def run_once():
     payload = request.get_json(silent=True) or {}
     network = _validate_network(str(payload.get("network", "base")))
+    rail = _validate_rail(str(payload.get("rail", "base")))
     try:
-        result = _run_once(network)
+        result = _run_once(network, rail)
         return jsonify({"ok": True, **result})
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
@@ -228,6 +245,7 @@ def start():
 
     payload = request.get_json(silent=True) or {}
     network = _validate_network(str(payload.get("network", "base")))
+    rail = _validate_rail(str(payload.get("rail", "base")))
     interval = max(5.0, float(payload.get("interval", 60.0)))
 
     with _loop_lock:
@@ -237,7 +255,7 @@ def start():
         _stop_event.clear()
         _loop_thread = threading.Thread(
             target=_runner,
-            args=(network, interval),
+            args=(network, interval, rail),
             name="aiscend-live-runner",
             daemon=True,
         )
