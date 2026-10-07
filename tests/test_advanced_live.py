@@ -503,6 +503,128 @@ class AdvancedLiveTests(unittest.TestCase):
             self.assertIn("Human Weather", snap["research"]["thesis"])
             store.close()
 
+    def test_router_uses_held_crypto_as_direct_quote(self):
+        engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+        route = engine._funding_route(
+            "TRAC-USD",
+            ("TRAC-USD", "TRAC-GROVE"),
+            {"GROVE": 2400.0},
+        )
+        self.assertIsNotNone(route)
+        self.assertEqual(route["mode"], "ALT_PAIR")
+        self.assertEqual(route["execution_product"], "TRAC-GROVE")
+        self.assertEqual(route["funding_quote"], "GROVE")
+
+    def test_router_uses_inverse_pair_for_direct_crypto_swap(self):
+        engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+        route = engine._funding_route(
+            "TRAC-USD",
+            ("TRAC-USD", "GROVE-TRAC"),
+            {"GROVE": 2400.0},
+        )
+        self.assertIsNotNone(route)
+        self.assertEqual(route["mode"], "INVERSE_PAIR")
+        self.assertEqual(route["execution_product"], "GROVE-TRAC")
+        self.assertEqual(route["source_asset"], "GROVE")
+        self.assertEqual(route["target_asset"], "TRAC")
+
+    def test_inverse_pair_execution_sells_source_crypto_directly_into_target(self):
+        class SwapRail(FakeRail):
+            def __init__(self):
+                super().__init__()
+                self.usdc = Decimal("0")
+                self.grove = Decimal("100")
+                self.trac = Decimal("0")
+                self.sells = []
+
+            def status(self):
+                balances = []
+                if self.grove > 0:
+                    balances.append(AdvancedBalance("GROVE", self.grove, Decimal("0")))
+                if self.trac > 0:
+                    balances.append(AdvancedBalance("TRAC", self.trac, Decimal("0")))
+                return AdvancedTradeStatus(
+                    configured=True,
+                    balances=tuple(balances),
+                    tradable_spot_products=2,
+                    product_ids=("GROVE-TRAC", "TRAC-USD"),
+                )
+
+            def product(self, product_id):
+                if product_id == "GROVE-TRAC":
+                    return {
+                        "product_id": product_id,
+                        "price": "0.02",
+                        "base_min_size": "1",
+                        "base_increment": "1",
+                        "quote_increment": "0.0001",
+                    }
+                return {
+                    "product_id": product_id,
+                    "price": "0.40",
+                    "quote_min_size": "1",
+                    "base_increment": "0.1",
+                    "quote_increment": "0.01",
+                }
+
+            def preview_market_sell(self, product_id, base_size):
+                return {
+                    "product_id": product_id,
+                    "base_size": str(base_size),
+                    "commission_total": "0.01",
+                }
+
+            def market_sell(self, product_id, base_size, client_order_id):
+                qty = Decimal(str(base_size))
+                self.grove -= qty
+                self.trac += qty * Decimal("0.02")
+                self.sells.append((product_id, qty, client_order_id))
+                return {"success": True, "order_id": "swap-1"}
+
+        class SwapUniverse:
+            def collect(self, priority_products=None):
+                trac = {
+                    "product": "TRAC-USD",
+                    "base": "TRAC",
+                    "quote": "USD",
+                    "price": 0.40,
+                    "return_5m": 0.02,
+                    "return_1h": 0.04,
+                    "return_6h": 0.10,
+                    "volume_ratio": 2.0,
+                    "spread_bps": 8.0,
+                    "score": 0.78,
+                }
+                return {
+                    "available": True,
+                    "product_count": 2,
+                    "scanned_count": 1,
+                    "errors": [],
+                    "top": [trac],
+                    "buy_top": [trac],
+                    "scored": [trac],
+                }
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "advanced.db")
+            rail = SwapRail()
+            engine = AdvancedSpotEngine(
+                store,
+                rail=rail,
+                asset_universe=SwapUniverse(),
+                listing_sentinel=FakeListingSentinel(),
+                human_researcher=FakeHumanResearch(),
+            )
+            engine.step()
+            row = store.latest_decisions(1)[0]
+            self.assertEqual(row["action"], "BUY")
+            self.assertEqual(row["status"], "LIVE_EXECUTED")
+            self.assertTrue(rail.sells)
+            self.assertLess(rail.grove, Decimal("100"))
+            self.assertGreater(rail.trac, Decimal("0"))
+            self.assertIn("Direct crypto swap", row["rationale"])
+            store.close()
+
     def test_buy_fraction_is_raised_to_coinbase_minimum_when_possible(self):
         class MinimumRail(FakeRail):
             def product(self, product_id):
