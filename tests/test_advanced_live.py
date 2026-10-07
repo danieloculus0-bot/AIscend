@@ -4,6 +4,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from src.advanced_live import AdvancedSpotEngine
+from src.audit import AuditTrail
 from src.core import StateStore
 from src.wallets.advanced_trade import AdvancedBalance, AdvancedTradeStatus
 
@@ -88,7 +89,13 @@ class AdvancedLiveTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             store = StateStore(Path(td) / "advanced.db")
             rail = FakeRail()
-            engine = AdvancedSpotEngine(store, rail=rail, asset_universe=FakeUniverse())
+            audit_root = Path(td) / "audit"
+            engine = AdvancedSpotEngine(
+                store,
+                rail=rail,
+                asset_universe=FakeUniverse(),
+                audit=AuditTrail(audit_root),
+            )
             snap = engine.step()
             rows = store.latest_decisions(1)
             self.assertEqual(rows[0]["action"], "BUY")
@@ -96,6 +103,11 @@ class AdvancedLiveTests(unittest.TestCase):
             self.assertEqual(rows[0]["status"], "LIVE_EXECUTED")
             self.assertTrue(rail.buys)
             self.assertLess(snap["cash"], 25.0)
+            audit_text = next(audit_root.glob("aiscend-audit-*.jsonl")).read_text(
+                encoding="utf-8"
+            )
+            self.assertIn('"event_type":"trade"', audit_text)
+            self.assertIn('"rail":"coinbase-advanced"', audit_text)
             store.close()
 
 
