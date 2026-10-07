@@ -160,10 +160,17 @@ class MarketResearch:
                 volume_heat=volume_heat,
             )
             fg_delta = max(-1.0, min(1.0, human.fear_greed_change_1d / 20.0))
+
+            # Preserve the raw sentiment observation, but let sample maturity
+            # determine how hard it can pull the fused decision score.
+            news_maturity = 0.35 + 0.65 * human.news_coverage
+            social_maturity = 0.25 + 0.75 * human.social_confidence
+            politics_maturity = 0.35 + 0.65 * human.politics_coverage
+
             human_score = (
-                0.28 * human.news_sentiment
-                + 0.30 * human.social_sentiment
-                + 0.12 * human.politics_sentiment
+                0.28 * human.news_sentiment * news_maturity
+                + 0.30 * human.social_sentiment * social_maturity
+                + 0.12 * human.politics_sentiment * politics_maturity
                 + 0.22 * crowd_edge
                 + 0.08 * fg_delta
             )
@@ -173,6 +180,10 @@ class MarketResearch:
         human_weight = 0.26 + (0.12 * event_intensity if human and human.available else 0.0)
         if human is None or not human.available:
             human_weight = 0.0
+        else:
+            # Low feed maturity should reduce influence, not erase a potentially
+            # valuable extreme observation. BEAN still receives the raw signal.
+            human_weight *= 0.65 + 0.35 * human.human_signal_quality
         technical_weight = 1.0 - human_weight
         score = (
             technical_weight * technical_score
@@ -220,7 +231,8 @@ class MarketResearch:
                 f" Crowd {human.crowd_regime} FOMO {human.fomo_index:.0f}/100, "
                 f"news {human.news_sentiment:+.2f}, social {human.social_sentiment:+.2f}, "
                 f"politics {human.politics_sentiment:+.2f}, event {event_intensity:.2f}, "
-                f"crowd edge {crowd_edge:+.2f}."
+                f"crowd edge {crowd_edge:+.2f}, human quality {human.human_signal_quality:.2f}, "
+                f"social confidence {human.social_confidence:.2f}."
             )
 
         thesis = (

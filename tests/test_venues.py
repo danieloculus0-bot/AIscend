@@ -29,7 +29,12 @@ class VenueTests(unittest.TestCase):
     def test_first_launch_exposes_all_market_lanes(self):
         data = capability_snapshot()
         keys = {v["key"] for v in data["venues"]}
-        self.assertEqual(keys, {"crypto", "predictions", "stocks_etfs", "options"})
+        self.assertEqual(
+            keys,
+            {"crypto", "predictions", "stocks_etfs", "futures", "perpetuals", "options"},
+        )
+        self.assertEqual(data["enabled"], 6)
+        self.assertTrue(all(v["enabled"] for v in data["venues"]))
         self.assertEqual(data["execution_ready"], 1)
 
     def test_prediction_market_scan_normalizes_public_market(self):
