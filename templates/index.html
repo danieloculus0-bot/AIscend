@@ -245,6 +245,7 @@ let latestDecision = null;
 let petState = 'idle';
 let petBlink = false;
 let petBob = false;
+let petQuipIndex = 0;
 let previousPoints = null;
 
 function network(){ return $('network').value; }
@@ -482,10 +483,18 @@ function renderRunner(r){
 function choosePetState(s, d){
   const pnl=Number(s.pnl || 0);
   const start=Math.max(0.01,Number(s.starting_cash || 1));
+  const research=s.research || {};
+  const score=Number(research.composite_score || 0);
+
   if(d && d.action==='BUY') return 'buy';
   if(d && d.action==='SELL') return 'sell';
   if(pnl/start > 0.01) return 'up';
   if(pnl/start < -0.01) return 'down';
+
+  // Dead-simple Tamagotchi logic: if AIS-0 hates the tape, it takes a shit.
+  if((research.prediction==='BEARISH' || score <= -0.16) &&
+     $('runnerPill').textContent.startsWith('RUNNING')) return 'poop';
+
   if($('runnerPill').textContent.startsWith('RUNNING')) return 'think';
   return 'idle';
 }
@@ -536,6 +545,7 @@ function drawPet(){
   const p=(x,y)=>ctx.fillRect((x+ox)*px,(y+oy)*px,px,px);
   const line=(x1,x2,y)=>{ for(let x=x1;x<=x2;x++) p(x,y); };
 
+  // SAME dumb little AIS-0 body. Do not improve it.
   line(6,11,2); p(4,3); p(5,3); p(12,3); p(13,3);
   p(3,4); p(14,4); p(2,5); p(15,5);
   p(2,6); p(15,6); p(2,7); p(15,7); p(2,8); p(15,8);
@@ -546,50 +556,105 @@ function drawPet(){
   p(7,14); p(10,14); p(8,15); p(9,15);
   p(6,16); p(7,16); p(10,16); p(11,16);
 
+  // Tiny expressions, still gloriously shitty.
   if(petBlink){
     line(5,6,6); line(11,12,6);
   } else if(petState==='dead'){
     p(5,5); p(6,6); p(6,5); p(5,6);
     p(11,5); p(12,6); p(12,5); p(11,6);
-  } else if(petState==='sell' || petState==='down'){
+  } else if(petState==='sell' || petState==='down' || petState==='poop'){
     p(5,6); p(6,7); p(11,7); p(12,6);
   } else if(petState==='point' || petState==='win'){
     p(5,5); p(6,5); p(5,6); p(6,6);
     p(11,5); p(12,5); p(11,6); p(12,6);
+  } else if(petState==='buy' || petState==='up'){
+    p(5,5); p(6,6); p(11,6); p(12,5);
   } else {
     p(5,6); p(6,6); p(11,6); p(12,6);
   }
 
   if(petState==='up' || petState==='buy' || petState==='point' || petState==='win'){
     p(6,9); p(7,10); p(8,10); p(9,10); p(10,10); p(11,9);
-  } else if(petState==='down'){
+  } else if(petState==='down' || petState==='poop'){
     p(6,10); p(7,9); p(8,9); p(9,9); p(10,9); p(11,10);
   } else if(petState==='sell'){
     p(6,9); p(7,9); p(10,10); p(11,10);
   } else if(petState==='think'){
     p(8,9); p(9,9);
+    p(16,4); p(17,3); // two stupid little thought pixels
+  } else if(petState==='dead'){
+    line(7,10,10);
   } else {
     line(7,10,9);
   }
 
   if(petState==='point' || petState==='win'){
     p(1,12); p(2,11); p(15,11); p(16,12);
+  } else if(petState==='poop'){
+    p(4,14); p(13,14);
+    // Tactical shit. Three pixels of dignity, gone forever.
+    p(16,13);
+    p(15,14); p(16,14);
+    p(14,15); p(15,15); p(16,15); p(17,15);
+    p(15,10); p(16,9); p(15,8); // stink
   } else {
     p(4,14); p(13,14);
   }
 
   const moods={
-    idle:'just sitting there',
-    think:'thinking extremely hard',
-    buy:'bought something',
-    sell:'sold something',
-    up:'feeling smug',
-    down:'having a bad little day',
-    point:'ONE WHOLE POINT',
-    win:'LEVEL 1. HOLY SHIT.',
-    dead:'something is fucked'
+    idle:[
+      'just sitting there',
+      'waiting for some shit to happen',
+      'refusing to buy bullshit'
+    ],
+    think:[
+      'thinking extremely hard',
+      'doing fucked-up little math',
+      'consulting the tiny oracle'
+    ],
+    buy:[
+      'bought the damn thing',
+      'money deployed. hell yeah.',
+      'committed to the bit'
+    ],
+    sell:[
+      'sold that shit',
+      'nope. we are out.',
+      'yeeted the bag'
+    ],
+    up:[
+      'feeling smug as hell',
+      'number went up. excellent.',
+      'tiny capitalist noises'
+    ],
+    down:[
+      'having a shitty little day',
+      'deeply unimpressed',
+      'market kicked me in the nuts'
+    ],
+    poop:[
+      'taking a tactical shit',
+      'market looks like ass',
+      'this is my bearish analysis'
+    ],
+    point:[
+      'ONE WHOLE POINT',
+      'FUCK YEAH. A POINT.',
+      'doubling achieved. absurd.'
+    ],
+    win:[
+      'LEVEL 1. HOLY SHIT.',
+      'WE FUCKING DID IT.',
+      '$100K. WHAT THE FUCK.'
+    ],
+    dead:[
+      'something is fucked',
+      'i have died of computers',
+      'goddammit.'
+    ]
   };
-  $('petMood').textContent=moods[petState] || '...';
+  const lines=moods[petState] || ['...'];
+  $('petMood').textContent=lines[petQuipIndex % lines.length];
 }
 
 setInterval(()=>{
@@ -597,6 +662,11 @@ setInterval(()=>{
   $('pet').style.transform=petBob?'translateY(1px)':'translateY(0)';
   drawPet();
 },3200);
+
+setInterval(()=>{
+  petQuipIndex++;
+  drawPet();
+},7600);
 
 setInterval(()=>{
   petBlink=true; drawPet();
