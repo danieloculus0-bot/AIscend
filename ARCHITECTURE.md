@@ -205,3 +205,31 @@ research + BEAN
 ```
 
 The rails keep independent state databases and credentials. The Advanced rail is intended for a dedicated Coinbase Advanced portfolio/API key so autonomous trading remains isolated from unrelated holdings. Market-lane enablement is broader than execution readiness: predictions, stocks/ETFs, futures, perpetuals, and options are enabled as strategy lanes even when their authenticated execution connectors are not yet wired.
+
+
+## Linked live-capital invariant
+
+Base and Coinbase Advanced are execution adapters for one AIscend experiment, not independent bankrolls.
+
+```text
+AIS-0 / Research / shared BEAN
+            |
+            v
+     experiment bankroll
+       start = $25
+            |
+      +-----+------+
+      |            |
+      v            v
+ Base smart     Coinbase
+  wallet        Advanced
+      |            |
+      +-----+------+
+            |
+            v
+ combined decision/audit history
+```
+
+Moving USDC between the two rails is an internal transfer. It must not reset the game baseline, restart the game clock, or be interpreted as trading P/L. The Base live database remains the canonical BEAN/game-memory source for the current experiment; Advanced keeps rail-specific execution state while reading/writing the shared BEAN memory.
+
+The browser runner has exactly one active execution rail at a time. Bridge completion hands the runner to the destination rail rather than leaving an empty source rail running.
