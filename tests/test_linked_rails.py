@@ -58,6 +58,7 @@ class LinkedRailTests(unittest.TestCase):
 
     def test_dashboard_switches_runner_after_bridge(self):
         html = Path("templates/index.html").read_text(encoding="utf-8")
+        self.assertIn('<option value="auto" selected>Linked portfolio - auto choose rail</option>', html)
         self.assertIn("async function switchExecutionRail(target)", html)
         self.assertIn("await fetch('/api/stop'", html)
         self.assertIn("body:JSON.stringify({network:network(),rail:target,interval})", html)
