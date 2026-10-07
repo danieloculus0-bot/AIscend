@@ -75,7 +75,7 @@
     <div class="label">Decision journal</div>
     <div class="scroll" style="margin-top:8px">
       <table>
-        <thead><tr><th>Time</th><th>Action</th><th>Asset</th><th>Status</th><th>Reason</th></tr></thead>
+        <thead><tr><th>Time</th><th>Rail</th><th>Action</th><th>Asset</th><th>Status</th><th>Reason</th></tr></thead>
         <tbody id="decisions"></tbody>
       </table>
     </div>
@@ -135,7 +135,7 @@ async function refresh(){
     for(const d of (j.decisions||[])){
       const t=new Date(Number(d.ts)*1000).toLocaleTimeString();
       tbody.insertAdjacentHTML('beforeend',
-        '<tr><td>'+esc(t)+'</td><td>'+esc(d.action)+'</td><td>'+esc(d.symbol||'')+'</td><td>'+esc(d.status)+'</td><td>'+esc(d.rationale||'')+'</td></tr>');
+        '<tr><td>'+esc(t)+'</td><td>'+esc(d.rail||'--')+'</td><td>'+esc(d.action)+'</td><td>'+esc(d.symbol||'')+'</td><td>'+esc(d.status)+'</td><td>'+esc(d.rationale||'')+'</td></tr>');
     }
   }catch(e){
     $('error').textContent=String(e);
