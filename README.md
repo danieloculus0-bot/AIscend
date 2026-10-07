@@ -606,3 +606,8 @@ The dashboard/monitor and autonomous loop now operate on one combined Base + Coi
 - Trade cycles and bridge transfers share one capital-operation lock so a transfer cannot race a live order.
 - Counterpart rail snapshots are cached briefly for dashboard refreshes to avoid hammering provider APIs.
 - Human Weather remains visible as global context while Advanced is the active execution rail.
+
+
+## v0.16.1 repo audit
+
+The linked-capital coordinator now refuses to select the Base execution adapter for BUY/SELL signals when Base has no executable cash/position. This closes the empty-rail failure mode exposed after moving the bankroll to Coinbase Advanced. The live runner also reports the actual rail selected on each linked-auto cycle so the dashboard shows whether AIS-0 is currently operating through Base or Advanced.
