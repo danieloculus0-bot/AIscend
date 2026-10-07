@@ -6,6 +6,7 @@ import time
 from typing import Protocol
 
 from .asset_universe import CoinbaseAssetUniverse
+from .audit import AuditTrail
 from .bean import BeanMemory
 from .core import Decider, Decision, RiskGovernor, StateStore
 from .game import score_game
@@ -34,11 +35,13 @@ class LiveEngine:
         decider: Decider | None = None,
         researcher: MarketResearch | None = None,
         asset_universe: CoinbaseAssetUniverse | None = None,
+        audit: AuditTrail | None = None,
     ) -> None:
         self.store = store
         self.wallet = wallet
         self.researcher = researcher or MarketResearch()
         self.asset_universe = asset_universe or CoinbaseAssetUniverse()
+        self.audit = audit or AuditTrail()
         self.bean = BeanMemory(self.store.conn)
         self.decider: Decider = decider or ResearchDecider()
         self._snapshot: dict | None = None
@@ -179,6 +182,33 @@ class LiveEngine:
                 -spend,
                 f"{decision.rationale} | user_op={execution.user_op_hash}",
             )
+            try:
+                self.audit.record_trade(
+                    venue="coinbase-cdp",
+                    rail="base-smart-wallet",
+                    network=str(getattr(self.wallet, "network", "base")),
+                    side="BUY",
+                    product_id=f"{execution.to_symbol}-{execution.from_symbol}",
+                    base_asset=execution.to_symbol,
+                    quote_asset=execution.from_symbol,
+                    base_quantity=execution.to_amount,
+                    quote_quantity=execution.from_amount,
+                    unit_price_quote=price,
+                    transaction_id=execution.user_op_hash,
+                    status="complete",
+                    rationale=decision.rationale,
+                    source="wallet_balance_delta",
+                    raw_provider_response={"user_op_hash": execution.user_op_hash},
+                )
+            except Exception as exc:
+                self.store.add_ledger(
+                    "AUDIT_ERROR",
+                    execution.to_symbol,
+                    0.0,
+                    0.0,
+                    0.0,
+                    f"Base BUY executed but audit write failed: {exc}",
+                )
             return
 
         qty = float(execution.from_amount)
@@ -192,3 +222,30 @@ class LiveEngine:
             proceeds,
             f"{decision.rationale} | user_op={execution.user_op_hash}",
         )
+        try:
+            self.audit.record_trade(
+                venue="coinbase-cdp",
+                rail="base-smart-wallet",
+                network=str(getattr(self.wallet, "network", "base")),
+                side="SELL",
+                product_id=f"{execution.from_symbol}-{execution.to_symbol}",
+                base_asset=execution.from_symbol,
+                quote_asset=execution.to_symbol,
+                base_quantity=execution.from_amount,
+                quote_quantity=execution.to_amount,
+                unit_price_quote=price,
+                transaction_id=execution.user_op_hash,
+                status="complete",
+                rationale=decision.rationale,
+                source="wallet_balance_delta",
+                raw_provider_response={"user_op_hash": execution.user_op_hash},
+            )
+        except Exception as exc:
+            self.store.add_ledger(
+                "AUDIT_ERROR",
+                execution.from_symbol,
+                0.0,
+                0.0,
+                0.0,
+                f"Base SELL executed but audit write failed: {exc}",
+            )
