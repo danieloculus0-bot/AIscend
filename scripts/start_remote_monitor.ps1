@@ -2,7 +2,8 @@ $ErrorActionPreference = "Stop"
 
 if (-not $env:AISCEND_REMOTE_TOKEN) {
     $bytes = New-Object byte[] 24
-    [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    try { $rng.GetBytes($bytes) } finally { $rng.Dispose() }
     $env:AISCEND_REMOTE_TOKEN = [Convert]::ToHexString($bytes).ToLowerInvariant()
 }
 
