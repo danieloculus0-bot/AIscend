@@ -36,9 +36,9 @@ class CoinbaseAssetUniverse:
     """
     Rotating public-market scanner across active Coinbase USD/USDC products.
 
-    It discovers the full active product universe, then scores a rotating batch on
-    each cycle so AIscend can cover many assets without hammering the public API.
-    This is research breadth only; execution readiness is handled separately.
+    It discovers the active public product universe, then scores a rotating batch
+    on each trading cadence. This expands research breadth without treating every
+    Coinbase-listed asset as executable from the Base smart wallet.
     """
 
     _lock = threading.Lock()
@@ -46,6 +46,8 @@ class CoinbaseAssetUniverse:
     _products_until = 0.0
     _cursor = 0
     _cache: dict[str, UniverseAsset] = {}
+    _last_result: dict[str, Any] | None = None
+    _next_scan_at = 0.0
 
     def __init__(
         self,
@@ -53,25 +55,35 @@ class CoinbaseAssetUniverse:
         batch_size: int = 8,
         product_refresh_seconds: float = 900.0,
         asset_cache_seconds: float = 600.0,
+        scan_interval_seconds: float = 55.0,
     ) -> None:
         self.timeout = timeout
         self.batch_size = max(1, int(batch_size))
         self.product_refresh_seconds = max(60.0, float(product_refresh_seconds))
         self.asset_cache_seconds = max(60.0, float(asset_cache_seconds))
+        self.scan_interval_seconds = max(10.0, float(scan_interval_seconds))
 
     def collect(self) -> dict[str, Any]:
+        cls = type(self)
+        now = time.time()
+        with self._lock:
+            if cls._last_result is not None and now < cls._next_scan_at:
+                return cls._last_result
+
         errors: list[str] = []
         with self._lock:
             products = self._product_list(errors)
             if not products:
-                return {
+                result = {
                     "available": False,
                     "product_count": 0,
                     "scanned_count": len(self._cache),
                     "top": [],
                     "errors": errors,
                 }
-
+                cls._last_result = result
+                cls._next_scan_at = time.time() + self.scan_interval_seconds
+                return result
             batch = self._next_batch(products)
 
         for product in batch:
@@ -106,13 +118,17 @@ class CoinbaseAssetUniverse:
             reverse=True,
         )
 
-        return {
+        result = {
             "available": bool(ranked),
             "product_count": len(products),
             "scanned_count": len(fresh),
             "top": [item.as_dict() for item in ranked[:20]],
             "errors": errors,
         }
+        with self._lock:
+            cls._last_result = result
+            cls._next_scan_at = time.time() + self.scan_interval_seconds
+        return result
 
     def _product_list(self, errors: list[str]) -> list[dict[str, Any]]:
         now = time.time()
@@ -159,8 +175,9 @@ class CoinbaseAssetUniverse:
         if not products:
             return []
         start = cls._cursor % len(products)
-        out = [products[(start + i) % len(products)] for i in range(min(self.batch_size, len(products)))]
-        cls._cursor = (start + len(out)) % len(products)
+        count = min(self.batch_size, len(products))
+        out = [products[(start + i) % len(products)] for i in range(count)]
+        cls._cursor = (start + count) % len(products)
         return out
 
     def _scan_product(self, product: dict[str, Any]) -> UniverseAsset | None:
@@ -168,8 +185,12 @@ class CoinbaseAssetUniverse:
         candles = self._get_json(
             f"/products/{urllib.parse.quote(product_id)}/candles?granularity=300"
         )
-        ticker = self._get_json(f"/products/{urllib.parse.quote(product_id)}/ticker")
-        book = self._get_json(f"/products/{urllib.parse.quote(product_id)}/book?level=1")
+        ticker = self._get_json(
+            f"/products/{urllib.parse.quote(product_id)}/ticker"
+        )
+        book = self._get_json(
+            f"/products/{urllib.parse.quote(product_id)}/book?level=1"
+        )
 
         if not isinstance(candles, list) or len(candles) < 72:
             return None
