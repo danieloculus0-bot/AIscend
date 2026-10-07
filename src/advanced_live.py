@@ -372,6 +372,12 @@ class AdvancedSpotEngine:
             for quote in quote_currencies
             if raw_balances.get(quote, 0.0) > 0.000000001
         }
+        # USD/USDC can also fund the other dollar quote through a directly
+        # tradable conversion pair, even if one is not otherwise a quote in the
+        # current product set.
+        for dollar in DOLLAR_ASSETS:
+            if raw_balances.get(dollar, 0.0) > 0.000000001:
+                cash_by_quote[dollar] = raw_balances[dollar]
 
         # Preserve the game's dollar-denominated bankroll accounting while
         # allowing execution to use any funded quote currency.
@@ -802,15 +808,21 @@ class AdvancedSpotEngine:
                 decision.rationale,
             )
 
-            refreshed = self.rail.status()
-            target_available = next(
-                (
-                    Decimal(str(item.available))
-                    for item in refreshed.balances
-                    if item.currency.upper() == quote
-                ),
-                Decimal("0"),
-            )
+            target_available = Decimal("0")
+            for attempt in range(6):
+                refreshed = self.rail.status()
+                target_available = next(
+                    (
+                        Decimal(str(item.available))
+                        for item in refreshed.balances
+                        if item.currency.upper() == quote
+                    ),
+                    Decimal("0"),
+                )
+                if target_available > 0:
+                    break
+                if attempt < 5:
+                    time.sleep(0.5)
             spend = target_available * Decimal("0.995")
         else:
             available = Decimal(
