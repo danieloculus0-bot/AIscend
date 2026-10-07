@@ -10,10 +10,10 @@ The live experiment is intended to start with a tiny bankroll, currently around 
 
 ## Project status
 
-**Version:** 0.15.0  
+**Version:** 0.16.0  
 **Platform:** Windows x64 + browser via GitHub Codespaces  
 **State:** Synthetic desktop sandbox + Coinbase live desktop mode  
-**Live-money execution:** CDP smart-account swaps on Base are implemented
+**Live-money execution:** Base smart-account swaps and Coinbase Advanced spot orders are implemented
 
 The current application is fully runnable against a persistent synthetic market. It already exercises the complete autonomous loop without requiring a brokerage account, wallet, API key, or internet connection.
 
@@ -563,3 +563,31 @@ exchange/API execution failures. The browser journal combines Base and Advanced
 decision histories and labels each row by rail. A running rail can no longer be
 silently replaced by starting another rail; stop the active runner before
 switching.
+
+
+## v0.16 repo audit: linked capital system
+
+The live rails now behave as one experiment instead of two unrelated games.
+
+- The original Base `live_starting_value` remains the canonical bankroll baseline when capital moves to Coinbase Advanced, so the $25 experiment does not reset to the destination balance.
+- The original game clock and milestone metadata follow the bankroll across rails.
+- Advanced execution uses the existing Base BEAN database as shared learning memory, so switching execution rails does not create a second brain.
+- The browser detects when the selected rail is empty and the other live rail holds spendable capital.
+- A successful Base/Advanced bridge move changes the selected execution rail and, when autonomy is already running, stops the old runner and restarts it on the destination rail.
+- The Decision Journal combines Base and Advanced rows and labels the rail.
+- SQLite live state uses WAL mode plus a busy timeout so the background runner, browser dashboard, and remote monitor can read/write without needless lock collisions.
+- The read-only remote monitor follows the funded rail when the runner is stopped.
+
+## Execution and tax audit trail
+
+Live executions and bridge transfers write an append-only reconciliation trail under the AIscend application-data directory:
+
+- canonical yearly JSONL
+- review-friendly yearly CSV
+- UTC timestamps
+- trades kept distinct from internal Base/Advanced transfers
+- provider order/transaction IDs when available
+- decimal quantities preserved as text
+- credential-like fields redacted from stored provider responses
+
+Audit-write failures are isolated from already-executed trades so a logging problem cannot cause an order to be retried.
