@@ -353,33 +353,31 @@ def candles():
         return jsonify({"ok": False, "error": "Invalid Coinbase product."}), 400
 
     try:
-        path = (
-            "https://api.exchange.coinbase.com/products/"
-            + urllib.parse.quote(product)
-            + "/candles?granularity=300"
+        end_ts = int(time.time())
+        start_ts = end_ts - (60 * 5 * 60)
+        client = AdvancedTradeVault().client()
+        payload = client.get_public_candles(
+            product_id=product,
+            start=str(start_ts),
+            end=str(end_ts),
+            granularity="FIVE_MINUTE",
+            limit=60,
         )
-        req = urllib.request.Request(
-            path,
-            headers={
-                "Accept": "application/json",
-                "User-Agent": "AIscend/0.17 candle-panel",
-            },
-        )
-        with urllib.request.urlopen(req, timeout=6.0) as response:
-            rows = json.loads(response.read().decode("utf-8"))
+        raw = payload.to_dict() if hasattr(payload, "to_dict") else payload
+        rows = (raw or {}).get("candles") or []
 
         candles = []
-        for row in reversed(rows[:60] if isinstance(rows, list) else []):
-            if not isinstance(row, list) or len(row) < 6:
+        for row in reversed(rows):
+            if not isinstance(row, dict):
                 continue
             candles.append(
                 {
-                    "time": int(row[0]),
-                    "low": float(row[1]),
-                    "high": float(row[2]),
-                    "open": float(row[3]),
-                    "close": float(row[4]),
-                    "volume": float(row[5]),
+                    "time": int(row.get("start") or 0),
+                    "low": float(row.get("low") or 0),
+                    "high": float(row.get("high") or 0),
+                    "open": float(row.get("open") or 0),
+                    "close": float(row.get("close") or 0),
+                    "volume": float(row.get("volume") or 0),
                 }
             )
         return jsonify({"ok": True, "product": product, "candles": candles})
