@@ -156,6 +156,25 @@
       </div>
 
       <div class="panel" style="margin-top:14px">
+        <h2>HUMAN WEATHER</h2>
+        <div class="row">
+          <div><div class="label">FOMO Index</div><div id="fomoIndex" class="value" style="font-size:20px">--</div></div>
+          <div><div class="label">Crowd Regime</div><div id="crowdRegime" class="value" style="font-size:20px">--</div></div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <div><div class="label">News</div><div id="newsSentiment" class="small">--</div></div>
+          <div><div class="label">Social</div><div id="socialSentiment" class="small">--</div></div>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <div><div class="label">Politics</div><div id="politicsSignal" class="small">--</div></div>
+          <div><div class="label">Weirdness</div><div id="weirdness" class="small">--</div></div>
+        </div>
+        <div id="fearGreed" class="small">Fear & Greed: --</div>
+        <div id="signalSources" class="small">Sources: --</div>
+        <div id="headlineTape" class="small" style="margin-top:10px">No human-signal headlines yet.</div>
+      </div>
+
+      <div class="panel" style="margin-top:14px">
         <h2>MARKET ARSENAL</h2>
         <div class="small" style="margin-bottom:10px">All lanes are visible from first launch. Research can rank them even when execution is not connected yet.</div>
         <div id="venueGrid" class="venue-grid"></div>
@@ -274,6 +293,29 @@ function renderSnapshot(s){
   $('researchConfidence').textContent = r.available ? (Number(r.confidence || 0)*100).toFixed(1)+'%' : '--';
   $('researchScore').textContent = 'Composite: ' + (r.available ? Number(r.composite_score || 0).toFixed(3) : '--');
   $('researchThesis').textContent = r.thesis || 'Research unavailable.';
+
+  const human=r.human || {};
+  $('fomoIndex').textContent = human.available ? Number(human.fomo_index || 0).toFixed(0)+'/100' : '--';
+  $('crowdRegime').textContent = human.crowd_regime || '--';
+  $('newsSentiment').textContent = human.available ? Number(human.news_sentiment || 0).toFixed(2) : '--';
+  $('socialSentiment').textContent = human.available ? Number(human.social_sentiment || 0).toFixed(2) : '--';
+  $('politicsSignal').textContent = human.available
+    ? Number(human.politics_sentiment || 0).toFixed(2)+' · risk '+Number(human.politics_risk || 0).toFixed(2)
+    : '--';
+  $('weirdness').textContent = human.available ? Number(human.weirdness || 0).toFixed(2) : '--';
+  $('fearGreed').textContent = human.available
+    ? 'Fear & Greed: '+(human.fear_greed_value ?? '--')+' · '+(human.fear_greed_classification || 'UNKNOWN')+
+      ' · 1d '+(Number(human.fear_greed_change_1d || 0)>=0?'+':'')+Number(human.fear_greed_change_1d || 0).toFixed(0)
+    : 'Fear & Greed: --';
+  const counts=human.source_counts || {};
+  $('signalSources').textContent = human.available
+    ? 'Sources: news '+Number(counts.news||0)+' · social '+Number(counts.social||0)+
+      ' · politics '+Number(counts.politics||0)+' · weird '+Number(counts.weird||0)
+    : 'Sources: --';
+  const heads=(human.top_headlines || []).slice(0,6);
+  $('headlineTape').innerHTML = heads.length
+    ? heads.map(x=>'<div style="padding:3px 0">• '+escapeHtml(x)+'</div>').join('')
+    : 'No human-signal headlines yet.';
 
   const g=s.game || {};
   const points=Number(g.points || 0);
