@@ -93,7 +93,7 @@
   <div class="layout">
     <div>
       <div class="panel">
-        <h2>TRADER THING</h2>
+        <h2 id="traderThingTitle">TRADER THING</h2>
         <div class="petbox">
           <canvas id="pet" width="144" height="144"></canvas>
           <div class="petname">AIS-0</div>
@@ -485,17 +485,27 @@ function choosePetState(s, d){
   const start=Math.max(0.01,Number(s.starting_cash || 1));
   const research=s.research || {};
   const score=Number(research.composite_score || 0);
+  const confidence=Number(research.confidence || 0);
+  const bean=s.bean || {};
+  const contradictions=Number(bean.contradictions || 0);
 
   if(d && d.action==='BUY') return 'buy';
   if(d && d.action==='SELL') return 'sell';
   if(pnl/start > 0.01) return 'up';
   if(pnl/start < -0.01) return 'down';
 
-  // Dead-simple Tamagotchi logic: if AIS-0 hates the tape, it takes a shit.
+  // Dead-simple current-state rendering. Barely animated, but opinionated.
   if((research.prediction==='BEARISH' || score <= -0.16) &&
      $('runnerPill').textContent.startsWith('RUNNING')) return 'poop';
 
-  if($('runnerPill').textContent.startsWith('RUNNING')) return 'think';
+  if(contradictions > 0 && confidence < 0.12) return 'trouble';
+
+  if($('runnerPill').textContent.startsWith('RUNNING')){
+    if(score > 0.08 && confidence >= 0.30) return 'interested';
+    if(Math.abs(score) > 0.05 && confidence >= 0.18) return 'curious';
+    if(Number(bean.pending_predictions || 0) > 0) return 'bean';
+    return 'think';
+  }
   return 'idle';
 }
 
@@ -562,8 +572,12 @@ function drawPet(){
   } else if(petState==='dead'){
     p(5,5); p(6,6); p(6,5); p(5,6);
     p(11,5); p(12,6); p(12,5); p(11,6);
-  } else if(petState==='sell' || petState==='down' || petState==='poop'){
+  } else if(petState==='sell' || petState==='down' || petState==='poop' || petState==='trouble'){
     p(5,6); p(6,7); p(11,7); p(12,6);
+  } else if(petState==='interested'){
+    p(5,5); p(6,6); p(11,6); p(12,5);
+  } else if(petState==='curious' || petState==='bean'){
+    p(5,6); p(6,6); p(11,5); p(12,5);
   } else if(petState==='point' || petState==='win'){
     p(5,5); p(6,5); p(5,6); p(6,6);
     p(11,5); p(12,5); p(11,6); p(12,6);
@@ -579,9 +593,15 @@ function drawPet(){
     p(6,10); p(7,9); p(8,9); p(9,9); p(10,9); p(11,10);
   } else if(petState==='sell'){
     p(6,9); p(7,9); p(10,10); p(11,10);
-  } else if(petState==='think'){
+  } else if(petState==='think' || petState==='bean'){
     p(8,9); p(9,9);
     p(16,4); p(17,3); // two stupid little thought pixels
+  } else if(petState==='curious'){
+    p(7,9); p(8,9); p(9,9);
+  } else if(petState==='interested'){
+    p(7,10); p(8,10); p(9,10); p(10,9);
+  } else if(petState==='trouble'){
+    p(7,10); p(8,9); p(9,10); p(10,9);
   } else if(petState==='dead'){
     line(7,10,10);
   } else {
@@ -611,6 +631,26 @@ function drawPet(){
       'thinking extremely hard',
       'doing fucked-up little math',
       'consulting the tiny oracle'
+    ],
+    bean:[
+      'BEAN is chewing on it',
+      'grading its own bullshit',
+      'remembering what happened last time'
+    ],
+    curious:[
+      'hmm.',
+      'something moved',
+      'mildly interested'
+    ],
+    interested:[
+      'oh?',
+      'now we are getting somewhere',
+      'trade-shaped object detected'
+    ],
+    trouble:[
+      'something smells fucked',
+      'evidence is fighting itself',
+      'troubleshooting this bullshit'
     ],
     buy:[
       'bought the damn thing',
@@ -653,6 +693,23 @@ function drawPet(){
       'goddammit.'
     ]
   };
+  const labels={
+    idle:'TRADER THING',
+    think:'TRADER THING',
+    curious:'TRADER THING · WATCHING',
+    interested:'TRADER THING · INTERESTED',
+    bean:'TRADER THING · BEAN',
+    trouble:'TRADER THING · TROUBLESHOOTER',
+    poop:'TRADER THING · SOMETHING IS FUCKED',
+    buy:'TRADER THING · BUY',
+    sell:'TRADER THING · SELL',
+    up:'TRADER THING · SMUG',
+    down:'TRADER THING · PISSED',
+    point:'TRADER THING · POINT',
+    win:'TRADER THING · WINNER',
+    dead:'TRADER THING · DEAD'
+  };
+  $('traderThingTitle').textContent=labels[petState] || 'TRADER THING';
   const lines=moods[petState] || ['...'];
   $('petMood').textContent=lines[petQuipIndex % lines.length];
 }
