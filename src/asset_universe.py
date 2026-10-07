@@ -63,11 +63,23 @@ class CoinbaseAssetUniverse:
         self.asset_cache_seconds = max(60.0, float(asset_cache_seconds))
         self.scan_interval_seconds = max(10.0, float(scan_interval_seconds))
 
-    def collect(self) -> dict[str, Any]:
+    def collect(
+        self,
+        priority_products: list[str] | tuple[str, ...] | set[str] | None = None,
+    ) -> dict[str, Any]:
         cls = type(self)
         now = time.time()
+        priority = {
+            str(product).upper()
+            for product in (priority_products or ())
+            if str(product).strip()
+        }
         with self._lock:
-            if cls._last_result is not None and now < cls._next_scan_at:
+            if (
+                cls._last_result is not None
+                and now < cls._next_scan_at
+                and not priority
+            ):
                 return cls._last_result
 
         errors: list[str] = []
@@ -85,6 +97,25 @@ class CoinbaseAssetUniverse:
                 cls._next_scan_at = time.time() + self.scan_interval_seconds
                 return result
             batch = self._next_batch(products)
+            if priority:
+                by_id = {
+                    str(product.get("id") or "").upper(): product
+                    for product in products
+                }
+                forced = [
+                    by_id[product_id]
+                    for product_id in priority
+                    if product_id in by_id
+                ]
+                seen = {
+                    str(product.get("id") or "").upper()
+                    for product in forced
+                }
+                batch = forced + [
+                    product
+                    for product in batch
+                    if str(product.get("id") or "").upper() not in seen
+                ]
 
         for product in batch:
             product_id = str(product.get("id") or "")
