@@ -304,12 +304,12 @@ function renderSnapshot(s){
     : '--';
   $('weirdness').textContent = human.available ? Number(human.weirdness || 0).toFixed(2) : '--';
   $('fearGreed').textContent = human.available
-    ? 'Fear & Greed: '+(human.fear_greed_value ?? '--')+' · '+(human.fear_greed_classification || 'UNKNOWN')+
+    ? 'Fear & Greed (Alternative.me): '+(human.fear_greed_value ?? '--')+' · '+(human.fear_greed_classification || 'UNKNOWN')+
       ' · 1d '+(Number(human.fear_greed_change_1d || 0)>=0?'+':'')+Number(human.fear_greed_change_1d || 0).toFixed(0)
     : 'Fear & Greed: --';
   const counts=human.source_counts || {};
   $('signalSources').textContent = human.available
-    ? 'Sources: news '+Number(counts.news||0)+' · social '+Number(counts.social||0)+
+    ? 'Sources: GDELT news '+Number(counts.news||0)+' · Reddit social '+Number(counts.social||0)+
       ' · politics '+Number(counts.politics||0)+' · weird '+Number(counts.weird||0)
     : 'Sources: --';
   const heads=(human.top_headlines || []).slice(0,6);
