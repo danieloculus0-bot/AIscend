@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import math
 import time
+import threading
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -69,10 +70,26 @@ class HumanSignals:
 class HumanSignalResearch:
     """Collects crowd psychology and event pressure without requiring API keys."""
 
-    def __init__(self, timeout: float = 7.0) -> None:
+    _cache_lock = threading.Lock()
+    _cached_pack: HumanSignals | None = None
+    _cache_until = 0.0
+
+    def __init__(self, timeout: float = 7.0, cache_seconds: float = 120.0) -> None:
         self.timeout = timeout
+        self.cache_seconds = max(0.0, float(cache_seconds))
 
     def collect(self) -> HumanSignals:
+        cls = type(self)
+        now = time.time()
+        with cls._cache_lock:
+            if cls._cached_pack is not None and now < cls._cache_until:
+                return cls._cached_pack
+            pack = self._collect_uncached()
+            cls._cached_pack = pack
+            cls._cache_until = time.time() + self.cache_seconds
+            return pack
+
+    def _collect_uncached(self) -> HumanSignals:
         errors: list[str] = []
         fng_value: float | None = None
         fng_class = "UNKNOWN"
