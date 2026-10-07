@@ -5,7 +5,7 @@ from pathlib import Path
 
 from src.advanced_live import AdvancedSpotEngine
 from src.core import StateStore
-from src.wallets.advanced_trade import AdvancedBalance, AdvancedTradeStatus
+from src.wallets.advanced_trade import AdvancedBalance, AdvancedTradeSpot, AdvancedTradeStatus
 
 
 class FakeRail:
@@ -501,6 +501,58 @@ class AdvancedLiveTests(unittest.TestCase):
                 best["pre_human_score"],
             )
             self.assertIn("Human Weather", snap["research"]["thesis"])
+            store.close()
+
+    def test_coinbase_rejection_response_raises_instead_of_faking_execution(self):
+        with self.assertRaisesRegex(RuntimeError, "Coinbase rejected market buy DIA-USDC"):
+            AdvancedTradeSpot._require_order_success(
+                {
+                    "success": False,
+                    "error_response": {
+                        "error": "INVALID_ARGUMENT",
+                        "message": "order rejected",
+                    },
+                },
+                "market buy DIA-USDC",
+            )
+
+    def test_unfilled_coinbase_order_is_not_marked_live_executed(self):
+        class UnfilledRail(FakeRail):
+            def market_buy(self, product_id, quote_size, client_order_id):
+                return {
+                    "success": True,
+                    "success_response": {
+                        "order_id": "accepted-but-not-filled",
+                        "product_id": product_id,
+                    },
+                }
+
+            def order(self, order_id):
+                return {
+                    "order": {
+                        "order_id": order_id,
+                        "status": "FAILED",
+                        "filled_size": "0",
+                        "filled_value": "0",
+                        "settled": False,
+                        "reject_message": "exchange rejected order",
+                    }
+                }
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "advanced.db")
+            engine = AdvancedSpotEngine(
+                store,
+                rail=UnfilledRail(),
+                asset_universe=FakeUniverse(),
+                listing_sentinel=FakeListingSentinel(),
+                human_researcher=FakeHumanResearch(),
+            )
+            engine.step()
+            row = store.latest_decisions(1)[0]
+            self.assertEqual(row["action"], "BUY")
+            self.assertEqual(row["status"], "EXECUTION_ERROR")
+            self.assertIn("exchange rejected order", row["rationale"])
             store.close()
 
     def test_execution_failure_still_hits_decision_journal(self):
