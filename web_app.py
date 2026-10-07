@@ -9,7 +9,6 @@ from typing import Any
 from flask import Flask, jsonify, render_template, request
 
 from src.core import StateStore, app_data_dir
-from src.game import get_win_target, set_win_target
 from src.live import LiveEngine
 from src.wallets.cdp_wallet import CdpWallet, CredentialVault
 
@@ -55,7 +54,6 @@ def _status_payload(network: str) -> dict[str, Any]:
         return {
             "ok": True,
             "snapshot": snap,
-            "target": get_win_target(store),
             "decisions": _rows_to_dicts(store.latest_decisions(30)),
             "ledger": _rows_to_dicts(store.latest_ledger(30)),
             "runner": dict(_loop_state),
@@ -159,20 +157,6 @@ def status():
                 "runner": dict(_loop_state),
             }
         ), 400
-
-
-@app.post("/api/target")
-def target():
-    payload = request.get_json(silent=True) or {}
-    network = _validate_network(str(payload.get("network", "base")))
-    value = float(payload.get("target", 0))
-
-    store = StateStore(_db_path(network))
-    try:
-        target_value = set_win_target(store, value)
-        return jsonify({"ok": True, "target": target_value})
-    finally:
-        store.close()
 
 
 @app.post("/api/run-once")
