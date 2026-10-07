@@ -19,6 +19,11 @@ class FakeKeyring:
         self.values.pop((service, key), None)
 
 
+class BrokenKeyring:
+    def get_password(self, service, key):
+        raise RuntimeError("no backend")
+
+
 class CredentialVaultTests(unittest.TestCase):
     def setUp(self):
         self.backend = FakeKeyring()
@@ -51,6 +56,22 @@ class CredentialVaultTests(unittest.TestCase):
     def test_blank_secret_rejected(self):
         with self.assertRaises(ValueError):
             self.vault.save("id", "", "wallet")
+
+    def test_missing_keyring_backend_is_not_configured(self):
+        vault = CredentialVault(backend=BrokenKeyring())
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertFalse(vault.configured())
+
+    def test_environment_credentials_work_without_keyring_backend(self):
+        vault = CredentialVault(backend=BrokenKeyring())
+        values = {
+            "CDP_API_KEY_ID": "id",
+            "CDP_API_KEY_SECRET": "secret",
+            "CDP_WALLET_SECRET": "wallet",
+        }
+        with patch.dict(os.environ, values, clear=True):
+            self.assertTrue(vault.configured())
+            vault.load_into_environment()
 
 
 if __name__ == "__main__":
