@@ -1,6 +1,8 @@
 param(
     [ValidateSet("base-sepolia", "base")]
-    [string]$Network = "base-sepolia"
+    [string]$Network = "base-sepolia",
+
+    [string]$KeyFile
 )
 
 $ErrorActionPreference = "Stop"
@@ -19,11 +21,17 @@ Write-Host "Installing/updating dependencies..." -ForegroundColor Cyan
 if ($LASTEXITCODE -ne 0) { throw "Dependency installation failed." }
 
 Write-Host ""
-Write-Host "Launching secure CDP credential setup..." -ForegroundColor Cyan
-& $Python scripts\cdp_wallet.py --network $Network configure
+Write-Host "Launching CDP credential setup..." -ForegroundColor Cyan
+
+$Args = @("scripts\cdp_wallet.py", "--network", $Network, "configure")
+if ($KeyFile) {
+    $Args += @("--key-file", $KeyFile)
+}
+
+& $Python @Args
 if ($LASTEXITCODE -ne 0) { throw "CDP configuration failed." }
 
 Write-Host ""
-Write-Host "CDP wallet configured." -ForegroundColor Green
-Write-Host "Check it later with:"
+Write-Host "AIscend wallet configured." -ForegroundColor Green
+Write-Host "Check it with:"
 Write-Host "  .\.venv\Scripts\python.exe scripts\cdp_wallet.py --network $Network status"
