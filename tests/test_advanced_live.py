@@ -312,6 +312,109 @@ class AdvancedLiveTests(unittest.TestCase):
             self.assertEqual(row["symbol"],"ALEO-USDC")
             store.close()
 
+    def test_engine_auto_funds_usd_candidate_from_usdc(self):
+        class DollarRouteRail(FakeRail):
+            def __init__(self):
+                super().__init__()
+                self.usd = Decimal("0")
+                self.zro = Decimal("0")
+                self.conversions = []
+
+            def status(self):
+                balances = []
+                if self.usdc > 0:
+                    balances.append(AdvancedBalance("USDC", self.usdc, Decimal("0")))
+                if self.usd > 0:
+                    balances.append(AdvancedBalance("USD", self.usd, Decimal("0")))
+                if self.zro > 0:
+                    balances.append(AdvancedBalance("ZRO", self.zro, Decimal("0")))
+                return AdvancedTradeStatus(
+                    configured=True,
+                    balances=tuple(balances),
+                    tradable_spot_products=2,
+                    product_ids=("USDC-USD", "ZRO-USD"),
+                )
+
+            def product(self, product_id):
+                prices = {"USDC-USD": "1.00", "ZRO-USD": "2.00"}
+                return {"product_id": product_id, "price": prices[product_id]}
+
+            def market_sell(self, product_id, base_size, client_order_id):
+                qty = Decimal(str(base_size))
+                if product_id == "USDC-USD":
+                    self.usdc -= qty
+                    self.usd += qty
+                    self.conversions.append((product_id, qty, client_order_id))
+                    return {"success": True, "order_id": "convert-1"}
+                return super().market_sell(product_id, base_size, client_order_id)
+
+            def market_buy(self, product_id, quote_size, client_order_id):
+                spend = Decimal(str(quote_size))
+                if product_id == "ZRO-USD":
+                    self.usd -= spend
+                    self.zro += spend / Decimal("2")
+                    self.buys.append((product_id, spend, client_order_id))
+                    return {"success": True, "order_id": "zro-buy"}
+                return super().market_buy(product_id, quote_size, client_order_id)
+
+        class DollarUniverse:
+            def collect(self, priority_products=None):
+                zro = {
+                    "product": "ZRO-USD",
+                    "base": "ZRO",
+                    "quote": "USD",
+                    "price": 2.0,
+                    "return_5m": 0.02,
+                    "return_1h": 0.024,
+                    "return_6h": 0.08,
+                    "volume_ratio": 3.4,
+                    "spread_bps": 5.0,
+                    "score": 0.82,
+                }
+                return {
+                    "available": True,
+                    "product_count": 2,
+                    "scanned_count": 1,
+                    "errors": [],
+                    "top": [zro],
+                    "buy_top": [zro],
+                    "scored": [zro],
+                }
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "advanced.db")
+            rail = DollarRouteRail()
+            engine = AdvancedSpotEngine(
+                store,
+                rail=rail,
+                asset_universe=DollarUniverse(),
+                listing_sentinel=FakeListingSentinel(),
+                human_researcher=FakeHumanResearch(),
+            )
+            engine.step()
+            row = store.latest_decisions(1)[0]
+            self.assertEqual(row["action"], "BUY")
+            self.assertEqual(row["symbol"], "ZRO-USD")
+            self.assertEqual(row["status"], "LIVE_EXECUTED")
+            self.assertTrue(rail.conversions)
+            self.assertTrue(rail.buys)
+            self.assertGreater(rail.zro, 0)
+            self.assertLess(rail.usdc, Decimal("25.00"))
+            self.assertIn("Auto-funding USD from USDC", row["rationale"])
+            store.close()
+
+    def test_engine_prefers_equivalent_pair_in_funded_quote(self):
+        engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+        route = engine._funding_route(
+            "ZRO-USD",
+            ("ZRO-USD", "ZRO-USDC"),
+            {"USDC": 25.0},
+        )
+        self.assertIsNotNone(route)
+        self.assertEqual(route["mode"], "ALT_PAIR")
+        self.assertEqual(route["execution_product"], "ZRO-USDC")
+        self.assertEqual(route["quote"], "USDC")
+
     def test_fresh_public_listing_signal_can_trigger_candidate(self):
         class FreshRail(FakeRail):
             def status(self):
