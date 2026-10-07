@@ -73,6 +73,84 @@ class AdvancedSpotEngine:
                     return product_id
         return candidates[0] if candidates else None
 
+    def _product_price(
+        self,
+        product_id: str,
+        universe_by_product: dict[str, dict[str, Any]],
+    ) -> float:
+        item = universe_by_product.get(product_id.upper())
+        if item is not None:
+            price = float(item.get("price") or 0.0)
+            if price > 0:
+                return price
+        try:
+            product = self.rail.product(product_id)
+            return float(product.get("price") or 0.0)
+        except Exception:
+            return 0.0
+
+    def _usd_rate(
+        self,
+        currency: str,
+        product_ids: tuple[str, ...],
+        universe_by_product: dict[str, dict[str, Any]],
+        *,
+        visited: set[str] | None = None,
+        depth: int = 0,
+    ) -> float:
+        currency = currency.upper()
+        if currency in DOLLAR_ASSETS:
+            return 1.0
+        if depth > 2:
+            return 0.0
+
+        seen = set(visited or ())
+        if currency in seen:
+            return 0.0
+        seen.add(currency)
+
+        # Prefer direct dollar markets when they exist.
+        for dollar in ("USDC", "USD"):
+            direct = f"{currency}-{dollar}"
+            if direct in product_ids:
+                price = self._product_price(direct, universe_by_product)
+                if price > 0:
+                    return price
+
+            inverse = f"{dollar}-{currency}"
+            if inverse in product_ids:
+                price = self._product_price(inverse, universe_by_product)
+                if price > 0:
+                    return 1.0 / price
+
+        # Fall back to a short cross-rate path through another Coinbase quote.
+        for product_id in product_ids:
+            base, quote = self._split_product(product_id)
+            price = self._product_price(product_id, universe_by_product)
+            if price <= 0:
+                continue
+            if base == currency and quote not in seen:
+                quote_rate = self._usd_rate(
+                    quote,
+                    product_ids,
+                    universe_by_product,
+                    visited=seen,
+                    depth=depth + 1,
+                )
+                if quote_rate > 0:
+                    return price * quote_rate
+            if quote == currency and base not in seen:
+                base_rate = self._usd_rate(
+                    base,
+                    product_ids,
+                    universe_by_product,
+                    visited=seen,
+                    depth=depth + 1,
+                )
+                if base_rate > 0:
+                    return base_rate / price
+        return 0.0
+
     def sync(self) -> dict[str, Any]:
         status = self.rail.status()
         listing = self.listing_sentinel.poll()
@@ -117,36 +195,33 @@ class AdvancedSpotEngine:
 
         positions: dict[str, dict[str, float | str]] = {}
         prices: dict[str, float] = {}
-        market_value = 0.0
+        balance_values_usd: dict[str, float] = {}
 
         for currency, qty in raw_balances.items():
+            usd_rate = self._usd_rate(
+                currency,
+                product_ids,
+                universe_by_product,
+            )
+            if usd_rate > 0:
+                balance_values_usd[currency] = qty * usd_rate
+
             if currency in DOLLAR_ASSETS:
                 continue
+
             product_id = self._product_for_currency(currency, product_ids)
-            if not product_id:
+            if not product_id or usd_rate <= 0:
                 continue
 
-            item = universe_by_product.get(product_id)
-            price = float(item.get("price") or 0.0) if item else 0.0
-            if price <= 0:
-                try:
-                    product = self.rail.product(product_id)
-                    price = float(product.get("price") or 0.0)
-                except Exception:
-                    price = 0.0
-            if price <= 0:
-                continue
-
-            value = qty * price
-            market_value += value
             positions[product_id] = {
                 "qty": qty,
-                "avg_cost": price,
+                "avg_cost": usd_rate,
                 "base": currency,
             }
-            prices[product_id] = price
+            prices[product_id] = usd_rate
 
-        net = cash + market_value
+        net = sum(balance_values_usd.values())
+        market_value = max(0.0, net - cash)
         start_text = self.store.get_meta("advanced_starting_value")
         if start_text is None and net > 0.01:
             start = net
@@ -190,6 +265,7 @@ class AdvancedSpotEngine:
         self._snapshot = {
             "cash": cash,
             "cash_by_quote": cash_by_quote,
+            "balance_values_usd": balance_values_usd,
             "starting_cash": start,
             "positions": positions,
             "prices": prices,
