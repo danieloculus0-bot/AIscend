@@ -536,3 +536,15 @@ Version 0.15 adds direct USDC plumbing between the Base smart wallet and the Coi
 The Flask app already binds to `0.0.0.0:8000`. Version 0.15 adds a read-only `/monitor` page that auto-refreshes bankroll, current rail, research, BEAN, Coinbase candidates, positions, and the decision journal without exposing trade controls.
 
 For a private home-PC to work-PC link, the included Windows helper `scripts/start_remote_monitor.ps1` detects a Tailscale IPv4 address and prints the monitor URL. Both PCs need to be on the same Tailnet. Optional `AISCEND_REMOTE_TOKEN` protects the monitor route with a query/header token when desired.
+
+
+## Tax / execution audit trail
+
+AIscend keeps an append-only local audit trail for live trades and wallet movements. The audit files are stored outside the repository under the application-data folder:
+
+`%LOCALAPPDATA%\AutonomousCapitalLab\audit\aiscend-audit-YYYY.jsonl`  
+`%LOCALAPPDATA%\AutonomousCapitalLab\audit\aiscend-audit-YYYY.csv`
+
+The JSONL file is the canonical machine-readable record and the CSV is maintained alongside it for quick review. Trade records include UTC timestamp, venue/rail, product, side, base and quote quantities when known, execution price when known, provider order/client IDs, transaction IDs, rationale, status, and a sanitized provider response. Base ↔ Coinbase USDC movements are recorded as transfers rather than trades so wallet movement can be separated from disposals during reconciliation.
+
+Coinbase Advanced market-order responses do not always contain final fill quantity, execution price, or fee information at order-submission time. The audit record preserves the order response and requested quantity, then Coinbase statements/exports can be reconciled later for final tax reporting. Audit-write failures are surfaced separately and never turn an already-completed trade or transfer into a retry condition.
