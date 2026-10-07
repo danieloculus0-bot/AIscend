@@ -34,11 +34,11 @@ class UniverseAsset:
 
 class CoinbaseAssetUniverse:
     """
-    Rotating public-market scanner across active Coinbase USD/USDC products.
+    Rotating public-market scanner across active Coinbase spot products.
 
-    It discovers the active public product universe, then scores a rotating batch
-    on each trading cadence. This expands research breadth without treating every
-    Coinbase-listed asset as executable from the Base smart wallet.
+    It discovers the full active public spot universe across every quote currency,
+    then scores a rotating batch on each trading cadence. Execution eligibility is
+    decided separately by the connected account and execution rail.
     """
 
     _lock = threading.Lock()
@@ -53,13 +53,13 @@ class CoinbaseAssetUniverse:
         self,
         timeout: float = 6.0,
         batch_size: int = 8,
-        product_refresh_seconds: float = 900.0,
+        product_refresh_seconds: float = 55.0,
         asset_cache_seconds: float = 600.0,
         scan_interval_seconds: float = 55.0,
     ) -> None:
         self.timeout = timeout
         self.batch_size = max(1, int(batch_size))
-        self.product_refresh_seconds = max(60.0, float(product_refresh_seconds))
+        self.product_refresh_seconds = max(10.0, float(product_refresh_seconds))
         self.asset_cache_seconds = max(60.0, float(asset_cache_seconds))
         self.scan_interval_seconds = max(10.0, float(scan_interval_seconds))
 
@@ -150,9 +150,7 @@ class CoinbaseAssetUniverse:
                 quote = str(item.get("quote_currency") or "").upper()
                 base = str(item.get("base_currency") or "").upper()
                 product_id = str(item.get("id") or "").upper()
-                if quote not in {"USD", "USDC"}:
-                    continue
-                if not base or not product_id:
+                if not base or not quote or not product_id:
                     continue
                 rows.append(
                     {
@@ -174,6 +172,18 @@ class CoinbaseAssetUniverse:
         cls = type(self)
         if not products:
             return []
+
+        # Brand-new/unseen products get first crack at a scan. That prevents a
+        # fresh listing from sitting behind hundreds of alphabetically earlier
+        # products while the rotating cursor catches up.
+        unseen = [
+            product
+            for product in products
+            if str(product.get("id") or "") not in cls._cache
+        ]
+        if unseen:
+            return unseen[: self.batch_size]
+
         start = cls._cursor % len(products)
         count = min(self.batch_size, len(products))
         out = [products[(start + i) % len(products)] for i in range(count)]
@@ -192,19 +202,27 @@ class CoinbaseAssetUniverse:
             f"/products/{urllib.parse.quote(product_id)}/book?level=1"
         )
 
-        if not isinstance(candles, list) or len(candles) < 72:
-            return None
+        if not isinstance(candles, list):
+            candles = []
 
         ordered = list(reversed(candles))
-        closes = [float(row[4]) for row in ordered]
-        volumes = [float(row[5]) for row in ordered]
+        closes = [float(row[4]) for row in ordered if len(row) > 5]
+        volumes = [float(row[5]) for row in ordered if len(row) > 5]
         price = float(ticker["price"])
-        return_5m = self._pct(closes[-1], closes[-2])
-        return_1h = self._pct(closes[-1], closes[-13])
-        return_6h = self._pct(closes[-1], closes[-72])
 
-        baseline = statistics.median(volumes[-13:-1]) or 1.0
-        volume_ratio = volumes[-1] / baseline
+        # A newly-listed product is still a valid research object even when it
+        # has only minutes of candles. Use only the horizons that actually exist
+        # instead of hiding the asset until six hours of history accumulate.
+        return_5m = self._pct(closes[-1], closes[-2]) if len(closes) >= 2 else 0.0
+        return_1h = self._pct(closes[-1], closes[-13]) if len(closes) >= 13 else 0.0
+        return_6h = self._pct(closes[-1], closes[-72]) if len(closes) >= 72 else 0.0
+
+        if len(volumes) >= 2:
+            baseline_window = volumes[-13:-1] or volumes[:-1]
+            baseline = statistics.median(baseline_window) or 1.0
+            volume_ratio = volumes[-1] / baseline
+        else:
+            volume_ratio = 1.0
 
         bid = float(book["bids"][0][0])
         ask = float(book["asks"][0][0])
@@ -242,7 +260,7 @@ class CoinbaseAssetUniverse:
             COINBASE_PUBLIC + path,
             headers={
                 "Accept": "application/json",
-                "User-Agent": "AIscend/0.11 asset-universe",
+                "User-Agent": "AIscend/0.16 asset-universe",
             },
         )
         with urllib.request.urlopen(request, timeout=self.timeout) as response:
