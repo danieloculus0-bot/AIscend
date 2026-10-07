@@ -34,7 +34,7 @@ _snapshot_cache_lock = threading.Lock()
 _snapshot_cache: dict[str, tuple[float, dict[str, Any]]] = {}
 _loop_state: dict[str, Any] = {
     "running": False,
-    "rail": "base",
+    "rail": "auto",
     "network": "base",
     "interval": 60.0,
     "last_error": None,
@@ -299,16 +299,9 @@ def _monitor_token_ok() -> bool:
 
 
 def _active_monitor_payload() -> dict[str, Any]:
-    rail = str(_loop_state.get("rail") or "base")
+    rail = str(_loop_state.get("rail") or "auto")
     network = str(_loop_state.get("network") or "base")
-    if rail == "advanced" and not AdvancedTradeVault().configured():
-        rail = "base"
-
     data = _status_payload(network, rail)
-    suggested = str(data.get("suggested_rail") or rail)
-    if not bool((data.get("runner") or {}).get("running")) and suggested != rail:
-        rail = suggested
-        data = _status_payload(network, rail)
 
     snapshot = data.get("snapshot") or {}
     # Explicitly omit anything credential-like. This endpoint is read-only.
@@ -453,9 +446,11 @@ def bridge_base_to_advanced():
 
         advanced = AdvancedTradeSpot()
         destination = advanced.receive_address("USDC", "base")
-        tx_hash = asyncio.run(
-            CdpWallet(network="base").send_usdc(destination, amount)
-        )
+        with _capital_lock:
+            tx_hash = asyncio.run(
+                CdpWallet(network="base").send_usdc(destination, amount)
+            )
+        _invalidate_snapshot_cache()
         audit_warning = None
         try:
             AuditTrail().record_transfer(
@@ -498,12 +493,14 @@ def bridge_advanced_to_base():
             raise ValueError("Amount must be greater than zero.")
 
         base_address = asyncio.run(CdpWallet(network="base").ensure_account())
-        result = AdvancedTradeSpot().send_usdc_to_address(
-            base_address,
-            amount,
-            network="base",
-            idem=f"aiscend-bridge-{uuid.uuid4()}",
-        )
+        with _capital_lock:
+            result = AdvancedTradeSpot().send_usdc_to_address(
+                base_address,
+                amount,
+                network="base",
+                idem=f"aiscend-bridge-{uuid.uuid4()}",
+            )
+        _invalidate_snapshot_cache()
         audit_warning = None
         try:
             audit = AuditTrail()
@@ -586,7 +583,7 @@ def configure():
 @app.get("/api/status")
 def status():
     network = _validate_network(request.args.get("network", "base"))
-    rail = _validate_rail(request.args.get("rail", "base"))
+    rail = _validate_rail(request.args.get("rail", "auto"))
     try:
         return jsonify(_status_payload(network, rail))
     except Exception as exc:
@@ -603,7 +600,7 @@ def status():
 def run_once():
     payload = request.get_json(silent=True) or {}
     network = _validate_network(str(payload.get("network", "base")))
-    rail = _validate_rail(str(payload.get("rail", "base")))
+    rail = _validate_rail(str(payload.get("rail", "auto")))
 
     with _loop_lock:
         if _loop_state["running"]:
