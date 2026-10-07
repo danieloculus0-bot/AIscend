@@ -1,17 +1,22 @@
 from __future__ import annotations
 
+import asyncio
+import json
 import os
 import sys
 from datetime import datetime
+from pathlib import Path
 
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
     QDoubleSpinBox,
+    QFileDialog,
     QFormLayout,
     QFrame,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QMainWindow,
@@ -28,7 +33,10 @@ from .core import (
     Engine,
     OpenAICompatibleDecider,
     StateStore,
+    app_data_dir,
 )
+from .live import LiveEngine
+from .wallets.cdp_wallet import CdpWallet, CredentialVault
 
 APP_NAME = os.getenv("AUTOCAPITAL_APP_NAME", "Autonomous Capital Lab")
 
@@ -56,8 +64,8 @@ class MainWindow(QMainWindow):
         self.timer.timeout.connect(self.run_cycle)
 
         self.setWindowTitle(APP_NAME)
-        self.resize(1180, 760)
-        self.setMinimumSize(980, 650)
+        self.resize(1180, 790)
+        self.setMinimumSize(980, 680)
 
         root = QWidget()
         self.setCentralWidget(root)
@@ -69,10 +77,10 @@ class MainWindow(QMainWindow):
         title_box = QVBoxLayout()
         title = QLabel(APP_NAME)
         title.setObjectName("title")
-        subtitle = QLabel("Autonomous capital experiment")
-        subtitle.setObjectName("subtitle")
+        self.subtitle = QLabel("Autonomous capital experiment · synthetic sandbox")
+        self.subtitle.setObjectName("subtitle")
         title_box.addWidget(title)
-        title_box.addWidget(subtitle)
+        title_box.addWidget(self.subtitle)
         header.addLayout(title_box)
         header.addStretch()
 
@@ -97,7 +105,7 @@ class MainWindow(QMainWindow):
 
         controls = QFrame()
         controls.setObjectName("panel")
-        controls.setFixedWidth(330)
+        controls.setFixedWidth(350)
         controls_layout = QVBoxLayout(controls)
         controls_layout.setContentsMargins(16, 16, 16, 16)
 
@@ -111,10 +119,21 @@ class MainWindow(QMainWindow):
         self.bankroll = QDoubleSpinBox()
         self.bankroll.setPrefix("$")
         self.bankroll.setDecimals(2)
-        self.bankroll.setRange(0.01, 1_000_000)
+        self.bankroll.setRange(0.00, 1_000_000)
         self.bankroll.setValue(self.store.starting_cash or 10.0)
         self.bankroll.setEnabled(False)
-        form.addRow("Seed bankroll", self.bankroll)
+        form.addRow("Starting value", self.bankroll)
+
+        self.execution = QComboBox()
+        self.execution.addItems(
+            [
+                "Synthetic sandbox",
+                "Coinbase live · Base Sepolia",
+                "Coinbase live · Base",
+            ]
+        )
+        self.execution.currentIndexChanged.connect(self.execution_changed)
+        form.addRow("Execution", self.execution)
 
         self.interval = QDoubleSpinBox()
         self.interval.setSuffix(" sec")
@@ -138,9 +157,13 @@ class MainWindow(QMainWindow):
 
         controls_layout.addLayout(form)
 
+        self.coinbase_button = QPushButton("CONFIGURE COINBASE")
+        self.coinbase_button.clicked.connect(self.configure_coinbase)
+        controls_layout.addWidget(self.coinbase_button)
+
         api_note = QLabel(
-            "AI mode reads AUTOCAPITAL_API_KEY from the Windows environment. "
-            "The key is never written to the experiment database."
+            "Coinbase credentials are stored in Windows Credential Manager. "
+            "Live mode uses the dedicated CDP smart account."
         )
         api_note.setWordWrap(True)
         api_note.setObjectName("hint")
@@ -156,21 +179,21 @@ class MainWindow(QMainWindow):
         self.stop_button.setEnabled(False)
         controls_layout.addWidget(self.stop_button)
 
-        self.reset_button = QPushButton("RESET TO $10")
+        self.reset_button = QPushButton("RESET SYNTHETIC TO $10")
         self.reset_button.setObjectName("dangerButton")
         self.reset_button.clicked.connect(self.reset_experiment)
         controls_layout.addWidget(self.reset_button)
 
         controls_layout.addStretch()
 
-        boundary = QLabel(
+        self.boundary = QLabel(
             "Account boundary\n"
             "No leverage. No negative cash. No outside funding. "
-            "Within the bankroll, trades execute without per-trade approval."
+            "Within the selected bankroll, trades execute without per-trade approval."
         )
-        boundary.setWordWrap(True)
-        boundary.setObjectName("boundary")
-        controls_layout.addWidget(boundary)
+        self.boundary.setWordWrap(True)
+        self.boundary.setObjectName("boundary")
+        controls_layout.addWidget(self.boundary)
 
         body.addWidget(controls)
 
@@ -207,6 +230,127 @@ class MainWindow(QMainWindow):
         self.apply_style()
         self.refresh()
 
+    def selected_network(self) -> str | None:
+        if self.execution.currentIndex() == 1:
+            return "base-sepolia"
+        if self.execution.currentIndex() == 2:
+            return "base"
+        return None
+
+    def configure_coinbase(self) -> None:
+        key_file, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Coinbase CDP API key JSON",
+            str(Path.home()),
+            "JSON files (*.json);;All files (*.*)",
+        )
+        if not key_file:
+            return
+
+        try:
+            data = json.loads(Path(key_file).read_text(encoding="utf-8"))
+            api_key_id = str(data.get("id") or data.get("name") or "").strip()
+            api_key_secret = str(
+                data.get("privateKey") or data.get("private_key") or ""
+            ).strip()
+            if not api_key_id or not api_key_secret:
+                raise ValueError("CDP key JSON is missing id or privateKey.")
+        except Exception as exc:
+            QMessageBox.critical(self, "Coinbase setup", str(exc))
+            return
+
+        wallet_secret, ok = QInputDialog.getText(
+            self,
+            "Coinbase Wallet Secret",
+            "Wallet Secret:",
+            QLineEdit.Password,
+        )
+        if not ok or not wallet_secret.strip():
+            return
+
+        try:
+            vault = CredentialVault()
+            vault.save(api_key_id, api_key_secret, wallet_secret)
+            network = self.selected_network() or "base-sepolia"
+            address = asyncio.run(
+                CdpWallet(vault=vault, network=network).ensure_account()
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "Coinbase setup", str(exc))
+            return
+
+        QMessageBox.information(
+            self,
+            "Coinbase connected",
+            f"AIscend smart account ready.\n\n{address}",
+        )
+
+    def execution_changed(self) -> None:
+        if self.timer.isActive():
+            return
+
+        network = self.selected_network()
+        if network is None:
+            self._switch_to_synthetic()
+            return
+
+        if not CredentialVault().configured():
+            QMessageBox.information(
+                self,
+                "Coinbase setup",
+                "Configure Coinbase first, then select live execution.",
+            )
+            self.execution.blockSignals(True)
+            self.execution.setCurrentIndex(0)
+            self.execution.blockSignals(False)
+            self._switch_to_synthetic()
+            return
+
+        self._switch_to_live(network)
+
+    def _switch_to_synthetic(self) -> None:
+        new_store = StateStore()
+        new_engine = Engine(new_store)
+        old_store = self.store
+        self.store = new_store
+        self.engine = new_engine
+        if old_store is not new_store:
+            old_store.close()
+
+        self.subtitle.setText("Autonomous capital experiment · synthetic sandbox")
+        self.reset_button.setEnabled(True)
+        self.refresh()
+
+    def _switch_to_live(self, network: str) -> None:
+        new_store = StateStore(app_data_dir() / f"live-{network}.db")
+        new_engine = LiveEngine(
+            store=new_store,
+            wallet=CdpWallet(network=network),
+        )
+        try:
+            snap = new_engine.sync()
+        except Exception as exc:
+            new_store.close()
+            QMessageBox.critical(self, "Coinbase live mode", str(exc))
+            self.execution.blockSignals(True)
+            self.execution.setCurrentIndex(0)
+            self.execution.blockSignals(False)
+            self._switch_to_synthetic()
+            return
+
+        old_store = self.store
+        self.store = new_store
+        self.engine = new_engine
+        old_store.close()
+
+        label = "Base Sepolia" if network == "base-sepolia" else "Base"
+        self.subtitle.setText(
+            f"Autonomous capital experiment · Coinbase live · {label} · "
+            f"{snap['wallet_address'][:10]}…"
+        )
+        self.reset_button.setEnabled(False)
+        self.refresh()
+
     def toggle_ai_fields(self) -> None:
         enabled = self.mode.currentIndex() == 1
         self.endpoint.setEnabled(enabled and not self.timer.isActive())
@@ -240,6 +384,8 @@ class MainWindow(QMainWindow):
         self.stop_button.setEnabled(True)
         self.reset_button.setEnabled(False)
         self.interval.setEnabled(False)
+        self.execution.setEnabled(False)
+        self.coinbase_button.setEnabled(False)
         self.mode.setEnabled(False)
         self.endpoint.setEnabled(False)
         self.model.setEnabled(False)
@@ -255,9 +401,11 @@ class MainWindow(QMainWindow):
 
         self.start_button.setEnabled(True)
         self.stop_button.setEnabled(False)
-        self.reset_button.setEnabled(True)
         self.interval.setEnabled(True)
+        self.execution.setEnabled(True)
+        self.coinbase_button.setEnabled(True)
         self.mode.setEnabled(True)
+        self.reset_button.setEnabled(self.selected_network() is None)
         self.toggle_ai_fields()
 
     def run_cycle(self) -> None:
@@ -273,10 +421,12 @@ class MainWindow(QMainWindow):
             )
 
     def reset_experiment(self) -> None:
+        if self.selected_network() is not None:
+            return
         answer = QMessageBox.question(
             self,
             "Reset experiment",
-            "Erase the current bankroll, positions, and journal and restart at $10.00?",
+            "Erase the synthetic bankroll, positions, and journal and restart at $10.00?",
         )
         if answer != QMessageBox.Yes:
             return
@@ -291,6 +441,7 @@ class MainWindow(QMainWindow):
         self.cash_card.value.setText(f"${snap['cash']:.4f}")
         self.pnl_card.value.setText(f"${snap['pnl']:+.4f}")
         self.multiple_card.value.setText(f"{snap['multiple']:.3f}x")
+        self.bankroll.setValue(max(0.0, float(snap["starting_cash"])))
 
         pos = snap["positions"]
         prices = snap["prices"]
@@ -298,7 +449,7 @@ class MainWindow(QMainWindow):
         for row, (symbol, data) in enumerate(sorted(pos.items())):
             values = [
                 symbol,
-                f"{data['qty']:.6f}",
+                f"{data['qty']:.8f}",
                 f"${data['avg_cost']:.4f}",
                 f"${prices.get(symbol, 0):.4f}",
                 f"${data['qty'] * prices.get(symbol, 0):.4f}",
