@@ -39,9 +39,10 @@ class AdvancedSpotEngine:
         self.store = store
         self.rail = rail or AdvancedTradeSpot()
         self.asset_universe = asset_universe or CoinbaseAssetUniverse()
+        universe_fetch = getattr(self.asset_universe, "_get_json", None)
         self.listing_sentinel = listing_sentinel or CoinbaseListingSentinel(
             self.store,
-            fetch_json=self.asset_universe._get_json,
+            fetch_json=universe_fetch,
         )
         self.bean = BeanMemory(self.store.conn)
         self._snapshot: dict[str, Any] | None = None
