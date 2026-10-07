@@ -125,8 +125,23 @@ class AdvancedSpotEngine:
                     return 1.0 / price
 
         # Fall back to a short cross-rate path through another Coinbase quote.
+        # Only inspect products touching this currency; do not turn valuation into
+        # a full-catalog REST request storm.
+        neighbors = []
         for product_id in product_ids:
             base, quote = self._split_product(product_id)
+            if base == currency or quote == currency:
+                neighbors.append((product_id, base, quote))
+
+        bridge_priority = {"BTC": 0, "ETH": 1, "USDT": 2, "EUR": 3, "GBP": 4}
+        neighbors.sort(
+            key=lambda row: bridge_priority.get(
+                row[2] if row[1] == currency else row[1],
+                99,
+            )
+        )
+
+        for product_id, base, quote in neighbors[:12]:
             price = self._product_price(product_id, universe_by_product)
             if price <= 0:
                 continue
