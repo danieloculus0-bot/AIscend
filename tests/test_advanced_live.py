@@ -47,8 +47,23 @@ class FakeRail:
         return {"success": True, "order_id": "sell-1"}
 
 
+class FakeListingSentinel:
+    def __init__(self, hot=None):
+        self.hot = hot or []
+
+    def poll(self):
+        return {
+            "available": True,
+            "product_count": 2,
+            "new_products": [],
+            "changes": [],
+            "hot": list(self.hot),
+            "errors": [],
+        }
+
+
 class FakeUniverse:
-    def collect(self):
+    def collect(self, priority_products=None):
         return {
             "available": True,
             "product_count": 2,
@@ -88,7 +103,12 @@ class AdvancedLiveTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             store = StateStore(Path(td) / "advanced.db")
             rail = FakeRail()
-            engine = AdvancedSpotEngine(store, rail=rail, asset_universe=FakeUniverse())
+            engine = AdvancedSpotEngine(
+                store,
+                rail=rail,
+                asset_universe=FakeUniverse(),
+                listing_sentinel=FakeListingSentinel(),
+            )
             snap = engine.step()
             rows = store.latest_decisions(1)
             self.assertEqual(rows[0]["action"], "BUY")
@@ -96,6 +116,163 @@ class AdvancedLiveTests(unittest.TestCase):
             self.assertEqual(rows[0]["status"], "LIVE_EXECUTED")
             self.assertTrue(rail.buys)
             self.assertLess(snap["cash"], 25.0)
+            store.close()
+
+    def test_engine_can_buy_non_usd_quote_product(self):
+        class EurRail(FakeRail):
+            def __init__(self):
+                super().__init__()
+                self.usdc = Decimal("0")
+                self.eur = Decimal("20")
+                self.meme = Decimal("0")
+
+            def status(self):
+                balances = [AdvancedBalance("EUR", self.eur, Decimal("0"))]
+                if self.meme > 0:
+                    balances.append(AdvancedBalance("MEME", self.meme, Decimal("0")))
+                return AdvancedTradeStatus(
+                    configured=True,
+                    balances=tuple(balances),
+                    tradable_spot_products=3,
+                    product_ids=("MEME-EUR", "BTC-EUR", "BTC-USD"),
+                )
+
+            def product(self, product_id):
+                prices = {
+                    "MEME-EUR": "0.20",
+                    "BTC-EUR": "50000",
+                    "BTC-USD": "55000",
+                }
+                return {"product_id": product_id, "price": prices[product_id]}
+
+            def market_buy(self, product_id, quote_size, client_order_id):
+                spend = Decimal(str(quote_size))
+                self.eur -= spend
+                self.meme += spend / Decimal("0.20")
+                self.buys.append((product_id, spend, client_order_id))
+                return {"success": True, "order_id": "meme-buy"}
+
+        class EurUniverse:
+            def collect(self, priority_products=None):
+                return {
+                    "available": True,
+                    "product_count": 1,
+                    "scanned_count": 1,
+                    "errors": [],
+                    "top": [{
+                        "product": "MEME-EUR",
+                        "base": "MEME",
+                        "quote": "EUR",
+                        "price": 0.20,
+                        "return_5m": 0.02,
+                        "return_1h": 0.04,
+                        "return_6h": 0.10,
+                        "volume_ratio": 2.0,
+                        "spread_bps": 8.0,
+                        "score": 0.75,
+                    }],
+                }
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "advanced.db")
+            rail = EurRail()
+            engine = AdvancedSpotEngine(
+                store,
+                rail=rail,
+                asset_universe=EurUniverse(),
+                listing_sentinel=FakeListingSentinel(),
+            )
+            snap = engine.step()
+            row = store.latest_decisions(1)[0]
+            self.assertEqual(row["action"], "BUY")
+            self.assertEqual(row["symbol"], "MEME-EUR")
+            self.assertEqual(row["status"], "LIVE_EXECUTED")
+            self.assertTrue(rail.buys)
+            self.assertGreater(snap["net_liquidation"], 20.0)
+            self.assertGreater(snap["balance_values_usd"].get("EUR", 0.0), 0.0)
+            store.close()
+
+    def test_fresh_public_listing_signal_can_trigger_candidate(self):
+        class FreshRail(FakeRail):
+            def status(self):
+                return AdvancedTradeStatus(
+                    configured=True,
+                    balances=(AdvancedBalance("USDC", self.usdc, Decimal("0")),),
+                    tradable_spot_products=1,
+                    product_ids=("SHIT-USDC",),
+                )
+
+            def market_buy(self, product_id, quote_size, client_order_id):
+                spend = Decimal(str(quote_size))
+                self.usdc -= spend
+                self.buys.append((product_id, spend, client_order_id))
+                return {"success": True, "order_id": "fresh-buy"}
+
+        class FreshUniverse:
+            def collect(self, priority_products=None):
+                return {
+                    "available": True,
+                    "product_count": 1,
+                    "scanned_count": 1,
+                    "errors": [],
+                    "top": [{
+                        "product": "SHIT-USDC",
+                        "base": "SHIT",
+                        "quote": "USDC",
+                        "price": 0.01,
+                        "return_5m": 0.0,
+                        "return_1h": 0.0,
+                        "return_6h": 0.0,
+                        "volume_ratio": 1.0,
+                        "spread_bps": 12.0,
+                        "score": 0.0,
+                    }],
+                }
+
+        event = {
+            "ts": __import__("time").time(),
+            "product": "SHIT-USDC",
+            "base": "SHIT",
+            "quote": "USDC",
+            "event": "NEW_PRODUCT",
+            "stage": "FULL_TRADING",
+        }
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "advanced.db")
+            rail = FreshRail()
+            engine = AdvancedSpotEngine(
+                store,
+                rail=rail,
+                asset_universe=FreshUniverse(),
+                listing_sentinel=FakeListingSentinel(hot=[event]),
+            )
+            engine.step()
+            row = store.latest_decisions(1)[0]
+            self.assertEqual(row["action"], "BUY")
+            self.assertEqual(row["symbol"], "SHIT-USDC")
+            self.assertEqual(row["status"], "LIVE_EXECUTED")
+            self.assertIn("Public listing signal", row["rationale"])
+            store.close()
+
+    def test_execution_failure_still_hits_decision_journal(self):
+        class BrokenRail(FakeRail):
+            def preview_market_buy(self, product_id, quote_size):
+                raise RuntimeError("preview rejected")
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "advanced.db")
+            engine = AdvancedSpotEngine(
+                store,
+                rail=BrokenRail(),
+                asset_universe=FakeUniverse(),
+                listing_sentinel=FakeListingSentinel(),
+            )
+            engine.step()
+            row = store.latest_decisions(1)[0]
+            self.assertEqual(row["action"], "BUY")
+            self.assertEqual(row["status"], "EXECUTION_ERROR")
+            self.assertIn("preview rejected", row["rationale"])
             store.close()
 
 

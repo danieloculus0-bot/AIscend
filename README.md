@@ -10,10 +10,10 @@ The live experiment is intended to start with a tiny bankroll, currently around 
 
 ## Project status
 
-**Version:** 0.15.0  
+**Version:** 0.16.0  
 **Platform:** Windows x64 + browser via GitHub Codespaces  
 **State:** Synthetic desktop sandbox + Coinbase live desktop mode  
-**Live-money execution:** CDP smart-account swaps on Base are implemented
+**Live-money execution:** Base smart-account swaps and Coinbase Advanced spot orders are implemented
 
 The current application is fully runnable against a persistent synthetic market. It already exercises the complete autonomous loop without requiring a brokerage account, wallet, API key, or internet connection.
 
@@ -536,3 +536,58 @@ Version 0.15 adds direct USDC plumbing between the Base smart wallet and the Coi
 The Flask app already binds to `0.0.0.0:8000`. Version 0.15 adds a read-only `/monitor` page that auto-refreshes bankroll, current rail, research, BEAN, Coinbase candidates, positions, and the decision journal without exposing trade controls.
 
 For a private home-PC to work-PC link, the included Windows helper `scripts/start_remote_monitor.ps1` detects a Tailscale IPv4 address and prints the monitor URL. Both PCs need to be on the same Tailnet. Optional `AISCEND_REMOTE_TOKEN` protects the monitor route with a query/header token when desired.
+
+
+## Universal Coinbase spot scan + Listing Sentinel
+
+AIscend no longer limits Advanced research to USD/USDC products. The public
+Coinbase spot universe is scanned across every quote currency returned by the
+exchange, including small-cap and newly-added tokens. There is no reputation or
+market-cap allowlist; execution eligibility comes from the connected Coinbase
+Advanced account plus market/liquidity checks.
+
+The Listing Sentinel polls public Coinbase product metadata on roughly a
+one-minute cadence and persists a baseline in the Advanced state database. It
+records newly-visible product IDs and public trading-state changes such as
+auction, limit-only, trading-disabled and full-trading transitions. This is
+public-data monitoring only.
+
+Fresh products are researchable immediately. The asset scanner no longer waits
+for six hours of 5-minute candles before admitting a product. New/unseen
+products receive scan priority, and a recent public full-trading/listing event
+can temporarily boost the Advanced opportunity score while normal spread and
+volume gates still apply.
+
+The Advanced Decision Journal now records every cycle outcome, including
+exchange/API execution failures. The browser journal combines Base and Advanced
+decision histories and labels each row by rail. A running rail can no longer be
+silently replaced by starting another rail; stop the active runner before
+switching.
+
+
+## v0.16 repo audit: linked capital system
+
+The live rails now behave as one experiment instead of two unrelated games.
+
+- The original Base `live_starting_value` remains the canonical bankroll baseline when capital moves to Coinbase Advanced, so the $25 experiment does not reset to the destination balance.
+- The original game clock and milestone metadata follow the bankroll across rails.
+- Advanced execution uses the existing Base BEAN database as shared learning memory, so switching execution rails does not create a second brain.
+- The browser detects when the selected rail is empty and the other live rail holds spendable capital.
+- A successful Base/Advanced bridge move changes the selected execution rail and, when autonomy is already running, stops the old runner and restarts it on the destination rail.
+- The Decision Journal combines Base and Advanced rows and labels the rail.
+- SQLite live state uses WAL mode plus a busy timeout so the background runner, browser dashboard, and remote monitor can read/write without needless lock collisions.
+- The read-only remote monitor follows the funded rail when the runner is stopped.
+
+## Execution and tax audit trail
+
+Live executions and bridge transfers write an append-only reconciliation trail under the AIscend application-data directory:
+
+- canonical yearly JSONL
+- review-friendly yearly CSV
+- UTC timestamps
+- trades kept distinct from internal Base/Advanced transfers
+- provider order/transaction IDs when available
+- decimal quantities preserved as text
+- credential-like fields redacted from stored provider responses
+
+Audit-write failures are isolated from already-executed trades so a logging problem cannot cause an order to be retried.

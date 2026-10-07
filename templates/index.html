@@ -234,6 +234,7 @@
       <details class="panel" style="margin-top:14px">
         <summary>COINBASE ASSET UNIVERSE</summary>
         <div id="universeSummary" class="small">Universe not loaded yet.</div>
+        <div id="listingSentinel" class="small" style="margin-top:8px">Listing Sentinel: waiting for baseline.</div>
         <div id="universeTop" class="small" style="margin-top:8px"></div>
       </details>
 
@@ -258,7 +259,7 @@
         <h2>DECISION JOURNAL</h2>
         <div class="decision-scroll">
           <table>
-            <thead><tr><th>Time</th><th>Action</th><th>Asset</th><th>Size</th><th>Status</th><th>Reason</th></tr></thead>
+            <thead><tr><th>Time</th><th>Rail</th><th>Action</th><th>Asset</th><th>Size</th><th>Status</th><th>Reason</th></tr></thead>
             <tbody id="decisions"></tbody>
           </table>
         </div>
@@ -341,6 +342,52 @@ async function refreshBridge(){
   }
 }
 
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+
+async function switchExecutionRail(target){
+  if(!['base','advanced'].includes(target)) return;
+  $('executionRail').value=target;
+
+  let state=null;
+  try{
+    const r=await fetch('/api/runner');
+    state=(await r.json()).runner || null;
+  }catch(e){}
+
+  if(state && state.running && state.rail!==target){
+    $('bridgeMessage').textContent='Switching live runner to '+target+'...';
+    await fetch('/api/stop',{method:'POST'});
+    for(let i=0;i<80;i++){
+      await sleep(250);
+      try{
+        const r=await fetch('/api/runner');
+        const j=await r.json();
+        state=j.runner || null;
+        if(!state || !state.running) break;
+      }catch(e){}
+    }
+    if(state && state.running){
+      $('bridgeMessage').textContent='Transfer completed, but the old runner is still finishing its cycle.';
+      return;
+    }
+    const interval=Number($('interval').value);
+    const r=await fetch('/api/start',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({network:network(),rail:target,interval})
+    });
+    const j=await r.json();
+    if(!j.ok){
+      $('bridgeMessage').textContent='Funds moved. Runner switch failed: '+(j.error||'unknown error');
+      return;
+    }
+    renderRunner(j.runner);
+  }
+
+  await refreshAdvanced();
+  await refreshBridge();
+  await refreshStatus();
+}
+
 async function bridgeBaseToAdvanced(){
   const amount=Number($('bridgeAmount').value||0);
   $('bridgeMessage').textContent='Sending Base USDC to Coinbase Advanced...';
@@ -350,7 +397,9 @@ async function bridgeBaseToAdvanced(){
   });
   const j=await r.json();
   $('bridgeMessage').textContent=j.ok ? 'Base to Advanced sent. '+j.amount+' USDC.' : (j.error||'Bridge failed.');
-  if(j.ok){ setTimeout(()=>{refreshBridge(); refreshAdvanced(); refreshStatus();},1800); }
+  if(j.ok){
+    await switchExecutionRail(j.target_rail || 'advanced');
+  }
 }
 
 async function bridgeAdvancedToBase(){
@@ -362,7 +411,9 @@ async function bridgeAdvancedToBase(){
   });
   const j=await r.json();
   $('bridgeMessage').textContent=j.ok ? 'Advanced to Base sent. '+j.amount+' USDC.' : (j.error||'Bridge failed.');
-  if(j.ok){ setTimeout(()=>{refreshBridge(); refreshAdvanced(); refreshStatus();},1800); }
+  if(j.ok){
+    await switchExecutionRail(j.target_rail || 'base');
+  }
 }
 
 async function configureAdvanced(){
@@ -417,9 +468,16 @@ async function configure(){
 }
 
 async function refreshStatus(){
-  const r = await fetch('/api/status?network='+encodeURIComponent(network())+'&rail='+encodeURIComponent(rail()));
+  const requestedRail=rail();
+  const r = await fetch('/api/status?network='+encodeURIComponent(network())+'&rail='+encodeURIComponent(requestedRail));
   const j = await r.json();
   if(!j.ok){ msg(j.error || 'Status unavailable'); renderRunner(j.runner); petState='dead'; drawPet(); return; }
+
+  if(j.suggested_rail && j.suggested_rail!==requestedRail && !(j.runner||{}).running){
+    $('executionRail').value=j.suggested_rail;
+    return refreshStatus();
+  }
+
   msg('');
   renderDecisions(j.decisions || []);
   renderSnapshot(j.snapshot);
@@ -475,10 +533,23 @@ function renderSnapshot(s){
 
   const universe=s.asset_universe || {};
   $('universeSummary').textContent = universe.available
-    ? 'Active USD/USDC products: '+Number(universe.product_count||0)+
+    ? 'Active spot products: '+Number(universe.product_count||0)+
       ' · recently scored: '+Number(universe.scanned_count||0)+
-      ' · rotating across the full public Coinbase universe'
+      ' · all public Coinbase quote currencies included'
     : 'Coinbase universe not available yet.';
+
+  const sentinel=s.listing_sentinel || {};
+  const hot=(sentinel.hot || []).slice(0,5);
+  if(sentinel.available){
+    $('listingSentinel').textContent = hot.length
+      ? 'Listing Sentinel: '+hot.map(e=>e.product+' '+e.event+' '+e.stage).join(' · ')
+      : (sentinel.baseline_created
+          ? 'Listing Sentinel: baseline created; watching for new products every minute.'
+          : 'Listing Sentinel: watching '+Number(sentinel.product_count||0)+' public spot products.');
+  } else {
+    $('listingSentinel').textContent = 'Listing Sentinel: '+((sentinel.errors||[])[0] || 'unavailable');
+  }
+
   const top=(universe.top || []).slice(0,10);
   $('universeTop').innerHTML = top.length
     ? top.map(a=>'<div style="padding:3px 0"><b>'+escapeHtml(a.product)+'</b> · score '+
@@ -542,7 +613,7 @@ function renderDecisions(rows){
   const tbody=$('decisions'); tbody.innerHTML='';
   for(const d of rows){
     const t=new Date(Number(d.ts)*1000).toLocaleTimeString();
-    tbody.insertAdjacentHTML('beforeend','<tr><td>'+t+'</td><td>'+escapeHtml(d.action)+'</td><td>'+escapeHtml(d.symbol||'')+'</td><td>'+(Number(d.fraction)*100).toFixed(1)+'%</td><td>'+escapeHtml(d.status)+'</td><td>'+escapeHtml(d.rationale||'')+'</td></tr>');
+    tbody.insertAdjacentHTML('beforeend','<tr><td>'+t+'</td><td>'+escapeHtml(d.rail||'--')+'</td><td>'+escapeHtml(d.action)+'</td><td>'+escapeHtml(d.symbol||'')+'</td><td>'+(Number(d.fraction)*100).toFixed(1)+'%</td><td>'+escapeHtml(d.status)+'</td><td>'+escapeHtml(d.rationale||'')+'</td></tr>');
   }
 }
 

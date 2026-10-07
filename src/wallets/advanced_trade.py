@@ -137,12 +137,21 @@ class AdvancedTradeSpot:
             trading_disabled = bool(item.get("trading_disabled", False))
             cancel_only = bool(item.get("cancel_only", False))
             limit_only = bool(item.get("limit_only", False))
+            post_only = bool(item.get("post_only", False))
+            auction_mode = bool(item.get("auction_mode", False))
             if product_type not in {"SPOT", "UNKNOWN_PRODUCT_TYPE", ""}:
                 continue
-            if trading_disabled or cancel_only:
+            # AdvancedSpotEngine currently executes market orders. Products that
+            # are visible but still auction/limit/post/cancel-only remain visible
+            # to Listing Sentinel, but are not advertised as market-order ready.
+            if (
+                trading_disabled
+                or cancel_only
+                or limit_only
+                or post_only
+                or auction_mode
+            ):
                 continue
-            # limit_only is still tradable, just not by market order. Keep it in
-            # the account universe, while execution code checks the order type.
             product_ids.append(product_id.upper())
 
         product_ids = sorted(set(product_ids))
