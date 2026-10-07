@@ -263,11 +263,11 @@
       </div>
 
       <div class="panel" style="margin-top:14px">
-        <h2 id="candleTitle">MARKET · --</h2>
+        <h2 id="candleTitle">MARKET PREVIEW · --</h2>
         <div class="candle-wrap">
           <canvas id="candleChart"></canvas>
         </div>
-        <div id="candleMeta" class="small">5-minute candles · click a held asset to switch</div>
+        <div id="candleMeta" class="small">5-minute candles · waiting for a held asset</div>
       </div>
 
       <div class="panel" style="margin-top:14px">
@@ -669,7 +669,8 @@ function renderSnapshot(s){
     const value=Number(p.qty)*price;
     const product=positionProduct(sym);
     const assetCell=product
-      ? '<a class="asset-link" href="https://www.coinbase.com/advanced-trade/spot/'+encodeURIComponent(product)+'" target="_blank" rel="noopener" onclick="event.preventDefault(); loadCandles(\''+escapeHtml(product)+'\'); window.open(this.href, \'_blank\', \'noopener\');">'+escapeHtml(sym)+'</a>'
+      ? '<button type="button" class="asset-link" style="width:auto;padding:0;border:0;background:none;margin:0" onclick="loadCandles(\''+escapeHtml(product)+'\')">'+escapeHtml(sym)+'</button>'+
+        ' <a class="asset-link" href="https://www.coinbase.com/advanced-trade/spot/'+encodeURIComponent(product)+'" target="_blank" rel="noopener" title="Open on Coinbase">↗</a>'
       : escapeHtml(sym);
     tbody.insertAdjacentHTML('beforeend', '<tr><td>'+assetCell+'</td><td>'+Number(p.qty).toFixed(10)+'</td><td>'+money(price)+'</td><td>'+money(value)+'</td></tr>');
     if(product && value>largestValue){ largestValue=value; largestProduct=product; }
@@ -784,16 +785,21 @@ async function loadCandles(product){
   if(!product || candleFetchInFlight) return;
   activeCandleProduct=product;
   candleFetchInFlight=true;
-  $('candleTitle').textContent='MARKET · '+product;
+  $('candleTitle').textContent='MARKET PREVIEW · '+product;
   $('candleMeta').textContent='Loading 5-minute candles...';
   try{
     const r=await fetch('/api/candles?product='+encodeURIComponent(product));
     const j=await r.json();
     if(!j.ok) throw new Error(j.error||'Candle feed unavailable');
     drawCandles(j.candles||[]);
-    const last=(j.candles||[]).at(-1);
+    const rows=j.candles||[];
+    const last=rows.at(-1);
+    const first=rows[0];
+    const move=(last&&first&&Number(first.open)) ? ((Number(last.close)/Number(first.open))-1)*100 : 0;
+    const high=rows.length ? Math.max(...rows.map(x=>Number(x.high)||0)) : 0;
+    const low=rows.length ? Math.min(...rows.map(x=>Number(x.low)||0).filter(x=>x>0)) : 0;
     $('candleMeta').textContent=last
-      ? '5-minute candles · last '+money(last.close)+' · click a held asset to switch'
+      ? '5m candles · last '+money(last.close)+' · window '+(move>=0?'+':'')+move.toFixed(2)+'% · H '+money(high)+' · L '+money(low)
       : 'No candle data.';
   }catch(e){
     $('candleMeta').textContent='Candle feed: '+e;
