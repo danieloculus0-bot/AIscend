@@ -964,6 +964,60 @@ class AdvancedSpotEngine:
         return fee if fee > 0 else None
 
     @staticmethod
+    def _validate_execution_preview(
+        preview: dict[str, Any] | None,
+        product_id: str,
+        *,
+        max_spread_bps: float = 75.0,
+        max_fee_fraction: float = 0.03,
+    ) -> None:
+        if not isinstance(preview, dict):
+            return
+
+        errs = preview.get("errs") or preview.get("errors") or []
+        if errs:
+            raise RuntimeError(
+                f"Coinbase preview rejected {product_id}: {str(errs)[:240]}"
+            )
+
+        try:
+            bid = Decimal(str(preview.get("best_bid") or "0"))
+            ask = Decimal(str(preview.get("best_ask") or "0"))
+            if bid > 0 and ask > 0:
+                mid = (bid + ask) / Decimal("2")
+                spread_bps = float(((ask - bid) / mid) * Decimal("10000"))
+                if spread_bps > max_spread_bps:
+                    raise RuntimeError(
+                        f"{product_id} execution spread {spread_bps:.1f} bps "
+                        f"exceeds {max_spread_bps:.1f} bps cap."
+                    )
+        except RuntimeError:
+            raise
+        except Exception:
+            pass
+
+        try:
+            fee = Decimal(str(preview.get("commission_total") or "0"))
+            total = Decimal(
+                str(
+                    preview.get("order_total")
+                    or preview.get("quote_size")
+                    or "0"
+                )
+            )
+            if fee > 0 and total > 0:
+                fee_fraction = float(fee / total)
+                if fee_fraction > max_fee_fraction:
+                    raise RuntimeError(
+                        f"{product_id} preview fee {fee_fraction:.2%} exceeds "
+                        f"{max_fee_fraction:.2%} cap."
+                    )
+        except RuntimeError:
+            raise
+        except Exception:
+            pass
+
+    @staticmethod
     def _submitted_order_id(order: dict[str, Any]) -> str:
         success_response = order.get("success_response") or {}
         return str(
@@ -1040,6 +1094,7 @@ class AdvancedSpotEngine:
                 )
 
             preview = self.rail.preview_market_sell(product_id, sell_qty)
+            self._validate_execution_preview(preview, product_id)
             client_order_id = f"aiscend-swap-{uuid.uuid4()}"
             order = self.rail.market_sell(
                 product_id,
@@ -1134,6 +1189,7 @@ class AdvancedSpotEngine:
             raise RuntimeError(f"Insufficient {quote} for Coinbase Advanced buy.")
 
         preview = self.rail.preview_market_buy(product_id, spend)
+        self._validate_execution_preview(preview, product_id)
         client_order_id = f"aiscend-{uuid.uuid4()}"
         order = self.rail.market_buy(
             product_id,
@@ -1184,6 +1240,7 @@ class AdvancedSpotEngine:
                 source="coinbase_advanced_order_response",
                 raw_provider_response={
                     "preview": preview,
+                    "preview": preview,
                     "order": order,
                     "confirmed_order": confirmed_order,
                 },
@@ -1211,12 +1268,22 @@ class AdvancedSpotEngine:
 
         client_order_id = f"aiscend-quote-{uuid.uuid4()}"
         if conversion_side == "SELL":
+            preview = self.rail.preview_market_sell(
+                conversion_product,
+                amount,
+            )
+            self._validate_execution_preview(preview, conversion_product)
             order = self.rail.market_sell(
                 conversion_product,
                 amount,
                 client_order_id=client_order_id,
             )
         else:
+            preview = self.rail.preview_market_buy(
+                conversion_product,
+                amount,
+            )
+            self._validate_execution_preview(preview, conversion_product)
             order = self.rail.market_buy(
                 conversion_product,
                 amount,
@@ -1232,7 +1299,7 @@ class AdvancedSpotEngine:
             -float(amount) if conversion_side == "BUY" else 0.0,
             (
                 f"Auto-funded quote currency before buy. {rationale} | "
-                f"order={str(order)[:220]}"
+                f"preview={str(preview)[:180]} | order={str(order)[:220]}"
             ),
         )
 
@@ -1248,6 +1315,8 @@ class AdvancedSpotEngine:
                 quote_asset=quote,
                 base_quantity=amount if conversion_side == "SELL" else None,
                 quote_quantity=amount if conversion_side == "BUY" else None,
+                fee_asset=quote if self._confirmed_fee(confirmed_order) is not None else "",
+                fee_quantity=self._confirmed_fee(confirmed_order),
                 order_id=self.audit.provider_id(order, "order_id", "orderId"),
                 client_order_id=client_order_id,
                 status="provider_response",
@@ -1275,6 +1344,8 @@ class AdvancedSpotEngine:
         if qty <= 0:
             raise RuntimeError(f"No {product_id} position available to sell.")
 
+        preview = self.rail.preview_market_sell(product_id, qty)
+        self._validate_execution_preview(preview, product_id)
         client_order_id = f"aiscend-{uuid.uuid4()}"
         order = self.rail.market_sell(
             product_id,
@@ -1288,7 +1359,7 @@ class AdvancedSpotEngine:
             float(qty),
             0.0,
             0.0,
-            f"{decision.rationale} | order={str(order)[:220]}",
+            f"{decision.rationale} | preview={str(preview)[:180]} | order={str(order)[:220]}",
         )
 
         try:
