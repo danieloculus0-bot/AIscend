@@ -259,6 +259,31 @@ class AdvancedLiveTests(unittest.TestCase):
             self.assertGreater(snap["balance_values_usd"].get("EUR", 0.0), 0.0)
             store.close()
 
+    def test_held_asset_is_prioritized_for_exit_research(self):
+        class CapturingUniverse(FakeUniverse):
+            def __init__(self):
+                self.priority = None
+
+            def collect(self, priority_products=None):
+                self.priority = tuple(priority_products or ())
+                return super().collect(priority_products=priority_products)
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "advanced.db")
+            rail = FakeRail()
+            rail.aleo = Decimal("2")
+            universe = CapturingUniverse()
+            engine = AdvancedSpotEngine(
+                store,
+                rail=rail,
+                asset_universe=universe,
+                listing_sentinel=FakeListingSentinel(),
+                human_researcher=FakeHumanResearch(),
+            )
+            engine.sync()
+            self.assertIn("ALEO-USDC", universe.priority)
+            store.close()
+
     def test_engine_uses_full_scored_universe_not_absolute_ranked_top(self):
         class FullUniverse:
             def collect(self, priority_products=None):
