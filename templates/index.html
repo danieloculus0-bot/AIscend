@@ -97,10 +97,14 @@
       <div class="panel" style="margin-top:14px">
         <h2>GAME SCORE</h2>
         <div id="points" class="score">0</div>
-        <div class="small">1 point for every completed bankroll doubling. That's it.</div>
+        <div class="small">1 point for every completed bankroll doubling.</div>
         <div class="progress"><div id="pointbar"></div></div>
         <div id="nextMilestone" class="small">Next point: --</div>
         <div id="elapsed" class="small">Elapsed: --</div>
+        <div class="label" style="margin-top:16px">LEVEL 1</div>
+        <div id="levelStatus" class="value" style="font-size:20px">$100,000 OR BUST</div>
+        <div class="progress"><div id="levelbar"></div></div>
+        <div id="levelProgress" class="small">Progress: --</div>
       </div>
 
       <div class="panel" style="margin-top:14px">
@@ -212,8 +216,13 @@ function renderSnapshot(s){
   $('pointbar').style.width=(progress*100).toFixed(2)+'%';
   $('nextMilestone').textContent='Next point at ' + next.toLocaleString() + 'x bankroll';
   $('elapsed').textContent='Elapsed: ' + Number(g.elapsed_days || 0).toFixed(3) + ' days';
+  $('levelbar').style.width=(Math.max(0,Math.min(1,Number(g.level_progress || 0)))*100).toFixed(4)+'%';
+  $('levelProgress').textContent='Progress: ' + money(s.net_liquidation) + ' / ' + money(g.level_target || 100000);
+  $('levelStatus').textContent=g.level_complete ? 'LEVEL 1 WON' : '$100,000 OR BUST';
 
-  if(previousPoints !== null && points > previousPoints){
+  if(g.level_complete){
+    petState='win';
+  } else if(previousPoints !== null && points > previousPoints){
     petState='point';
     setTimeout(()=>{ petState='up'; drawPet(); },2200);
   } else {
@@ -318,14 +327,14 @@ function drawPet(){
     p(11,5); p(12,6); p(12,5); p(11,6);
   } else if(petState==='sell' || petState==='down'){
     p(5,6); p(6,7); p(11,7); p(12,6);
-  } else if(petState==='point'){
+  } else if(petState==='point' || petState==='win'){
     p(5,5); p(6,5); p(5,6); p(6,6);
     p(11,5); p(12,5); p(11,6); p(12,6);
   } else {
     p(5,6); p(6,6); p(11,6); p(12,6);
   }
 
-  if(petState==='up' || petState==='buy' || petState==='point'){
+  if(petState==='up' || petState==='buy' || petState==='point' || petState==='win'){
     p(6,9); p(7,10); p(8,10); p(9,10); p(10,10); p(11,9);
   } else if(petState==='down'){
     p(6,10); p(7,9); p(8,9); p(9,9); p(10,9); p(11,10);
@@ -337,7 +346,7 @@ function drawPet(){
     line(7,10,9);
   }
 
-  if(petState==='point'){
+  if(petState==='point' || petState==='win'){
     p(1,12); p(2,11); p(15,11); p(16,12);
   } else {
     p(4,14); p(13,14);
@@ -351,6 +360,7 @@ function drawPet(){
     up:'feeling smug',
     down:'having a bad little day',
     point:'ONE WHOLE POINT',
+    win:'LEVEL 1. HOLY SHIT.',
     dead:'something is fucked'
   };
   $('petMood').textContent=moods[petState] || '...';
