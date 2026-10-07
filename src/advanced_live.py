@@ -416,6 +416,13 @@ class AdvancedSpotEngine:
 
     def sync(self) -> dict[str, Any]:
         status = self.rail.status()
+        product_ids = tuple(status.product_ids)
+        raw_balances = {
+            item.currency: float(item.available)
+            for item in status.balances
+            if float(item.available) > 0.000000001
+        }
+
         listing = self.listing_sentinel.poll()
         priority_products = [
             str(event.get("product") or "").upper()
@@ -425,6 +432,16 @@ class AdvancedSpotEngine:
             )
             if event.get("product")
         ]
+        # Held assets are exit-critical. Force their preferred Coinbase pair
+        # into every research cycle instead of waiting for the rotating scanner
+        # to wander back to them.
+        for currency in raw_balances:
+            if currency in DOLLAR_ASSETS:
+                continue
+            held_product = self._product_for_currency(currency, product_ids)
+            if held_product and held_product not in priority_products:
+                priority_products.append(held_product)
+
         universe = self.asset_universe.collect(
             priority_products=priority_products,
         )
@@ -434,13 +451,6 @@ class AdvancedSpotEngine:
         except Exception as exc:
             human = None
             human_error = str(exc)
-        product_ids = tuple(status.product_ids)
-
-        raw_balances = {
-            item.currency: float(item.available)
-            for item in status.balances
-            if float(item.available) > 0.000000001
-        }
         # Any held asset can fund another asset directly when Coinbase exposes
         # a crypto/crypto pair. Keeping all balances here lets the router prefer
         # a one-leg swap over selling back to USD/USDC and buying again.
