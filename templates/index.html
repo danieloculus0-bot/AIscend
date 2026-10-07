@@ -234,6 +234,7 @@
       <details class="panel" style="margin-top:14px">
         <summary>COINBASE ASSET UNIVERSE</summary>
         <div id="universeSummary" class="small">Universe not loaded yet.</div>
+        <div id="listingSentinel" class="small" style="margin-top:8px">Listing Sentinel: waiting for baseline.</div>
         <div id="universeTop" class="small" style="margin-top:8px"></div>
       </details>
 
@@ -258,7 +259,7 @@
         <h2>DECISION JOURNAL</h2>
         <div class="decision-scroll">
           <table>
-            <thead><tr><th>Time</th><th>Action</th><th>Asset</th><th>Size</th><th>Status</th><th>Reason</th></tr></thead>
+            <thead><tr><th>Time</th><th>Rail</th><th>Action</th><th>Asset</th><th>Size</th><th>Status</th><th>Reason</th></tr></thead>
             <tbody id="decisions"></tbody>
           </table>
         </div>
@@ -475,10 +476,23 @@ function renderSnapshot(s){
 
   const universe=s.asset_universe || {};
   $('universeSummary').textContent = universe.available
-    ? 'Active USD/USDC products: '+Number(universe.product_count||0)+
+    ? 'Active spot products: '+Number(universe.product_count||0)+
       ' · recently scored: '+Number(universe.scanned_count||0)+
-      ' · rotating across the full public Coinbase universe'
+      ' · all public Coinbase quote currencies included'
     : 'Coinbase universe not available yet.';
+
+  const sentinel=s.listing_sentinel || {};
+  const hot=(sentinel.hot || []).slice(0,5);
+  if(sentinel.available){
+    $('listingSentinel').textContent = hot.length
+      ? 'Listing Sentinel: '+hot.map(e=>e.product+' '+e.event+' '+e.stage).join(' · ')
+      : (sentinel.baseline_created
+          ? 'Listing Sentinel: baseline created; watching for new products every minute.'
+          : 'Listing Sentinel: watching '+Number(sentinel.product_count||0)+' public spot products.');
+  } else {
+    $('listingSentinel').textContent = 'Listing Sentinel: '+((sentinel.errors||[])[0] || 'unavailable');
+  }
+
   const top=(universe.top || []).slice(0,10);
   $('universeTop').innerHTML = top.length
     ? top.map(a=>'<div style="padding:3px 0"><b>'+escapeHtml(a.product)+'</b> · score '+
@@ -542,7 +556,7 @@ function renderDecisions(rows){
   const tbody=$('decisions'); tbody.innerHTML='';
   for(const d of rows){
     const t=new Date(Number(d.ts)*1000).toLocaleTimeString();
-    tbody.insertAdjacentHTML('beforeend','<tr><td>'+t+'</td><td>'+escapeHtml(d.action)+'</td><td>'+escapeHtml(d.symbol||'')+'</td><td>'+(Number(d.fraction)*100).toFixed(1)+'%</td><td>'+escapeHtml(d.status)+'</td><td>'+escapeHtml(d.rationale||'')+'</td></tr>');
+    tbody.insertAdjacentHTML('beforeend','<tr><td>'+t+'</td><td>'+escapeHtml(d.rail||'--')+'</td><td>'+escapeHtml(d.action)+'</td><td>'+escapeHtml(d.symbol||'')+'</td><td>'+(Number(d.fraction)*100).toFixed(1)+'%</td><td>'+escapeHtml(d.status)+'</td><td>'+escapeHtml(d.rationale||'')+'</td></tr>');
   }
 }
 
