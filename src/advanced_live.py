@@ -91,8 +91,11 @@ class AdvancedSpotEngine:
             reverse=True,
         )
 
-        # Prefer the same base asset quoted in currency we already hold.
+        # Prefer a one-leg crypto/crypto market when Coinbase lists the target
+        # asset against something we already hold.
         for funded_quote, amount in funded_quotes:
+            if funded_quote == base:
+                continue
             alternate = f"{base}-{funded_quote}"
             if alternate in product_ids:
                 return {
@@ -102,6 +105,26 @@ class AdvancedSpotEngine:
                     "quote": funded_quote,
                     "funding_quote": funded_quote,
                     "available": amount,
+                    "target_asset": base,
+                }
+
+        # Coinbase may list the pair in the opposite orientation. Selling
+        # SOURCE-TARGET is still a direct one-leg swap from the held source
+        # crypto into the desired target crypto, with no dollar round trip.
+        for funded_asset, amount in funded_quotes:
+            if funded_asset == base:
+                continue
+            inverse = f"{funded_asset}-{base}"
+            if inverse in product_ids:
+                return {
+                    "mode": "INVERSE_PAIR",
+                    "signal_product": product_id,
+                    "execution_product": inverse,
+                    "quote": base,
+                    "funding_quote": funded_asset,
+                    "available": amount,
+                    "source_asset": funded_asset,
+                    "target_asset": base,
                 }
 
         # Coinbase commonly exposes USD and USDC as a directly tradable pair.
@@ -160,6 +183,34 @@ class AdvancedSpotEngine:
             return min(max_fraction, max(0.0, float(fraction)))
 
         available = Decimal(str(available_quote))
+        cap = available * Decimal(str(max_fraction))
+        if cap < minimum:
+            return None
+
+        required_fraction = minimum / available
+        adjusted = max(Decimal(str(fraction)), required_fraction)
+        return float(min(Decimal(str(max_fraction)), adjusted))
+
+    def _adjust_sell_fraction_for_exchange_minimum(
+        self,
+        product_id: str,
+        available_base: float,
+        fraction: float,
+        *,
+        max_fraction: float = 0.85,
+    ) -> float | None:
+        if available_base <= 0.0:
+            return None
+        try:
+            product = self.rail.product(product_id)
+            minimum = Decimal(str(product.get("base_min_size") or "0"))
+        except Exception:
+            minimum = Decimal("0")
+
+        if minimum <= 0:
+            return min(max_fraction, max(0.0, float(fraction)))
+
+        available = Decimal(str(available_base))
         cap = available * Decimal(str(max_fraction))
         if cap < minimum:
             return None
@@ -390,22 +441,10 @@ class AdvancedSpotEngine:
             for item in status.balances
             if float(item.available) > 0.000000001
         }
-        quote_currencies = {
-            self._split_product(product_id)[1]
-            for product_id in product_ids
-            if self._split_product(product_id)[1]
-        }
-        cash_by_quote = {
-            quote: raw_balances.get(quote, 0.0)
-            for quote in quote_currencies
-            if raw_balances.get(quote, 0.0) > 0.000000001
-        }
-        # USD/USDC can also fund the other dollar quote through a directly
-        # tradable conversion pair, even if one is not otherwise a quote in the
-        # current product set.
-        for dollar in DOLLAR_ASSETS:
-            if raw_balances.get(dollar, 0.0) > 0.000000001:
-                cash_by_quote[dollar] = raw_balances[dollar]
+        # Any held asset can fund another asset directly when Coinbase exposes
+        # a crypto/crypto pair. Keeping all balances here lets the router prefer
+        # a one-leg swap over selling back to USD/USDC and buying again.
+        cash_by_quote = dict(raw_balances)
 
         # Preserve the game's dollar-denominated bankroll accounting while
         # allowing execution to use any funded quote currency.
@@ -754,11 +793,18 @@ class AdvancedSpotEngine:
                 and available_quote > 0.0
             ):
                 fraction = min(0.85, max(0.20, 0.20 + abs(score) * 0.65))
-                adjusted_fraction = self._adjust_buy_fraction_for_exchange_minimum(
-                    product_id,
-                    available_quote,
-                    fraction,
-                )
+                if str(route.get("mode") or "").upper() == "INVERSE_PAIR":
+                    adjusted_fraction = self._adjust_sell_fraction_for_exchange_minimum(
+                        product_id,
+                        available_quote,
+                        fraction,
+                    )
+                else:
+                    adjusted_fraction = self._adjust_buy_fraction_for_exchange_minimum(
+                        product_id,
+                        available_quote,
+                        fraction,
+                    )
                 if adjusted_fraction is None:
                     decision = Decision(
                         "HOLD",
@@ -796,6 +842,11 @@ class AdvancedSpotEngine:
                         f" Signal source {signal_product}; executing {product_id} "
                         f"against funded {route.get('quote')}."
                     )
+                elif route.get("mode") == "INVERSE_PAIR":
+                    route_note = (
+                        f" Direct crypto swap: selling {route.get('funding_quote')} "
+                        f"through {product_id} to acquire {route.get('target_asset')}."
+                    )
                 elif route.get("mode") == "CONVERT":
                     route_note = (
                         f" Auto-funding {route.get('quote')} from {route.get('funding_quote')} "
@@ -828,6 +879,19 @@ class AdvancedSpotEngine:
         # Every cycle is journaled, including exchange/API execution failures.
         self.store.add_decision(decision, status)
         return self.sync()
+
+    @staticmethod
+    def _confirmed_fee(order: dict[str, Any] | None) -> Decimal | None:
+        if not isinstance(order, dict):
+            return None
+        value = order.get("total_fees")
+        if value in (None, ""):
+            value = order.get("fee")
+        try:
+            fee = Decimal(str(value or "0"))
+        except Exception:
+            return None
+        return fee if fee > 0 else None
 
     @staticmethod
     def _submitted_order_id(order: dict[str, Any]) -> str:
@@ -892,10 +956,71 @@ class AdvancedSpotEngine:
         snapshot: dict[str, Any],
         funding_route: dict[str, Any] | None = None,
     ) -> None:
-        product_id = str(decision.symbol)
-        _, quote = self._split_product(product_id)
         route = funding_route or {}
+        product_id = str(route.get("execution_product") or decision.symbol).upper()
+        _, quote = self._split_product(product_id)
         mode = str(route.get("mode") or "DIRECT").upper()
+
+        if mode == "INVERSE_PAIR":
+            available_base = Decimal(str(route.get("available") or "0"))
+            sell_qty = available_base * Decimal(str(decision.fraction))
+            if sell_qty <= 0:
+                raise RuntimeError(
+                    f"Insufficient {route.get('funding_quote')} for direct crypto swap."
+                )
+
+            preview = self.rail.preview_market_sell(product_id, sell_qty)
+            client_order_id = f"aiscend-swap-{uuid.uuid4()}"
+            order = self.rail.market_sell(
+                product_id,
+                sell_qty,
+                client_order_id=client_order_id,
+            )
+            confirmed_order = self._confirm_order_fill(order, product_id)
+            self.store.add_ledger(
+                "ADVANCED_SWAP",
+                product_id,
+                float(sell_qty),
+                0.0,
+                0.0,
+                f"{decision.rationale} | preview={str(preview)[:220]} | order={str(order)[:220]}",
+            )
+
+            try:
+                base_asset, quote_asset = self._split_product(product_id)
+                fee = self._confirmed_fee(confirmed_order)
+                self.audit.record_trade(
+                    venue="coinbase",
+                    rail="coinbase-advanced",
+                    network="coinbase",
+                    side="SELL",
+                    product_id=product_id,
+                    base_asset=base_asset,
+                    quote_asset=quote_asset,
+                    base_quantity=sell_qty,
+                    fee_asset=quote_asset if fee is not None else "",
+                    fee_quantity=fee,
+                    order_id=self.audit.provider_id(order, "order_id", "orderId"),
+                    client_order_id=client_order_id,
+                    status="filled",
+                    rationale=decision.rationale,
+                    source="coinbase_advanced_direct_crypto_swap",
+                    raw_provider_response={
+                        "preview": preview,
+                        "order": order,
+                        "confirmed_order": confirmed_order,
+                    },
+                )
+            except Exception as exc:
+                self.store.add_ledger(
+                    "AUDIT_ERROR",
+                    product_id,
+                    0.0,
+                    0.0,
+                    0.0,
+                    f"Direct crypto swap executed but audit write failed: {exc}",
+                )
+            return
 
         if mode == "CONVERT":
             funding_quote = str(route.get("funding_quote") or "").upper()
@@ -931,7 +1056,7 @@ class AdvancedSpotEngine:
             spend = target_available * Decimal("0.995")
         else:
             available = Decimal(
-                str((snapshot.get("cash_by_quote") or {}).get(quote, 0.0))
+                str(route.get("available") or (snapshot.get("cash_by_quote") or {}).get(quote, 0.0))
             )
             spend = available * Decimal(str(decision.fraction))
 
@@ -980,6 +1105,8 @@ class AdvancedSpotEngine:
                 base_quantity=estimated_base or None,
                 quote_quantity=spend,
                 unit_price_quote=unit_price,
+                fee_asset=quote if self._confirmed_fee(confirmed_order) is not None else "",
+                fee_quantity=self._confirmed_fee(confirmed_order),
                 order_id=self.audit.provider_id(order, "order_id", "orderId"),
                 client_order_id=client_order_id,
                 status="provider_response",
@@ -1105,6 +1232,8 @@ class AdvancedSpotEngine:
                 base_asset=base,
                 quote_asset=quote,
                 base_quantity=qty,
+                fee_asset=quote if self._confirmed_fee(confirmed_order) is not None else "",
+                fee_quantity=self._confirmed_fee(confirmed_order),
                 order_id=self.audit.provider_id(order, "order_id", "orderId"),
                 client_order_id=client_order_id,
                 status="provider_response",
