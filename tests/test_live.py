@@ -3,6 +3,7 @@ import unittest
 from decimal import Decimal
 from pathlib import Path
 
+from src.audit import AuditTrail
 from src.core import Decision, StateStore
 from src.live import LiveEngine
 from src.wallets.cdp_wallet import SwapExecution, TradingSnapshot
@@ -67,7 +68,8 @@ class LiveEngineTests(unittest.TestCase):
     def test_live_buy_executes_against_wallet_and_updates_snapshot(self):
         store = self.make_store()
         wallet = FakeWallet()
-        engine = LiveEngine(store, wallet, BuyOnce())
+        audit_root = store.path.parent / "audit"
+        engine = LiveEngine(store, wallet, BuyOnce(), audit=AuditTrail(audit_root))
 
         after = engine.step()
 
@@ -78,6 +80,11 @@ class LiveEngineTests(unittest.TestCase):
         self.assertEqual(decision["status"], "LIVE_EXECUTED")
         ledger = store.latest_ledger(1)[0]
         self.assertEqual(ledger["kind"], "LIVE_BUY")
+        audit_text = next(audit_root.glob("aiscend-audit-*.jsonl")).read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('"event_type":"trade"', audit_text)
+        self.assertIn('"rail":"base-smart-wallet"', audit_text)
 
 
 if __name__ == "__main__":
