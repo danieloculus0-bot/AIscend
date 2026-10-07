@@ -54,7 +54,11 @@ def choose_execution_rail(
         return "base"
     if weakest:
         weakest_product = str(weakest.get("product") or "").upper()
-        weakest_score = float(weakest.get("score") or 0.0)
+        weakest_score = float(
+            weakest.get("decision_score")
+            or weakest.get("score")
+            or 0.0
+        )
         if weakest_product in (advanced.get("positions") or {}) and weakest_score <= -0.14:
             return "advanced"
 
@@ -73,14 +77,14 @@ def choose_execution_rail(
         or 0.0
     )
     if best:
-        product_id = str(best.get("product") or "").upper()
-        _, _, quote = product_id.rpartition("-")
-        quote_cash = float((advanced.get("cash_by_quote") or {}).get(quote, 0.0))
+        route = best.get("funding_route") or {}
+        available_funding = float(route.get("available") or 0.0)
         advanced_buy = (
             advanced_score >= 0.18
             and float(best.get("spread_bps") or 0.0) <= 50.0
             and float(best.get("volume_ratio") or 0.0) >= 0.40
-            and quote_cash > 0.0
+            and bool(route)
+            and available_funding > 0.0
         )
 
     if base_buy and advanced_buy:
