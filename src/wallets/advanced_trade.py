@@ -370,6 +370,20 @@ class AdvancedTradeSpot:
         )
         return self._dict(response)
 
+    def preview_market_sell(self, product_id: str, base_size: Decimal) -> dict[str, Any]:
+        if base_size <= 0:
+            raise ValueError("base_size must be positive")
+        base_size = self._normalized_order_size(
+            product_id,
+            base_size,
+            side="SELL",
+        )
+        response = self.vault.client().preview_market_order_sell(
+            product_id=product_id.upper(),
+            base_size=str(base_size),
+        )
+        return self._dict(response)
+
     def market_buy(self, product_id: str, quote_size: Decimal, client_order_id: str) -> dict[str, Any]:
         if quote_size <= 0:
             raise ValueError("quote_size must be positive")
