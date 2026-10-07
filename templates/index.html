@@ -629,8 +629,13 @@ function renderDecisions(rows){
 
 function renderRunner(r){
   if(!r) return;
+  const liveRail=r.active_rail || r.rail;
   $('runnerPill').textContent = r.running
-    ? 'RUNNING - '+(r.rail==='auto'?'linked':(r.rail==='advanced'?'advanced':r.network))
+    ? 'RUNNING - '+(
+        r.rail==='auto'
+          ? ('linked / '+(liveRail==='advanced'?'advanced':'base'))
+          : (r.rail==='advanced'?'advanced':r.network)
+      )
     : 'STOPPED';
   if(r.last_error){ msg(r.last_error); petState='dead'; drawPet(); }
 }

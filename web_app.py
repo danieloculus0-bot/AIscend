@@ -37,6 +37,7 @@ _loop_state: dict[str, Any] = {
     "rail": "auto",
     "network": "base",
     "interval": 60.0,
+    "active_rail": None,
     "last_error": None,
 }
 
@@ -267,6 +268,7 @@ def _runner(network: str, interval: float, rail: str) -> None:
                 "rail": rail,
                 "network": network,
                 "interval": interval,
+                "active_rail": None,
                 "last_error": None,
             }
         )
@@ -274,8 +276,9 @@ def _runner(network: str, interval: float, rail: str) -> None:
     try:
         while not _stop_event.is_set():
             try:
-                _run_once(network, rail)
+                cycle = _run_once(network, rail)
                 with _loop_lock:
+                    _loop_state["active_rail"] = cycle.get("active_rail") or rail
                     _loop_state["last_error"] = None
             except Exception as exc:
                 with _loop_lock:

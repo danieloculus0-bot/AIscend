@@ -46,7 +46,11 @@ def choose_execution_rail(
     weakest = radar.get("weakest_held") or {}
 
     # Exits beat entries. Protecting the bankroll is a portfolio decision.
-    if base_decision is not None and base_decision.action == "SELL":
+    if (
+        base_decision is not None
+        and base_decision.action == "SELL"
+        and bool(base.get("positions") or {})
+    ):
         return "base"
     if weakest:
         weakest_product = str(weakest.get("product") or "").upper()
@@ -54,7 +58,13 @@ def choose_execution_rail(
         if weakest_product in (advanced.get("positions") or {}) and weakest_score <= -0.14:
             return "advanced"
 
-    base_buy = bool(base_decision is not None and base_decision.action == "BUY")
+    base_cash = float(base.get("cash") or 0.0)
+    base_positions = base.get("positions") or {}
+    base_buy = bool(
+        base_decision is not None
+        and base_decision.action == "BUY"
+        and base_cash > 0.0
+    )
     advanced_buy = False
     advanced_score = float(
         best.get("decision_score")

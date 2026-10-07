@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from src.core import StateStore
@@ -93,6 +94,49 @@ class PortfolioCoordinatorTests(unittest.TestCase):
             "market_radar": {},
         }
         self.assertEqual(choose_execution_rail(base, advanced), "advanced")
+
+
+    def test_unfunded_base_signal_cannot_steal_execution_from_funded_advanced(self):
+        base = {
+            "cash": 0.0,
+            "net_liquidation": 0.0,
+            "positions": {},
+            "research": {"available": True, "composite_score": 0.95},
+        }
+        advanced = {
+            "cash": 25.0,
+            "net_liquidation": 25.0,
+            "cash_by_quote": {"USDC": 25.0},
+            "positions": {},
+            "market_radar": {},
+        }
+
+        class FakeDecision:
+            action = "BUY"
+
+        with patch("src.portfolio.ResearchDecider.decide", return_value=FakeDecision()):
+            self.assertEqual(choose_execution_rail(base, advanced), "advanced")
+
+    def test_unfunded_base_sell_signal_does_not_select_empty_base(self):
+        base = {
+            "cash": 0.0,
+            "net_liquidation": 0.0,
+            "positions": {},
+            "research": {"available": True, "composite_score": -0.95},
+        }
+        advanced = {
+            "cash": 25.0,
+            "net_liquidation": 25.0,
+            "cash_by_quote": {"USDC": 25.0},
+            "positions": {},
+            "market_radar": {},
+        }
+
+        class FakeDecision:
+            action = "SELL"
+
+        with patch("src.portfolio.ResearchDecider.decide", return_value=FakeDecision()):
+            self.assertEqual(choose_execution_rail(base, advanced), "advanced")
 
 
 if __name__ == "__main__":
