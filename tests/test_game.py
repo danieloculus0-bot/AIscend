@@ -33,6 +33,17 @@ class GameScoreTests(unittest.TestCase):
         self.assertEqual(score_game(store, 100.0, 25.0).points, 2)
         self.assertEqual(score_game(store, 200.0, 25.0).points, 3)
 
+    def test_level_one_requires_100k(self):
+        store = self.make_store()
+        before = score_game(store, 99999.99, 25.0)
+        self.assertFalse(before.level_complete)
+        self.assertEqual(before.level, 1)
+        self.assertEqual(before.level_target, 100000.0)
+
+        win = score_game(store, 100000.0, 25.0)
+        self.assertTrue(win.level_complete)
+        self.assertEqual(win.level_progress, 1.0)
+
 
 if __name__ == "__main__":
     unittest.main()
