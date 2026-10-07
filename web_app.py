@@ -327,7 +327,7 @@ def bridge_advanced_to_base():
             idem=f"aiscend-bridge-{uuid.uuid4()}",
         )
         audit = AuditTrail()
-        AuditTrail().record_transfer(
+        audit.record_transfer(
             venue="coinbase",
             rail="wallet-bridge",
             network="base",
