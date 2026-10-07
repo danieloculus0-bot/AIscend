@@ -148,12 +148,23 @@ class CoinbaseAssetUniverse:
             ),
             reverse=True,
         )
+        buy_ranked = sorted(
+            fresh,
+            key=lambda item: (
+                item.score,
+                item.return_1h,
+                item.volume_ratio,
+            ),
+            reverse=True,
+        )
 
         result = {
             "available": bool(ranked),
             "product_count": len(products),
             "scanned_count": len(fresh),
             "top": [item.as_dict() for item in ranked[:20]],
+            "buy_top": [item.as_dict() for item in buy_ranked[:20]],
+            "scored": [item.as_dict() for item in fresh],
             "errors": errors,
         }
         with self._lock:
@@ -213,7 +224,19 @@ class CoinbaseAssetUniverse:
             if str(product.get("id") or "") not in cls._cache
         ]
         if unseen:
-            return unseen[: self.batch_size]
+            count = min(self.batch_size, len(unseen))
+            if count <= 1:
+                return unseen[:count]
+
+            # Do not crawl the catalog alphabetically. Spread each cold-start
+            # batch across the entire unseen universe so every cycle samples
+            # very different parts of Coinbase while the cache fills in.
+            last = len(unseen) - 1
+            indices = [
+                round(i * last / (count - 1))
+                for i in range(count)
+            ]
+            return [unseen[index] for index in indices]
 
         start = cls._cursor % len(products)
         count = min(self.batch_size, len(products))
@@ -272,6 +295,13 @@ class CoinbaseAssetUniverse:
         spread_penalty = min(0.20, spread_bps / 150.0)
         score *= max(0.25, 1.0 - spread_penalty)
 
+        # Thin markets can show violent momentum on almost no participation.
+        # Compress both bullish and bearish conviction toward zero until current
+        # five-minute volume is at least in line with its recent median. This
+        # keeps illiquid noise from dominating the absolute-score ranking while
+        # preserving full strength for normal or elevated volume.
+        score *= self._liquidity_factor(volume_ratio)
+
         return UniverseAsset(
             product=product_id,
             base=str(product["base_currency"]),
@@ -285,6 +315,12 @@ class CoinbaseAssetUniverse:
             score=max(-1.0, min(1.0, score)),
             scanned_at=time.time(),
         )
+
+    @staticmethod
+    def _liquidity_factor(volume_ratio: float) -> float:
+        if not math.isfinite(volume_ratio) or volume_ratio <= 0.0:
+            return 0.12
+        return max(0.12, min(1.0, volume_ratio ** 0.55))
 
     def _get_json(self, path: str) -> Any:
         request = urllib.request.Request(
