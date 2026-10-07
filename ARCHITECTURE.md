@@ -8,7 +8,7 @@ The application is split into seven concerns:
 - **Wallet / venue adapters**: connect isolated capital to external systems without exposing unrelated accounts.
 - **Windows UI**: starts or stops autonomy and displays state. It does not approve individual trades.
 - **Browser UI**: exposes the same live engine through Flask for GitHub Codespaces.
-- **Game scorer**: awards exactly one point per completed bankroll doubling and records speed separately toward the FORTY ACRES target.
+- **Game scorer**: awards exactly one point per completed bankroll doubling and records speed separately.
 
 The desktop application still defaults to the persistent synthetic market.
 
@@ -114,4 +114,9 @@ The Codespace accepts the downloaded CDP key JSON and Wallet Secret into the run
 score = floor(log2(net liquidation / starting bankroll))
 ```
 
-The terminal victory condition is reaching the configurable **FORTY ACRES** dollar target. Trading frequency is not directly rewarded. Each completed bankroll doubling is one point, while elapsed time is tracked separately for milestone speed.
+There is no fixed terminal victory condition. Trading frequency is not directly rewarded. Each completed bankroll doubling is one point, while elapsed time is tracked separately for milestone speed.
+
+
+## Trader pet
+
+The browser dashboard contains a deliberately crude pixel trader called `AIS-0`. It is cosmetic only and never controls execution. Its tiny face changes state for BUY, SELL, profit, loss, point milestones, idle, running, and errors, with minimal blinking and one-pixel movement.
