@@ -44,13 +44,15 @@ class OpportunityUniverse:
     """
 
     SPORTS_PATTERNS: tuple[tuple[str, tuple[str, ...]], ...] = (
-        ("NFL", ("NFL", "SUPER BOWL", "FOOTBALL")),
-        ("NBA", ("NBA", "BASKETBALL")),
+        # Specific leagues before generic sport words to avoid classifying
+        # WNBA as NBA or college football as NFL.
         ("WNBA", ("WNBA",)),
-        ("MLB", ("MLB", "BASEBALL", "WORLD SERIES")),
-        ("NHL", ("NHL", "HOCKEY", "STANLEY CUP")),
         ("NCAAF", ("NCAAF", "COLLEGE FOOTBALL", "CFB")),
         ("NCAAB", ("NCAAB", "COLLEGE BASKETBALL", "MARCH MADNESS")),
+        ("NFL", ("NFL", "SUPER BOWL", "FOOTBALL")),
+        ("NBA", ("NBA", "BASKETBALL")),
+        ("MLB", ("MLB", "BASEBALL", "WORLD SERIES")),
+        ("NHL", ("NHL", "HOCKEY", "STANLEY CUP")),
         ("SOCCER", ("SOCCER", "PREMIER LEAGUE", "CHAMPIONS LEAGUE", "MLS", "FIFA")),
         ("TENNIS", ("TENNIS", "ATP", "WTA", "WIMBLEDON", "US OPEN")),
         ("MMA", ("UFC", "MMA")),
