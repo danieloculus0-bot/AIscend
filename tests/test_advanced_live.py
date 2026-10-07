@@ -133,9 +133,17 @@ class AdvancedLiveTests(unittest.TestCase):
                 return AdvancedTradeStatus(
                     configured=True,
                     balances=tuple(balances),
-                    tradable_spot_products=1,
-                    product_ids=("MEME-EUR",),
+                    tradable_spot_products=3,
+                    product_ids=("MEME-EUR", "BTC-EUR", "BTC-USD"),
                 )
+
+            def product(self, product_id):
+                prices = {
+                    "MEME-EUR": "0.20",
+                    "BTC-EUR": "50000",
+                    "BTC-USD": "55000",
+                }
+                return {"product_id": product_id, "price": prices[product_id]}
 
             def market_buy(self, product_id, quote_size, client_order_id):
                 spend = Decimal(str(quote_size))
@@ -174,12 +182,14 @@ class AdvancedLiveTests(unittest.TestCase):
                 asset_universe=EurUniverse(),
                 listing_sentinel=FakeListingSentinel(),
             )
-            engine.step()
+            snap = engine.step()
             row = store.latest_decisions(1)[0]
             self.assertEqual(row["action"], "BUY")
             self.assertEqual(row["symbol"], "MEME-EUR")
             self.assertEqual(row["status"], "LIVE_EXECUTED")
             self.assertTrue(rail.buys)
+            self.assertGreater(snap["net_liquidation"], 20.0)
+            self.assertGreater(snap["balance_values_usd"].get("EUR", 0.0), 0.0)
             store.close()
 
     def test_execution_failure_still_hits_decision_journal(self):
