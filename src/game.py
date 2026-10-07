@@ -11,19 +11,12 @@ from .core import StateStore
 
 DEFAULT_WIN_TARGET = float(os.getenv("AISCEND_WIN_TARGET", "100000"))
 
-MILESTONES = (
-    (2.0, "DOUBLE"),
-    (5.0, "5X"),
-    (10.0, "10X"),
-    (25.0, "25X"),
-    (100.0, "100X"),
-    (1000.0, "1000X"),
-)
+MILESTONES = tuple((float(2**n), f"{2**n}X") for n in range(1, 21))
 
 
 @dataclass(frozen=True)
 class GameScore:
-    points: float
+    points: int
     multiple: float
     elapsed_days: float
     target_value: float
@@ -65,12 +58,9 @@ def score_game(
     multiple = net / start
     elapsed_days = max(0.0, (now - started) / 86400.0)
 
-    # Game objective:
-    #   +1000 points for every doubling of bankroll
-    #   -10 points per elapsed day
-    # The AI therefore wins by compounding hard and doing it quickly.
-    effective_multiple = max(multiple, 0.000001)
-    points = (1000.0 * math.log2(effective_multiple)) - (10.0 * elapsed_days)
+    # Exactly one point for each completed bankroll doubling.
+    # 1x to <2x = 0 points, 2x to <4x = 1, 4x to <8x = 2, etc.
+    points = max(0, math.floor(math.log2(max(multiple, 1.0))))
 
     target = get_win_target(store)
     target_progress = min(1.0, net / target) if target > 0 else 0.0
@@ -80,13 +70,12 @@ def score_game(
     next_multiple: float | None = None
     for milestone_multiple, milestone_name in MILESTONES:
         if multiple < milestone_multiple:
-            next_name = milestone_name
+            next_name = f"{milestone_name} / POINT {points + 1}"
             next_multiple = milestone_multiple
             break
 
     if next_multiple is None and not victory:
-        target_multiple = target / start
-        next_multiple = target_multiple
+        next_multiple = target / start
 
     _record_crossed_milestones(store, multiple, now, started)
 
