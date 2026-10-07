@@ -300,9 +300,10 @@ class AdvancedSpotEngine:
         # allowing execution to use any funded quote currency.
         cash = sum(raw_balances.get(asset, 0.0) for asset in DOLLAR_ASSETS)
 
+        scored_rows = universe.get("scored") or universe.get("top") or []
         universe_by_product = {
             str(item.get("product") or "").upper(): item
-            for item in universe.get("top") or []
+            for item in scored_rows
             if item.get("product")
         }
 
@@ -347,7 +348,7 @@ class AdvancedSpotEngine:
         if time.time() - float(self.store.get_meta("bean_advanced_last_observation") or "0") >= 55.0:
             self.bean.record_universe(universe)
             bean_prices = {}
-            for item in universe.get("top") or []:
+            for item in scored_rows:
                 base = str(item.get("base") or "")
                 price = float(item.get("price") or 0.0)
                 if base and price > 0:
@@ -437,7 +438,8 @@ class AdvancedSpotEngine:
 
         rows: list[dict[str, Any]] = []
         now = time.time()
-        for source in universe.get("top") or []:
+        source_rows = universe.get("scored") or universe.get("top") or []
+        for source in source_rows:
             product = str(source.get("product") or "").upper()
             if product not in tradable:
                 continue
