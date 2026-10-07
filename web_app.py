@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import threading
+import uuid
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -167,6 +170,105 @@ def configure_advanced():
         vault.configure(api_key_id, api_key_secret)
         status = AdvancedTradeSpot(vault).status()
         return jsonify({"ok": True, **status.as_dict()})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.get("/api/bridge-status")
+def bridge_status():
+    try:
+        base_wallet = CdpWallet(network="base")
+        base_status = asyncio.run(base_wallet.status())
+        base_usdc = next(
+            (str(item.amount) for item in base_status.balances if item.symbol == "USDC"),
+            "0",
+        )
+
+        advanced = AdvancedTradeSpot()
+        advanced_status = advanced.status()
+        advanced_usdc = next(
+            (
+                str(item.available)
+                for item in advanced_status.balances
+                if item.currency == "USDC"
+            ),
+            "0",
+        )
+
+        receive_address = None
+        receive_error = None
+        try:
+            receive_address = advanced.receive_address("USDC", "base")
+        except Exception as exc:
+            receive_error = str(exc)
+
+        return jsonify(
+            {
+                "ok": True,
+                "base_address": base_status.address,
+                "base_usdc": base_usdc,
+                "advanced_usdc": advanced_usdc,
+                "advanced_receive_address": receive_address,
+                "advanced_receive_error": receive_error,
+                "can_transfer": advanced_status.can_transfer,
+                "can_trade": advanced_status.can_trade,
+                "can_view": advanced_status.can_view,
+            }
+        )
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.post("/api/bridge/base-to-advanced")
+def bridge_base_to_advanced():
+    payload = request.get_json(silent=True) or {}
+    try:
+        amount = Decimal(str(payload.get("amount") or "0"))
+        if amount <= 0:
+            raise ValueError("Amount must be greater than zero.")
+
+        advanced = AdvancedTradeSpot()
+        destination = advanced.receive_address("USDC", "base")
+        tx_hash = asyncio.run(
+            CdpWallet(network="base").send_usdc(destination, amount)
+        )
+        return jsonify(
+            {
+                "ok": True,
+                "direction": "base_to_advanced",
+                "amount": str(amount),
+                "destination": destination,
+                "transaction": tx_hash,
+            }
+        )
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.post("/api/bridge/advanced-to-base")
+def bridge_advanced_to_base():
+    payload = request.get_json(silent=True) or {}
+    try:
+        amount = Decimal(str(payload.get("amount") or "0"))
+        if amount <= 0:
+            raise ValueError("Amount must be greater than zero.")
+
+        base_address = asyncio.run(CdpWallet(network="base").ensure_account())
+        result = AdvancedTradeSpot().send_usdc_to_address(
+            base_address,
+            amount,
+            network="base",
+            idem=f"aiscend-bridge-{uuid.uuid4()}",
+        )
+        return jsonify(
+            {
+                "ok": True,
+                "direction": "advanced_to_base",
+                "amount": str(amount),
+                "destination": base_address,
+                "transaction": result,
+            }
+        )
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
 
