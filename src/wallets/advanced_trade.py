@@ -147,6 +147,13 @@ class AdvancedTradeSpot:
             product_ids=tuple(product_ids),
         )
 
+    def product(self, product_id: str) -> dict[str, Any]:
+        response = self.vault.client().get_product(
+            product_id=product_id.upper(),
+            get_tradability_status=True,
+        )
+        return self._dict(response)
+
     def preview_market_buy(self, product_id: str, quote_size: Decimal) -> dict[str, Any]:
         if quote_size <= 0:
             raise ValueError("quote_size must be positive")
