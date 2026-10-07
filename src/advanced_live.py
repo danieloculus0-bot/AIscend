@@ -12,6 +12,8 @@ from .bean import BeanMemory
 from .core import Decision, StateStore
 from .game import score_game
 from .listing_sentinel import CoinbaseListingSentinel
+from .research import MarketResearch
+from .sentiment import HumanSignalResearch, HumanSignals
 from .wallets.advanced_trade import AdvancedTradeSpot
 
 
@@ -36,6 +38,7 @@ class AdvancedSpotEngine:
         rail: AdvancedTradeSpot | None = None,
         asset_universe: CoinbaseAssetUniverse | None = None,
         listing_sentinel: CoinbaseListingSentinel | None = None,
+        human_researcher: HumanSignalResearch | None = None,
         bean: BeanMemory | None = None,
         audit: AuditTrail | None = None,
     ) -> None:
@@ -46,6 +49,10 @@ class AdvancedSpotEngine:
         self.listing_sentinel = listing_sentinel or CoinbaseListingSentinel(
             self.store,
             fetch_json=universe_fetch,
+        )
+        self.human_researcher = human_researcher or HumanSignalResearch(
+            timeout=7.0,
+            cache_seconds=120.0,
         )
         self.bean = bean or BeanMemory(self.store.conn)
         self.audit = audit or AuditTrail()
@@ -171,6 +178,86 @@ class AdvancedSpotEngine:
                     return base_rate / price
         return 0.0
 
+    def _human_overlay(
+        self,
+        item: dict[str, Any],
+        base_score: float,
+        human: HumanSignals | None,
+    ) -> tuple[float, dict[str, Any] | None, float, float]:
+        if human is None or not human.available:
+            return base_score, None, 0.0, 0.0
+
+        def squash(value: float, scale: float) -> float:
+            return math.tanh(value / scale) if scale else 0.0
+
+        momentum_5m = squash(float(item.get("return_5m") or 0.0), 0.005)
+        momentum_1h = squash(float(item.get("return_1h") or 0.0), 0.015)
+        volume_heat = max(
+            0.0,
+            squash(float(item.get("volume_ratio") or 1.0) - 1.0, 0.8),
+        )
+        technical_heat = 50.0 + 50.0 * max(
+            -1.0,
+            min(
+                1.0,
+                0.46 * momentum_5m
+                + 0.34 * momentum_1h
+                + 0.20 * volume_heat,
+            ),
+        )
+        fomo = max(
+            0.0,
+            min(
+                100.0,
+                0.68 * human.raw_fomo_index + 0.32 * technical_heat,
+            ),
+        )
+        crowd_regime = HumanSignalResearch._crowd_regime(fomo)
+        crowd_edge = MarketResearch._crowd_edge(
+            fomo=fomo,
+            momentum_5m=momentum_5m,
+            momentum_1h=momentum_1h,
+            volume_heat=volume_heat,
+        )
+        fg_delta = max(
+            -1.0,
+            min(1.0, human.fear_greed_change_1d / 20.0),
+        )
+        news_maturity = 0.35 + 0.65 * human.news_coverage
+        social_maturity = 0.25 + 0.75 * human.social_confidence
+        politics_maturity = 0.35 + 0.65 * human.politics_coverage
+
+        human_score = (
+            0.28 * human.news_sentiment * news_maturity
+            + 0.30 * human.social_sentiment * social_maturity
+            + 0.12 * human.politics_sentiment * politics_maturity
+            + 0.22 * crowd_edge
+            + 0.08 * fg_delta
+        )
+        human_score = max(-1.0, min(1.0, human_score))
+
+        event_intensity = max(human.politics_risk, human.weirdness)
+        human_weight = (
+            0.26 + 0.12 * event_intensity
+        ) * (
+            0.65 + 0.35 * human.human_signal_quality
+        )
+        human_weight = max(0.0, min(0.45, human_weight))
+
+        fused = (
+            (1.0 - human_weight) * base_score
+            + human_weight * human_score
+        )
+        fused = max(-1.0, min(1.0, fused))
+
+        context = human.as_dict()
+        context["fomo_index"] = fomo
+        context["crowd_regime"] = crowd_regime
+        context["advanced_human_score"] = human_score
+        context["advanced_human_weight"] = human_weight
+        context["advanced_crowd_edge"] = crowd_edge
+        return fused, context, human_score, human_weight
+
     def sync(self) -> dict[str, Any]:
         status = self.rail.status()
         listing = self.listing_sentinel.poll()
@@ -185,6 +272,10 @@ class AdvancedSpotEngine:
         universe = self.asset_universe.collect(
             priority_products=priority_products,
         )
+        try:
+            human = self.human_researcher.collect()
+        except Exception:
+            human = None
         product_ids = tuple(status.product_ids)
 
         raw_balances = {
@@ -280,6 +371,7 @@ class AdvancedSpotEngine:
             cash_by_quote,
             positions,
             listing,
+            human,
         )
 
         self._snapshot = {
@@ -306,7 +398,11 @@ class AdvancedSpotEngine:
                 "confidence": radar.get("confidence", 0.0),
                 "composite_score": radar.get("score", 0.0),
                 "thesis": radar.get("thesis", "Scanning Coinbase spot universe."),
-                "human": {},
+                "human": radar.get("human") or (
+                    human.as_dict() if human is not None else {}
+                ),
+                "human_score": radar.get("human_score", 0.0),
+                "human_weight": radar.get("human_weight", 0.0),
             },
             "asset_universe": universe,
             "listing_sentinel": listing,
@@ -323,6 +419,7 @@ class AdvancedSpotEngine:
         cash_by_quote: dict[str, float],
         positions: dict[str, dict[str, float | str]],
         listing: dict[str, Any],
+        human: HumanSignals | None,
     ) -> dict[str, Any]:
         tradable = set(product_ids)
         hot_by_product = {
@@ -349,7 +446,22 @@ class AdvancedSpotEngine:
                 listing_boost = max(0.0, 0.35 * (1.0 - age / 21600.0))
                 item["listing_event"] = event
             item["listing_boost"] = listing_boost
-            item["decision_score"] = max(-1.0, min(1.0, raw_score + listing_boost))
+            pre_human_score = max(
+                -1.0,
+                min(1.0, raw_score + listing_boost),
+            )
+            fused_score, human_context, human_score, human_weight = (
+                self._human_overlay(
+                    item,
+                    pre_human_score,
+                    human,
+                )
+            )
+            item["pre_human_score"] = pre_human_score
+            item["human_score"] = human_score
+            item["human_weight"] = human_weight
+            item["human_context"] = human_context
+            item["decision_score"] = fused_score
             rows.append(item)
 
         longs = sorted(
@@ -379,7 +491,12 @@ class AdvancedSpotEngine:
             if item:
                 held.append(item)
         weakest_held = (
-            min(held, key=lambda item: float(item.get("score") or 0.0))
+            min(
+                held,
+                key=lambda item: float(
+                    item.get("decision_score") or item.get("score") or 0.0
+                ),
+            )
             if held
             else None
         )
@@ -398,6 +515,15 @@ class AdvancedSpotEngine:
                     f" Public Coinbase listing signal {listing_event.get('event')} "
                     f"at stage {listing_event.get('stage')}."
                 )
+            human_context = best.get("human_context") or {}
+            human_note = ""
+            if human_context:
+                human_note = (
+                    f" Human Weather {human_context.get('crowd_regime', 'UNKNOWN')} "
+                    f"FOMO {float(human_context.get('fomo_index') or 0):.0f}/100, "
+                    f"human {float(best.get('human_score') or 0):+.3f} at "
+                    f"{float(best.get('human_weight') or 0) * 100:.0f}% weight."
+                )
             thesis = (
                 f"Best {'funded ' if funded else ''}tradable spot candidate {product}: "
                 f"decision score {score:+.3f}, raw {float(best.get('score') or 0):+.3f}, "
@@ -406,6 +532,7 @@ class AdvancedSpotEngine:
                 f"volume {float(best.get('volume_ratio') or 0):.2f}x; "
                 f"{quote} available {cash_by_quote.get(quote, 0.0):.8g}."
                 f"{listing_note}"
+                f"{human_note}"
             )
         else:
             thesis = "No currently-scored Coinbase product is tradable for this Advanced account."
@@ -417,6 +544,21 @@ class AdvancedSpotEngine:
             "confidence": confidence,
             "prediction": prediction,
             "thesis": thesis,
+            "human": (
+                best.get("human_context")
+                if best is not None
+                else (human.as_dict() if human is not None else {})
+            ),
+            "human_score": (
+                float(best.get("human_score") or 0.0)
+                if best is not None
+                else 0.0
+            ),
+            "human_weight": (
+                float(best.get("human_weight") or 0.0)
+                if best is not None
+                else 0.0
+            ),
         }
 
     def step(self) -> dict[str, Any]:
@@ -435,7 +577,11 @@ class AdvancedSpotEngine:
 
         if weakest is not None:
             held_product = str(weakest.get("product") or "").upper()
-            held_score = float(weakest.get("score") or 0.0)
+            held_score = float(
+                weakest.get("decision_score")
+                or weakest.get("score")
+                or 0.0
+            )
             if held_score <= -0.14 and held_product in before["positions"]:
                 fraction = min(1.0, max(0.35, 0.35 + abs(held_score) * 0.65))
                 decision = Decision(
@@ -480,6 +626,15 @@ class AdvancedSpotEngine:
                         f" Public listing signal {listing_event.get('event')} "
                         f"/ {listing_event.get('stage')}."
                     )
+                human_context = best.get("human_context") or {}
+                human_note = ""
+                if human_context:
+                    human_note = (
+                        f" Human Weather {human_context.get('crowd_regime', 'UNKNOWN')} "
+                        f"FOMO {float(human_context.get('fomo_index') or 0):.0f}/100; "
+                        f"human {float(best.get('human_score') or 0):+.3f} "
+                        f"at {float(best.get('human_weight') or 0) * 100:.0f}% weight."
+                    )
                 decision = Decision(
                     "BUY",
                     product_id,
@@ -488,6 +643,7 @@ class AdvancedSpotEngine:
                         f"Best Coinbase-wide executable spot setup at {score:+.3f}; "
                         f"spread {spread_bps:.1f} bps, volume {volume_ratio:.2f}x."
                         f"{listing_note}"
+                        f"{human_note}"
                     ),
                 )
                 try:
