@@ -10,6 +10,7 @@ from flask import Flask, jsonify, render_template, request
 
 from src.core import StateStore, app_data_dir
 from src.live import LiveEngine
+from src.opportunities import OpportunityUniverse
 from src.venues import capability_snapshot
 from src.wallets.cdp_wallet import CdpWallet, CredentialVault
 
@@ -116,6 +117,14 @@ def credentials():
 @app.get("/api/capabilities")
 def capabilities():
     return jsonify({"ok": True, **capability_snapshot()})
+
+
+@app.get("/api/opportunities")
+def opportunities():
+    try:
+        return jsonify({"ok": True, **OpportunityUniverse().collect()})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 500
 
 
 @app.post("/api/configure")
