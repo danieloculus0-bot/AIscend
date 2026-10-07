@@ -63,6 +63,83 @@ class AdvancedSpotEngine:
         base, _, quote = product_id.upper().rpartition("-")
         return base, quote
 
+    def _funding_route(
+        self,
+        product_id: str,
+        product_ids: tuple[str, ...],
+        cash_by_quote: dict[str, float],
+    ) -> dict[str, Any] | None:
+        base, target_quote = self._split_product(product_id)
+        direct = float(cash_by_quote.get(target_quote, 0.0))
+        if direct > 0.0:
+            return {
+                "mode": "DIRECT",
+                "signal_product": product_id,
+                "execution_product": product_id,
+                "quote": target_quote,
+                "funding_quote": target_quote,
+                "available": direct,
+            }
+
+        funded_quotes = sorted(
+            (
+                (str(quote).upper(), float(amount))
+                for quote, amount in cash_by_quote.items()
+                if float(amount) > 0.0
+            ),
+            key=lambda row: row[1],
+            reverse=True,
+        )
+
+        # Prefer the same base asset quoted in currency we already hold.
+        for funded_quote, amount in funded_quotes:
+            alternate = f"{base}-{funded_quote}"
+            if alternate in product_ids:
+                return {
+                    "mode": "ALT_PAIR",
+                    "signal_product": product_id,
+                    "execution_product": alternate,
+                    "quote": funded_quote,
+                    "funding_quote": funded_quote,
+                    "available": amount,
+                }
+
+        # Coinbase commonly exposes USD and USDC as a directly tradable pair.
+        # If the signal only exists on one dollar quote, fund it automatically
+        # from the other rather than throwing away an otherwise executable setup.
+        if target_quote in DOLLAR_ASSETS:
+            for funded_quote, amount in funded_quotes:
+                if funded_quote not in DOLLAR_ASSETS or funded_quote == target_quote:
+                    continue
+
+                sell_pair = f"{funded_quote}-{target_quote}"
+                if sell_pair in product_ids:
+                    return {
+                        "mode": "CONVERT",
+                        "signal_product": product_id,
+                        "execution_product": product_id,
+                        "quote": target_quote,
+                        "funding_quote": funded_quote,
+                        "available": amount,
+                        "conversion_product": sell_pair,
+                        "conversion_side": "SELL",
+                    }
+
+                buy_pair = f"{target_quote}-{funded_quote}"
+                if buy_pair in product_ids:
+                    return {
+                        "mode": "CONVERT",
+                        "signal_product": product_id,
+                        "execution_product": product_id,
+                        "quote": target_quote,
+                        "funding_quote": funded_quote,
+                        "available": amount,
+                        "conversion_product": buy_pair,
+                        "conversion_side": "BUY",
+                    }
+
+        return None
+
     def _product_for_currency(
         self,
         currency: str,
@@ -471,6 +548,11 @@ class AdvancedSpotEngine:
             item["human_weight"] = human_weight
             item["human_context"] = human_context
             item["decision_score"] = fused_score
+            item["funding_route"] = self._funding_route(
+                product,
+                product_ids,
+                cash_by_quote,
+            )
             rows.append(item)
 
         longs = sorted(
@@ -478,15 +560,12 @@ class AdvancedSpotEngine:
             key=lambda item: float(item.get("decision_score") or 0.0),
             reverse=True,
         )
-        funded_longs = [
+        executable_longs = [
             item
             for item in longs
-            if cash_by_quote.get(
-                self._split_product(str(item.get("product") or ""))[1],
-                0.0,
-            ) > 0.0
+            if item.get("funding_route")
         ]
-        best = funded_longs[0] if funded_longs else (longs[0] if longs else None)
+        best = executable_longs[0] if executable_longs else (longs[0] if longs else None)
         held = []
         for product_id in positions:
             item = next(
@@ -515,8 +594,10 @@ class AdvancedSpotEngine:
         prediction = "BULLISH" if score >= 0.16 else "BEARISH" if score <= -0.16 else "NEUTRAL"
         if best:
             product = str(best.get("product") or "")
-            quote = self._split_product(product)[1]
-            funded = cash_by_quote.get(quote, 0.0) > 0.0
+            route = best.get("funding_route") or {}
+            execution_product = str(route.get("execution_product") or product)
+            quote = str(route.get("quote") or self._split_product(execution_product)[1])
+            funded = bool(route)
             listing_event = best.get("listing_event")
             listing_note = ""
             if isinstance(listing_event, dict):
@@ -533,13 +614,25 @@ class AdvancedSpotEngine:
                     f"human {float(best.get('human_score') or 0):+.3f} at "
                     f"{float(best.get('human_weight') or 0) * 100:.0f}% weight."
                 )
+            route_note = ""
+            if route.get("mode") == "ALT_PAIR":
+                route_note = (
+                    f" Signal from {product}; execution rerouted to {execution_product} "
+                    f"using funded {quote}."
+                )
+            elif route.get("mode") == "CONVERT":
+                route_note = (
+                    f" Will convert {route.get('funding_quote')} to {quote} through "
+                    f"{route.get('conversion_product')} before execution."
+                )
             thesis = (
                 f"Best {'funded ' if funded else ''}tradable spot candidate {product}: "
                 f"decision score {score:+.3f}, raw {float(best.get('score') or 0):+.3f}, "
                 f"1h {float(best.get('return_1h') or 0):+.2%}, "
                 f"6h {float(best.get('return_6h') or 0):+.2%}, "
                 f"volume {float(best.get('volume_ratio') or 0):.2f}x; "
-                f"{quote} available {cash_by_quote.get(quote, 0.0):.8g}."
+                f"{quote} funding available {float(route.get('available') or 0.0):.8g}."
+                f"{route_note}"
                 f"{listing_note}"
                 f"{human_note}"
             )
@@ -612,14 +705,13 @@ class AdvancedSpotEngine:
                     )
 
         if status == "HELD" and best is not None:
-            product_id = str(best.get("product") or "").upper()
+            signal_product = str(best.get("product") or "").upper()
+            route = best.get("funding_route") or {}
+            product_id = str(route.get("execution_product") or signal_product).upper()
             score = float(best.get("decision_score") or best.get("score") or 0.0)
             spread_bps = float(best.get("spread_bps") or 0.0)
             volume_ratio = float(best.get("volume_ratio") or 0.0)
-            _, quote = self._split_product(product_id)
-            available_quote = float(
-                (before.get("cash_by_quote") or {}).get(quote, 0.0)
-            )
+            available_quote = float(route.get("available") or 0.0)
 
             if (
                 score >= 0.18
@@ -644,6 +736,17 @@ class AdvancedSpotEngine:
                         f"human {float(best.get('human_score') or 0):+.3f} "
                         f"at {float(best.get('human_weight') or 0) * 100:.0f}% weight."
                     )
+                route_note = ""
+                if route.get("mode") == "ALT_PAIR":
+                    route_note = (
+                        f" Signal source {signal_product}; executing {product_id} "
+                        f"against funded {route.get('quote')}."
+                    )
+                elif route.get("mode") == "CONVERT":
+                    route_note = (
+                        f" Auto-funding {route.get('quote')} from {route.get('funding_quote')} "
+                        f"through {route.get('conversion_product')}."
+                    )
                 decision = Decision(
                     "BUY",
                     product_id,
@@ -651,12 +754,13 @@ class AdvancedSpotEngine:
                     (
                         f"Best Coinbase-wide executable spot setup at {score:+.3f}; "
                         f"spread {spread_bps:.1f} bps, volume {volume_ratio:.2f}x."
+                        f"{route_note}"
                         f"{listing_note}"
                         f"{human_note}"
                     ),
                 )
                 try:
-                    self._execute_buy(decision, before)
+                    self._execute_buy(decision, before, funding_route=route)
                     status = "LIVE_EXECUTED"
                 except Exception as exc:
                     status = "EXECUTION_ERROR"
@@ -671,11 +775,49 @@ class AdvancedSpotEngine:
         self.store.add_decision(decision, status)
         return self.sync()
 
-    def _execute_buy(self, decision: Decision, snapshot: dict[str, Any]) -> None:
+    def _execute_buy(
+        self,
+        decision: Decision,
+        snapshot: dict[str, Any],
+        funding_route: dict[str, Any] | None = None,
+    ) -> None:
         product_id = str(decision.symbol)
         _, quote = self._split_product(product_id)
-        available = Decimal(str((snapshot.get("cash_by_quote") or {}).get(quote, 0.0)))
-        spend = available * Decimal(str(decision.fraction))
+        route = funding_route or {}
+        mode = str(route.get("mode") or "DIRECT").upper()
+
+        if mode == "CONVERT":
+            funding_quote = str(route.get("funding_quote") or "").upper()
+            available_funding = Decimal(
+                str((snapshot.get("cash_by_quote") or {}).get(funding_quote, 0.0))
+            )
+            convert_amount = available_funding * Decimal(str(decision.fraction))
+            if convert_amount <= 0:
+                raise RuntimeError(
+                    f"Insufficient {funding_quote} to fund {quote} conversion."
+                )
+            self._execute_quote_conversion(
+                route,
+                convert_amount,
+                decision.rationale,
+            )
+
+            refreshed = self.rail.status()
+            target_available = next(
+                (
+                    Decimal(str(item.available))
+                    for item in refreshed.balances
+                    if item.currency.upper() == quote
+                ),
+                Decimal("0"),
+            )
+            spend = target_available * Decimal("0.995")
+        else:
+            available = Decimal(
+                str((snapshot.get("cash_by_quote") or {}).get(quote, 0.0))
+            )
+            spend = available * Decimal(str(decision.fraction))
+
         if spend <= 0:
             raise RuntimeError(f"Insufficient {quote} for Coinbase Advanced buy.")
 
@@ -735,6 +877,72 @@ class AdvancedSpotEngine:
                 0.0,
                 0.0,
                 f"Advanced BUY executed but audit write failed: {exc}",
+            )
+
+    def _execute_quote_conversion(
+        self,
+        route: dict[str, Any],
+        amount: Decimal,
+        rationale: str,
+    ) -> None:
+        conversion_product = str(route.get("conversion_product") or "").upper()
+        conversion_side = str(route.get("conversion_side") or "").upper()
+        if not conversion_product or conversion_side not in {"BUY", "SELL"}:
+            raise RuntimeError("Invalid quote-conversion route.")
+
+        client_order_id = f"aiscend-quote-{uuid.uuid4()}"
+        if conversion_side == "SELL":
+            order = self.rail.market_sell(
+                conversion_product,
+                amount,
+                client_order_id=client_order_id,
+            )
+        else:
+            order = self.rail.market_buy(
+                conversion_product,
+                amount,
+                client_order_id=client_order_id,
+            )
+
+        self.store.add_ledger(
+            "ADVANCED_QUOTE_CONVERSION",
+            conversion_product,
+            float(amount) if conversion_side == "SELL" else 0.0,
+            0.0,
+            -float(amount) if conversion_side == "BUY" else 0.0,
+            (
+                f"Auto-funded quote currency before buy. {rationale} | "
+                f"order={str(order)[:220]}"
+            ),
+        )
+
+        try:
+            base, quote = self._split_product(conversion_product)
+            self.audit.record_trade(
+                venue="coinbase",
+                rail="coinbase-advanced",
+                network="coinbase",
+                side=conversion_side,
+                product_id=conversion_product,
+                base_asset=base,
+                quote_asset=quote,
+                base_quantity=amount if conversion_side == "SELL" else None,
+                quote_quantity=amount if conversion_side == "BUY" else None,
+                order_id=self.audit.provider_id(order, "order_id", "orderId"),
+                client_order_id=client_order_id,
+                status="provider_response",
+                rationale=f"Automatic quote funding. {rationale}",
+                source="coinbase_advanced_quote_conversion",
+                raw_provider_response=order,
+            )
+        except Exception as exc:
+            self.store.add_ledger(
+                "AUDIT_ERROR",
+                conversion_product,
+                0.0,
+                0.0,
+                0.0,
+                f"Quote conversion executed but audit write failed: {exc}",
             )
 
     def _execute_sell(self, decision: Decision, snapshot: dict[str, Any]) -> None:
