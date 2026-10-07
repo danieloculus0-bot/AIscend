@@ -12,6 +12,8 @@ from typing import Any
 from flask import Flask, jsonify, render_template, request
 
 from src.advanced_live import AdvancedSpotEngine
+from src.audit import AuditTrail
+from src.bean import BeanMemory
 from src.core import Decision, StateStore, app_data_dir
 from src.live import LiveEngine
 from src.opportunities import OpportunityUniverse
@@ -52,15 +54,52 @@ def _validate_rail(rail: str) -> str:
     return rail
 
 
+def _copy_game_meta(source: StateStore, target: StateStore) -> None:
+    """Keep one experiment clock/baseline when capital moves between rails."""
+    baseline = source.get_meta("live_starting_value")
+    if baseline is not None and float(baseline) > 0:
+        target.set_meta("advanced_starting_value", baseline)
+
+    rows = source.conn.execute(
+        """
+        SELECT key,value FROM meta
+        WHERE key='game_started_at'
+           OR key LIKE 'milestone_%'
+           OR key LIKE 'level_%'
+        """
+    ).fetchall()
+    for row in rows:
+        target.set_meta(str(row["key"]), str(row["value"]))
+
+
 def _make_engine(network: str, rail: str = "base"):
     rail = _validate_rail(rail)
     network = _validate_network(network)
     store = StateStore(_db_path(network, rail))
     if rail == "advanced":
-        engine = AdvancedSpotEngine(store=store, rail=AdvancedTradeSpot())
+        # live-base.db is the canonical experiment memory. Advanced keeps its
+        # own execution journal/state, but BEAN and the game clock do not reset
+        # just because capital crossed an internal bridge.
+        shared = StateStore(_db_path("base", "base"))
+        _copy_game_meta(shared, store)
+        engine = AdvancedSpotEngine(
+            store=store,
+            rail=AdvancedTradeSpot(),
+            bean=BeanMemory(shared.conn),
+        )
+        setattr(engine, "_shared_memory_store", shared)
     else:
         engine = LiveEngine(store=store, wallet=CdpWallet(network=network))
     return store, engine
+
+
+def _close_engine_store(store: StateStore, engine: Any) -> None:
+    shared = getattr(engine, "_shared_memory_store", None)
+    try:
+        store.close()
+    finally:
+        if shared is not None and shared is not store:
+            shared.close()
 
 
 def _rows_to_dicts(rows) -> list[dict[str, Any]]:
@@ -90,6 +129,31 @@ def _status_payload(network: str, rail: str = "base") -> dict[str, Any]:
     store, engine = _make_engine(network, rail)
     try:
         snap = engine.sync()
+        suggested_rail = rail
+        # If the selected rail is effectively empty, point the UI at the rail
+        # that actually holds spendable experiment cash instead of rendering a
+        # fake -100% loss.
+        if rail == "base" and float(snap.get("net_liquidation") or 0.0) < 0.50:
+            if AdvancedTradeVault().configured():
+                try:
+                    advanced_status = AdvancedTradeSpot().status()
+                    advanced_cash = sum(
+                        float(item.available)
+                        for item in advanced_status.balances
+                        if item.currency in {"USD", "USDC"}
+                    )
+                    if advanced_cash >= 0.50:
+                        suggested_rail = "advanced"
+                except Exception:
+                    pass
+        elif rail == "advanced" and float(snap.get("net_liquidation") or 0.0) < 0.50:
+            try:
+                base_status = asyncio.run(CdpWallet(network="base").trading_snapshot())
+                if float(base_status.net_usdc) >= 0.50:
+                    suggested_rail = "base"
+            except Exception:
+                pass
+
         return {
             "ok": True,
             "snapshot": snap,
@@ -97,9 +161,10 @@ def _status_payload(network: str, rail: str = "base") -> dict[str, Any]:
             "ledger": _rows_to_dicts(store.latest_ledger(30)),
             "runner": dict(_loop_state),
             "selected_rail": rail,
+            "suggested_rail": suggested_rail,
         }
     finally:
-        store.close()
+        _close_engine_store(store, engine)
 
 
 def _run_once(network: str, rail: str = "base") -> dict[str, Any]:
@@ -127,7 +192,7 @@ def _run_once(network: str, rail: str = "base") -> dict[str, Any]:
             "decision": decision,
         }
     finally:
-        store.close()
+        _close_engine_store(store, engine)
 
 
 def _runner(network: str, interval: float, rail: str) -> None:
@@ -211,6 +276,11 @@ def monitor_status():
         return jsonify(_active_monitor_payload())
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.get("/api/runner")
+def runner_status():
+    return jsonify({"ok": True, "runner": dict(_loop_state)})
 
 
 @app.get("/api/credentials")
@@ -317,13 +387,33 @@ def bridge_base_to_advanced():
         tx_hash = asyncio.run(
             CdpWallet(network="base").send_usdc(destination, amount)
         )
+        audit_warning = None
+        try:
+            AuditTrail().record_transfer(
+                venue="coinbase",
+                rail="wallet-bridge",
+                network="base",
+                asset="USDC",
+                quantity=amount,
+                direction="BASE_TO_ADVANCED",
+                from_location="base-smart-wallet",
+                to_location="coinbase-advanced",
+                transaction_id=tx_hash,
+                status="complete",
+                source="bridge_api",
+                raw_provider_response={"user_op_hash": tx_hash},
+            )
+        except Exception as exc:
+            audit_warning = str(exc)
         return jsonify(
             {
                 "ok": True,
                 "direction": "base_to_advanced",
+                "target_rail": "advanced",
                 "amount": str(amount),
                 "destination": destination,
                 "transaction": tx_hash,
+                "audit_warning": audit_warning,
             }
         )
     except Exception as exc:
@@ -345,13 +435,39 @@ def bridge_advanced_to_base():
             network="base",
             idem=f"aiscend-bridge-{uuid.uuid4()}",
         )
+        audit_warning = None
+        try:
+            audit = AuditTrail()
+            audit.record_transfer(
+                venue="coinbase",
+                rail="wallet-bridge",
+                network="base",
+                asset="USDC",
+                quantity=amount,
+                direction="ADVANCED_TO_BASE",
+                from_location="coinbase-advanced",
+                to_location=base_address,
+                transaction_id=audit.provider_id(
+                    result,
+                    "transaction_id",
+                    "transactionId",
+                    "id",
+                ),
+                status="provider_response",
+                source="bridge_api",
+                raw_provider_response=result,
+            )
+        except Exception as exc:
+            audit_warning = str(exc)
         return jsonify(
             {
                 "ok": True,
                 "direction": "advanced_to_base",
+                "target_rail": "base",
                 "amount": str(amount),
                 "destination": base_address,
                 "transaction": result,
+                "audit_warning": audit_warning,
             }
         )
     except Exception as exc:
