@@ -115,6 +115,8 @@ class CredentialVault:
         self.backend = backend or keyring
 
     def configured(self) -> bool:
+        if all(os.getenv(key, "").strip() for key in _CREDENTIAL_KEYS):
+            return True
         return all(self.backend.get_password(SERVICE_NAME, key) for key in _CREDENTIAL_KEYS)
 
     def save(self, api_key_id: str, api_key_secret: str, wallet_secret: str) -> None:
@@ -140,6 +142,10 @@ class CredentialVault:
     def load_into_environment(self) -> None:
         missing: list[str] = []
         for key in _CREDENTIAL_KEYS:
+            existing = os.getenv(key, "").strip()
+            if existing:
+                continue
+
             value = self.backend.get_password(SERVICE_NAME, key)
             if not value:
                 missing.append(key)
@@ -148,8 +154,7 @@ class CredentialVault:
 
         if missing:
             raise RuntimeError(
-                "CDP credentials are not configured in Windows Credential Manager: "
-                + ", ".join(missing)
+                "CDP credentials are not configured: " + ", ".join(missing)
             )
 
 
