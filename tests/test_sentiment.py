@@ -84,6 +84,22 @@ class SentimentTests(unittest.TestCase):
         self.assertGreater(positive, 0)
         self.assertLess(negative, 0)
 
+    def test_weirdness_uses_anomaly_feed_activity_and_keywords(self):
+        class WeirdHumanResearch(FallbackHumanResearch):
+            def _google_news_titles(self, query, limit):
+                if "cyberattack" in query:
+                    return [
+                        "Regional power blackout disrupts trading systems",
+                        "Major internet outage hits payment networks",
+                        "Earthquake forces emergency market closures",
+                        "Unusual solar flare disrupts communications",
+                    ]
+                return super()._google_news_titles(query, limit)
+
+        pack = WeirdHumanResearch()._collect_uncached()
+        self.assertGreater(pack.source_counts["weird"], 0)
+        self.assertGreater(pack.weirdness, 0.0)
+
     def test_human_weather_uses_fallback_feeds(self):
         pack = FallbackHumanResearch()._collect_uncached()
         self.assertTrue(pack.available)
