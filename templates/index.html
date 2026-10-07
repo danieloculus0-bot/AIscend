@@ -170,6 +170,7 @@
           <div><div class="label">Weirdness</div><div id="weirdness" class="small">--</div></div>
         </div>
         <div id="fearGreed" class="small">Fear & Greed: --</div>
+        <div id="signalMaturity" class="small">Signal maturity: --</div>
         <div id="signalSources" class="small">Sources: --</div>
         <div id="signalHealth" class="small">Feed health: --</div>
         <div id="signalErrors" class="small"></div>
@@ -327,6 +328,12 @@ function renderSnapshot(s){
     ? 'Fear & Greed (Alternative.me): '+(human.fear_greed_value ?? '--')+' · '+(human.fear_greed_classification || 'UNKNOWN')+
       ' · 1d '+(Number(human.fear_greed_change_1d || 0)>=0?'+':'')+Number(human.fear_greed_change_1d || 0).toFixed(0)
     : 'Fear & Greed: --';
+  $('signalMaturity').textContent = human.available
+    ? 'Signal maturity: human '+(Number(human.human_signal_quality||0)*100).toFixed(0)+'% · social confidence '+
+      (Number(human.social_confidence||0)*100).toFixed(0)+'% · coverage '+
+      (Number(human.social_coverage||0)*100).toFixed(0)+'% · diversity '+
+      (Number(human.social_source_diversity||0)*100).toFixed(0)+'%'
+    : 'Signal maturity: --';
   const counts=human.source_counts || {};
   $('signalSources').textContent = human.available
     ? 'Sources: news '+Number(counts.news||0)+' · social '+Number(counts.social||0)+
