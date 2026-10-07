@@ -87,6 +87,20 @@ class VenueTests(unittest.TestCase):
         self.assertEqual(universe._prediction_scan_meta["sports_counts"]["NBA"], 1)
         self.assertEqual(len(universe.calls), 2)
 
+    def test_specific_sports_leagues_beat_generic_keywords(self):
+        self.assertEqual(
+            OpportunityUniverse._prediction_category(
+                {"title": "WNBA basketball championship", "series_ticker": "KXWNBA"}
+            ),
+            ("sports", "WNBA"),
+        )
+        self.assertEqual(
+            OpportunityUniverse._prediction_category(
+                {"title": "College football playoff", "series_ticker": "KXNCAAF"}
+            ),
+            ("sports", "NCAAF"),
+        )
+
     def test_prediction_market_scan_normalizes_public_market(self):
         rows = FakeUniverse()._prediction_markets()
         self.assertEqual(len(rows), 1)
