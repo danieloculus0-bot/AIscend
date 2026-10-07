@@ -10,7 +10,7 @@ The live experiment is intended to start with a tiny bankroll, currently around 
 
 ## Project status
 
-**Version:** 0.7.0  
+**Version:** 0.9.0  
 **Platform:** Windows x64 + browser via GitHub Codespaces  
 **State:** Synthetic desktop sandbox + Coinbase live desktop mode  
 **Live-money execution:** CDP smart-account swaps on Base are implemented
@@ -54,6 +54,9 @@ Once autonomy is started, the agent does not ask for per-trade human approval.
 - Game score with exactly one point per completed bankroll doubling
 - Deliberately shitty dot-matrix trader pet whose face barely reacts to what the bot is doing
 - Mandatory **Level 1** win condition at **$100,000 net liquidation value**
+- First-launch **Market Arsenal** exposing Crypto, Predictions, Stocks & ETFs, and Options
+- Public prediction-market discovery through Kalshi market-data APIs
+- Cross-market opportunity normalization so future venue executors can plug into the same research layer
 
 ## The loop
 
@@ -109,7 +112,7 @@ No local install is required.
 5. In the browser dashboard, upload the downloaded Coinbase CDP API-key JSON and enter the Wallet Secret.
 6. Select **Base · live money** and run one cycle or start continuous autonomy.
 
-The browser dashboard shows the live wallet, bankroll, P/L, wealth multiple, game score, positions, decision journal, and the intentionally terrible dot-matrix trader pet.
+The browser dashboard shows the live wallet, bankroll, P/L, wealth multiple, game score, research brain, Market Arsenal, cross-market opportunity scan, positions, decision journal, and the intentionally terrible dot-matrix trader pet.
 
 ## Windows quick start
 
@@ -403,8 +406,19 @@ $env:AUTOCAPITAL_BUILD_NAME="NewName"
 .\build.ps1
 ```
 
+## Multi-market lanes
+
+AIscend exposes four market lanes from first launch:
+
+- **Crypto**: live autonomous execution is wired today through the CDP smart account.
+- **Predictions**: public market discovery is live and normalized into the opportunity scanner. Autonomous execution remains locked until a supported authenticated trading adapter is connected.
+- **Stocks & ETFs**: the lane is present and research-ready. Autonomous execution remains locked until a supported brokerage API is connected.
+- **Options**: the lane is present and research-ready. Autonomous execution remains locked until a supported options API is connected.
+
+The application does not pretend an execution connector exists when one has not been implemented. Research and execution remain separate capabilities.
+
 ## Next major milestone
 
-Expand the live asset universe beyond the first WETH/USDC pair and add richer live-market intelligence to the autonomous decision engine.
+Add independent probability models for prediction markets plus authenticated execution adapters for additional supported venues.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the current component boundaries and invariants.
