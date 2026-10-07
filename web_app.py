@@ -6,6 +6,9 @@ import os
 import threading
 import time
 import uuid
+import re
+import urllib.parse
+import urllib.request
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -339,6 +342,47 @@ def monitor_status():
         return jsonify({"ok": False, "error": "Unauthorized"}), 401
     try:
         return jsonify(_active_monitor_payload())
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.get("/api/candles")
+def candles():
+    product = str(request.args.get("product") or "").strip().upper()
+    if not re.fullmatch(r"[A-Z0-9-]{3,40}", product):
+        return jsonify({"ok": False, "error": "Invalid Coinbase product."}), 400
+
+    try:
+        path = (
+            "https://api.exchange.coinbase.com/products/"
+            + urllib.parse.quote(product)
+            + "/candles?granularity=300"
+        )
+        req = urllib.request.Request(
+            path,
+            headers={
+                "Accept": "application/json",
+                "User-Agent": "AIscend/0.17 candle-panel",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=6.0) as response:
+            rows = json.loads(response.read().decode("utf-8"))
+
+        candles = []
+        for row in reversed(rows[-60:] if isinstance(rows, list) else []):
+            if not isinstance(row, list) or len(row) < 6:
+                continue
+            candles.append(
+                {
+                    "time": int(row[0]),
+                    "low": float(row[1]),
+                    "high": float(row[2]),
+                    "open": float(row[3]),
+                    "close": float(row[4]),
+                    "volume": float(row[5]),
+                }
+            )
+        return jsonify({"ok": True, "product": product, "candles": candles})
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
 
