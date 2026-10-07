@@ -55,6 +55,20 @@ class BeanTests(unittest.TestCase):
         self.assertEqual(snap["claims"], 1)
         self.assertEqual(snap["compressed_repeats"], 1)
 
+    def test_individual_signal_family_can_earn_trust(self):
+        self.bean.add_prediction(
+            subject="ETH",
+            horizon_seconds=0,
+            start_price=100.0,
+            predicted_direction=-1,
+            predicted_strength=0.8,
+            confidence=0.7,
+            source_mix={"social": -1.0, "news": -0.4, "technical": -0.5},
+        )
+        self.bean.resolve_due({"ETH": 97.0})
+        self.assertGreater(self.bean.trust("social", 0), 0.5)
+        self.assertGreater(self.bean.trust("news", 0), 0.5)
+
     def test_contradiction_is_retained(self):
         self.bean.record_contradiction(
             "ETH", "technical", 0.4, "human", -0.5, 0.45, "disagreement"
