@@ -120,3 +120,24 @@ Each completed bankroll doubling is one point, while elapsed time is tracked sep
 ## Trader pet
 
 The browser dashboard contains a deliberately crude pixel trader called `AIS-0`. It is cosmetic only and never controls execution. Its tiny face changes state for BUY, SELL, profit, loss, point milestones, idle, running, and errors, with minimal blinking and one-pixel movement.
+
+
+## Multi-market opportunity layer
+
+Version 0.9 adds a venue-capability registry and normalized opportunity scanner.
+
+```text
+public / venue market data
+    |
+OpportunityUniverse
+    |
+normalized opportunities
+    |
+Market Arsenal UI
+    |
+future decision allocator
+    |
+venue-specific executor
+```
+
+The four first-launch lanes are Crypto, Predictions, Stocks & ETFs, and Options. Research readiness and execution readiness are tracked separately per lane. Crypto currently has a live execution adapter. Prediction-market discovery uses public Kalshi market data. Stocks/ETFs and options remain visible and research-ready while their autonomous execution adapters are intentionally unconnected.
