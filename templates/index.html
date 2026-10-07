@@ -140,6 +140,16 @@
 
     <div>
       <div class="panel">
+        <h2>RESEARCH BRAIN</h2>
+        <div class="row">
+          <div><div class="label">Prediction</div><div id="researchPrediction" class="value" style="font-size:20px">--</div></div>
+          <div><div class="label">Confidence</div><div id="researchConfidence" class="value" style="font-size:20px">--</div></div>
+        </div>
+        <div id="researchScore" class="small">Composite: --</div>
+        <div id="researchThesis" class="small">Research not loaded yet.</div>
+      </div>
+
+      <div class="panel" style="margin-top:14px">
         <h2>POSITIONS</h2>
         <table>
           <thead><tr><th>Asset</th><th>Qty</th><th>Price</th><th>Value</th></tr></thead>
@@ -204,6 +214,12 @@ function renderSnapshot(s){
   $('pnl').textContent = (Number(s.pnl)>=0?'+':'') + money(s.pnl);
   $('multiple').textContent = Number(s.multiple || 0).toFixed(4) + 'x';
   $('wallet').textContent = 'Wallet: ' + (s.wallet_address || '--');
+
+  const r=s.research || {};
+  $('researchPrediction').textContent = r.prediction || 'UNKNOWN';
+  $('researchConfidence').textContent = r.available ? (Number(r.confidence || 0)*100).toFixed(1)+'%' : '--';
+  $('researchScore').textContent = 'Composite: ' + (r.available ? Number(r.composite_score || 0).toFixed(3) : '--');
+  $('researchThesis').textContent = r.thesis || 'Research unavailable.';
 
   const g=s.game || {};
   const points=Number(g.points || 0);
