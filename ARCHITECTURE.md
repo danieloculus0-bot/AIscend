@@ -8,9 +8,9 @@ The application is split into five concerns:
 - **Wallet / venue adapters**: connect isolated capital to external systems without exposing unrelated accounts.
 - **Windows UI**: starts or stops autonomy and displays state. It does not approve individual trades.
 
-The current autonomous execution venue remains a persistent synthetic market.
+The desktop application still defaults to the persistent synthetic market.
 
-Version 0.2 adds the first real wallet infrastructure: a Coinbase Developer Platform non-custodial API-key wallet adapter using an EVM account on Base / Base Sepolia. Wallet identity and custody are deliberately separate from the future trading execution adapter.
+Version 0.3 adds a second execution path: a Coinbase Developer Platform non-custodial API-key **smart account** on Base / Base Sepolia, with WETH/USDC pricing, Permit2 allowance management, swaps, confirmation, and balance reconciliation.
 
 ## Capital path
 
@@ -33,12 +33,14 @@ Windows Credential Manager
     |
 CDP API credentials + wallet secret
     |
-named non-custodial EVM wallet
+owner EOA
+    |
+named non-custodial smart account
     |
 Base Sepolia / Base
 ```
 
-Target live architecture:
+Live architecture:
 
 ```text
 market data
@@ -83,4 +85,4 @@ The application loads those values into process memory only when the CDP adapter
 7. Product naming is not coupled to the core.
 8. External wallet credentials never belong in the repository.
 9. Wallet custody and trading execution remain separate components.
-10. Mainnet execution must use the experiment wallet only, never an unrelated funding account.
+10. Live execution uses the named AIscend smart account and reconciles state from onchain balances after each swap.

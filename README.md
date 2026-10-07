@@ -10,10 +10,10 @@ The current seed bankroll is **$10**.
 
 ## Project status
 
-**Version:** 0.2.0  
+**Version:** 0.3.0  
 **Platform:** Windows x64  
-**State:** Functional autonomous sandbox  
-**Live-money execution:** Wallet infrastructure added; autonomous mainnet execution not connected yet
+**State:** Synthetic desktop sandbox + Coinbase live runner  
+**Live-money execution:** CDP smart-account swaps on Base are implemented
 
 The current application is fully runnable against a persistent synthetic market. It already exercises the complete autonomous loop without requiring a brokerage account, wallet, API key, or internet connection.
 
@@ -40,9 +40,13 @@ Once autonomy is started, the agent does not ask for per-trade human approval.
 - GitHub Actions Windows build pipeline
 - Coinbase CDP non-custodial wallet adapter
 - Windows Credential Manager storage for CDP secrets
-- Named EVM wallet creation/retrieval
+- Named EVM smart-account creation/retrieval
 - Base and Base Sepolia balance inspection
 - Base Sepolia test-fund bootstrap
+- WETH/USDC live pricing through CDP
+- Automatic Permit2 approval when required
+- Autonomous USDC/WETH swaps with onchain reconciliation
+- Separate live SQLite journal and decision history
 
 ## The loop
 
@@ -149,9 +153,9 @@ That keeps local builds and CI from quietly becoming two different systems.
 
 ## Coinbase CDP wallet setup
 
-Version 0.2 adds the first real capital rail.
+Version 0.3 connects the decision/governor loop to a real Coinbase CDP capital rail.
 
-The wallet is a **non-custodial CDP API-key wallet**. The app can create or retrieve a named EVM account and inspect it on Base or Base Sepolia.
+The wallet is a **non-custodial CDP API-key smart account**. AIscend creates an owner account plus the named smart account `autonomous-capital`, reads balances on Base/Base Sepolia, prices WETH against USDC, and can execute swaps.
 
 ### 1. Create the CDP project
 
@@ -166,19 +170,13 @@ Do **not** paste either secret into ChatGPT, an issue, a commit, or a README.
 
 ### 2. Store the credentials locally
 
-From PowerShell in the repository:
+From PowerShell in the repository, you can load the downloaded CDP key JSON directly:
 
 ```powershell
-.\configure-cdp.ps1
+.\configure-cdp.ps1 -KeyFile "C:\path\to\cdp_api_key.json"
 ```
 
-The script prompts for:
-
-```text
-CDP API key ID
-CDP API key secret
-CDP wallet secret
-```
+The script reads the key ID/private key from the JSON and prompts for the Wallet Secret. Running `.\configure-cdp.ps1` without `-KeyFile` prompts for all three values.
 
 The secret fields are not echoed.
 
@@ -190,10 +188,11 @@ AutonomousCapitalLab/CDP
 
 They are not written to the repository or SQLite database.
 
-The setup then creates or retrieves the named EVM account:
+The setup then creates or retrieves:
 
 ```text
-autonomous-capital
+owner: autonomous-capital-owner
+smart account: autonomous-capital
 ```
 
 ### 3. Check the wallet
@@ -236,11 +235,27 @@ Faucet calls are hard-blocked unless the selected network is `base-sepolia`.
 .\.venv\Scripts\python.exe scripts\cdp_wallet.py clear
 ```
 
-### What this does not do yet
+### Live execution
 
-Version 0.2 **does not autonomously trade the live wallet yet**.
+Inspect the live/testnet portfolio without trading:
 
-The wallet/custody layer is being validated first. The next execution adapter will add token quote, swap, transaction reconciliation, and autonomous Base trading while keeping the wallet credentials and risk governor separate.
+```powershell
+.\.venv\Scripts\python.exe scripts\aiscend_live.py --network base-sepolia status
+```
+
+Run one autonomous decision cycle:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\aiscend_live.py --network base once
+```
+
+Run continuously:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\aiscend_live.py --network base run --interval 60
+```
+
+The live runner uses the same decision engine and risk governor as the synthetic application. USDC is treated as cash and WETH as the first live risk asset. Decisions and executions are recorded in a separate `live-base.db` journal.
 
 ## Decision engines
 
@@ -287,19 +302,19 @@ The governor sits below the AI decision layer. A future model or strategy can ch
 
 ## Synthetic versus live execution
 
-Today:
+Synthetic desktop path:
 
 ```text
 AI / strategy -> governor -> synthetic market
 ```
 
-Target architecture:
+Live path:
 
 ```text
-AI / strategy -> governor -> execution adapter -> real venue
+AI / strategy -> governor -> CDP smart-account adapter -> Base -> onchain reconciliation
 ```
 
-The live execution adapter is intentionally not baked into the UI or decision engine. Brokerage, wallet, marketplace, or other venue integrations should plug into the execution layer without rewriting the rest of the application.
+The venue remains separate from the decision layer, so additional assets and execution venues can be added without rewriting the strategy/governor core.
 
 ## Tests
 
@@ -345,6 +360,6 @@ $env:AUTOCAPITAL_BUILD_NAME="NewName"
 
 ## Next major milestone
 
-Add the Base live-execution adapter on top of the now-implemented CDP wallet: quotes, swaps, transaction confirmation, onchain balance reconciliation, and autonomous trading of the isolated $10 bankroll.
+Wire the live engine into the Windows desktop UI and expand the live asset universe beyond the first WETH/USDC pair.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the current component boundaries and invariants.
