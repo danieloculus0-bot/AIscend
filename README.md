@@ -81,14 +81,14 @@ net liquidation value
 AIscend is scored like a game whose objective is **maximum wealth growth in minimum time**.
 
 ```text
-score = 1000 × log2(current bankroll / starting bankroll)
-        - 10 × elapsed days
+score = floor(log2(current bankroll / starting bankroll))
 ```
 
 That means:
 
-- Every bankroll doubling is worth about **+1000 points**.
-- Time continuously costs points, so reaching the same bankroll sooner scores higher.
+- Every **completed bankroll doubling is worth exactly 1 point**.
+- 1x to less than 2x = 0 points, 2x to less than 4x = 1 point, 4x to less than 8x = 2 points, and so on.
+- Time does not subtract points. Speed is tracked separately as time-to-milestone and acts as the tiebreaker.
 - Trading more often does not itself earn points. Only net wealth and speed matter.
 - HOLD is valid when waiting has better expected value than churn.
 - No additional capital is added after the run starts.
