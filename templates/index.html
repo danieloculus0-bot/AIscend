@@ -129,7 +129,8 @@
         <h2>LIVE ENGINE</h2>
         <label>Execution rail</label>
         <select id="executionRail" onchange="refreshStatus()">
-          <option value="base" selected>Base smart wallet</option>
+          <option value="auto" selected>Linked portfolio - auto choose rail</option>
+          <option value="base">Base smart wallet</option>
           <option value="advanced">Coinbase Advanced spot</option>
         </select>
 
@@ -346,8 +347,17 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 
 async function switchExecutionRail(target){
   if(!['base','advanced'].includes(target)) return;
-  $('executionRail').value=target;
 
+  // In linked-auto mode the coordinator owns rail choice. A bridge move only
+  // changes where the capital lives; it does not split the strategy loop.
+  if(rail()==='auto'){
+    await refreshAdvanced();
+    await refreshBridge();
+    await refreshStatus();
+    return;
+  }
+
+  $('executionRail').value=target;
   let state=null;
   try{
     const r=await fetch('/api/runner');
@@ -473,7 +483,7 @@ async function refreshStatus(){
   const j = await r.json();
   if(!j.ok){ msg(j.error || 'Status unavailable'); renderRunner(j.runner); petState='dead'; drawPet(); return; }
 
-  if(j.suggested_rail && j.suggested_rail!==requestedRail && !(j.runner||{}).running){
+  if(requestedRail!=='auto' && j.suggested_rail && j.suggested_rail!==requestedRail && !(j.runner||{}).running){
     $('executionRail').value=j.suggested_rail;
     return refreshStatus();
   }
@@ -619,7 +629,9 @@ function renderDecisions(rows){
 
 function renderRunner(r){
   if(!r) return;
-  $('runnerPill').textContent = r.running ? 'RUNNING - '+(r.rail==='advanced'?'advanced':r.network) : 'STOPPED';
+  $('runnerPill').textContent = r.running
+    ? 'RUNNING - '+(r.rail==='auto'?'linked':(r.rail==='advanced'?'advanced':r.network))
+    : 'STOPPED';
   if(r.last_error){ msg(r.last_error); petState='dead'; drawPet(); }
 }
 
