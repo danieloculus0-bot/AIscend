@@ -156,6 +156,43 @@
       </div>
 
       <div class="panel" style="margin-top:14px">
+        <h2>HUMAN WEATHER</h2>
+        <div class="row">
+          <div><div class="label">FOMO Index</div><div id="fomoIndex" class="value" style="font-size:20px">--</div></div>
+          <div><div class="label">Crowd Regime</div><div id="crowdRegime" class="value" style="font-size:20px">--</div></div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <div><div class="label">News</div><div id="newsSentiment" class="small">--</div></div>
+          <div><div class="label">Social</div><div id="socialSentiment" class="small">--</div></div>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <div><div class="label">Politics</div><div id="politicsSignal" class="small">--</div></div>
+          <div><div class="label">Weirdness</div><div id="weirdness" class="small">--</div></div>
+        </div>
+        <div id="fearGreed" class="small">Fear & Greed: --</div>
+        <div id="signalSources" class="small">Sources: --</div>
+        <div id="headlineTape" class="small" style="margin-top:10px">No human-signal headlines yet.</div>
+      </div>
+
+      <div class="panel" style="margin-top:14px">
+        <h2>BEAN MEMORY</h2>
+        <div class="row">
+          <div><div class="label">Claims</div><div id="beanClaims" class="value" style="font-size:20px">--</div></div>
+          <div><div class="label">Predictions</div><div id="beanPredictions" class="value" style="font-size:20px">--</div></div>
+        </div>
+        <div id="beanResolved" class="small">Resolved: --</div>
+        <div id="beanContradictions" class="small">Contradictions: --</div>
+        <div id="beanLatest" class="small">Latest prediction: --</div>
+        <div id="beanTrust" class="small" style="margin-top:8px">Trust model has no graded outcomes yet.</div>
+      </div>
+
+      <div class="panel" style="margin-top:14px">
+        <h2>COINBASE ASSET UNIVERSE</h2>
+        <div id="universeSummary" class="small">Universe not loaded yet.</div>
+        <div id="universeTop" class="small" style="margin-top:8px"></div>
+      </div>
+
+      <div class="panel" style="margin-top:14px">
         <h2>MARKET ARSENAL</h2>
         <div class="small" style="margin-bottom:10px">All lanes are visible from first launch. Research can rank them even when execution is not connected yet.</div>
         <div id="venueGrid" class="venue-grid"></div>
@@ -274,6 +311,59 @@ function renderSnapshot(s){
   $('researchConfidence').textContent = r.available ? (Number(r.confidence || 0)*100).toFixed(1)+'%' : '--';
   $('researchScore').textContent = 'Composite: ' + (r.available ? Number(r.composite_score || 0).toFixed(3) : '--');
   $('researchThesis').textContent = r.thesis || 'Research unavailable.';
+
+  const human=r.human || {};
+  $('fomoIndex').textContent = human.available ? Number(human.fomo_index || 0).toFixed(0)+'/100' : '--';
+  $('crowdRegime').textContent = human.crowd_regime || '--';
+  $('newsSentiment').textContent = human.available ? Number(human.news_sentiment || 0).toFixed(2) : '--';
+  $('socialSentiment').textContent = human.available ? Number(human.social_sentiment || 0).toFixed(2) : '--';
+  $('politicsSignal').textContent = human.available
+    ? Number(human.politics_sentiment || 0).toFixed(2)+' · risk '+Number(human.politics_risk || 0).toFixed(2)
+    : '--';
+  $('weirdness').textContent = human.available ? Number(human.weirdness || 0).toFixed(2) : '--';
+  $('fearGreed').textContent = human.available
+    ? 'Fear & Greed (Alternative.me): '+(human.fear_greed_value ?? '--')+' · '+(human.fear_greed_classification || 'UNKNOWN')+
+      ' · 1d '+(Number(human.fear_greed_change_1d || 0)>=0?'+':'')+Number(human.fear_greed_change_1d || 0).toFixed(0)
+    : 'Fear & Greed: --';
+  const counts=human.source_counts || {};
+  $('signalSources').textContent = human.available
+    ? 'Sources: GDELT news '+Number(counts.news||0)+' · Reddit social '+Number(counts.social||0)+
+      ' · politics '+Number(counts.politics||0)+' · weird '+Number(counts.weird||0)
+    : 'Sources: --';
+  const heads=(human.top_headlines || []).slice(0,6);
+  $('headlineTape').innerHTML = heads.length
+    ? heads.map(x=>'<div style="padding:3px 0">• '+escapeHtml(x)+'</div>').join('')
+    : 'No human-signal headlines yet.';
+
+  const universe=s.asset_universe || {};
+  $('universeSummary').textContent = universe.available
+    ? 'Active USD/USDC products: '+Number(universe.product_count||0)+
+      ' · recently scored: '+Number(universe.scanned_count||0)+
+      ' · rotating across the full public Coinbase universe'
+    : 'Coinbase universe not available yet.';
+  const top=(universe.top || []).slice(0,10);
+  $('universeTop').innerHTML = top.length
+    ? top.map(a=>'<div style="padding:3px 0"><b>'+escapeHtml(a.product)+'</b> · score '+
+        (Number(a.score||0)>=0?'+':'')+Number(a.score||0).toFixed(3)+
+        ' · 1h '+(Number(a.return_1h||0)*100).toFixed(2)+'% · vol '+Number(a.volume_ratio||0).toFixed(2)+'x</div>').join('')
+    : '';
+
+  const bean=s.bean || {};
+  $('beanClaims').textContent = Number(bean.claims||0).toLocaleString();
+  $('beanPredictions').textContent = Number(bean.pending_predictions||0).toLocaleString();
+  $('beanResolved').textContent = 'Resolved: '+Number(bean.resolved_predictions||0).toLocaleString();
+  $('beanContradictions').textContent = 'Contradictions retained: '+Number(bean.contradictions||0).toLocaleString();
+  const bp=bean.latest_prediction;
+  $('beanLatest').textContent = bp
+    ? 'Latest: '+escapeHtml(bp.subject)+' · '+(Number(bp.predicted_direction)>=0?'UP':'DOWN')+
+      ' · '+Math.round(Number(bp.horizon_seconds||0)/60)+'m · confidence '+(Number(bp.confidence||0)*100).toFixed(0)+'%'
+    : 'Latest prediction: --';
+  const trust=(bean.trust || []).slice(0,8);
+  $('beanTrust').innerHTML = trust.length
+    ? '<div class="label" style="margin-bottom:4px">Learned trust</div>'+
+      trust.map(t=>'<div>'+escapeHtml(t.source)+' · '+Math.round(Number(t.horizon_seconds||0)/60)+'m · '+
+        Number(t.samples||0)+' samples · '+(Number(t.trust||0)*100).toFixed(0)+'%</div>').join('')
+    : 'Trust model has no graded outcomes yet.';
 
   const g=s.game || {};
   const points=Number(g.points || 0);

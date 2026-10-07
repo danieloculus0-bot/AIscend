@@ -26,7 +26,10 @@ VENUES: tuple[VenueCapability, ...] = (
         research_ready=True,
         execution_ready=True,
         account_requirement="CDP smart account",
-        execution_note="Live USDC/WETH execution on Base is wired through Coinbase CDP.",
+        execution_note=(
+            "Research rotates across active Coinbase USD/USDC products. "
+            "Live Base execution is currently wired for USDC/WETH only."
+        ),
     ),
     VenueCapability(
         key="predictions",

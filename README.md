@@ -10,7 +10,7 @@ The live experiment is intended to start with a tiny bankroll, currently around 
 
 ## Project status
 
-**Version:** 0.9.0  
+**Version:** 0.11.0  
 **Platform:** Windows x64 + browser via GitHub Codespaces  
 **State:** Synthetic desktop sandbox + Coinbase live desktop mode  
 **Live-money execution:** CDP smart-account swaps on Base are implemented
@@ -57,6 +57,12 @@ Once autonomy is started, the agent does not ask for per-trade human approval.
 - First-launch **Market Arsenal** exposing Crypto, Predictions, Stocks & ETFs, and Options
 - Public prediction-market discovery through Kalshi market-data APIs
 - Cross-market opportunity normalization so future venue executors can plug into the same research layer
+- **Human Weather** research layer combining global news, politics, weird-event pressure, social-media sentiment, Fear & Greed, and price action
+- Context-aware **FOMO Index** where crowd heat can represent continuation fuel, exhaustion, or contrarian opportunity depending on confirmation
+- Parallel external-signal collection with caching so the 60-second trading loop is not blocked by slow feeds
+- **BEAN epistemic memory** for observations, inferences, hypotheses, predictions, contradictions, outcome grading, and learned source trust
+- Rotating **Coinbase-wide USD/USDC research universe** so the research layer is no longer limited to ETH/BTC
+- Multi-horizon prediction grading at 5m, 1h, and 6h for BEAN trust learning
 
 ## The loop
 
@@ -305,6 +311,23 @@ Run continuously:
 
 The live runner uses the same decision engine and risk governor as the synthetic application. USDC is treated as cash and WETH as the first live risk asset. Decisions and executions are recorded in a separate `live-base.db` journal.
 
+## Human Weather algorithm
+
+Version 0.10 adds a second evidence plane beside technical market data.
+
+The live score now blends Coinbase ETH/BTC price action with:
+- GDELT global news and political/event headlines
+- Reddit attention and sentiment from crypto and market communities
+- Alternative.me Fear & Greed data
+- crowd excitement / panic language
+- politics and geopolitical risk pressure
+- unusual-event / weird-news pressure
+- momentum and volume confirmation
+
+FOMO is intentionally contextual rather than treated as an automatic sell signal. Confirmed high-FOMO momentum can lower the entry threshold, euphoric reversal raises the threshold and can accelerate exits, and extreme fear plus a real price reversal can become a contrarian buy setup.
+
+Human signals are cached between cycles to limit rate pressure while technical market data remains live.
+
 ## Decision engines
 
 ### Built-in autonomous engine
@@ -419,6 +442,38 @@ The application does not pretend an execution connector exists when one has not 
 
 ## Next major milestone
 
-Add independent probability models for prediction markets plus authenticated execution adapters for additional supported venues.
+Add more social/event adapters, learn signal weights from realized trade outcomes, and add independent probability models plus authenticated execution adapters for prediction markets, stocks, ETFs, and options.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the current component boundaries and invariants.
+
+
+## BEAN learning loop
+
+Version 0.11 adds BEAN as the learning spine behind the research layer.
+
+```text
+raw market / social / news evidence
+        |
+typed claims
+OBSERVATION / INFERENCE / HYPOTHESIS / PREDICTION
+        |
+contradiction retention
+        |
+multi-horizon prediction
+        |
+future market outcome
+        |
+prediction grading
+        |
+source / signal trust update
+        |
+next decision
+```
+
+BEAN does not erase disagreement. Technical and human evidence can coexist as contradictory claims until later outcomes provide evidence. Trust is learned from realized outcomes with Bayesian shrinkage so tiny samples do not become overconfident.
+
+## Coinbase asset breadth
+
+The research layer now discovers active Coinbase public USD and USDC products and scans them in rotating batches. This gives AIscend broad market awareness without making hundreds of public API calls every few seconds. The dashboard reports the number of discovered products, how many were recently scored, and the strongest current candidates.
+
+This is deliberately separated from execution. The current funded CDP smart-account rail is still Base USDC/WETH, so broader Coinbase assets can be researched and learned from before their execution adapters exist.
