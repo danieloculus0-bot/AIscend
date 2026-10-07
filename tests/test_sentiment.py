@@ -92,6 +92,22 @@ class SentimentTests(unittest.TestCase):
         self.assertIn("fallback", pack.source_status["news"].lower())
         self.assertIn("bluesky", pack.source_status)
         self.assertGreater(pack.social_sentiment, 0)
+        self.assertGreater(pack.social_coverage, 0)
+        self.assertGreater(pack.social_confidence, 0)
+        self.assertGreater(pack.human_signal_quality, 0)
+
+    def test_raw_sentiment_keeps_extreme_but_reports_thin_coverage(self):
+        score, matched, coverage = HumanSignalResearch._sentiment_stats(
+            [
+                "crypto crash after liquidation panic",
+                "ordinary market discussion",
+                "another neutral discussion",
+                "price chart update",
+            ]
+        )
+        self.assertEqual(score, -1.0)
+        self.assertEqual(matched, 1)
+        self.assertEqual(coverage, 0.25)
 
     def test_decider_can_ride_confirmed_fomo(self):
         decision = ResearchDecider().decide(
