@@ -200,7 +200,15 @@ class AdvancedSpotEngine:
             if str(item.get("product") or "").upper() in tradable
         ]
         longs = sorted(rows, key=lambda item: float(item.get("score") or 0.0), reverse=True)
-        best = longs[0] if longs else None
+        funded_longs = [
+            item
+            for item in longs
+            if cash_by_quote.get(
+                self._split_product(str(item.get("product") or ""))[1],
+                0.0,
+            ) > 0.50
+        ]
+        best = funded_longs[0] if funded_longs else (longs[0] if longs else None)
         held = []
         for product_id in positions:
             item = next(
@@ -225,9 +233,10 @@ class AdvancedSpotEngine:
         if best:
             product = str(best.get("product") or "")
             quote = self._split_product(product)[1]
+            funded = cash_by_quote.get(quote, 0.0) > 0.50
             thesis = (
-                f"Best tradable spot candidate {product}: score {score:+.3f}, "
-                f"1h {float(best.get('return_1h') or 0):+.2%}, "
+                f"Best {'funded ' if funded else ''}tradable spot candidate {product}: "
+                f"score {score:+.3f}, 1h {float(best.get('return_1h') or 0):+.2%}, "
                 f"6h {float(best.get('return_6h') or 0):+.2%}, "
                 f"volume {float(best.get('volume_ratio') or 0):.2f}x; "
                 f"{quote} available {cash_by_quote.get(quote, 0.0):.2f}."
