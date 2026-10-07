@@ -87,6 +87,15 @@ class FakeClient:
                         "cancel_only": False,
                         "limit_only": False,
                     },
+                    {
+                        "product_id": "EARLY-USD",
+                        "product_type": "SPOT",
+                        "trading_disabled": False,
+                        "cancel_only": False,
+                        "limit_only": True,
+                        "post_only": False,
+                        "auction_mode": False,
+                    },
                 ]
             }
         )
