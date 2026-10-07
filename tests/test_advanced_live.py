@@ -259,6 +259,59 @@ class AdvancedLiveTests(unittest.TestCase):
             self.assertGreater(snap["balance_values_usd"].get("EUR", 0.0), 0.0)
             store.close()
 
+    def test_engine_uses_full_scored_universe_not_absolute_ranked_top(self):
+        class FullUniverse:
+            def collect(self, priority_products=None):
+                negative={
+                    "product":"ETH-USDC",
+                    "base":"ETH",
+                    "quote":"USDC",
+                    "price":3000.0,
+                    "return_5m":-0.03,
+                    "return_1h":-0.05,
+                    "return_6h":-0.08,
+                    "volume_ratio":2.0,
+                    "spread_bps":2.0,
+                    "score":-0.85,
+                }
+                bullish={
+                    "product":"ALEO-USDC",
+                    "base":"ALEO",
+                    "quote":"USDC",
+                    "price":2.0,
+                    "return_5m":0.02,
+                    "return_1h":0.04,
+                    "return_6h":0.09,
+                    "volume_ratio":2.0,
+                    "spread_bps":3.0,
+                    "score":0.72,
+                }
+                return {
+                    "available":True,
+                    "product_count":2,
+                    "scanned_count":2,
+                    "errors":[],
+                    "top":[negative],
+                    "buy_top":[bullish,negative],
+                    "scored":[negative,bullish],
+                }
+
+        with tempfile.TemporaryDirectory() as td:
+            store=StateStore(Path(td) / "advanced.db")
+            rail=FakeRail()
+            engine=AdvancedSpotEngine(
+                store,
+                rail=rail,
+                asset_universe=FullUniverse(),
+                listing_sentinel=FakeListingSentinel(),
+                human_researcher=FakeHumanResearch(),
+            )
+            engine.step()
+            row=store.latest_decisions(1)[0]
+            self.assertEqual(row["action"],"BUY")
+            self.assertEqual(row["symbol"],"ALEO-USDC")
+            store.close()
+
     def test_fresh_public_listing_signal_can_trigger_candidate(self):
         class FreshRail(FakeRail):
             def status(self):
