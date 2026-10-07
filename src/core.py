@@ -35,8 +35,11 @@ def app_data_dir() -> Path:
 class StateStore:
     def __init__(self, path: Path | None = None) -> None:
         self.path = path or app_data_dir() / "state.db"
-        self.conn = sqlite3.connect(self.path)
+        self.conn = sqlite3.connect(self.path, timeout=30.0)
         self.conn.row_factory = sqlite3.Row
+        self.conn.execute("PRAGMA busy_timeout=30000")
+        self.conn.execute("PRAGMA journal_mode=WAL")
+        self.conn.execute("PRAGMA synchronous=NORMAL")
         self._create_schema()
 
     def close(self) -> None:
