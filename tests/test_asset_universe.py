@@ -1,6 +1,7 @@
+import time
 import unittest
 
-from src.asset_universe import CoinbaseAssetUniverse
+from src.asset_universe import CoinbaseAssetUniverse, UniverseAsset
 
 
 class FakeUniverse(CoinbaseAssetUniverse):
@@ -48,6 +49,37 @@ class AssetUniverseTests(unittest.TestCase):
         self.assertEqual(data["product_count"],3)
         products={row["product"] for row in data["top"]}
         self.assertEqual(products,{"AAA-USD","BBB-USDC","CCC-EUR"})
+
+    def test_cold_start_batch_spreads_across_catalog(self):
+        universe=FakeUniverse()
+        products=[
+            {"id":"AAA-USD"},{"id":"BBB-USD"},{"id":"CCC-USD"},{"id":"DDD-USD"},{"id":"EEE-USD"},
+        ]
+        batch=universe._next_batch(products)
+        self.assertEqual([row["id"] for row in batch],["AAA-USD","CCC-USD","EEE-USD"])
+
+    def test_buy_top_prefers_positive_signal_over_large_negative_move(self):
+        class RankingUniverse(FakeUniverse):
+            def _scan_product(self, product):
+                score={"AAA-USD":-0.80,"BBB-USDC":0.20,"CCC-EUR":0.60}[product["id"]]
+                return UniverseAsset(
+                    product=product["id"],
+                    base=product["base_currency"],
+                    quote=product["quote_currency"],
+                    price=1.0,
+                    return_5m=0.0,
+                    return_1h=score/10.0,
+                    return_6h=0.0,
+                    volume_ratio=1.0,
+                    spread_bps=1.0,
+                    score=score,
+                    scanned_at=time.time(),
+                )
+
+        data=RankingUniverse().collect()
+        self.assertEqual(data["top"][0]["product"],"AAA-USD")
+        self.assertEqual(data["buy_top"][0]["product"],"CCC-EUR")
+        self.assertEqual(len(data["scored"]),3)
 
     def test_scan_result_is_cached_between_ui_refreshes(self):
         universe=FakeUniverse()
