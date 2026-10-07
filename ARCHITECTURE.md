@@ -233,3 +233,10 @@ AIS-0 / Research / shared BEAN
 Moving USDC between the two rails is an internal transfer. It must not reset the game baseline, restart the game clock, or be interpreted as trading P/L. The Base live database remains the canonical BEAN/game-memory source for the current experiment; Advanced keeps rail-specific execution state while reading/writing the shared BEAN memory.
 
 The browser runner has exactly one active execution rail at a time. Bridge completion hands the runner to the destination rail rather than leaving an empty source rail running.
+
+
+### Coordinator runtime
+
+`auto` is the canonical live mode. Each cycle synchronizes the Base and Advanced adapters, computes one combined bankroll, then chooses exactly one funded adapter for that cycle. The combined bankroll is what AIS-0, game scoring, the dashboard, and the remote monitor see.
+
+Manual bridge actions are serialized against trade cycles with the same capital-operation lock. The coordinator may select either funded rail, but v0.16.1 does not initiate a bridge by itself.
