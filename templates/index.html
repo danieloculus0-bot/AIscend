@@ -25,22 +25,54 @@
     button.primary { background:#1f6247; border-color:#2b805e; }
     button.stop { background:#4b2528; border-color:#6f3439; }
     .row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-    .score { font-size:34px; font-weight:800; }
-    .goal { margin-top:10px; height:10px; background:#262c34; border-radius:10px; overflow:hidden; }
-    .goal > div { height:100%; background:#69b98e; width:0%; }
+    .score { font-size:42px; font-weight:800; line-height:1; }
+    .progress { margin-top:12px; height:10px; background:#262c34; border-radius:10px; overflow:hidden; }
+    .progress > div { height:100%; background:#69b98e; width:0%; }
     .small { color:#8f99a8; font-size:12px; margin-top:7px; overflow-wrap:anywhere; }
     table { width:100%; border-collapse:collapse; font-size:13px; }
     th, td { text-align:left; padding:8px; border-bottom:1px solid #262c34; vertical-align:top; }
     th { color:#9aa5b4; }
     .error { color:#ff9d9d; margin-top:8px; white-space:pre-wrap; }
     .success { color:#8ee2ad; margin-top:8px; }
+    .petbox {
+      background:#0c110c;
+      border:3px solid #39463b;
+      border-radius:4px;
+      padding:10px;
+      text-align:center;
+      box-shadow:inset 0 0 0 2px #050705;
+    }
+    #pet {
+      width:176px;
+      height:176px;
+      image-rendering:pixelated;
+      image-rendering:crisp-edges;
+      display:block;
+      margin:0 auto;
+      transform:translateY(0);
+      transition:transform 80ms steps(1,end);
+    }
+    .petname {
+      font-family:"Courier New", monospace;
+      font-weight:700;
+      letter-spacing:.12em;
+      color:#a7d49b;
+      margin-top:4px;
+    }
+    #petMood {
+      font-family:"Courier New", monospace;
+      color:#7f9d78;
+      min-height:16px;
+      margin-top:5px;
+      font-size:12px;
+    }
     @media(max-width:850px){ .grid{grid-template-columns:1fr 1fr}.layout{grid-template-columns:1fr} }
   </style>
 </head>
 <body>
 <div class="wrap">
   <div class="top">
-    <div><h1>AIscend</h1><div class="sub">Autonomous capital game · objective: buy 40 acres</div></div>
+    <div><h1>AIscend</h1><div class="sub">Autonomous capital game - one point per completed double</div></div>
     <div id="runnerPill" class="pill">STOPPED</div>
   </div>
 
@@ -54,25 +86,28 @@
   <div class="layout">
     <div>
       <div class="panel">
+        <h2>TRADER THING</h2>
+        <div class="petbox">
+          <canvas id="pet" width="144" height="144"></canvas>
+          <div class="petname">AIS-0</div>
+          <div id="petMood">just sitting there</div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:14px">
         <h2>GAME SCORE</h2>
         <div id="points" class="score">0</div>
-        <div class="small">1 point per completed bankroll doubling · speed tracked separately</div>
-        <div class="goal"><div id="goalbar"></div></div>
-        <div id="goaltext" class="small">Forty Acres target: --</div>
-        <div id="nextMilestone" class="small">Next milestone: --</div>
-
-        <label>Forty Acres target ($)</label>
-        <div class="row">
-          <input id="target" type="number" min="1" step="1000" value="100000">
-          <button onclick="saveTarget()">SET</button>
-        </div>
+        <div class="small">1 point for every completed bankroll doubling. That's it.</div>
+        <div class="progress"><div id="pointbar"></div></div>
+        <div id="nextMilestone" class="small">Next point: --</div>
+        <div id="elapsed" class="small">Elapsed: --</div>
       </div>
 
       <div class="panel" style="margin-top:14px">
         <h2>LIVE ENGINE</h2>
         <label>Network</label>
         <select id="network" onchange="refreshStatus()">
-          <option value="base" selected>Base · live money</option>
+          <option value="base" selected>Base - live money</option>
           <option value="base-sepolia">Base Sepolia</option>
         </select>
 
@@ -121,6 +156,11 @@
 <script>
 const $ = id => document.getElementById(id);
 const money = n => '$' + Number(n ?? 0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:6});
+let latestDecision = null;
+let petState = 'idle';
+let petBlink = false;
+let petBob = false;
+let previousPoints = null;
 
 function network(){ return $('network').value; }
 function msg(text, ok=false){ $('message').className = ok ? 'success' : 'error'; $('message').textContent = text || ''; }
@@ -133,25 +173,25 @@ async function configure(){
   fd.append('key_file', file);
   fd.append('wallet_secret', secret);
   fd.append('network', network());
-  msg('Connecting…', true);
+  msg('Connecting...', true);
   const r = await fetch('/api/configure',{method:'POST',body:fd});
   const j = await r.json();
-  if(!j.ok){ msg(j.error); return; }
+  if(!j.ok){ msg(j.error); petState='dead'; drawPet(); return; }
   $('walletSecret').value = '';
   $('wallet').textContent = 'Wallet: ' + j.address;
   msg('Connected.', true);
+  petState='idle';
   refreshStatus();
 }
 
 async function refreshStatus(){
   const r = await fetch('/api/status?network='+encodeURIComponent(network()));
   const j = await r.json();
-  if(!j.ok){ msg(j.error || 'Status unavailable'); renderRunner(j.runner); return; }
+  if(!j.ok){ msg(j.error || 'Status unavailable'); renderRunner(j.runner); petState='dead'; drawPet(); return; }
   msg('');
+  renderDecisions(j.decisions || []);
   renderSnapshot(j.snapshot);
   renderRunner(j.runner);
-  $('target').value = Number(j.target || 100000);
-  renderDecisions(j.decisions || []);
 }
 
 function renderSnapshot(s){
@@ -162,44 +202,65 @@ function renderSnapshot(s){
   $('wallet').textContent = 'Wallet: ' + (s.wallet_address || '--');
 
   const g=s.game || {};
-  $('points').textContent = Number(g.points || 0).toLocaleString();
-  $('goalbar').style.width = Math.min(100, Number(g.target_progress || 0)*100) + '%';
-  $('goaltext').textContent = 'Forty Acres: ' + money(g.target_value) + ' · ' + (Number(g.target_progress||0)*100).toFixed(4) + '%';
-  $('nextMilestone').textContent = g.victory ? 'VICTORY: FORTY ACRES UNLOCKED' : 'Next milestone: ' + (g.next_milestone || '--');
+  const points=Number(g.points || 0);
+  $('points').textContent = points.toLocaleString();
+
+  const currentBase=Math.pow(2, points);
+  const next=Number(g.next_milestone_multiple || (currentBase*2));
+  const mult=Number(s.multiple || 0);
+  const progress=Math.max(0,Math.min(1,(mult-currentBase)/(next-currentBase)));
+  $('pointbar').style.width=(progress*100).toFixed(2)+'%';
+  $('nextMilestone').textContent='Next point at ' + next.toLocaleString() + 'x bankroll';
+  $('elapsed').textContent='Elapsed: ' + Number(g.elapsed_days || 0).toFixed(3) + ' days';
+
+  if(previousPoints !== null && points > previousPoints){
+    petState='point';
+    setTimeout(()=>{ petState='up'; drawPet(); },2200);
+  } else {
+    petState=choosePetState(s, latestDecision);
+  }
+  previousPoints=points;
+  drawPet();
 
   const tbody=$('positions'); tbody.innerHTML='';
   for(const [sym,p] of Object.entries(s.positions || {})){
     const price=Number((s.prices||{})[sym]||0);
-    tbody.insertAdjacentHTML('beforeend', '<tr><td>'+sym+'</td><td>'+Number(p.qty).toFixed(10)+'</td><td>'+money(price)+'</td><td>'+money(Number(p.qty)*price)+'</td></tr>');
+    tbody.insertAdjacentHTML('beforeend', '<tr><td>'+escapeHtml(sym)+'</td><td>'+Number(p.qty).toFixed(10)+'</td><td>'+money(price)+'</td><td>'+money(Number(p.qty)*price)+'</td></tr>');
   }
 }
 
 function renderDecisions(rows){
+  latestDecision = rows.length ? rows[0] : null;
   const tbody=$('decisions'); tbody.innerHTML='';
   for(const d of rows){
     const t=new Date(Number(d.ts)*1000).toLocaleTimeString();
-    tbody.insertAdjacentHTML('beforeend','<tr><td>'+t+'</td><td>'+d.action+'</td><td>'+(d.symbol||'')+'</td><td>'+(Number(d.fraction)*100).toFixed(1)+'%</td><td>'+d.status+'</td><td>'+escapeHtml(d.rationale||'')+'</td></tr>');
+    tbody.insertAdjacentHTML('beforeend','<tr><td>'+t+'</td><td>'+escapeHtml(d.action)+'</td><td>'+escapeHtml(d.symbol||'')+'</td><td>'+(Number(d.fraction)*100).toFixed(1)+'%</td><td>'+escapeHtml(d.status)+'</td><td>'+escapeHtml(d.rationale||'')+'</td></tr>');
   }
 }
 
 function renderRunner(r){
   if(!r) return;
-  $('runnerPill').textContent = r.running ? 'RUNNING · '+r.network : 'STOPPED';
-  if(r.last_error) msg(r.last_error);
+  $('runnerPill').textContent = r.running ? 'RUNNING - '+r.network : 'STOPPED';
+  if(r.last_error){ msg(r.last_error); petState='dead'; drawPet(); }
 }
 
-async function saveTarget(){
-  const target=Number($('target').value);
-  const r=await fetch('/api/target',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({network:network(),target})});
-  const j=await r.json();
-  if(j.ok) refreshStatus(); else msg(j.error||'Could not set target');
+function choosePetState(s, d){
+  const pnl=Number(s.pnl || 0);
+  const start=Math.max(0.01,Number(s.starting_cash || 1));
+  if(d && d.action==='BUY') return 'buy';
+  if(d && d.action==='SELL') return 'sell';
+  if(pnl/start > 0.01) return 'up';
+  if(pnl/start < -0.01) return 'down';
+  if($('runnerPill').textContent.startsWith('RUNNING')) return 'think';
+  return 'idle';
 }
 
 async function runOnce(){
-  msg('Running one autonomous cycle…', true);
+  msg('Running one autonomous cycle...', true);
+  petState='think'; drawPet();
   const r=await fetch('/api/run-once',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({network:network()})});
   const j=await r.json();
-  if(!j.ok){ msg(j.error); return; }
+  if(!j.ok){ msg(j.error); petState='dead'; drawPet(); return; }
   msg('Cycle complete.', true);
   refreshStatus();
 }
@@ -208,13 +269,15 @@ async function startRunner(){
   const interval=Number($('interval').value);
   const r=await fetch('/api/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({network:network(),interval})});
   const j=await r.json();
-  if(!j.ok){ msg(j.error); return; }
+  if(!j.ok){ msg(j.error); petState='dead'; drawPet(); return; }
+  petState='think'; drawPet();
   renderRunner(j.runner);
 }
 
 async function stopRunner(){
   const r=await fetch('/api/stop',{method:'POST'});
   const j=await r.json();
+  petState='idle'; drawPet();
   renderRunner(j.runner);
   setTimeout(refreshStatus,700);
 }
@@ -223,8 +286,90 @@ function escapeHtml(s){
   return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 }
 
+function drawPet(){
+  const canvas=$('pet');
+  const ctx=canvas.getContext('2d');
+  const px=8;
+  const ink='#a7d49b';
+  const bg='#0b100b';
+  ctx.fillStyle=bg;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle=ink;
+
+  const ox=0;
+  const oy=petBob?1:0;
+  const p=(x,y)=>ctx.fillRect((x+ox)*px,(y+oy)*px,px,px);
+  const line=(x1,x2,y)=>{ for(let x=x1;x<=x2;x++) p(x,y); };
+
+  line(6,11,2); p(4,3); p(5,3); p(12,3); p(13,3);
+  p(3,4); p(14,4); p(2,5); p(15,5);
+  p(2,6); p(15,6); p(2,7); p(15,7); p(2,8); p(15,8);
+  p(2,9); p(15,9); p(3,10); p(14,10); p(4,11); p(5,11); p(12,11); p(13,11);
+  line(6,11,12);
+
+  line(6,11,13); p(5,14); p(12,14); p(5,15); p(12,15);
+  p(7,14); p(10,14); p(8,15); p(9,15);
+  p(6,16); p(7,16); p(10,16); p(11,16);
+
+  if(petBlink){
+    line(5,6,6); line(11,12,6);
+  } else if(petState==='dead'){
+    p(5,5); p(6,6); p(6,5); p(5,6);
+    p(11,5); p(12,6); p(12,5); p(11,6);
+  } else if(petState==='sell' || petState==='down'){
+    p(5,6); p(6,7); p(11,7); p(12,6);
+  } else if(petState==='point'){
+    p(5,5); p(6,5); p(5,6); p(6,6);
+    p(11,5); p(12,5); p(11,6); p(12,6);
+  } else {
+    p(5,6); p(6,6); p(11,6); p(12,6);
+  }
+
+  if(petState==='up' || petState==='buy' || petState==='point'){
+    p(6,9); p(7,10); p(8,10); p(9,10); p(10,10); p(11,9);
+  } else if(petState==='down'){
+    p(6,10); p(7,9); p(8,9); p(9,9); p(10,9); p(11,10);
+  } else if(petState==='sell'){
+    p(6,9); p(7,9); p(10,10); p(11,10);
+  } else if(petState==='think'){
+    p(8,9); p(9,9);
+  } else {
+    line(7,10,9);
+  }
+
+  if(petState==='point'){
+    p(1,12); p(2,11); p(15,11); p(16,12);
+  } else {
+    p(4,14); p(13,14);
+  }
+
+  const moods={
+    idle:'just sitting there',
+    think:'thinking extremely hard',
+    buy:'bought something',
+    sell:'sold something',
+    up:'feeling smug',
+    down:'having a bad little day',
+    point:'ONE WHOLE POINT',
+    dead:'something is fucked'
+  };
+  $('petMood').textContent=moods[petState] || '...';
+}
+
+setInterval(()=>{
+  petBob=!petBob;
+  $('pet').style.transform=petBob?'translateY(1px)':'translateY(0)';
+  drawPet();
+},3200);
+
+setInterval(()=>{
+  petBlink=true; drawPet();
+  setTimeout(()=>{ petBlink=false; drawPet(); },160);
+},5300);
+
 setInterval(()=>{ if($('runnerPill').textContent.startsWith('RUNNING')) refreshStatus(); },5000);
 fetch('/api/credentials').then(r=>r.json()).then(j=>{ if(j.configured) msg('CDP credentials detected.', true); });
+drawPet();
 refreshStatus();
 </script>
 </body>
