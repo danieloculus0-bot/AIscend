@@ -114,7 +114,7 @@ The Codespace accepts the downloaded CDP key JSON and Wallet Secret into the run
 score = floor(log2(net liquidation / starting bankroll))
 ```
 
-There is no fixed terminal victory condition. Trading frequency is not directly rewarded. Each completed bankroll doubling is one point, while elapsed time is tracked separately for milestone speed.
+Each completed bankroll doubling is one point, while elapsed time is tracked separately for milestone speed. **Level 1 has a hard success condition: $100,000 net liquidation value.** The game is not considered won at Level 1 until that threshold is reached. Later level targets are intentionally undefined for now.
 
 
 ## Trader pet
