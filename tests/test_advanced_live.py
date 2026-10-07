@@ -503,6 +503,42 @@ class AdvancedLiveTests(unittest.TestCase):
             self.assertIn("Human Weather", snap["research"]["thesis"])
             store.close()
 
+    def test_buy_fraction_is_raised_to_coinbase_minimum_when_possible(self):
+        class MinimumRail(FakeRail):
+            def product(self, product_id):
+                return {
+                    "product_id": product_id,
+                    "price": "2.00",
+                    "quote_min_size": "1",
+                }
+
+        engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+        engine.rail = MinimumRail()
+        adjusted = engine._adjust_buy_fraction_for_exchange_minimum(
+            "ALEO-USDC",
+            2.0,
+            0.40,
+        )
+        self.assertEqual(adjusted, 0.5)
+
+    def test_buy_is_skipped_when_coinbase_minimum_exceeds_risk_cap(self):
+        class MinimumRail(FakeRail):
+            def product(self, product_id):
+                return {
+                    "product_id": product_id,
+                    "price": "2.00",
+                    "quote_min_size": "1",
+                }
+
+        engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+        engine.rail = MinimumRail()
+        adjusted = engine._adjust_buy_fraction_for_exchange_minimum(
+            "ALEO-USDC",
+            1.0,
+            0.40,
+        )
+        self.assertIsNone(adjusted)
+
     def test_coinbase_order_size_is_floored_to_product_increment(self):
         self.assertEqual(
             AdvancedTradeSpot._floor_to_increment(
