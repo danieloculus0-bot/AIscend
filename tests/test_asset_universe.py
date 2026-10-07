@@ -87,6 +87,25 @@ class AssetUniverseTests(unittest.TestCase):
         second=universe.collect()
         self.assertEqual(first,second)
 
+    def test_priority_product_bypasses_asset_cache(self):
+        universe=FakeUniverse()
+        counts={}
+
+        original=universe._scan_product
+        def counted(product):
+            product_id=product["id"]
+            counts[product_id]=counts.get(product_id,0)+1
+            return original(product)
+
+        universe._scan_product=counted
+        universe.collect()
+        self.assertEqual(counts.get("BBB-USDC"),1)
+
+        universe.collect(priority_products=["BBB-USDC"])
+        self.assertEqual(counts.get("BBB-USDC"),2)
+        self.assertEqual(counts.get("AAA-USD"),1)
+        self.assertEqual(counts.get("CCC-EUR"),1)
+
     def test_liquidity_factor_hammers_thin_markets(self):
         universe=FakeUniverse()
         self.assertLess(universe._liquidity_factor(0.04),0.20)
