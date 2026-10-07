@@ -10,7 +10,7 @@ The live experiment is intended to start with a tiny bankroll, currently around 
 
 ## Project status
 
-**Version:** 0.5.0  
+**Version:** 0.6.0  
 **Platform:** Windows x64 + browser via GitHub Codespaces  
 **State:** Synthetic desktop sandbox + Coinbase live desktop mode  
 **Live-money execution:** CDP smart-account swaps on Base are implemented
@@ -22,7 +22,7 @@ Once autonomy is started, the agent does not ask for per-trade human approval.
 ## What works now
 
 - Native-feeling Windows desktop UI built with PySide6
-- Persistent $10 bankroll
+- Tiny bankroll experiment with live starting value read from the wallet
 - Autonomous BUY, SELL, and HOLD decisions
 - Built-in aggressive decision engine
 - Optional OpenAI-compatible AI decision engine
@@ -51,7 +51,8 @@ Once autonomy is started, the agent does not ask for per-trade human approval.
 - Execution selector for Synthetic, Base Sepolia, or Base
 - Browser dashboard for real CDP execution
 - GitHub Codespaces environment that auto-starts the browser app
-- Game score, milestone tracking, and configurable FORTY ACRES victory target
+- Game score with exactly one point per completed bankroll doubling
+- Deliberately shitty dot-matrix trader pet whose face barely reacts to what the bot is doing
 
 ## The loop
 
@@ -93,9 +94,6 @@ That means:
 - HOLD is valid when waiting has better expected value than churn.
 - No additional capital is added after the run starts.
 - Milestones are 2x, 5x, 10x, 25x, 100x, and 1000x.
-- Final victory is **FORTY ACRES**: net liquidation reaches the configured dollar target for buying 40 acres up north.
-
-The browser UI lets the target price be changed without changing code.
 
 ## Run it in a browser with GitHub Codespaces
 
@@ -106,9 +104,9 @@ No local install is required.
 3. The dev container installs dependencies and starts `web_app.py` automatically.
 4. Open the forwarded **AIscend Web** port when GitHub presents it.
 5. In the browser dashboard, upload the downloaded Coinbase CDP API-key JSON and enter the Wallet Secret.
-6. Select **Base · live money**, set the Forty Acres target, and run one cycle or start continuous autonomy.
+6. Select **Base · live money** and run one cycle or start continuous autonomy.
 
-The browser dashboard shows the live wallet, bankroll, P/L, wealth multiple, game score, positions, and decision journal.
+The browser dashboard shows the live wallet, bankroll, P/L, wealth multiple, game score, positions, decision journal, and the intentionally terrible dot-matrix trader pet.
 
 ## Windows quick start
 
