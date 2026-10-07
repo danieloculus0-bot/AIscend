@@ -5,6 +5,7 @@ import math
 from typing import Protocol
 
 from .core import BuiltInDecider, Decider, Decision, RiskGovernor, StateStore
+from .game import score_game
 from .wallets.cdp_wallet import SwapExecution, TradingSnapshot
 
 
@@ -68,6 +69,8 @@ class LiveEngine:
         net = float(wallet_state.net_usdc)
         cash = float(wallet_state.usdc)
 
+        game = score_game(self.store, net, start)
+
         self._snapshot = {
             "cash": cash,
             "starting_cash": start,
@@ -80,6 +83,7 @@ class LiveEngine:
             "multiple": (net / start) if start else math.nan,
             "wallet_address": wallet_state.address,
             "network": wallet_state.network,
+            "game": game.as_dict(),
         }
         return self._snapshot
 
