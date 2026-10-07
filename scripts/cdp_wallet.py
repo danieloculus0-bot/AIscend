@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import getpass
+import json
 import sys
 from pathlib import Path
 
@@ -13,24 +14,37 @@ if str(ROOT) not in sys.path:
 from src.wallets.cdp_wallet import CdpWallet, CredentialVault  # noqa: E402
 
 
-def configure(vault: CredentialVault, network: str) -> None:
+def read_key_file(path: str) -> tuple[str, str]:
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    key_id = str(data.get("id") or data.get("name") or "").strip()
+    private_key = str(data.get("privateKey") or data.get("private_key") or "").strip()
+    if not key_id or not private_key:
+        raise ValueError("The CDP key JSON must contain id and privateKey.")
+    return key_id, private_key
+
+
+def configure(vault: CredentialVault, network: str, key_file: str | None) -> None:
     print("Coinbase CDP wallet configuration")
     print("Credentials will be stored in Windows Credential Manager.")
-    print("They will not be written to this repository or the experiment database.")
     print()
 
-    api_key_id = input("CDP API key ID: ").strip()
-    api_key_secret = getpass.getpass("CDP API key secret: ").strip()
+    if key_file:
+        api_key_id, api_key_secret = read_key_file(key_file)
+        print(f"Loaded CDP API key: {api_key_id}")
+    else:
+        api_key_id = input("CDP API key ID: ").strip()
+        api_key_secret = getpass.getpass("CDP API key secret: ").strip()
+
     wallet_secret = getpass.getpass("CDP wallet secret: ").strip()
 
     vault.save(api_key_id, api_key_secret, wallet_secret)
     print()
-    print("Credentials saved. Verifying CDP access...")
+    print("Credentials saved. Creating/retrieving AIscend smart account...")
 
     wallet = CdpWallet(vault=vault, network=network)
     address = asyncio.run(wallet.ensure_account())
-    print(f"Connected wallet: {address}")
-    print(f"Network for status/funding: {network}")
+    print(f"Smart account: {address}")
+    print(f"Network: {network}")
 
 
 def show_status(vault: CredentialVault, network: str) -> None:
@@ -65,18 +79,26 @@ def clear(vault: CredentialVault) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Configure and inspect the Autonomous Capital CDP wallet."
+        description="Configure and inspect the AIscend CDP smart-account wallet."
     )
     parser.add_argument(
         "--network",
         default="base-sepolia",
         choices=("base-sepolia", "base"),
-        help="Wallet network for status calls. Defaults to Base Sepolia.",
+        help="Wallet network. Defaults to Base Sepolia.",
     )
 
     sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("configure", help="Store CDP credentials and create/retrieve the wallet.")
-    sub.add_parser("status", help="Show wallet address and token balances.")
+    config_parser = sub.add_parser(
+        "configure",
+        help="Store CDP credentials and create/retrieve the smart account.",
+    )
+    config_parser.add_argument(
+        "--key-file",
+        help="Optional downloaded CDP API key JSON. Wallet secret is still prompted.",
+    )
+
+    sub.add_parser("status", help="Show smart-account address and token balances.")
 
     faucet_parser = sub.add_parser("faucet", help="Request Base Sepolia test funds.")
     faucet_parser.add_argument(
@@ -93,7 +115,7 @@ def main() -> int:
 
     try:
         if args.command == "configure":
-            configure(vault, args.network)
+            configure(vault, args.network, args.key_file)
         elif args.command == "status":
             show_status(vault, args.network)
         elif args.command == "faucet":
