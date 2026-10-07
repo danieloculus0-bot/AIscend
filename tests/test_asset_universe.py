@@ -55,6 +55,13 @@ class AssetUniverseTests(unittest.TestCase):
         second=universe.collect()
         self.assertEqual(first,second)
 
+    def test_liquidity_factor_hammers_thin_markets(self):
+        universe=FakeUniverse()
+        self.assertLess(universe._liquidity_factor(0.04),0.20)
+        self.assertLess(universe._liquidity_factor(0.40),0.70)
+        self.assertEqual(universe._liquidity_factor(1.0),1.0)
+        self.assertEqual(universe._liquidity_factor(3.0),1.0)
+
     def test_fresh_listing_does_not_need_six_hours_of_candles(self):
         universe=FakeUniverse()
 
