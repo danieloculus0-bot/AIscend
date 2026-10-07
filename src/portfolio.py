@@ -65,11 +65,6 @@ def choose_execution_rail(
         and base_decision.action == "BUY"
         and base_cash > 0.0
     )
-    base_sell = bool(
-        base_decision is not None
-        and base_decision.action == "SELL"
-        and bool(base_positions)
-    )
     advanced_buy = False
     advanced_score = float(
         best.get("decision_score")
