@@ -222,41 +222,41 @@ def _status_payload(network: str, rail: str = "auto") -> dict[str, Any]:
 def _run_once(network: str, rail: str = "auto") -> dict[str, Any]:
     rail = _validate_rail(rail)
 
-    if rail == "auto":
-        base = _sync_rail_snapshot(network, "base", force=True)
-        advanced = _sync_rail_snapshot(network, "advanced", force=True)
-        chosen = choose_execution_rail(base, advanced)
-    else:
-        chosen = rail
+    with _capital_lock:
+        if rail == "auto":
+            base = _sync_rail_snapshot(network, "base", force=True)
+            advanced = _sync_rail_snapshot(network, "advanced", force=True)
+            chosen = choose_execution_rail(base, advanced)
+        else:
+            chosen = rail
 
-    store, engine = _make_engine(network, chosen)
-    try:
+        store, engine = _make_engine(network, chosen)
         try:
-            with _capital_lock:
+            try:
                 snap = engine.step()
-        except Exception as exc:
-            store.add_decision(
-                Decision(
-                    "HOLD",
-                    None,
-                    0.0,
-                    f"{chosen} cycle failed before completion: {exc}",
-                ),
-                "CYCLE_ERROR",
-            )
-            raise
-        decision_rows = store.latest_decisions(1)
-        decision = dict(decision_rows[0]) if decision_rows else None
-        if decision is not None:
-            decision["rail"] = chosen
-        _invalidate_snapshot_cache()
-        return {
-            "snapshot": snap,
-            "decision": decision,
-            "active_rail": chosen,
-        }
-    finally:
-        _close_engine_store(store, engine)
+            except Exception as exc:
+                store.add_decision(
+                    Decision(
+                        "HOLD",
+                        None,
+                        0.0,
+                        f"{chosen} cycle failed before completion: {exc}",
+                    ),
+                    "CYCLE_ERROR",
+                )
+                raise
+            decision_rows = store.latest_decisions(1)
+            decision = dict(decision_rows[0]) if decision_rows else None
+            if decision is not None:
+                decision["rail"] = chosen
+            _invalidate_snapshot_cache()
+            return {
+                "snapshot": snap,
+                "decision": decision,
+                "active_rail": chosen,
+            }
+        finally:
+            _close_engine_store(store, engine)
 
 
 def _runner(network: str, interval: float, rail: str) -> None:
