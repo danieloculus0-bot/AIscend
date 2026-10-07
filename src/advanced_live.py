@@ -7,6 +7,7 @@ from decimal import Decimal
 from typing import Any
 
 from .asset_universe import CoinbaseAssetUniverse
+from .audit import AuditTrail
 from .bean import BeanMemory
 from .core import Decision, StateStore
 from .game import score_game
@@ -35,6 +36,8 @@ class AdvancedSpotEngine:
         rail: AdvancedTradeSpot | None = None,
         asset_universe: CoinbaseAssetUniverse | None = None,
         listing_sentinel: CoinbaseListingSentinel | None = None,
+        bean: BeanMemory | None = None,
+        audit: AuditTrail | None = None,
     ) -> None:
         self.store = store
         self.rail = rail or AdvancedTradeSpot()
@@ -44,7 +47,8 @@ class AdvancedSpotEngine:
             self.store,
             fetch_json=universe_fetch,
         )
-        self.bean = BeanMemory(self.store.conn)
+        self.bean = bean or BeanMemory(self.store.conn)
+        self.audit = audit or AuditTrail()
         self._snapshot: dict[str, Any] | None = None
 
     @staticmethod
@@ -511,10 +515,11 @@ class AdvancedSpotEngine:
             raise RuntimeError(f"Insufficient {quote} for Coinbase Advanced buy.")
 
         preview = self.rail.preview_market_buy(product_id, spend)
+        client_order_id = f"aiscend-{uuid.uuid4()}"
         order = self.rail.market_buy(
             product_id,
             spend,
-            client_order_id=f"aiscend-{uuid.uuid4()}",
+            client_order_id=client_order_id,
         )
         self.store.add_ledger(
             "ADVANCED_BUY",
@@ -525,6 +530,48 @@ class AdvancedSpotEngine:
             f"{decision.rationale} | preview={str(preview)[:220]} | order={str(order)[:220]}",
         )
 
+        try:
+            base, quote = self._split_product(product_id)
+            estimated_base = self.audit.provider_id(
+                preview,
+                "base_size",
+                "estimated_base_size",
+                "base_size_total",
+            )
+            unit_price = None
+            if estimated_base:
+                try:
+                    unit_price = spend / Decimal(estimated_base)
+                except Exception:
+                    unit_price = None
+            self.audit.record_trade(
+                venue="coinbase",
+                rail="coinbase-advanced",
+                network="coinbase",
+                side="BUY",
+                product_id=product_id,
+                base_asset=base,
+                quote_asset=quote,
+                base_quantity=estimated_base or None,
+                quote_quantity=spend,
+                unit_price_quote=unit_price,
+                order_id=self.audit.provider_id(order, "order_id", "orderId"),
+                client_order_id=client_order_id,
+                status="provider_response",
+                rationale=decision.rationale,
+                source="coinbase_advanced_order_response",
+                raw_provider_response={"preview": preview, "order": order},
+            )
+        except Exception as exc:
+            self.store.add_ledger(
+                "AUDIT_ERROR",
+                product_id,
+                0.0,
+                0.0,
+                0.0,
+                f"Advanced BUY executed but audit write failed: {exc}",
+            )
+
     def _execute_sell(self, decision: Decision, snapshot: dict[str, Any]) -> None:
         product_id = str(decision.symbol)
         position = (snapshot.get("positions") or {}).get(product_id) or {}
@@ -532,10 +579,11 @@ class AdvancedSpotEngine:
         if qty <= 0:
             raise RuntimeError(f"No {product_id} position available to sell.")
 
+        client_order_id = f"aiscend-{uuid.uuid4()}"
         order = self.rail.market_sell(
             product_id,
             qty,
-            client_order_id=f"aiscend-{uuid.uuid4()}",
+            client_order_id=client_order_id,
         )
         self.store.add_ledger(
             "ADVANCED_SELL",
@@ -545,3 +593,32 @@ class AdvancedSpotEngine:
             0.0,
             f"{decision.rationale} | order={str(order)[:220]}",
         )
+
+        try:
+            base, quote = self._split_product(product_id)
+            self.audit.record_trade(
+                venue="coinbase",
+                rail="coinbase-advanced",
+                network="coinbase",
+                side="SELL",
+                product_id=product_id,
+                base_asset=base,
+                quote_asset=quote,
+                base_quantity=qty,
+                order_id=self.audit.provider_id(order, "order_id", "orderId"),
+                client_order_id=client_order_id,
+                status="provider_response",
+                rationale=decision.rationale,
+                source="coinbase_advanced_order_response",
+                raw_provider_response=order,
+            )
+        except Exception as exc:
+            self.store.add_ledger(
+                "AUDIT_ERROR",
+                product_id,
+                0.0,
+                0.0,
+                0.0,
+                f"Advanced SELL executed but audit write failed: {exc}",
+            )
+
