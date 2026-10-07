@@ -14,6 +14,36 @@ class FakeResponse:
 
 
 class FakeClient:
+    def __init__(self):
+        self.posts = []
+
+    def get_api_key_permissions(self):
+        return FakeResponse({"can_view": True, "can_trade": True, "can_transfer": True})
+
+    def get(self, path, params=None, **kwargs):
+        if path == "/v2/accounts":
+            return {
+                "data": [
+                    {"id": "usdc-account", "currency": {"code": "USDC"}},
+                ]
+            }
+        if path == "/v2/accounts/usdc-account/addresses":
+            return {"data": []}
+        raise AssertionError(path)
+
+    def post(self, path, data=None, **kwargs):
+        self.posts.append((path, data))
+        if path == "/v2/accounts/usdc-account/addresses":
+            return {
+                "data": {
+                    "address": "0x1111111111111111111111111111111111111111",
+                    "network": "base",
+                }
+            }
+        if path == "/v2/accounts/usdc-account/transactions":
+            return {"data": {"id": "tx-1", "status": "pending"}}
+        raise AssertionError(path)
+
     def get_accounts(self):
         return FakeResponse(
             {
@@ -72,11 +102,14 @@ class FakeClient:
 
 
 class FakeVault(AdvancedTradeVault):
+    def __init__(self):
+        self.fake_client = FakeClient()
+
     def configured(self):
         return True
 
     def client(self, timeout=10):
-        return FakeClient()
+        return self.fake_client
 
 
 class AdvancedTradeTests(unittest.TestCase):
@@ -86,6 +119,25 @@ class AdvancedTradeTests(unittest.TestCase):
         self.assertEqual(set(status.product_ids), {"BTC-USD", "ETH-USDC"})
         self.assertEqual(status.balances[0].currency, "USDC")
         self.assertEqual(status.balances[0].available, Decimal("25.00"))
+        self.assertTrue(status.can_trade)
+        self.assertTrue(status.can_transfer)
+
+    def test_bridge_address_and_send_wrappers(self):
+        vault = FakeVault()
+        rail = AdvancedTradeSpot(vault)
+        os.environ.pop("ADVANCED_USDC_BASE_ADDRESS", None)
+        address = rail.receive_address("USDC", "base")
+        self.assertEqual(address, "0x1111111111111111111111111111111111111111")
+        sent = rail.send_usdc_to_address(
+            "0x2222222222222222222222222222222222222222",
+            Decimal("5"),
+            network="base",
+            idem="bridge-1",
+        )
+        self.assertEqual(sent["data"]["id"], "tx-1")
+        self.assertTrue(
+            any(path.endswith("/transactions") for path, _ in vault.fake_client.posts)
+        )
 
     def test_preview_and_order_wrappers(self):
         rail = AdvancedTradeSpot(FakeVault())

@@ -41,6 +41,17 @@
     .venue-live { background:#173c2a; color:#8ee2ad; }
     .venue-ready { background:#2a2f39; color:#b9c2cf; }
     .venue-enabled { background:#263829; color:#b9e5bd; margin-left:5px; }
+    details.panel > summary {
+      cursor:pointer; list-style:none; color:#9aa5b4; font-size:13px;
+      font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+    }
+    details.panel > summary::-webkit-details-marker { display:none; }
+    details.panel > summary::after { content:'+'; float:right; color:#697586; }
+    details.panel[open] > summary::after { content:'-'; }
+    details.panel[open] > summary { margin-bottom:12px; }
+    .decision-scroll { max-height:300px; overflow-y:auto; border-top:1px solid #262c34; }
+    .decision-scroll thead th { position:sticky; top:0; background:#15191f; z-index:2; }
+    .bridge-status { padding:8px 10px; background:#10141a; border:1px solid #2a313b; border-radius:7px; margin-top:10px; }
     .petbox {
       background:#0c110c;
       border:3px solid #39463b;
@@ -157,6 +168,21 @@
         <input id="advancedKeyfile" type="file" accept=".json,application/json">
         <button onclick="configureAdvanced()" class="primary">CONNECT ADVANCED</button>
         <div id="advancedStatus" class="small">Advanced: not connected</div>
+        <div id="bridgeStatus" class="small bridge-status">Bridge: checking...</div>
+        <label>Bridge USDC amount</label>
+        <input id="bridgeAmount" type="number" min="0.01" step="0.01" value="25.00">
+        <div class="row" style="margin-top:8px">
+          <button onclick="bridgeBaseToAdvanced()">BASE TO ADVANCED</button>
+          <button onclick="bridgeAdvancedToBase()">ADVANCED TO BASE</button>
+        </div>
+        <button onclick="refreshBridge()">REFRESH BRIDGE</button>
+        <div id="bridgeMessage" class="small"></div>
+      </div>
+
+      <div class="panel" style="margin-top:14px">
+        <h2>REMOTE MONITOR</h2>
+        <div class="small">Read-only monitor at <b>/monitor</b>. The app already listens on all interfaces. Use the included Tailscale helper on the home PC for private remote viewing from work.</div>
+        <button onclick="window.open('/monitor','_blank')">OPEN MONITOR</button>
       </div>
     </div>
 
@@ -171,8 +197,8 @@
         <div id="researchThesis" class="small">Research not loaded yet.</div>
       </div>
 
-      <div class="panel" style="margin-top:14px">
-        <h2>HUMAN WEATHER</h2>
+      <details class="panel" style="margin-top:14px" open>
+        <summary>HUMAN WEATHER</summary>
         <div class="row">
           <div><div class="label">FOMO Index</div><div id="fomoIndex" class="value" style="font-size:20px">--</div></div>
           <div><div class="label">Crowd Regime</div><div id="crowdRegime" class="value" style="font-size:20px">--</div></div>
@@ -191,10 +217,10 @@
         <div id="signalHealth" class="small">Feed health: --</div>
         <div id="signalErrors" class="small"></div>
         <div id="headlineTape" class="small" style="margin-top:10px">No human-signal headlines yet.</div>
-      </div>
+      </details>
 
-      <div class="panel" style="margin-top:14px">
-        <h2>BEAN MEMORY</h2>
+      <details class="panel" style="margin-top:14px" open>
+        <summary>BEAN MEMORY</summary>
         <div class="row">
           <div><div class="label">Claims</div><div id="beanClaims" class="value" style="font-size:20px">--</div></div>
           <div><div class="label">Predictions</div><div id="beanPredictions" class="value" style="font-size:20px">--</div></div>
@@ -203,22 +229,22 @@
         <div id="beanContradictions" class="small">Contradictions: --</div>
         <div id="beanLatest" class="small">Latest prediction: --</div>
         <div id="beanTrust" class="small" style="margin-top:8px">Trust model has no graded outcomes yet.</div>
-      </div>
+      </details>
 
-      <div class="panel" style="margin-top:14px">
-        <h2>COINBASE ASSET UNIVERSE</h2>
+      <details class="panel" style="margin-top:14px">
+        <summary>COINBASE ASSET UNIVERSE</summary>
         <div id="universeSummary" class="small">Universe not loaded yet.</div>
         <div id="universeTop" class="small" style="margin-top:8px"></div>
-      </div>
+      </details>
 
-      <div class="panel" style="margin-top:14px">
-        <h2>MARKET ARSENAL</h2>
-        <div class="small" style="margin-bottom:10px">All lanes are visible from first launch. Research can rank them even when execution is not connected yet.</div>
+      <details class="panel" style="margin-top:14px">
+        <summary>MARKET ARSENAL</summary>
+        <div class="small" style="margin-bottom:10px">All lanes are enabled as options. Research can rank them even when execution is not connected yet.</div>
         <div id="venueGrid" class="venue-grid"></div>
         <div id="venueSummary" class="small">Loading venue capabilities...</div>
         <button onclick="scanUniverse()" style="margin-top:10px">SCAN ALL MARKETS</button>
         <div id="opportunityList" class="small" style="margin-top:10px">No scan yet.</div>
-      </div>
+      </details>
 
       <div class="panel" style="margin-top:14px">
         <h2>POSITIONS</h2>
@@ -230,10 +256,12 @@
 
       <div class="panel" style="margin-top:14px">
         <h2>DECISION JOURNAL</h2>
-        <table>
-          <thead><tr><th>Time</th><th>Action</th><th>Asset</th><th>Size</th><th>Status</th><th>Reason</th></tr></thead>
-          <tbody id="decisions"></tbody>
-        </table>
+        <div class="decision-scroll">
+          <table>
+            <thead><tr><th>Time</th><th>Action</th><th>Asset</th><th>Size</th><th>Status</th><th>Reason</th></tr></thead>
+            <tbody id="decisions"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
@@ -294,6 +322,49 @@ async function scanUniverse(){
   }catch(e){ box.textContent='Opportunity scan failed: '+e; }
 }
 
+async function refreshBridge(){
+  const box=$('bridgeStatus');
+  try{
+    const r=await fetch('/api/bridge-status');
+    const j=await r.json();
+    if(!j.ok){ box.textContent='Bridge: '+(j.error||'unavailable'); return; }
+    const perms='view '+(j.can_view?'yes':'no')+' · trade '+(j.can_trade?'yes':'no')+' · transfer '+(j.can_transfer?'yes':'no');
+    box.textContent='Bridge: Base USDC '+j.base_usdc+' · Advanced USDC '+j.advanced_usdc+' · '+perms+
+      (j.advanced_receive_address ? ' · Base deposit address ready' : ' · receive address unavailable');
+    if(j.advanced_receive_error){
+      $('bridgeMessage').textContent='Bridge note: '+j.advanced_receive_error;
+    } else {
+      $('bridgeMessage').textContent='';
+    }
+  }catch(e){
+    box.textContent='Bridge: '+e;
+  }
+}
+
+async function bridgeBaseToAdvanced(){
+  const amount=Number($('bridgeAmount').value||0);
+  $('bridgeMessage').textContent='Sending Base USDC to Coinbase Advanced...';
+  const r=await fetch('/api/bridge/base-to-advanced',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({amount})
+  });
+  const j=await r.json();
+  $('bridgeMessage').textContent=j.ok ? 'Base to Advanced sent. '+j.amount+' USDC.' : (j.error||'Bridge failed.');
+  if(j.ok){ setTimeout(()=>{refreshBridge(); refreshAdvanced(); refreshStatus();},1800); }
+}
+
+async function bridgeAdvancedToBase(){
+  const amount=Number($('bridgeAmount').value||0);
+  $('bridgeMessage').textContent='Sending Coinbase Advanced USDC to Base...';
+  const r=await fetch('/api/bridge/advanced-to-base',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({amount})
+  });
+  const j=await r.json();
+  $('bridgeMessage').textContent=j.ok ? 'Advanced to Base sent. '+j.amount+' USDC.' : (j.error||'Bridge failed.');
+  if(j.ok){ setTimeout(()=>{refreshBridge(); refreshAdvanced(); refreshStatus();},1800); }
+}
+
 async function configureAdvanced(){
   const file=$('advancedKeyfile').files[0];
   if(!file){ $('advancedStatus').textContent='Advanced: select an API key JSON.'; return; }
@@ -308,6 +379,7 @@ async function configureAdvanced(){
     $('advancedStatus').textContent='Advanced: connected · '+Number(j.tradable_spot_products||0)+' tradable spot products'+
       (balances ? ' · '+balances : '');
     fetch('/api/capabilities').then(r=>r.json()).then(renderCapabilities);
+    refreshBridge();
   }catch(e){
     $('advancedStatus').textContent='Advanced: '+e;
   }
@@ -735,6 +807,7 @@ fetch('/api/credentials').then(r=>r.json()).then(j=>{ if(j.configured) msg('CDP 
 fetch('/api/capabilities').then(r=>r.json()).then(renderCapabilities).catch(()=>{ $('venueSummary').textContent='Venue capabilities unavailable.'; });
 scanUniverse();
 refreshAdvanced();
+refreshBridge();
 drawPet();
 refreshStatus();
 </script>

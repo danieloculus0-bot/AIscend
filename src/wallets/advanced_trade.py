@@ -33,6 +33,9 @@ class AdvancedTradeStatus:
     balances: tuple[AdvancedBalance, ...]
     tradable_spot_products: int
     product_ids: tuple[str, ...]
+    can_view: bool = False
+    can_trade: bool = False
+    can_transfer: bool = False
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -40,6 +43,9 @@ class AdvancedTradeStatus:
             "balances": [item.as_dict() for item in self.balances],
             "tradable_spot_products": self.tradable_spot_products,
             "product_ids": list(self.product_ids),
+            "can_view": self.can_view,
+            "can_trade": self.can_trade,
+            "can_transfer": self.can_transfer,
         }
 
 
@@ -140,12 +146,118 @@ class AdvancedTradeSpot:
             product_ids.append(product_id.upper())
 
         product_ids = sorted(set(product_ids))
+        permissions = self.permissions()
         return AdvancedTradeStatus(
             configured=True,
             balances=tuple(balances),
             tradable_spot_products=len(product_ids),
             product_ids=tuple(product_ids),
+            can_view=permissions["can_view"],
+            can_trade=permissions["can_trade"],
+            can_transfer=permissions["can_transfer"],
         )
+
+
+    def permissions(self) -> dict[str, bool]:
+        payload = self._dict(self.vault.client().get_api_key_permissions())
+        return {
+            "can_view": bool(payload.get("can_view", payload.get("view", True))),
+            "can_trade": bool(payload.get("can_trade", payload.get("trade", False))),
+            "can_transfer": bool(payload.get("can_transfer", payload.get("transfer", False))),
+        }
+
+    @staticmethod
+    def _currency_code(item: dict[str, Any]) -> str:
+        currency = item.get("currency")
+        if isinstance(currency, dict):
+            currency = currency.get("code") or currency.get("symbol")
+        return str(currency or "").upper()
+
+    def _app_accounts(self) -> list[dict[str, Any]]:
+        payload = self.vault.client().get("/v2/accounts")
+        if not isinstance(payload, dict):
+            return []
+        rows = payload.get("data") or payload.get("accounts") or []
+        return [row for row in rows if isinstance(row, dict)]
+
+    def app_account(self, currency: str) -> dict[str, Any]:
+        target = currency.upper()
+        for item in self._app_accounts():
+            if self._currency_code(item) == target:
+                return item
+        raise RuntimeError(f"Coinbase App account for {target} was not found.")
+
+    def receive_address(self, currency: str = "USDC", network: str = "base") -> str:
+        cache_key = f"ADVANCED_{currency.upper()}_{network.upper()}_ADDRESS"
+        cached = os.getenv(cache_key, "").strip()
+        if cached:
+            return cached
+
+        account = self.app_account(currency)
+        account_id = str(account.get("id") or "")
+        if not account_id:
+            raise RuntimeError(f"Coinbase App account for {currency} has no account id.")
+
+        client = self.vault.client()
+        try:
+            existing = client.get(
+                f"/v2/accounts/{account_id}/addresses",
+                params={"limit": 25},
+            )
+            rows = (existing or {}).get("data") if isinstance(existing, dict) else []
+            for row in rows or []:
+                address = str((row or {}).get("address") or "").strip()
+                row_network = str((row or {}).get("network") or "").lower()
+                if address and (not row_network or network.lower() in row_network):
+                    os.environ[cache_key] = address
+                    return address
+        except Exception:
+            pass
+
+        created = client.post(
+            f"/v2/accounts/{account_id}/addresses",
+            data={"name": f"AIscend {network} bridge", "network": network},
+        )
+        data = created.get("data") if isinstance(created, dict) else None
+        address = str((data or {}).get("address") or "").strip()
+        if not address:
+            raise RuntimeError(
+                "Coinbase did not return a deposit address. "
+                "The Advanced key may need Receive/Transfer permission."
+            )
+        os.environ[cache_key] = address
+        return address
+
+    def send_usdc_to_address(
+        self,
+        to_address: str,
+        amount: Decimal,
+        network: str = "base",
+        idem: str | None = None,
+    ) -> dict[str, Any]:
+        if amount <= 0:
+            raise ValueError("amount must be positive")
+        account = self.app_account("USDC")
+        account_id = str(account.get("id") or "")
+        if not account_id:
+            raise RuntimeError("Coinbase USDC account has no account id.")
+
+        payload = {
+            "type": "send",
+            "to": to_address,
+            "amount": str(amount),
+            "currency": "USDC",
+            "network": network,
+        }
+        if idem:
+            payload["idem"] = idem
+
+        response = self.vault.client().post(
+            f"/v2/accounts/{account_id}/transactions",
+            data=payload,
+        )
+        return response if isinstance(response, dict) else self._dict(response)
+
 
     def product(self, product_id: str) -> dict[str, Any]:
         response = self.vault.client().get_product(
