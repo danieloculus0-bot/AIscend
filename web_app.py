@@ -629,7 +629,7 @@ def start():
 
     payload = request.get_json(silent=True) or {}
     network = _validate_network(str(payload.get("network", "base")))
-    rail = _validate_rail(str(payload.get("rail", "base")))
+    rail = _validate_rail(str(payload.get("rail", "auto")))
     interval = max(5.0, float(payload.get("interval", 60.0)))
 
     with _loop_lock:
