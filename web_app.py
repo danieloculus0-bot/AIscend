@@ -67,6 +67,25 @@ def _rows_to_dicts(rows) -> list[dict[str, Any]]:
     return [dict(row) for row in rows]
 
 
+def _decision_journal(network: str, limit: int = 60) -> list[dict[str, Any]]:
+    sources = (
+        ("advanced", _db_path(network, "advanced")),
+        (network, _db_path(network, "base")),
+    )
+    rows: list[dict[str, Any]] = []
+    for rail_name, path in sources:
+        store = StateStore(path)
+        try:
+            for row in store.latest_decisions(limit):
+                item = dict(row)
+                item["rail"] = rail_name
+                rows.append(item)
+        finally:
+            store.close()
+    rows.sort(key=lambda item: float(item.get("ts") or 0.0), reverse=True)
+    return rows[:limit]
+
+
 def _status_payload(network: str, rail: str = "base") -> dict[str, Any]:
     store, engine = _make_engine(network, rail)
     try:
@@ -74,9 +93,10 @@ def _status_payload(network: str, rail: str = "base") -> dict[str, Any]:
         return {
             "ok": True,
             "snapshot": snap,
-            "decisions": _rows_to_dicts(store.latest_decisions(30)),
+            "decisions": _decision_journal(network),
             "ledger": _rows_to_dicts(store.latest_ledger(30)),
             "runner": dict(_loop_state),
+            "selected_rail": rail,
         }
     finally:
         store.close()
@@ -385,9 +405,24 @@ def run_once():
     payload = request.get_json(silent=True) or {}
     network = _validate_network(str(payload.get("network", "base")))
     rail = _validate_rail(str(payload.get("rail", "base")))
+
+    with _loop_lock:
+        if _loop_state["running"]:
+            active = str(_loop_state.get("rail") or "base")
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": (
+                        f"Background runner is already active on {active}. "
+                        "Stop it before running a one-off cycle."
+                    ),
+                    "runner": dict(_loop_state),
+                }
+            ), 409
+
     try:
         result = _run_once(network, rail)
-        return jsonify({"ok": True, **result})
+        return jsonify({"ok": True, "rail": rail, **result})
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
 
@@ -403,9 +438,31 @@ def start():
 
     with _loop_lock:
         if _loop_state["running"]:
-            return jsonify({"ok": True, "runner": dict(_loop_state)})
+            active_rail = str(_loop_state.get("rail") or "base")
+            active_network = str(_loop_state.get("network") or "base")
+            if active_rail == rail and active_network == network:
+                return jsonify({"ok": True, "runner": dict(_loop_state)})
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": (
+                        f"Runner is already active on {active_rail}/{active_network}. "
+                        f"Stop it before switching to {rail}/{network}."
+                    ),
+                    "runner": dict(_loop_state),
+                }
+            ), 409
 
         _stop_event.clear()
+        _loop_state.update(
+            {
+                "running": True,
+                "rail": rail,
+                "network": network,
+                "interval": interval,
+                "last_error": None,
+            }
+        )
         _loop_thread = threading.Thread(
             target=_runner,
             args=(network, interval, rail),
