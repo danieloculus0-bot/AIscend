@@ -76,7 +76,17 @@ class AdvancedSpotEngine:
     def sync(self) -> dict[str, Any]:
         status = self.rail.status()
         listing = self.listing_sentinel.poll()
-        universe = self.asset_universe.collect()
+        priority_products = [
+            str(event.get("product") or "").upper()
+            for event in (
+                list(listing.get("new_products") or [])
+                + list(listing.get("changes") or [])
+            )
+            if event.get("product")
+        ]
+        universe = self.asset_universe.collect(
+            priority_products=priority_products,
+        )
         product_ids = tuple(status.product_ids)
 
         raw_balances = {
