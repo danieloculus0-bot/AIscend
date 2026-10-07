@@ -781,6 +781,63 @@ class AdvancedSpotEngine:
         self.store.add_decision(decision, status)
         return self.sync()
 
+    @staticmethod
+    def _submitted_order_id(order: dict[str, Any]) -> str:
+        success_response = order.get("success_response") or {}
+        return str(
+            success_response.get("order_id")
+            or order.get("order_id")
+            or ""
+        ).strip()
+
+    def _confirm_order_fill(
+        self,
+        order: dict[str, Any],
+        product_id: str,
+    ) -> dict[str, Any] | None:
+        fetch_order = getattr(self.rail, "order", None)
+        if not callable(fetch_order):
+            return None
+
+        order_id = self._submitted_order_id(order)
+        if not order_id:
+            raise RuntimeError(
+                f"Coinbase accepted {product_id} without an order id."
+            )
+
+        last: dict[str, Any] = {}
+        for attempt in range(8):
+            payload = fetch_order(order_id)
+            details = payload.get("order") or payload
+            if isinstance(details, dict):
+                last = details
+                status = str(details.get("status") or "").upper()
+                reject_reason = str(
+                    details.get("reject_message")
+                    or details.get("reject_reason")
+                    or details.get("cancel_message")
+                    or ""
+                ).strip()
+                filled_size = Decimal(str(details.get("filled_size") or "0"))
+                filled_value = Decimal(str(details.get("filled_value") or "0"))
+                settled = bool(details.get("settled", False))
+
+                if filled_size > 0 or filled_value > 0 or settled or status == "FILLED":
+                    return details
+
+                if status in {"FAILED", "REJECTED", "CANCELLED", "CANCELED", "EXPIRED"}:
+                    raise RuntimeError(
+                        f"Coinbase order {order_id} ended {status}"
+                        + (f": {reject_reason}" if reject_reason else "")
+                    )
+            if attempt < 7:
+                time.sleep(0.5)
+
+        raise RuntimeError(
+            f"Coinbase order {order_id} was submitted but no fill was confirmed. "
+            f"Last status: {last.get('status') or 'unknown'}."
+        )
+
     def _execute_buy(
         self,
         decision: Decision,
@@ -840,6 +897,7 @@ class AdvancedSpotEngine:
             spend,
             client_order_id=client_order_id,
         )
+        confirmed_order = self._confirm_order_fill(order, product_id)
         self.store.add_ledger(
             "ADVANCED_BUY",
             product_id,
@@ -879,7 +937,11 @@ class AdvancedSpotEngine:
                 status="provider_response",
                 rationale=decision.rationale,
                 source="coinbase_advanced_order_response",
-                raw_provider_response={"preview": preview, "order": order},
+                raw_provider_response={
+                    "preview": preview,
+                    "order": order,
+                    "confirmed_order": confirmed_order,
+                },
             )
         except Exception as exc:
             self.store.add_ledger(
@@ -915,6 +977,7 @@ class AdvancedSpotEngine:
                 amount,
                 client_order_id=client_order_id,
             )
+        confirmed_order = self._confirm_order_fill(order, conversion_product)
 
         self.store.add_ledger(
             "ADVANCED_QUOTE_CONVERSION",
@@ -945,7 +1008,10 @@ class AdvancedSpotEngine:
                 status="provider_response",
                 rationale=f"Automatic quote funding. {rationale}",
                 source="coinbase_advanced_quote_conversion",
-                raw_provider_response=order,
+                raw_provider_response={
+                    "order": order,
+                    "confirmed_order": confirmed_order,
+                },
             )
         except Exception as exc:
             self.store.add_ledger(
@@ -970,6 +1036,7 @@ class AdvancedSpotEngine:
             qty,
             client_order_id=client_order_id,
         )
+        confirmed_order = self._confirm_order_fill(order, product_id)
         self.store.add_ledger(
             "ADVANCED_SELL",
             product_id,
@@ -995,7 +1062,10 @@ class AdvancedSpotEngine:
                 status="provider_response",
                 rationale=decision.rationale,
                 source="coinbase_advanced_order_response",
-                raw_provider_response=order,
+                raw_provider_response={
+                    "order": order,
+                    "confirmed_order": confirmed_order,
+                },
             )
         except Exception as exc:
             self.store.add_ledger(
