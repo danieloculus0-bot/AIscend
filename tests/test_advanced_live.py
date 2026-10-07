@@ -62,6 +62,72 @@ class FakeListingSentinel:
         }
 
 
+class FakeHumanSignals:
+    available = True
+    raw_fomo_index = 50.0
+    fomo_index = 50.0
+    crowd_regime = "BALANCED"
+    fear_greed_value = 50.0
+    fear_greed_classification = "NEUTRAL"
+    fear_greed_change_1d = 0.0
+    news_sentiment = 0.0
+    social_sentiment = 0.0
+    politics_sentiment = 0.0
+    politics_risk = 0.0
+    weirdness = 0.0
+    news_attention = 0.0
+    social_attention = 0.0
+    news_coverage = 1.0
+    social_coverage = 1.0
+    politics_coverage = 1.0
+    social_source_diversity = 1.0
+    social_confidence = 1.0
+    human_signal_quality = 1.0
+    source_counts = {"news": 1, "social": 1}
+    source_status = {"news": "test", "social": "test"}
+    top_headlines = ()
+    errors = ()
+
+    def as_dict(self):
+        return {
+            key: getattr(self, key)
+            for key in (
+                "available",
+                "raw_fomo_index",
+                "fomo_index",
+                "crowd_regime",
+                "fear_greed_value",
+                "fear_greed_classification",
+                "fear_greed_change_1d",
+                "news_sentiment",
+                "social_sentiment",
+                "politics_sentiment",
+                "politics_risk",
+                "weirdness",
+                "news_attention",
+                "social_attention",
+                "news_coverage",
+                "social_coverage",
+                "politics_coverage",
+                "social_source_diversity",
+                "social_confidence",
+                "human_signal_quality",
+                "source_counts",
+                "source_status",
+                "top_headlines",
+                "errors",
+            )
+        }
+
+
+class FakeHumanResearch:
+    def __init__(self, signals=None):
+        self.signals = signals or FakeHumanSignals()
+
+    def collect(self):
+        return self.signals
+
+
 class FakeUniverse:
     def collect(self, priority_products=None):
         return {
@@ -108,6 +174,7 @@ class AdvancedLiveTests(unittest.TestCase):
                 rail=rail,
                 asset_universe=FakeUniverse(),
                 listing_sentinel=FakeListingSentinel(),
+                human_researcher=FakeHumanResearch(),
             )
             snap = engine.step()
             rows = store.latest_decisions(1)
@@ -246,6 +313,7 @@ class AdvancedLiveTests(unittest.TestCase):
                 rail=rail,
                 asset_universe=FreshUniverse(),
                 listing_sentinel=FakeListingSentinel(hot=[event]),
+                human_researcher=FakeHumanResearch(),
             )
             engine.step()
             row = store.latest_decisions(1)[0]
@@ -253,6 +321,30 @@ class AdvancedLiveTests(unittest.TestCase):
             self.assertEqual(row["symbol"], "SHIT-USDC")
             self.assertEqual(row["status"], "LIVE_EXECUTED")
             self.assertIn("Public listing signal", row["rationale"])
+            store.close()
+
+    def test_human_weather_populates_and_fuses_advanced_score(self):
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "advanced.db")
+            engine = AdvancedSpotEngine(
+                store,
+                rail=FakeRail(),
+                asset_universe=FakeUniverse(),
+                listing_sentinel=FakeListingSentinel(),
+                human_researcher=FakeHumanResearch(),
+            )
+            snap = engine.sync()
+            best = snap["market_radar"]["best_long"]
+            human = snap["research"]["human"]
+
+            self.assertTrue(human["available"])
+            self.assertEqual(human["crowd_regime"], "BALANCED")
+            self.assertGreater(best["human_weight"], 0.0)
+            self.assertNotEqual(
+                best["decision_score"],
+                best["pre_human_score"],
+            )
+            self.assertIn("Human Weather", snap["research"]["thesis"])
             store.close()
 
     def test_execution_failure_still_hits_decision_journal(self):
