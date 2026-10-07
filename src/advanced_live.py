@@ -272,10 +272,12 @@ class AdvancedSpotEngine:
         universe = self.asset_universe.collect(
             priority_products=priority_products,
         )
+        human_error = None
         try:
             human = self.human_researcher.collect()
-        except Exception:
+        except Exception as exc:
             human = None
+            human_error = str(exc)
         product_ids = tuple(status.product_ids)
 
         raw_balances = {
@@ -399,7 +401,12 @@ class AdvancedSpotEngine:
                 "composite_score": radar.get("score", 0.0),
                 "thesis": radar.get("thesis", "Scanning Coinbase spot universe."),
                 "human": radar.get("human") or (
-                    human.as_dict() if human is not None else {}
+                    human.as_dict()
+                    if human is not None
+                    else {
+                        "available": False,
+                        "errors": [human_error] if human_error else [],
+                    }
                 ),
                 "human_score": radar.get("human_score", 0.0),
                 "human_weight": radar.get("human_weight", 0.0),
