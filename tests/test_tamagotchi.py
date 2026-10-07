@@ -10,6 +10,10 @@ class TamagotchiTests(unittest.TestCase):
         self.assertIn("taking a tactical shit", html)
         self.assertIn("market looks like ass", html)
         self.assertIn("FUCK YEAH. A POINT.", html)
+        self.assertIn("TRADER THING · BEAN", html)
+        self.assertIn("TRADER THING · TROUBLESHOOTER", html)
+        self.assertIn("trade-shaped object detected", html)
+        self.assertIn("confidence >= 0.30", html)
 
 
 if __name__ == "__main__":
