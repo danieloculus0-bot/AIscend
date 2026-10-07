@@ -346,24 +346,34 @@ class AdvancedSpotEngine:
                 unit_price = spend / Decimal(estimated_base)
             except Exception:
                 unit_price = None
-        self.audit.record_trade(
-            venue="coinbase",
-            rail="coinbase-advanced",
-            network="coinbase",
-            side="BUY",
-            product_id=product_id,
-            base_asset=base,
-            quote_asset=quote,
-            base_quantity=estimated_base or None,
-            quote_quantity=spend,
-            unit_price_quote=unit_price,
-            order_id=self.audit.provider_id(order, "order_id", "orderId"),
-            client_order_id=client_order_id,
-            status="provider_response",
-            rationale=decision.rationale,
-            source="coinbase_advanced_order_response",
-            raw_provider_response={"preview": preview, "order": order},
-        )
+        try:
+            self.audit.record_trade(
+                venue="coinbase",
+                rail="coinbase-advanced",
+                network="coinbase",
+                side="BUY",
+                product_id=product_id,
+                base_asset=base,
+                quote_asset=quote,
+                base_quantity=estimated_base or None,
+                quote_quantity=spend,
+                unit_price_quote=unit_price,
+                order_id=self.audit.provider_id(order, "order_id", "orderId"),
+                client_order_id=client_order_id,
+                status="provider_response",
+                rationale=decision.rationale,
+                source="coinbase_advanced_order_response",
+                raw_provider_response={"preview": preview, "order": order},
+            )
+        except Exception as exc:
+            self.store.add_ledger(
+                "AUDIT_ERROR",
+                product_id,
+                0.0,
+                0.0,
+                0.0,
+                f"Advanced BUY executed but audit write failed: {exc}",
+            )
 
     def _execute_sell(self, decision: Decision, snapshot: dict[str, Any]) -> None:
         product_id = str(decision.symbol)
@@ -388,19 +398,29 @@ class AdvancedSpotEngine:
         )
 
         base, quote = self._split_product(product_id)
-        self.audit.record_trade(
-            venue="coinbase",
-            rail="coinbase-advanced",
-            network="coinbase",
-            side="SELL",
-            product_id=product_id,
-            base_asset=base,
-            quote_asset=quote,
-            base_quantity=qty,
-            order_id=self.audit.provider_id(order, "order_id", "orderId"),
-            client_order_id=client_order_id,
-            status="provider_response",
-            rationale=decision.rationale,
-            source="coinbase_advanced_order_response",
-            raw_provider_response=order,
-        )
+        try:
+            self.audit.record_trade(
+                venue="coinbase",
+                rail="coinbase-advanced",
+                network="coinbase",
+                side="SELL",
+                product_id=product_id,
+                base_asset=base,
+                quote_asset=quote,
+                base_quantity=qty,
+                order_id=self.audit.provider_id(order, "order_id", "orderId"),
+                client_order_id=client_order_id,
+                status="provider_response",
+                rationale=decision.rationale,
+                source="coinbase_advanced_order_response",
+                raw_provider_response=order,
+            )
+        except Exception as exc:
+            self.store.add_ledger(
+                "AUDIT_ERROR",
+                product_id,
+                0.0,
+                0.0,
+                0.0,
+                f"Advanced SELL executed but audit write failed: {exc}",
+            )
