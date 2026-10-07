@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import threading
+import time
 import uuid
 from decimal import Decimal
 from pathlib import Path
@@ -17,6 +18,7 @@ from src.bean import BeanMemory
 from src.core import Decision, StateStore, app_data_dir
 from src.live import LiveEngine
 from src.opportunities import OpportunityUniverse
+from src.portfolio import choose_execution_rail, combine_portfolio
 from src.venues import capability_snapshot
 from src.wallets.advanced_trade import AdvancedTradeSpot, AdvancedTradeVault
 from src.wallets.cdp_wallet import CdpWallet, CredentialVault
@@ -27,6 +29,9 @@ app = Flask(__name__)
 _loop_lock = threading.Lock()
 _stop_event = threading.Event()
 _loop_thread: threading.Thread | None = None
+_capital_lock = threading.Lock()
+_snapshot_cache_lock = threading.Lock()
+_snapshot_cache: dict[str, tuple[float, dict[str, Any]]] = {}
 _loop_state: dict[str, Any] = {
     "running": False,
     "rail": "base",
@@ -49,8 +54,8 @@ def _validate_network(network: str) -> str:
 
 
 def _validate_rail(rail: str) -> str:
-    if rail not in {"base", "advanced"}:
-        raise ValueError("rail must be base or advanced")
+    if rail not in {"auto", "base", "advanced"}:
+        raise ValueError("rail must be auto, base or advanced")
     return rail
 
 
@@ -75,6 +80,8 @@ def _copy_game_meta(source: StateStore, target: StateStore) -> None:
 def _make_engine(network: str, rail: str = "base"):
     rail = _validate_rail(rail)
     network = _validate_network(network)
+    if rail == "auto":
+        raise ValueError("auto is a coordinator mode, not a direct execution adapter")
     store = StateStore(_db_path(network, rail))
     if rail == "advanced":
         # live-base.db is the canonical experiment memory. Advanced keeps its
@@ -125,71 +132,128 @@ def _decision_journal(network: str, limit: int = 60) -> list[dict[str, Any]]:
     return rows[:limit]
 
 
-def _status_payload(network: str, rail: str = "base") -> dict[str, Any]:
+def _cache_snapshot(network: str, rail: str, snapshot: dict[str, Any]) -> None:
+    key = f"{network}:{rail}"
+    with _snapshot_cache_lock:
+        _snapshot_cache[key] = (time.time(), snapshot)
+
+
+def _invalidate_snapshot_cache() -> None:
+    with _snapshot_cache_lock:
+        _snapshot_cache.clear()
+
+
+def _sync_rail_snapshot(
+    network: str,
+    rail: str,
+    *,
+    force: bool = False,
+    max_age: float = 12.0,
+) -> dict[str, Any] | None:
+    if rail == "base" and not CredentialVault().configured():
+        return None
+    if rail == "advanced" and not AdvancedTradeVault().configured():
+        return None
+
+    key = f"{network}:{rail}"
+    if not force:
+        with _snapshot_cache_lock:
+            cached = _snapshot_cache.get(key)
+        if cached is not None and time.time() - cached[0] <= max_age:
+            return cached[1]
+
     store, engine = _make_engine(network, rail)
     try:
         snap = engine.sync()
-        suggested_rail = rail
-        # If the selected rail is effectively empty, point the UI at the rail
-        # that actually holds spendable experiment cash instead of rendering a
-        # fake -100% loss.
-        if rail == "base" and float(snap.get("net_liquidation") or 0.0) < 0.50:
-            if AdvancedTradeVault().configured():
-                try:
-                    advanced_status = AdvancedTradeSpot().status()
-                    advanced_cash = sum(
-                        float(item.available)
-                        for item in advanced_status.balances
-                        if item.currency in {"USD", "USDC"}
-                    )
-                    if advanced_cash >= 0.50:
-                        suggested_rail = "advanced"
-                except Exception:
-                    pass
-        elif rail == "advanced" and float(snap.get("net_liquidation") or 0.0) < 0.50:
-            try:
-                base_status = asyncio.run(CdpWallet(network="base").trading_snapshot())
-                if float(base_status.net_usdc) >= 0.50:
-                    suggested_rail = "base"
-            except Exception:
-                pass
-
-        return {
-            "ok": True,
-            "snapshot": snap,
-            "decisions": _decision_journal(network),
-            "ledger": _rows_to_dicts(store.latest_ledger(30)),
-            "runner": dict(_loop_state),
-            "selected_rail": rail,
-            "suggested_rail": suggested_rail,
-        }
+        _cache_snapshot(network, rail, snap)
+        return snap
     finally:
         _close_engine_store(store, engine)
 
 
-def _run_once(network: str, rail: str = "base") -> dict[str, Any]:
-    store, engine = _make_engine(network, rail)
+def _portfolio_status(network: str, requested_rail: str) -> dict[str, Any]:
+    requested_rail = _validate_rail(requested_rail)
+    base = _sync_rail_snapshot(network, "base")
+    advanced = _sync_rail_snapshot(network, "advanced")
+
+    if requested_rail == "auto":
+        active_rail = choose_execution_rail(base, advanced)
+    else:
+        active_rail = requested_rail
+
+    if active_rail == "advanced" and advanced is None and base is not None:
+        active_rail = "base"
+    elif active_rail == "base" and base is None and advanced is not None:
+        active_rail = "advanced"
+
+    game_store = StateStore(_db_path("base", "base"))
+    try:
+        snapshot = combine_portfolio(
+            base=base,
+            advanced=advanced,
+            active_rail=active_rail,
+            game_store=game_store,
+        )
+    finally:
+        game_store.close()
+
+    active_store = StateStore(_db_path(network, active_rail))
+    try:
+        ledger = _rows_to_dicts(active_store.latest_ledger(30))
+    finally:
+        active_store.close()
+
+    return {
+        "ok": True,
+        "snapshot": snapshot,
+        "decisions": _decision_journal(network),
+        "ledger": ledger,
+        "runner": dict(_loop_state),
+        "selected_rail": requested_rail,
+        "active_rail": active_rail,
+        "suggested_rail": active_rail,
+    }
+
+
+def _status_payload(network: str, rail: str = "auto") -> dict[str, Any]:
+    return _portfolio_status(network, rail)
+
+
+def _run_once(network: str, rail: str = "auto") -> dict[str, Any]:
+    rail = _validate_rail(rail)
+
+    if rail == "auto":
+        base = _sync_rail_snapshot(network, "base", force=True)
+        advanced = _sync_rail_snapshot(network, "advanced", force=True)
+        chosen = choose_execution_rail(base, advanced)
+    else:
+        chosen = rail
+
+    store, engine = _make_engine(network, chosen)
     try:
         try:
-            snap = engine.step()
+            with _capital_lock:
+                snap = engine.step()
         except Exception as exc:
-            # Do not let pre-decision sync/discovery/API failures make the bot
-            # look inert. Every attempted cycle leaves a visible journal row.
             store.add_decision(
                 Decision(
                     "HOLD",
                     None,
                     0.0,
-                    f"{rail} cycle failed before completion: {exc}",
+                    f"{chosen} cycle failed before completion: {exc}",
                 ),
                 "CYCLE_ERROR",
             )
             raise
         decision_rows = store.latest_decisions(1)
         decision = dict(decision_rows[0]) if decision_rows else None
+        if decision is not None:
+            decision["rail"] = chosen
+        _invalidate_snapshot_cache()
         return {
             "snapshot": snap,
             "decision": decision,
+            "active_rail": chosen,
         }
     finally:
         _close_engine_store(store, engine)
