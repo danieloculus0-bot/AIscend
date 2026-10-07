@@ -440,6 +440,61 @@ class AdvancedLiveTests(unittest.TestCase):
         self.assertEqual(route["execution_product"], "ZRO-USDC")
         self.assertEqual(route["quote"], "USDC")
 
+    def test_crypto_funding_routes_rank_by_usd_value_not_token_count(self):
+        engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+        route = engine._funding_route(
+            "ZRO-USD",
+            ("ZRO-USD", "ZRO-GROVE", "ZRO-BTC"),
+            {"GROVE": 1000.0, "BTC": 0.001},
+            {"GROVE": 5.0, "BTC": 20.0},
+        )
+        self.assertIsNotNone(route)
+        self.assertEqual(route["mode"], "ALT_PAIR")
+        self.assertEqual(route["execution_product"], "ZRO-BTC")
+        self.assertEqual(route["funding_quote"], "BTC")
+
+    def test_unusable_quote_dust_falls_through_to_another_route(self):
+        class RouteRail(FakeRail):
+            def product(self, product_id):
+                return {
+                    "product_id": product_id,
+                    "price": "1",
+                    "quote_min_size": "1",
+                    "base_min_size": "0.0001",
+                }
+
+            def status(self):
+                return AdvancedTradeStatus(
+                    configured=True,
+                    balances=(),
+                    tradable_spot_products=2,
+                    product_ids=("ZRO-USD", "ZRO-USDC"),
+                )
+
+        engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+        engine.rail = RouteRail()
+        initial = engine._funding_route(
+            "ZRO-USD",
+            ("ZRO-USD", "ZRO-USDC"),
+            {"USD": 0.10, "USDC": 25.0},
+            {"USD": 0.10, "USDC": 25.0},
+        )
+        self.assertEqual(initial["mode"], "DIRECT")
+
+        route, fraction = engine._viable_funding_route(
+            "ZRO-USD",
+            initial,
+            {
+                "cash_by_quote": {"USD": 0.10, "USDC": 25.0},
+                "balance_values_usd": {"USD": 0.10, "USDC": 25.0},
+            },
+            0.40,
+        )
+        self.assertIsNotNone(route)
+        self.assertEqual(route["mode"], "ALT_PAIR")
+        self.assertEqual(route["execution_product"], "ZRO-USDC")
+        self.assertEqual(fraction, 0.40)
+
     def test_fresh_public_listing_signal_can_trigger_candidate(self):
         class FreshRail(FakeRail):
             def status(self):
