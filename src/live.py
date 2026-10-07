@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import math
+import time
 from typing import Protocol
 
 from .asset_universe import CoinbaseAssetUniverse
@@ -88,16 +89,20 @@ class LiveEngine:
             }
 
         change = ((price / previous) - 1.0) if previous and price else 0.0
-        self.bean.record_research(research)
-        self.bean.record_universe(universe)
+        last_bean = float(self.store.get_meta("bean_last_observation") or "0")
+        if time.time() - last_bean >= 55.0:
+            self.bean.record_research(research)
+            self.bean.record_universe(universe)
 
-        bean_prices = {"ETH": price}
-        for item in universe.get("top") or []:
-            base = str(item.get("base") or "")
-            asset_price = float(item.get("price") or 0.0)
-            if base and asset_price > 0:
-                bean_prices[base] = asset_price
-        self.bean.resolve_due(bean_prices)
+            bean_prices = {"ETH": price}
+            for item in universe.get("top") or []:
+                base = str(item.get("base") or "")
+                asset_price = float(item.get("price") or 0.0)
+                if base and asset_price > 0:
+                    bean_prices[base] = asset_price
+            self.bean.resolve_due(bean_prices)
+            self.store.set_meta("bean_last_observation", str(time.time()))
+
         bean = self.bean.snapshot()
 
         game = score_game(self.store, net, start) if start > 0 else {
