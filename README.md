@@ -10,7 +10,7 @@ The live experiment is intended to start with a tiny bankroll, currently around 
 
 ## Project status
 
-**Version:** 0.12.0  
+**Version:** 0.13.0  
 **Platform:** Windows x64 + browser via GitHub Codespaces  
 **State:** Synthetic desktop sandbox + Coinbase live desktop mode  
 **Live-money execution:** CDP smart-account swaps on Base are implemented
@@ -489,3 +489,14 @@ Version 0.12 hardens the two systems exposed by the first live BEAN run:
 - Feed health and fallback diagnostics are visible in the dashboard.
 - BEAN compresses repeated observations from the same epistemic object into persistent rollups rather than counting every 60-second refresh as a new claim.
 - Predictions and resolved outcomes remain separate records and are never compressed away.
+
+
+## Signal maturity
+
+Version 0.13 keeps raw Human Weather readings intact while adding the missing context around them.
+
+- Sentiment now reports coverage: how much of the collected sample actually matched the directional lexicon.
+- Social confidence combines coverage, sample size, and source diversity.
+- Human-signal quality is tracked separately from directional sentiment.
+- The research fusion uses maturity to control influence without hiding raw +1 / -1 observations.
+- BEAN now grades news, social, politics, crowd, Fear & Greed, technical, human, and composite signal families separately as outcomes resolve.
