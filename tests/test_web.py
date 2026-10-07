@@ -55,6 +55,20 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertIn("read-only", response.get_json()["error"].lower())
 
+    def test_remote_client_cannot_spoof_loopback_with_forwarded_header(self):
+        client = app.test_client()
+        with patch.dict(os.environ, {"AISCEND_REMOTE_TOKEN": "test-remote-token"}):
+            response = client.post(
+                "/api/start",
+                json={"network": "base", "rail": "advanced", "interval": 60},
+                headers={
+                    "X-AIscend-Token": "test-remote-token",
+                    "X-Forwarded-For": "127.0.0.1",
+                },
+                environ_base={"REMOTE_ADDR": "192.168.1.50"},
+            )
+        self.assertEqual(response.status_code, 403)
+
     def test_remote_candle_endpoint_requires_monitor_token(self):
         client = app.test_client()
         with patch.dict(os.environ, {"AISCEND_REMOTE_TOKEN": "test-remote-token"}):
