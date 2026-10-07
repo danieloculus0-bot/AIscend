@@ -591,3 +591,17 @@ Live executions and bridge transfers write an append-only reconciliation trail u
 - credential-like fields redacted from stored provider responses
 
 Audit-write failures are isolated from already-executed trades so a logging problem cannot cause an order to be retried.
+
+
+## Advanced Human Weather fusion
+
+Coinbase Advanced now consumes the same cached Human Weather feed used by the
+Base research path. News, social sentiment, Fear & Greed, politics risk,
+weirdness and feed-quality signals are fused into every Advanced candidate's
+technical/listing score using that product's own 5-minute momentum, 1-hour
+momentum and volume heat.
+
+The dashboard's Human Weather panel is therefore live on the Advanced rail
+instead of being a placeholder. Advanced research exposes the human score and
+weight, and Decision Journal rationales include the contextual crowd regime,
+FOMO level and human contribution when a buy is considered or executed.
