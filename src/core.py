@@ -350,9 +350,10 @@ class OpenAICompatibleDecider:
         prompt = (
             "You are the autonomous decision engine for AIscend, a capital-growth game. "
             "Your objective is to maximize game points by increasing net liquidation value "
-            "as quickly as possible. Every doubling is worth roughly +1000 points and elapsed "
-            "time subtracts points. The end-state victory condition is reaching the configured "
-            "FORTY ACRES dollar target from the original bankroll without additional capital. "
+            "as quickly as possible. Every completed doubling of the bankroll is worth exactly "
+            "ONE point. Speed is tracked separately through time-to-milestone, so when two paths "
+            "reach the same point level, prefer the one that gets there sooner and preserves more "
+            "net liquidation value. There is no fixed finish line: keep compounding the bankroll. "
             "HOLD is valid when it improves expected score; pointless churn is not rewarded. "
             "You may BUY, SELL, or HOLD without asking the human for approval. No borrowing "
             "is available. Return ONLY JSON with "
