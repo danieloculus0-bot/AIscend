@@ -74,7 +74,7 @@
       <div id="positions" class="small" style="margin-top:8px">--</div>
     </div>
     <div class="panel">
-      <div id="candleTitle" class="label">Market · --</div>
+      <div id="candleTitle" class="label">Market preview · --</div>
       <div class="candle-wrap" style="margin-top:8px"><canvas id="candleChart"></canvas></div>
       <div id="candleMeta" class="small">5-minute candles</div>
     </div>
@@ -101,14 +101,21 @@ let activeCandleProduct=null;
 
 async function loadCandles(product){
   activeCandleProduct=product;
-  $('candleTitle').textContent='Market · '+product;
+  $('candleTitle').textContent='Market preview · '+product;
   try{
     const r=await fetch('/api/candles?product='+encodeURIComponent(product));
     const j=await r.json();
     if(!j.ok) throw new Error(j.error||'unavailable');
     drawCandles(j.candles||[]);
-    const last=(j.candles||[]).at(-1);
-    $('candleMeta').textContent=last ? '5-minute candles · last '+money(last.close) : 'No candle data.';
+    const rows=j.candles||[];
+    const last=rows.at(-1), first=rows[0];
+    const move=(last&&first&&Number(first.open)) ? ((Number(last.close)/Number(first.open))-1)*100 : 0;
+    const high=rows.length ? Math.max(...rows.map(x=>Number(x.high)||0)) : 0;
+    const lows=rows.map(x=>Number(x.low)||0).filter(x=>x>0);
+    const low=lows.length ? Math.min(...lows) : 0;
+    $('candleMeta').textContent=last
+      ? '5m candles · last '+money(last.close)+' · window '+(move>=0?'+':'')+move.toFixed(2)+'% · H '+money(high)+' · L '+money(low)
+      : 'No candle data.';
   }catch(e){ $('candleMeta').textContent='Candle feed: '+e; }
 }
 
