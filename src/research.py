@@ -82,8 +82,10 @@ class MarketResearch:
         btc = self._signals("BTC-USD", errors)
 
         try:
-            human = self.human_researcher.collect()
-            errors.extend(human.errors)
+            human_researcher = getattr(self, "human_researcher", None)
+            human = human_researcher.collect() if human_researcher is not None else None
+            if human is not None:
+                errors.extend(human.errors)
         except Exception as exc:
             human = None
             errors.append(f"human_signals: {exc}")
