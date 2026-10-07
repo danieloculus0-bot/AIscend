@@ -10,10 +10,11 @@ from .asset_universe import CoinbaseAssetUniverse
 from .bean import BeanMemory
 from .core import Decision, StateStore
 from .game import score_game
+from .listing_sentinel import CoinbaseListingSentinel
 from .wallets.advanced_trade import AdvancedTradeSpot
 
 
-QUOTE_ASSETS = {"USD", "USDC"}
+DOLLAR_ASSETS = {"USD", "USDC"}
 
 
 class AdvancedSpotEngine:
@@ -22,8 +23,10 @@ class AdvancedSpotEngine:
 
     Use this with a dedicated Coinbase Advanced portfolio/API key. It ranks the
     same rotating Coinbase universe used by AIscend research, buys the strongest
-    eligible long setup using available USD/USDC, and exits held assets when
-    their signal deteriorates. No borrowing or shorting is used.
+    eligible long setup using whatever quote asset the account actually holds,
+    and exits held assets when their signal deteriorates. There is no coin
+    allowlist: account tradability and market conditions decide eligibility.
+    No borrowing or shorting is used.
     """
 
     def __init__(
@@ -31,10 +34,15 @@ class AdvancedSpotEngine:
         store: StateStore,
         rail: AdvancedTradeSpot | None = None,
         asset_universe: CoinbaseAssetUniverse | None = None,
+        listing_sentinel: CoinbaseListingSentinel | None = None,
     ) -> None:
         self.store = store
         self.rail = rail or AdvancedTradeSpot()
         self.asset_universe = asset_universe or CoinbaseAssetUniverse()
+        self.listing_sentinel = listing_sentinel or CoinbaseListingSentinel(
+            self.store,
+            fetch_json=self.asset_universe._get_json,
+        )
         self.bean = BeanMemory(self.store.conn)
         self._snapshot: dict[str, Any] | None = None
 
@@ -54,7 +62,6 @@ class AdvancedSpotEngine:
             product_id
             for product_id in product_ids
             if self._split_product(product_id)[0] == currency
-            and self._split_product(product_id)[1] in QUOTE_ASSETS
         ]
         if preferred_quote:
             for product_id in candidates:
@@ -68,6 +75,7 @@ class AdvancedSpotEngine:
 
     def sync(self) -> dict[str, Any]:
         status = self.rail.status()
+        listing = self.listing_sentinel.poll()
         universe = self.asset_universe.collect()
         product_ids = tuple(status.product_ids)
 
@@ -76,11 +84,20 @@ class AdvancedSpotEngine:
             for item in status.balances
             if float(item.available) > 0.000000001
         }
+        quote_currencies = {
+            self._split_product(product_id)[1]
+            for product_id in product_ids
+            if self._split_product(product_id)[1]
+        }
         cash_by_quote = {
             quote: raw_balances.get(quote, 0.0)
-            for quote in QUOTE_ASSETS
+            for quote in quote_currencies
+            if raw_balances.get(quote, 0.0) > 0.000000001
         }
-        cash = sum(cash_by_quote.values())
+
+        # Preserve the game's dollar-denominated bankroll accounting while
+        # allowing execution to use any funded quote currency.
+        cash = sum(raw_balances.get(asset, 0.0) for asset in DOLLAR_ASSETS)
 
         universe_by_product = {
             str(item.get("product") or "").upper(): item
@@ -93,7 +110,7 @@ class AdvancedSpotEngine:
         market_value = 0.0
 
         for currency, qty in raw_balances.items():
-            if currency in QUOTE_ASSETS:
+            if currency in DOLLAR_ASSETS:
                 continue
             product_id = self._product_for_currency(currency, product_ids)
             if not product_id:
@@ -152,7 +169,13 @@ class AdvancedSpotEngine:
             "level_complete": False,
         }
 
-        radar = self._radar(universe, product_ids, cash_by_quote, positions)
+        radar = self._radar(
+            universe,
+            product_ids,
+            cash_by_quote,
+            positions,
+            listing,
+        )
 
         self._snapshot = {
             "cash": cash,
@@ -180,6 +203,7 @@ class AdvancedSpotEngine:
                 "human": {},
             },
             "asset_universe": universe,
+            "listing_sentinel": listing,
             "bean": self.bean.snapshot(),
             "market_radar": radar,
             "execution_rail": "coinbase-advanced",
@@ -192,21 +216,48 @@ class AdvancedSpotEngine:
         product_ids: tuple[str, ...],
         cash_by_quote: dict[str, float],
         positions: dict[str, dict[str, float | str]],
+        listing: dict[str, Any],
     ) -> dict[str, Any]:
         tradable = set(product_ids)
-        rows = [
-            item
-            for item in (universe.get("top") or [])
-            if str(item.get("product") or "").upper() in tradable
-        ]
-        longs = sorted(rows, key=lambda item: float(item.get("score") or 0.0), reverse=True)
+        hot_by_product = {
+            str(event.get("product") or "").upper(): event
+            for event in (listing.get("hot") or [])
+            if str(event.get("stage") or "") == "FULL_TRADING"
+        }
+
+        rows: list[dict[str, Any]] = []
+        now = time.time()
+        for source in universe.get("top") or []:
+            product = str(source.get("product") or "").upper()
+            if product not in tradable:
+                continue
+            item = dict(source)
+            event = hot_by_product.get(product)
+            raw_score = float(item.get("score") or 0.0)
+            listing_boost = 0.0
+            if event is not None:
+                age = max(0.0, now - float(event.get("ts") or now))
+                # A public listing/trading-enable event gets a temporary momentum
+                # premium that decays to zero over six hours. Liquidity gates still
+                # apply before any order can be attempted.
+                listing_boost = max(0.0, 0.35 * (1.0 - age / 21600.0))
+                item["listing_event"] = event
+            item["listing_boost"] = listing_boost
+            item["decision_score"] = max(-1.0, min(1.0, raw_score + listing_boost))
+            rows.append(item)
+
+        longs = sorted(
+            rows,
+            key=lambda item: float(item.get("decision_score") or 0.0),
+            reverse=True,
+        )
         funded_longs = [
             item
             for item in longs
             if cash_by_quote.get(
                 self._split_product(str(item.get("product") or ""))[1],
                 0.0,
-            ) > 0.50
+            ) > 0.0
         ]
         best = funded_longs[0] if funded_longs else (longs[0] if longs else None)
         held = []
@@ -227,19 +278,28 @@ class AdvancedSpotEngine:
             else None
         )
 
-        score = float(best.get("score") or 0.0) if best else 0.0
+        score = float(best.get("decision_score") or best.get("score") or 0.0) if best else 0.0
         confidence = min(0.95, 0.35 + abs(score) * 0.60) if best else 0.0
         prediction = "BULLISH" if score >= 0.16 else "BEARISH" if score <= -0.16 else "NEUTRAL"
         if best:
             product = str(best.get("product") or "")
             quote = self._split_product(product)[1]
-            funded = cash_by_quote.get(quote, 0.0) > 0.50
+            funded = cash_by_quote.get(quote, 0.0) > 0.0
+            listing_event = best.get("listing_event")
+            listing_note = ""
+            if isinstance(listing_event, dict):
+                listing_note = (
+                    f" Public Coinbase listing signal {listing_event.get('event')} "
+                    f"at stage {listing_event.get('stage')}."
+                )
             thesis = (
                 f"Best {'funded ' if funded else ''}tradable spot candidate {product}: "
-                f"score {score:+.3f}, 1h {float(best.get('return_1h') or 0):+.2%}, "
+                f"decision score {score:+.3f}, raw {float(best.get('score') or 0):+.3f}, "
+                f"1h {float(best.get('return_1h') or 0):+.2%}, "
                 f"6h {float(best.get('return_6h') or 0):+.2%}, "
                 f"volume {float(best.get('volume_ratio') or 0):.2f}x; "
-                f"{quote} available {cash_by_quote.get(quote, 0.0):.2f}."
+                f"{quote} available {cash_by_quote.get(quote, 0.0):.8g}."
+                f"{listing_note}"
             )
         else:
             thesis = "No currently-scored Coinbase product is tradable for this Advanced account."
@@ -259,7 +319,12 @@ class AdvancedSpotEngine:
         best = radar.get("best_long")
         weakest = radar.get("weakest_held")
 
-        decision = Decision("HOLD", None, 0.0, "No Coinbase spot trade clears the current threshold.")
+        decision = Decision(
+            "HOLD",
+            None,
+            0.0,
+            "No Coinbase spot trade clears the current threshold.",
+        )
         status = "HELD"
 
         if weakest is not None:
@@ -273,24 +338,42 @@ class AdvancedSpotEngine:
                     fraction,
                     f"Coinbase-wide signal deteriorated to {held_score:+.3f}.",
                 )
-                self._execute_sell(decision, before)
-                status = "LIVE_EXECUTED"
+                try:
+                    self._execute_sell(decision, before)
+                    status = "LIVE_EXECUTED"
+                except Exception as exc:
+                    status = "EXECUTION_ERROR"
+                    decision = Decision(
+                        decision.action,
+                        decision.symbol,
+                        decision.fraction,
+                        f"{decision.rationale} Execution failed: {exc}",
+                    )
 
         if status == "HELD" and best is not None:
             product_id = str(best.get("product") or "").upper()
-            score = float(best.get("score") or 0.0)
+            score = float(best.get("decision_score") or best.get("score") or 0.0)
             spread_bps = float(best.get("spread_bps") or 0.0)
             volume_ratio = float(best.get("volume_ratio") or 0.0)
             _, quote = self._split_product(product_id)
-            available_quote = float((before.get("cash_by_quote") or {}).get(quote, 0.0))
+            available_quote = float(
+                (before.get("cash_by_quote") or {}).get(quote, 0.0)
+            )
 
             if (
                 score >= 0.18
-                and spread_bps <= 35.0
+                and spread_bps <= 50.0
                 and volume_ratio >= 0.40
-                and available_quote > 0.50
+                and available_quote > 0.0
             ):
                 fraction = min(0.85, max(0.20, 0.20 + abs(score) * 0.65))
+                listing_event = best.get("listing_event")
+                listing_note = ""
+                if isinstance(listing_event, dict):
+                    listing_note = (
+                        f" Public listing signal {listing_event.get('event')} "
+                        f"/ {listing_event.get('stage')}."
+                    )
                 decision = Decision(
                     "BUY",
                     product_id,
@@ -298,11 +381,22 @@ class AdvancedSpotEngine:
                     (
                         f"Best Coinbase-wide executable spot setup at {score:+.3f}; "
                         f"spread {spread_bps:.1f} bps, volume {volume_ratio:.2f}x."
+                        f"{listing_note}"
                     ),
                 )
-                self._execute_buy(decision, before)
-                status = "LIVE_EXECUTED"
+                try:
+                    self._execute_buy(decision, before)
+                    status = "LIVE_EXECUTED"
+                except Exception as exc:
+                    status = "EXECUTION_ERROR"
+                    decision = Decision(
+                        decision.action,
+                        decision.symbol,
+                        decision.fraction,
+                        f"{decision.rationale} Execution failed: {exc}",
+                    )
 
+        # Every cycle is journaled, including exchange/API execution failures.
         self.store.add_decision(decision, status)
         return self.sync()
 
@@ -311,7 +405,7 @@ class AdvancedSpotEngine:
         _, quote = self._split_product(product_id)
         available = Decimal(str((snapshot.get("cash_by_quote") or {}).get(quote, 0.0)))
         spend = available * Decimal(str(decision.fraction))
-        if spend <= Decimal("0.50"):
+        if spend <= 0:
             raise RuntimeError(f"Insufficient {quote} for Coinbase Advanced buy.")
 
         preview = self.rail.preview_market_buy(product_id, spend)
