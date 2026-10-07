@@ -10,7 +10,7 @@ The live experiment is intended to start with a tiny bankroll, currently around 
 
 ## Project status
 
-**Version:** 0.13.0  
+**Version:** 0.14.0  
 **Platform:** Windows x64 + browser via GitHub Codespaces  
 **State:** Synthetic desktop sandbox + Coinbase live desktop mode  
 **Live-money execution:** CDP smart-account swaps on Base are implemented
@@ -512,3 +512,8 @@ Version 0.13 also adds an optional Coinbase Advanced execution rail. It is separ
 - Held products are re-evaluated and can be sold when their signal deteriorates.
 - No borrowing or short selling is used by this spot engine.
 - All first-class market lanes are enabled in the Market Arsenal: crypto spot, predictions, stocks & ETFs, futures, perpetuals, and options. Research readiness remains separate from execution connectivity.
+
+
+## AIS-0 Tamagotchi behavior
+
+Version 0.14 keeps the original intentionally terrible pixel creature and gives it dead-simple emotional behavior. It still bobs and blinks, but now reacts to buys, sells, wins, losses, thinking, errors, and bearish market states. If the live research brain is bearish while the runner is active, AIS-0 may perform a tiny tactical shit and complain about the market. Mood text rotates through short, mildly profane quips without changing trading logic.
