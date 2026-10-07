@@ -14,6 +14,18 @@ class BridgeUiTests(unittest.TestCase):
         self.assertIn("<summary>MARKET ARSENAL</summary>", html)
         self.assertIn("<summary>BEAN MEMORY</summary>", html)
         self.assertIn("<summary>HUMAN WEATHER</summary>", html)
+        self.assertIn("OPEN MONITOR", html)
+
+    def test_remote_monitor_is_read_only_and_refreshes(self):
+        monitor = Path("templates/monitor.html").read_text(encoding="utf-8")
+        app = Path("web_app.py").read_text(encoding="utf-8")
+        self.assertIn("/api/monitor/status", monitor)
+        self.assertIn("setInterval(refresh,5000)", monitor)
+        self.assertIn('@app.get("/monitor")', app)
+        self.assertIn('@app.get("/api/monitor/status")', app)
+        self.assertNotIn("/api/run-once", monitor)
+        self.assertNotIn("/api/start", monitor)
+        self.assertNotIn("/api/stop", monitor)
 
 
 if __name__ == "__main__":
