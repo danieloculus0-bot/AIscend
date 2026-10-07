@@ -201,6 +201,48 @@ class BeanMemory:
                         },
                     )
 
+    def record_universe(self, universe: dict[str, Any]) -> None:
+        """Record high-signal Coinbase-wide assets without pretending they are executable."""
+        for item in (universe.get("top") or [])[:12]:
+            product = str(item.get("product") or "")
+            base = str(item.get("base") or product.split("-", 1)[0] or "")
+            price = float(item.get("price") or 0.0)
+            score = float(item.get("score") or 0.0)
+            if not base or price <= 0:
+                continue
+
+            self.add_claim(
+                BeanClaim(
+                    "OBSERVATION",
+                    base,
+                    (
+                        f"{product} price {price:.8f}; 5m {float(item.get('return_5m', 0)):+.4%}; "
+                        f"1h {float(item.get('return_1h', 0)):+.4%}; "
+                        f"6h {float(item.get('return_6h', 0)):+.4%}; "
+                        f"volume {float(item.get('volume_ratio', 0)):.2f}x."
+                    ),
+                    1.0,
+                    "coinbase_universe",
+                    (product, "price", "returns", "volume", "spread"),
+                )
+            )
+
+            if abs(score) < 0.12:
+                continue
+            direction = 1 if score > 0 else -1
+            if not self._recent_duplicate(base, 3600, direction, within_seconds=300):
+                self.add_prediction(
+                    subject=base,
+                    horizon_seconds=3600,
+                    start_price=price,
+                    predicted_direction=direction,
+                    predicted_strength=abs(score),
+                    confidence=min(0.85, 0.35 + abs(score) * 0.5),
+                    source_mix={
+                        "coinbase_universe": score,
+                    },
+                )
+
     def add_prediction(
         self,
         subject: str,
