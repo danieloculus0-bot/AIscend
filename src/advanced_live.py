@@ -224,6 +224,60 @@ class AdvancedSpotEngine:
         adjusted = max(Decimal(str(fraction)), required_fraction)
         return float(min(Decimal(str(max_fraction)), adjusted))
 
+    def _viable_funding_route(
+        self,
+        signal_product: str,
+        initial_route: dict[str, Any] | None,
+        snapshot: dict[str, Any],
+        fraction: float,
+    ) -> tuple[dict[str, Any] | None, float | None]:
+        route = initial_route
+        pool = dict(snapshot.get("cash_by_quote") or {})
+        values = dict(snapshot.get("balance_values_usd") or {})
+        product_ids: tuple[str, ...] | None = None
+
+        for _ in range(max(1, len(pool) + 1)):
+            if not route:
+                return None, None
+
+            product_id = str(
+                route.get("execution_product") or signal_product
+            ).upper()
+            available = float(route.get("available") or 0.0)
+            if str(route.get("mode") or "").upper() == "INVERSE_PAIR":
+                adjusted = self._adjust_sell_fraction_for_exchange_minimum(
+                    product_id,
+                    available,
+                    fraction,
+                )
+            else:
+                adjusted = self._adjust_buy_fraction_for_exchange_minimum(
+                    product_id,
+                    available,
+                    fraction,
+                )
+
+            if adjusted is not None:
+                return route, adjusted
+
+            failed_asset = str(route.get("funding_quote") or "").upper()
+            if failed_asset:
+                pool.pop(failed_asset, None)
+                values.pop(failed_asset, None)
+            else:
+                return None, None
+
+            if product_ids is None:
+                product_ids = tuple(self.rail.status().product_ids)
+            route = self._funding_route(
+                signal_product,
+                product_ids,
+                pool,
+                values,
+            )
+
+        return None, None
+
     def _product_for_currency(
         self,
         currency: str,
@@ -811,32 +865,30 @@ class AdvancedSpotEngine:
                 and available_quote > 0.0
             ):
                 fraction = min(0.85, max(0.20, 0.20 + abs(score) * 0.65))
-                if str(route.get("mode") or "").upper() == "INVERSE_PAIR":
-                    adjusted_fraction = self._adjust_sell_fraction_for_exchange_minimum(
-                        product_id,
-                        available_quote,
-                        fraction,
-                    )
-                else:
-                    adjusted_fraction = self._adjust_buy_fraction_for_exchange_minimum(
-                        product_id,
-                        available_quote,
-                        fraction,
-                    )
-                if adjusted_fraction is None:
+                route, adjusted_fraction = self._viable_funding_route(
+                    signal_product,
+                    route,
+                    before,
+                    fraction,
+                )
+                if route is None or adjusted_fraction is None:
                     decision = Decision(
                         "HOLD",
                         None,
                         0.0,
                         (
-                            f"{product_id} clears the signal threshold, but available "
-                            f"{route.get('quote') or self._split_product(product_id)[1]} "
-                            "cannot satisfy Coinbase's minimum order size within the 85% cap."
+                            f"{signal_product} clears the signal threshold, but no "
+                            "available Coinbase funding route can satisfy the exchange "
+                            "minimum within the 85% cap."
                         ),
                     )
                     status = "HELD"
                     self.store.add_decision(decision, status)
                     return self.sync()
+                product_id = str(
+                    route.get("execution_product") or signal_product
+                ).upper()
+                available_quote = float(route.get("available") or 0.0)
                 fraction = adjusted_fraction
                 listing_event = best.get("listing_event")
                 listing_note = ""
