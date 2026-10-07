@@ -342,6 +342,52 @@ async function refreshBridge(){
   }
 }
 
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+
+async function switchExecutionRail(target){
+  if(!['base','advanced'].includes(target)) return;
+  $('executionRail').value=target;
+
+  let state=null;
+  try{
+    const r=await fetch('/api/runner');
+    state=(await r.json()).runner || null;
+  }catch(e){}
+
+  if(state && state.running && state.rail!==target){
+    $('bridgeMessage').textContent='Switching live runner to '+target+'...';
+    await fetch('/api/stop',{method:'POST'});
+    for(let i=0;i<80;i++){
+      await sleep(250);
+      try{
+        const r=await fetch('/api/runner');
+        const j=await r.json();
+        state=j.runner || null;
+        if(!state || !state.running) break;
+      }catch(e){}
+    }
+    if(state && state.running){
+      $('bridgeMessage').textContent='Transfer completed, but the old runner is still finishing its cycle.';
+      return;
+    }
+    const interval=Number($('interval').value);
+    const r=await fetch('/api/start',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({network:network(),rail:target,interval})
+    });
+    const j=await r.json();
+    if(!j.ok){
+      $('bridgeMessage').textContent='Funds moved. Runner switch failed: '+(j.error||'unknown error');
+      return;
+    }
+    renderRunner(j.runner);
+  }
+
+  await refreshAdvanced();
+  await refreshBridge();
+  await refreshStatus();
+}
+
 async function bridgeBaseToAdvanced(){
   const amount=Number($('bridgeAmount').value||0);
   $('bridgeMessage').textContent='Sending Base USDC to Coinbase Advanced...';
@@ -351,7 +397,9 @@ async function bridgeBaseToAdvanced(){
   });
   const j=await r.json();
   $('bridgeMessage').textContent=j.ok ? 'Base to Advanced sent. '+j.amount+' USDC.' : (j.error||'Bridge failed.');
-  if(j.ok){ setTimeout(()=>{refreshBridge(); refreshAdvanced(); refreshStatus();},1800); }
+  if(j.ok){
+    await switchExecutionRail(j.target_rail || 'advanced');
+  }
 }
 
 async function bridgeAdvancedToBase(){
@@ -363,7 +411,9 @@ async function bridgeAdvancedToBase(){
   });
   const j=await r.json();
   $('bridgeMessage').textContent=j.ok ? 'Advanced to Base sent. '+j.amount+' USDC.' : (j.error||'Bridge failed.');
-  if(j.ok){ setTimeout(()=>{refreshBridge(); refreshAdvanced(); refreshStatus();},1800); }
+  if(j.ok){
+    await switchExecutionRail(j.target_rail || 'base');
+  }
 }
 
 async function configureAdvanced(){
@@ -418,9 +468,16 @@ async function configure(){
 }
 
 async function refreshStatus(){
-  const r = await fetch('/api/status?network='+encodeURIComponent(network())+'&rail='+encodeURIComponent(rail()));
+  const requestedRail=rail();
+  const r = await fetch('/api/status?network='+encodeURIComponent(network())+'&rail='+encodeURIComponent(requestedRail));
   const j = await r.json();
   if(!j.ok){ msg(j.error || 'Status unavailable'); renderRunner(j.runner); petState='dead'; drawPet(); return; }
+
+  if(j.suggested_rail && j.suggested_rail!==requestedRail && !(j.runner||{}).running){
+    $('executionRail').value=j.suggested_rail;
+    return refreshStatus();
+  }
+
   msg('');
   renderDecisions(j.decisions || []);
   renderSnapshot(j.snapshot);
