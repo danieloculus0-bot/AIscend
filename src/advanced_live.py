@@ -333,20 +333,20 @@ class AdvancedSpotEngine:
             f"{decision.rationale} | preview={str(preview)[:220]} | order={str(order)[:220]}",
         )
 
-        base, quote = self._split_product(product_id)
-        estimated_base = self.audit.provider_id(
-            preview,
-            "base_size",
-            "estimated_base_size",
-            "base_size_total",
-        )
-        unit_price = None
-        if estimated_base:
-            try:
-                unit_price = spend / Decimal(estimated_base)
-            except Exception:
-                unit_price = None
         try:
+            base, quote = self._split_product(product_id)
+            estimated_base = self.audit.provider_id(
+                preview,
+                "base_size",
+                "estimated_base_size",
+                "base_size_total",
+            )
+            unit_price = None
+            if estimated_base:
+                try:
+                    unit_price = spend / Decimal(estimated_base)
+                except Exception:
+                    unit_price = None
             self.audit.record_trade(
                 venue="coinbase",
                 rail="coinbase-advanced",
@@ -397,8 +397,8 @@ class AdvancedSpotEngine:
             f"{decision.rationale} | order={str(order)[:220]}",
         )
 
-        base, quote = self._split_product(product_id)
         try:
+            base, quote = self._split_product(product_id)
             self.audit.record_trade(
                 venue="coinbase",
                 rail="coinbase-advanced",
