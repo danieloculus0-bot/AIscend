@@ -10,6 +10,7 @@ from flask import Flask, jsonify, render_template, request
 
 from src.core import StateStore, app_data_dir
 from src.live import LiveEngine
+from src.venues import capability_snapshot
 from src.wallets.cdp_wallet import CdpWallet, CredentialVault
 
 
@@ -110,6 +111,11 @@ def index():
 @app.get("/api/credentials")
 def credentials():
     return jsonify({"configured": CredentialVault().configured()})
+
+
+@app.get("/api/capabilities")
+def capabilities():
+    return jsonify({"ok": True, **capability_snapshot()})
 
 
 @app.post("/api/configure")
