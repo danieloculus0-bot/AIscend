@@ -64,6 +64,16 @@ ERC20_ABI = [
         "outputs": [{"name": "", "type": "bool"}],
         "type": "function",
     },
+    {
+        "constant": False,
+        "inputs": [
+            {"name": "to", "type": "address"},
+            {"name": "amount", "type": "uint256"},
+        ],
+        "name": "transfer",
+        "outputs": [{"name": "", "type": "bool"}],
+        "type": "function",
+    },
 ]
 
 _CREDENTIAL_KEYS = (
@@ -361,6 +371,65 @@ class CdpWallet:
             if balance.symbol == symbol:
                 return balance.amount
         return Decimal("0")
+
+
+    async def send_usdc(self, to_address: str, amount: Decimal) -> str:
+        if amount <= 0:
+            raise ValueError("USDC amount must be positive.")
+        if not Web3.is_address(to_address):
+            raise ValueError("Destination is not a valid EVM address.")
+
+        self.vault.load_into_environment()
+        token_info = USDC[self.network]
+        atomic_amount = int(amount * (Decimal(10) ** token_info["decimals"]))
+        if atomic_amount <= 0:
+            raise ValueError("USDC amount is too small.")
+
+        async with CdpClient() as cdp:
+            account = await self._smart_account(cdp)
+            address = str(account.address)
+            balances = await self._list_balances(cdp, address)
+            available = self._balance_for(
+                balances,
+                "USDC",
+                token_info["address"],
+            )
+            if amount > available:
+                raise RuntimeError(
+                    f"Requested {amount} USDC but Base wallet has {available} USDC."
+                )
+
+            w3 = Web3(Web3.HTTPProvider(RPC_URLS[self.network]))
+            token = Web3.to_checksum_address(token_info["address"])
+            destination = Web3.to_checksum_address(to_address)
+            contract = w3.eth.contract(address=token, abi=ERC20_ABI)
+            data = contract.functions.transfer(
+                destination,
+                atomic_amount,
+            ).build_transaction({"from": Web3.to_checksum_address(address), "gas": 0})["data"]
+
+            result = await account.send_user_operation(
+                network=self.network,
+                calls=[
+                    EncodedCall(
+                        to=token,
+                        data=data,
+                        value=0,
+                    )
+                ],
+                paymaster_url=self.paymaster_url,
+            )
+            receipt = await account.wait_for_user_operation(
+                user_op_hash=result.user_op_hash,
+                timeout_seconds=120,
+            )
+            if str(getattr(receipt, "status", "")).lower() != "complete":
+                raise RuntimeError(
+                    "USDC transfer did not complete: "
+                    + str(getattr(receipt, "status", "unknown"))
+                )
+            return str(result.user_op_hash)
+
 
     async def swap_usdc_to_weth(self, fraction: float) -> SwapExecution:
         return await self._swap("USDC", "WETH", fraction)
