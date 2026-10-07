@@ -56,7 +56,7 @@
       <div class="panel">
         <h2>GAME SCORE</h2>
         <div id="points" class="score">0</div>
-        <div class="small">+1000 points per bankroll doubling · -10 points per elapsed day</div>
+        <div class="small">1 point per completed bankroll doubling · speed tracked separately</div>
         <div class="goal"><div id="goalbar"></div></div>
         <div id="goaltext" class="small">Forty Acres target: --</div>
         <div id="nextMilestone" class="small">Next milestone: --</div>
@@ -162,7 +162,7 @@ function renderSnapshot(s){
   $('wallet').textContent = 'Wallet: ' + (s.wallet_address || '--');
 
   const g=s.game || {};
-  $('points').textContent = Math.round(Number(g.points || 0)).toLocaleString();
+  $('points').textContent = Number(g.points || 0).toLocaleString();
   $('goalbar').style.width = Math.min(100, Number(g.target_progress || 0)*100) + '%';
   $('goaltext').textContent = 'Forty Acres: ' + money(g.target_value) + ' · ' + (Number(g.target_progress||0)*100).toFixed(4) + '%';
   $('nextMilestone').textContent = g.victory ? 'VICTORY: FORTY ACRES UNLOCKED' : 'Next milestone: ' + (g.next_milestone || '--');
