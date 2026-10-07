@@ -84,6 +84,15 @@ class FakeUniverse:
         }
 
 
+class FailingAudit:
+    @staticmethod
+    def provider_id(payload, *keys):
+        return ""
+
+    def record_trade(self, **kwargs):
+        raise OSError("disk full")
+
+
 class AdvancedLiveTests(unittest.TestCase):
     def test_engine_selects_best_tradable_coinbase_spot_candidate(self):
         with tempfile.TemporaryDirectory() as td:
@@ -108,6 +117,27 @@ class AdvancedLiveTests(unittest.TestCase):
             )
             self.assertIn('"event_type":"trade"', audit_text)
             self.assertIn('"rail":"coinbase-advanced"', audit_text)
+            store.close()
+
+    def test_audit_failure_does_not_replay_completed_order(self):
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "advanced.db")
+            rail = FakeRail()
+            engine = AdvancedSpotEngine(
+                store,
+                rail=rail,
+                asset_universe=FakeUniverse(),
+                audit=FailingAudit(),
+            )
+
+            engine.step()
+
+            self.assertEqual(len(rail.buys), 1)
+            decision = store.latest_decisions(1)[0]
+            self.assertEqual(decision["status"], "LIVE_EXECUTED")
+            ledger_kinds = [row["kind"] for row in store.latest_ledger(5)]
+            self.assertIn("ADVANCED_BUY", ledger_kinds)
+            self.assertIn("AUDIT_ERROR", ledger_kinds)
             store.close()
 
 
