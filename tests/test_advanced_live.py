@@ -63,7 +63,7 @@ class FakeListingSentinel:
 
 
 class FakeUniverse:
-    def collect(self):
+    def collect(self, priority_products=None):
         return {
             "available": True,
             "product_count": 2,
@@ -145,7 +145,7 @@ class AdvancedLiveTests(unittest.TestCase):
                 return {"success": True, "order_id": "meme-buy"}
 
         class EurUniverse:
-            def collect(self):
+            def collect(self, priority_products=None):
                 return {
                     "available": True,
                     "product_count": 1,
