@@ -178,6 +178,12 @@
         <button onclick="refreshBridge()">REFRESH BRIDGE</button>
         <div id="bridgeMessage" class="small"></div>
       </div>
+
+      <div class="panel" style="margin-top:14px">
+        <h2>REMOTE MONITOR</h2>
+        <div class="small">Read-only monitor at <b>/monitor</b>. The app already listens on all interfaces. Use the included Tailscale helper on the home PC for private remote viewing from work.</div>
+        <button onclick="window.open('/monitor','_blank')">OPEN MONITOR</button>
+      </div>
     </div>
 
     <div>
