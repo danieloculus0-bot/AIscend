@@ -596,7 +596,7 @@ function renderSnapshot(s){
     $('listingSentinel').textContent = 'Listing Sentinel: '+((sentinel.errors||[])[0] || 'unavailable');
   }
 
-  const top=(universe.top || []).slice(0,10);
+  const top=(universe.buy_top || universe.top || []).slice(0,10);
   $('universeTop').innerHTML = top.length
     ? top.map(a=>'<div style="padding:3px 0"><b>'+escapeHtml(a.product)+'</b> · score '+
         (Number(a.score||0)>=0?'+':'')+Number(a.score||0).toFixed(3)+
