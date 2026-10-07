@@ -34,6 +34,12 @@
     th { color:#9aa5b4; }
     .error { color:#ff9d9d; margin-top:8px; white-space:pre-wrap; }
     .success { color:#8ee2ad; margin-top:8px; }
+    .venue-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+    .venue-card { background:#10141a; border:1px solid #2a313b; border-radius:8px; padding:12px; }
+    .venue-title { font-weight:800; margin-bottom:4px; }
+    .venue-badge { display:inline-block; margin-top:8px; padding:4px 7px; border-radius:999px; font-size:11px; font-weight:800; letter-spacing:.04em; }
+    .venue-live { background:#173c2a; color:#8ee2ad; }
+    .venue-ready { background:#2a2f39; color:#b9c2cf; }
     .petbox {
       background:#0c110c;
       border:3px solid #39463b;
@@ -150,6 +156,13 @@
       </div>
 
       <div class="panel" style="margin-top:14px">
+        <h2>MARKET ARSENAL</h2>
+        <div class="small" style="margin-bottom:10px">All lanes are visible from first launch. Research can rank them even when execution is not connected yet.</div>
+        <div id="venueGrid" class="venue-grid"></div>
+        <div id="venueSummary" class="small">Loading venue capabilities...</div>
+      </div>
+
+      <div class="panel" style="margin-top:14px">
         <h2>POSITIONS</h2>
         <table>
           <thead><tr><th>Asset</th><th>Qty</th><th>Price</th><th>Value</th></tr></thead>
@@ -178,6 +191,26 @@ let previousPoints = null;
 
 function network(){ return $('network').value; }
 function msg(text, ok=false){ $('message').className = ok ? 'success' : 'error'; $('message').textContent = text || ''; }
+
+function renderCapabilities(data){
+  const grid=$('venueGrid');
+  grid.innerHTML='';
+  for(const v of (data.venues || [])){
+    const badge=v.execution_ready ? 'LIVE EXECUTION' : (v.research_ready ? 'RESEARCH READY' : 'LOCKED');
+    const cls=v.execution_ready ? 'venue-live' : 'venue-ready';
+    grid.insertAdjacentHTML('beforeend',
+      '<div class="venue-card">'+
+      '<div class="venue-title">'+escapeHtml(v.name)+'</div>'+
+      '<div class="small">'+escapeHtml(v.asset_class)+'</div>'+
+      '<div class="small">'+escapeHtml(v.account_requirement)+'</div>'+
+      '<span class="venue-badge '+cls+'">'+badge+'</span>'+
+      '<div class="small">'+escapeHtml(v.execution_note)+'</div>'+
+      '</div>');
+  }
+  $('venueSummary').textContent =
+    (data.research_ready || 0)+' research lanes ready · '+
+    (data.execution_ready || 0)+' autonomous execution lane live';
+}
 
 async function configure(){
   const file = $('keyfile').files[0];
@@ -395,6 +428,7 @@ setInterval(()=>{
 
 setInterval(()=>{ if($('runnerPill').textContent.startsWith('RUNNING')) refreshStatus(); },5000);
 fetch('/api/credentials').then(r=>r.json()).then(j=>{ if(j.configured) msg('CDP credentials detected.', true); });
+fetch('/api/capabilities').then(r=>r.json()).then(renderCapabilities).catch(()=>{ $('venueSummary').textContent='Venue capabilities unavailable.'; });
 drawPet();
 refreshStatus();
 </script>
