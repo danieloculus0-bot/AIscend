@@ -100,7 +100,7 @@ class FakeClient:
             }
         )
 
-    def get_product(self, product_id):
+    def get_product(self, product_id, **kwargs):
         return FakeResponse(
             {
                 "product_id": product_id.upper(),
