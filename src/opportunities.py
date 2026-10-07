@@ -6,6 +6,7 @@ import urllib.request
 from dataclasses import asdict, dataclass
 from typing import Any
 
+from .asset_universe import CoinbaseAssetUniverse
 from .research import MarketResearch
 from .venues import capability_snapshot
 
@@ -56,6 +57,36 @@ class OpportunityUniverse:
             )
         else:
             errors.extend(crypto.errors)
+
+        try:
+            universe = CoinbaseAssetUniverse(timeout=self.timeout).collect()
+            errors.extend(universe.get("errors") or [])
+            for item in (universe.get("top") or [])[:12]:
+                product = str(item.get("product") or "")
+                opportunities.append(
+                    Opportunity(
+                        venue="crypto",
+                        instrument=product,
+                        title=f"Coinbase market {product}",
+                        score=float(item.get("score") or 0.0),
+                        confidence=min(0.95, 0.35 + abs(float(item.get("score") or 0.0)) * 0.6),
+                        execution_ready=(product == "ETH-USD"),
+                        details={
+                            "price": float(item.get("price") or 0.0),
+                            "return_5m": float(item.get("return_5m") or 0.0),
+                            "return_1h": float(item.get("return_1h") or 0.0),
+                            "return_6h": float(item.get("return_6h") or 0.0),
+                            "volume_ratio": float(item.get("volume_ratio") or 0.0),
+                            "spread_bps": float(item.get("spread_bps") or 0.0),
+                            "note": (
+                                "Research candidate. Live Base execution is currently "
+                                "wired only for USDC/WETH."
+                            ),
+                        },
+                    )
+                )
+        except Exception as exc:
+            errors.append(f"coinbase_universe: {exc}")
 
         try:
             opportunities.extend(self._prediction_markets())
