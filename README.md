@@ -536,3 +536,30 @@ Version 0.15 adds direct USDC plumbing between the Base smart wallet and the Coi
 The Flask app already binds to `0.0.0.0:8000`. Version 0.15 adds a read-only `/monitor` page that auto-refreshes bankroll, current rail, research, BEAN, Coinbase candidates, positions, and the decision journal without exposing trade controls.
 
 For a private home-PC to work-PC link, the included Windows helper `scripts/start_remote_monitor.ps1` detects a Tailscale IPv4 address and prints the monitor URL. Both PCs need to be on the same Tailnet. Optional `AISCEND_REMOTE_TOKEN` protects the monitor route with a query/header token when desired.
+
+
+## Universal Coinbase spot scan + Listing Sentinel
+
+AIscend no longer limits Advanced research to USD/USDC products. The public
+Coinbase spot universe is scanned across every quote currency returned by the
+exchange, including small-cap and newly-added tokens. There is no reputation or
+market-cap allowlist; execution eligibility comes from the connected Coinbase
+Advanced account plus market/liquidity checks.
+
+The Listing Sentinel polls public Coinbase product metadata on roughly a
+one-minute cadence and persists a baseline in the Advanced state database. It
+records newly-visible product IDs and public trading-state changes such as
+auction, limit-only, trading-disabled and full-trading transitions. This is
+public-data monitoring only.
+
+Fresh products are researchable immediately. The asset scanner no longer waits
+for six hours of 5-minute candles before admitting a product. New/unseen
+products receive scan priority, and a recent public full-trading/listing event
+can temporarily boost the Advanced opportunity score while normal spread and
+volume gates still apply.
+
+The Advanced Decision Journal now records every cycle outcome, including
+exchange/API execution failures. The browser journal combines Base and Advanced
+decision histories and labels each row by rail. A running rail can no longer be
+silently replaced by starting another rail; stop the active runner before
+switching.
