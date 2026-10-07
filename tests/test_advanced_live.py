@@ -503,6 +503,22 @@ class AdvancedLiveTests(unittest.TestCase):
             self.assertIn("Human Weather", snap["research"]["thesis"])
             store.close()
 
+    def test_coinbase_order_size_is_floored_to_product_increment(self):
+        self.assertEqual(
+            AdvancedTradeSpot._floor_to_increment(
+                Decimal("9.123456789"),
+                Decimal("0.01"),
+            ),
+            Decimal("9.12"),
+        )
+        self.assertEqual(
+            AdvancedTradeSpot._floor_to_increment(
+                Decimal("1.23456789"),
+                Decimal("0.0001"),
+            ),
+            Decimal("1.2345"),
+        )
+
     def test_coinbase_rejection_response_raises_instead_of_faking_execution(self):
         with self.assertRaisesRegex(RuntimeError, "Coinbase rejected market buy DIA-USDC"):
             AdvancedTradeSpot._require_order_success(
