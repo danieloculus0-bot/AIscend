@@ -190,3 +190,18 @@ The first horizons are 5 minutes, 1 hour, and 6 hours for ETH, plus 1-hour predi
 The public research adapter discovers active USD/USDC Coinbase products and rotates through a bounded batch each trading cadence. Results are cached so browser refreshes do not create new market scans. BEAN records high-signal universe observations and eventually grades their predictions when the relevant asset is observed again.
 
 Execution remains a separate capability. Research breadth does not imply the Base smart wallet can execute every Coinbase product.
+
+
+## Dual live execution rails
+
+Version 0.13 introduces a second live spot rail:
+
+```text
+research + BEAN
+      |
+      +--> Base smart wallet: USDC/WETH onchain
+      |
+      +--> Coinbase Advanced: account-eligible USD/USDC spot products
+```
+
+The rails keep independent state databases and credentials. The Advanced rail is intended for a dedicated Coinbase Advanced portfolio/API key so autonomous trading remains isolated from unrelated holdings. Market-lane enablement is broader than execution readiness: predictions, stocks/ETFs, futures, perpetuals, and options are enabled as strategy lanes even when their authenticated execution connectors are not yet wired.

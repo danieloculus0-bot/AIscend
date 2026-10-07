@@ -204,6 +204,17 @@ class BeanMemory:
         confidence = float(research.get("confidence", 0.0))
         price = float(eth.get("price") or 0.0)
 
+        news_signal = float(human.get("news_sentiment", 0.0))
+        social_signal = float(human.get("social_sentiment", 0.0))
+        politics_signal = float(human.get("politics_sentiment", 0.0))
+        crowd_signal = float(research.get("crowd_edge", 0.0))
+        fear_greed_signal = 0.0
+        if human.get("fear_greed_value") is not None:
+            fear_greed_signal = max(
+                -1.0,
+                min(1.0, (float(human.get("fear_greed_value", 50.0)) - 50.0) / 50.0),
+            )
+
         self.add_claim(
             BeanClaim(
                 "OBSERVATION",
@@ -273,6 +284,11 @@ class BeanMemory:
                         source_mix={
                             "technical": technical,
                             "human": human_score,
+                            "news": news_signal,
+                            "social": social_signal,
+                            "politics": politics_signal,
+                            "crowd": crowd_signal,
+                            "fear_greed": fear_greed_signal,
                             "composite": composite,
                         },
                     )

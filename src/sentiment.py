@@ -54,6 +54,12 @@ class HumanSignals:
     weirdness: float
     news_attention: float
     social_attention: float
+    news_coverage: float
+    social_coverage: float
+    politics_coverage: float
+    social_source_diversity: float
+    social_confidence: float
+    human_signal_quality: float
     raw_fomo_index: float
     fomo_index: float
     crowd_regime: str
@@ -194,9 +200,46 @@ class HumanSignalResearch:
             str(p.get("title") or "") for p in social_posts if p.get("title")
         ]
 
-        news_sentiment = self._sentiment(news_titles)
-        social_sentiment = self._sentiment(social_titles)
-        politics_sentiment = self._sentiment(politics_titles)
+        news_sentiment, news_matched, news_coverage = self._sentiment_stats(news_titles)
+        social_sentiment, social_matched, social_coverage = self._sentiment_stats(social_titles)
+        politics_sentiment, politics_matched, politics_coverage = self._sentiment_stats(politics_titles)
+
+        social_sources = {
+            str(post.get("source") or "unknown").strip().lower()
+            for post in social_posts
+            if post.get("title")
+        }
+        social_source_diversity = min(1.0, len(social_sources) / 3.0)
+        social_sample_factor = min(1.0, len(social_titles) / 40.0)
+        social_confidence = max(
+            0.0,
+            min(
+                1.0,
+                0.45 * social_coverage
+                + 0.35 * social_sample_factor
+                + 0.20 * social_source_diversity,
+            ),
+        )
+        news_quality = min(
+            1.0,
+            0.55 * news_coverage + 0.45 * min(1.0, len(news_titles) / 40.0),
+        )
+        politics_quality = min(
+            1.0,
+            0.55 * politics_coverage + 0.45 * min(1.0, len(politics_titles) / 25.0),
+        )
+        fear_greed_quality = 1.0 if fng_value is not None else 0.0
+        human_signal_quality = max(
+            0.0,
+            min(
+                1.0,
+                0.30 * news_quality
+                + 0.30 * social_confidence
+                + 0.20 * politics_quality
+                + 0.20 * fear_greed_quality,
+            ),
+        )
+
         politics_risk = self._keyword_density(
             politics_titles, PANIC_WORDS | NEGATIVE_WORDS
         )
@@ -251,6 +294,12 @@ class HumanSignalResearch:
             weirdness=weirdness,
             news_attention=news_attention,
             social_attention=social_attention,
+            news_coverage=news_coverage,
+            social_coverage=social_coverage,
+            politics_coverage=politics_coverage,
+            social_source_diversity=social_source_diversity,
+            social_confidence=social_confidence,
+            human_signal_quality=human_signal_quality,
             raw_fomo_index=raw_fomo,
             fomo_index=raw_fomo,
             crowd_regime=self._crowd_regime(raw_fomo),
@@ -419,9 +468,16 @@ class HumanSignalResearch:
             return 0.0
 
     @classmethod
-    def _sentiment(cls, texts: list[str]) -> float:
+    def _sentiment_stats(cls, texts: list[str]) -> tuple[float, int, float]:
+        """
+        Return raw matched sentiment plus how much of the sample actually spoke.
+
+        A score of +1 or -1 stays visible as the raw observation. Coverage tells
+        BEAN/research whether that extreme came from one loud matched headline or
+        broad agreement across the sample.
+        """
         if not texts:
-            return 0.0
+            return 0.0, 0, 0.0
         scores: list[float] = []
         for text in texts:
             lower = text.lower()
@@ -430,8 +486,14 @@ class HumanSignalResearch:
             if pos or neg:
                 scores.append((pos - neg) / max(1, pos + neg))
         if not scores:
-            return 0.0
-        return max(-1.0, min(1.0, sum(scores) / len(scores)))
+            return 0.0, 0, 0.0
+        score = max(-1.0, min(1.0, sum(scores) / len(scores)))
+        coverage = max(0.0, min(1.0, len(scores) / max(1, len(texts))))
+        return score, len(scores), coverage
+
+    @classmethod
+    def _sentiment(cls, texts: list[str]) -> float:
+        return cls._sentiment_stats(texts)[0]
 
     @staticmethod
     def _keyword_density(texts: list[str], lexicon: set[str]) -> float:
