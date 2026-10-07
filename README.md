@@ -10,7 +10,7 @@ The live experiment is intended to start with a tiny bankroll, currently around 
 
 ## Project status
 
-**Version:** 0.14.0  
+**Version:** 0.15.0  
 **Platform:** Windows x64 + browser via GitHub Codespaces  
 **State:** Synthetic desktop sandbox + Coinbase live desktop mode  
 **Live-money execution:** CDP smart-account swaps on Base are implemented
@@ -517,3 +517,15 @@ Version 0.13 also adds an optional Coinbase Advanced execution rail. It is separ
 ## AIS-0 Tamagotchi behavior
 
 Version 0.14 keeps the original intentionally terrible pixel creature and gives it dead-simple emotional behavior. It still bobs and blinks, but now reacts to buys, sells, wins, losses, thinking, errors, and bearish market states. If the live research brain is bearish while the runner is active, AIS-0 may perform a tiny tactical shit and complain about the market. Mood text rotates through short, mildly profane quips without changing trading logic.
+
+
+## Wallet bridge
+
+Version 0.15 adds direct USDC plumbing between the Base smart wallet and the Coinbase Advanced account.
+
+- Base to Advanced asks Coinbase for a Base USDC receive address and sends USDC from the CDP smart account.
+- Advanced to Base sends USDC from the Coinbase App account to the existing Base smart-account address.
+- The bridge panel shows both balances plus API permission state.
+- Coinbase transfer/receive permissions are checked separately from trade permission.
+- Decision Journal is now fixed-height and scrollable.
+- Human Weather, BEAN Memory, Coinbase Asset Universe, and Market Arsenal are collapsible to keep the dashboard compact.
