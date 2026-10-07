@@ -94,6 +94,10 @@
 </div>
 <script>
 const token={{ token|tojson }};
+if(token && window.history && window.location.search){
+  window.history.replaceState({}, document.title, window.location.pathname);
+}
+const authHeaders=token ? {'X-AIscend-Token': token} : {};
 const $=id=>document.getElementById(id);
 const money=n=>'$'+Number(n??0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:6});
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
@@ -103,7 +107,7 @@ async function loadCandles(product){
   activeCandleProduct=product;
   $('candleTitle').textContent='Market preview · '+product;
   try{
-    const r=await fetch('/api/candles?product='+encodeURIComponent(product));
+    const r=await fetch('/api/candles?product='+encodeURIComponent(product), {headers:authHeaders});
     const j=await r.json();
     if(!j.ok) throw new Error(j.error||'unavailable');
     drawCandles(j.candles||[]);
@@ -134,8 +138,7 @@ function drawCandles(rows){
 
 async function refresh(){
   try{
-    const qs=token ? ('?token='+encodeURIComponent(token)) : '';
-    const r=await fetch('/api/monitor/status'+qs);
+    const r=await fetch('/api/monitor/status', {headers:authHeaders});
     const j=await r.json();
     if(!j.ok){ $('error').textContent=j.error||'Monitor unavailable.'; return; }
     $('error').textContent='';
