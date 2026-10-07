@@ -141,3 +141,27 @@ venue-specific executor
 ```
 
 The four first-launch lanes are Crypto, Predictions, Stocks & ETFs, and Options. Research readiness and execution readiness are tracked separately per lane. Crypto currently has a live execution adapter. Prediction-market discovery uses public Kalshi market data. Stocks/ETFs and options remain visible and research-ready while their autonomous execution adapters are intentionally unconnected.
+
+
+## Human Weather research layer
+
+Version 0.10 adds a human-behavior signal plane.
+
+```text
+Coinbase price / volume / spread
+        |
+        +--------------------+
+                             |
+GDELT news + politics ------>|
+Reddit social attention ---->| Human Weather fusion
+Fear & Greed --------------->|
+weird-event pressure -------->|
+                             |
+                    context-aware FOMO
+                             |
+                    composite research score
+                             |
+                       ResearchDecider
+```
+
+The final direction is a weighted blend of technical and human scores. Event intensity dynamically increases the human-information weight. Crowd heat is interpreted by regime rather than as a one-way signal: momentum-confirmed FOMO can be continuation fuel, euphoric reversal can indicate exhaustion, and extreme fear plus positive reversal can create a contrarian edge. External human feeds are fetched in parallel and cached to keep live cycles responsive.
