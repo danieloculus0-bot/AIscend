@@ -12,6 +12,7 @@ from typing import Any
 from .asset_universe import CoinbaseAssetUniverse
 from .research import MarketResearch
 from .venues import capability_snapshot
+from .wallets.advanced_trade import AdvancedTradeSpot, AdvancedTradeVault
 
 
 KALSHI_PUBLIC = "https://external-api.kalshi.com/trade-api/v2"
@@ -92,6 +93,13 @@ class OpportunityUniverse:
             errors.extend(crypto.errors)
 
         try:
+            tradable_products: set[str] = set()
+            if AdvancedTradeVault().configured():
+                try:
+                    tradable_products = set(AdvancedTradeSpot().status().product_ids)
+                except Exception as exc:
+                    errors.append(f"advanced_account_status: {exc}")
+
             universe = CoinbaseAssetUniverse(timeout=self.timeout).collect()
             errors.extend(universe.get("errors") or [])
             for item in (universe.get("top") or [])[:40]:
@@ -105,7 +113,7 @@ class OpportunityUniverse:
                         title=f"Coinbase spot {product}",
                         score=edge,
                         confidence=confidence,
-                        execution_ready=True,
+                        execution_ready=(product.upper() in tradable_products),
                         details={
                             "price": float(item.get("price") or 0.0),
                             "return_5m": float(item.get("return_5m") or 0.0),
@@ -113,9 +121,11 @@ class OpportunityUniverse:
                             "return_6h": float(item.get("return_6h") or 0.0),
                             "volume_ratio": float(item.get("volume_ratio") or 0.0),
                             "spread_bps": float(item.get("spread_bps") or 0.0),
+                            "account_tradable": product.upper() in tradable_products,
                             "note": (
-                                "Coinbase-wide research candidate. Execution depends "
-                                "on the funded linked rail and account tradability."
+                                "Coinbase-wide research candidate. LIVE means the "
+                                "connected Advanced account currently exposes this "
+                                "product; otherwise it remains research-only."
                             ),
                         },
                         priority=self._edge_priority(edge, confidence),
