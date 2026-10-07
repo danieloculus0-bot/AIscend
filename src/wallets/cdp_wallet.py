@@ -281,18 +281,61 @@ class CdpWallet:
             usdc = self._balance_for(balances, "USDC", USDC[self.network]["address"])
             weth = self._balance_for(balances, "WETH", WETH[self.network]["address"])
 
-            price = await cdp.evm.get_swap_price(
-                from_token=WETH[self.network]["address"],
-                to_token=USDC[self.network]["address"],
-                from_amount=str(10 ** WETH[self.network]["decimals"]),
-                network=self.network,
-                taker=address,
-            )
-            if not getattr(price, "liquidity_available", False):
-                raise RuntimeError("No WETH/USDC swap liquidity is currently available.")
+            # Coinbase validates the taker's source-token balance for pricing.
+            # Quote in the direction this wallet can actually fund. An empty wallet
+            # should still connect and show its address without a false liquidity error.
+            weth_price_usdc = Decimal("0")
 
-            raw_to = Decimal(str(price.to_amount))
-            weth_price_usdc = raw_to / (Decimal(10) ** USDC[self.network]["decimals"])
+            if weth > 0:
+                atomic_available = int(
+                    weth * (Decimal(10) ** WETH[self.network]["decimals"])
+                )
+                atomic_amount = min(
+                    atomic_available,
+                    10 ** WETH[self.network]["decimals"],
+                )
+                price = await cdp.evm.get_swap_price(
+                    from_token=WETH[self.network]["address"],
+                    to_token=USDC[self.network]["address"],
+                    from_amount=str(atomic_amount),
+                    network=self.network,
+                    taker=address,
+                )
+                if getattr(price, "liquidity_available", False):
+                    usdc_out = Decimal(str(price.to_amount)) / (
+                        Decimal(10) ** USDC[self.network]["decimals"]
+                    )
+                    weth_in = Decimal(atomic_amount) / (
+                        Decimal(10) ** WETH[self.network]["decimals"]
+                    )
+                    if weth_in > 0:
+                        weth_price_usdc = usdc_out / weth_in
+
+            elif usdc > 0:
+                atomic_available = int(
+                    usdc * (Decimal(10) ** USDC[self.network]["decimals"])
+                )
+                atomic_amount = min(
+                    atomic_available,
+                    10 ** USDC[self.network]["decimals"],
+                )
+                price = await cdp.evm.get_swap_price(
+                    from_token=USDC[self.network]["address"],
+                    to_token=WETH[self.network]["address"],
+                    from_amount=str(atomic_amount),
+                    network=self.network,
+                    taker=address,
+                )
+                if getattr(price, "liquidity_available", False):
+                    weth_out = Decimal(str(price.to_amount)) / (
+                        Decimal(10) ** WETH[self.network]["decimals"]
+                    )
+                    usdc_in = Decimal(atomic_amount) / (
+                        Decimal(10) ** USDC[self.network]["decimals"]
+                    )
+                    if weth_out > 0:
+                        weth_price_usdc = usdc_in / weth_out
+
             net = usdc + (weth * weth_price_usdc)
 
             return TradingSnapshot(
