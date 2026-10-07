@@ -7,7 +7,7 @@ class FakeUniverse(CoinbaseAssetUniverse):
     def __init__(self):
         super().__init__(
             timeout=0.1,
-            batch_size=2,
+            batch_size=3,
             product_refresh_seconds=900,
             asset_cache_seconds=600,
             scan_interval_seconds=55,
@@ -42,18 +42,38 @@ class AssetUniverseTests(unittest.TestCase):
         FakeUniverse._last_result=None
         FakeUniverse._next_scan_at=0.0
 
-    def test_discovers_and_scores_usd_usdc_products(self):
+    def test_discovers_and_scores_every_quote_currency(self):
         data=FakeUniverse().collect()
         self.assertTrue(data["available"])
-        self.assertEqual(data["product_count"],2)
+        self.assertEqual(data["product_count"],3)
         products={row["product"] for row in data["top"]}
-        self.assertEqual(products,{"AAA-USD","BBB-USDC"})
+        self.assertEqual(products,{"AAA-USD","BBB-USDC","CCC-EUR"})
 
     def test_scan_result_is_cached_between_ui_refreshes(self):
         universe=FakeUniverse()
         first=universe.collect()
         second=universe.collect()
         self.assertEqual(first,second)
+
+    def test_fresh_listing_does_not_need_six_hours_of_candles(self):
+        universe=FakeUniverse()
+
+        def fresh_get(path):
+            if "candles" in path:
+                return [[1, 0.9, 1.1, 1.0, 1.0, 4.0]]
+            if "ticker" in path:
+                return {"price":"1.0"}
+            if "book" in path:
+                return {"bids":[["0.99","1",1]],"asks":[["1.01","1",1]]}
+            raise AssertionError(path)
+
+        universe._get_json=fresh_get
+        asset=universe._scan_product(
+            {"id":"SHIT-EUR","base_currency":"SHIT","quote_currency":"EUR"}
+        )
+        self.assertIsNotNone(asset)
+        self.assertEqual(asset.product,"SHIT-EUR")
+        self.assertEqual(asset.return_6h,0.0)
 
 
 if __name__ == "__main__":
