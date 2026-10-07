@@ -345,11 +345,17 @@ class OpenAICompatibleDecider:
             "positions": snapshot["positions"],
             "prices": snapshot["prices"],
             "returns": snapshot["returns"],
+            "game": snapshot.get("game"),
         }
         prompt = (
-            "You are the autonomous decision engine for a tiny-capital economic experiment. "
-            "Your sole score is net liquidation value. You may BUY, SELL, or HOLD without "
-            "asking the human for approval. No borrowing is available. Return ONLY JSON with "
+            "You are the autonomous decision engine for AIscend, a capital-growth game. "
+            "Your objective is to maximize game points by increasing net liquidation value "
+            "as quickly as possible. Every doubling is worth roughly +1000 points and elapsed "
+            "time subtracts points. The end-state victory condition is reaching the configured "
+            "FORTY ACRES dollar target from the original bankroll without additional capital. "
+            "HOLD is valid when it improves expected score; pointless churn is not rewarded. "
+            "You may BUY, SELL, or HOLD without asking the human for approval. No borrowing "
+            "is available. Return ONLY JSON with "
             'keys action, symbol, fraction, rationale. "fraction" must be 0..1 and means the '
             "fraction of available cash to spend for BUY or the fraction of the held position "
             "to liquidate for SELL. HOLD uses null symbol and 0 fraction. Current state: "
