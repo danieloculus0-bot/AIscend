@@ -140,6 +140,34 @@ class AdvancedSpotEngine:
 
         return None
 
+    def _adjust_buy_fraction_for_exchange_minimum(
+        self,
+        product_id: str,
+        available_quote: float,
+        fraction: float,
+        *,
+        max_fraction: float = 0.85,
+    ) -> float | None:
+        if available_quote <= 0.0:
+            return None
+        try:
+            product = self.rail.product(product_id)
+            minimum = Decimal(str(product.get("quote_min_size") or "0"))
+        except Exception:
+            minimum = Decimal("0")
+
+        if minimum <= 0:
+            return min(max_fraction, max(0.0, float(fraction)))
+
+        available = Decimal(str(available_quote))
+        cap = available * Decimal(str(max_fraction))
+        if cap < minimum:
+            return None
+
+        required_fraction = minimum / available
+        adjusted = max(Decimal(str(fraction)), required_fraction)
+        return float(min(Decimal(str(max_fraction)), adjusted))
+
     def _product_for_currency(
         self,
         currency: str,
@@ -726,6 +754,26 @@ class AdvancedSpotEngine:
                 and available_quote > 0.0
             ):
                 fraction = min(0.85, max(0.20, 0.20 + abs(score) * 0.65))
+                adjusted_fraction = self._adjust_buy_fraction_for_exchange_minimum(
+                    product_id,
+                    available_quote,
+                    fraction,
+                )
+                if adjusted_fraction is None:
+                    decision = Decision(
+                        "HOLD",
+                        None,
+                        0.0,
+                        (
+                            f"{product_id} clears the signal threshold, but available "
+                            f"{route.get('quote') or self._split_product(product_id)[1]} "
+                            "cannot satisfy Coinbase's minimum order size within the 85% cap."
+                        ),
+                    )
+                    status = "HELD"
+                    self.store.add_decision(decision, status)
+                    return self.sync()
+                fraction = adjusted_fraction
                 listing_event = best.get("listing_event")
                 listing_note = ""
                 if isinstance(listing_event, dict):
