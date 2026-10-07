@@ -12,6 +12,7 @@ from typing import Any
 from flask import Flask, jsonify, render_template, request
 
 from src.advanced_live import AdvancedSpotEngine
+from src.audit import AuditTrail
 from src.core import StateStore, app_data_dir
 from src.live import LiveEngine
 from src.opportunities import OpportunityUniverse
@@ -283,6 +284,24 @@ def bridge_base_to_advanced():
         tx_hash = asyncio.run(
             CdpWallet(network="base").send_usdc(destination, amount)
         )
+        audit_warning = None
+        try:
+            AuditTrail().record_transfer(
+                venue="coinbase",
+                rail="wallet-bridge",
+                network="base",
+                asset="USDC",
+                quantity=amount,
+                direction="BASE_TO_ADVANCED",
+                from_location="base-smart-wallet",
+                to_location="coinbase-advanced",
+                transaction_id=tx_hash,
+                status="complete",
+                source="bridge_api",
+                raw_provider_response={"user_op_hash": tx_hash},
+            )
+        except Exception as exc:
+            audit_warning = str(exc)
         return jsonify(
             {
                 "ok": True,
@@ -290,6 +309,7 @@ def bridge_base_to_advanced():
                 "amount": str(amount),
                 "destination": destination,
                 "transaction": tx_hash,
+                "audit_warning": audit_warning,
             }
         )
     except Exception as exc:
@@ -311,6 +331,30 @@ def bridge_advanced_to_base():
             network="base",
             idem=f"aiscend-bridge-{uuid.uuid4()}",
         )
+        audit_warning = None
+        try:
+            audit = AuditTrail()
+            audit.record_transfer(
+                venue="coinbase",
+                rail="wallet-bridge",
+                network="base",
+                asset="USDC",
+                quantity=amount,
+                direction="ADVANCED_TO_BASE",
+                from_location="coinbase-advanced",
+                to_location=base_address,
+                transaction_id=audit.provider_id(
+                    result,
+                    "transaction_id",
+                    "transactionId",
+                    "id",
+                ),
+                status="provider_response",
+                source="bridge_api",
+                raw_provider_response=result,
+            )
+        except Exception as exc:
+            audit_warning = str(exc)
         return jsonify(
             {
                 "ok": True,
@@ -318,6 +362,7 @@ def bridge_advanced_to_base():
                 "amount": str(amount),
                 "destination": base_address,
                 "transaction": result,
+                "audit_warning": audit_warning,
             }
         )
     except Exception as exc:
