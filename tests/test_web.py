@@ -43,6 +43,22 @@ class WebAppTests(unittest.TestCase):
             self.assertEqual(allowed.status_code, 200)
             self.assertIn(b"Read-only", allowed.data)
 
+    def test_remote_monitor_cookie_keeps_refresh_authenticated(self):
+        client = app.test_client()
+        with patch.dict(os.environ, {"AISCEND_REMOTE_TOKEN": "test-remote-token"}):
+            first = client.get(
+                "/monitor?token=test-remote-token",
+                environ_base={"REMOTE_ADDR": "192.168.1.50"},
+            )
+            self.assertEqual(first.status_code, 200)
+            self.assertIn("aiscend_monitor=", first.headers.get("Set-Cookie", ""))
+
+            refresh = client.get(
+                "/monitor",
+                environ_base={"REMOTE_ADDR": "192.168.1.50"},
+            )
+            self.assertEqual(refresh.status_code, 200)
+
     def test_remote_client_cannot_reach_trade_control_routes(self):
         client = app.test_client()
         with patch.dict(os.environ, {"AISCEND_REMOTE_TOKEN": "test-remote-token"}):
