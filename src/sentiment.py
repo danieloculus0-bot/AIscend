@@ -39,6 +39,15 @@ PANIC_WORDS = {
     "recession", "rout", "selloff", "war",
 }
 
+WEIRD_WORDS = {
+    "anomaly", "blackout", "bank run", "bridge collapse", "cyber attack",
+    "cyberattack", "derailment", "earthquake", "eruption", "evacuation",
+    "explosion", "flash crash", "flood", "grid failure", "hack", "hurricane",
+    "internet outage", "market halt", "meteor", "outage", "power failure",
+    "shutdown", "sinkhole", "solar flare", "state of emergency", "storm",
+    "supply disruption", "tornado", "tsunami", "volcano", "wildfire",
+}
+
 
 @dataclass(frozen=True)
 class HumanSignals:
@@ -243,9 +252,22 @@ class HumanSignalResearch:
         politics_risk = self._keyword_density(
             politics_titles, PANIC_WORDS | NEGATIVE_WORDS
         )
-        weirdness = self._keyword_density(
+        weird_keyword_density = self._keyword_density(
             weird_titles,
-            PANIC_WORDS | {"outage", "earthquake", "explosion", "coup"},
+            PANIC_WORDS | WEIRD_WORDS | {"coup"},
+        )
+        # The weird-news feed is already a targeted anomaly query, so a healthy
+        # stream of matching headlines is itself useful evidence even when the
+        # title wording misses our exact lexicon. Blend anomaly density with feed
+        # activity instead of letting Weirdness sit at a false 0.00.
+        weird_feed_activity = min(1.0, len(weird_titles) / 20.0)
+        weirdness = max(
+            0.0,
+            min(
+                1.0,
+                0.75 * weird_keyword_density
+                + 0.25 * weird_feed_activity,
+            ),
         )
         news_attention = min(1.0, len(news_titles) / 45.0)
         social_attention = self._social_attention(social_posts)
