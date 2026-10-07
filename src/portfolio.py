@@ -139,7 +139,9 @@ def combine_portfolio(
     if active_rail == "advanced":
         advanced_human = research.get("human") or {}
         base_human = ((base.get("research") or {}).get("human") or {})
-        if not advanced_human and base_human:
+        advanced_available = bool(advanced_human.get("available"))
+        base_available = bool(base_human.get("available"))
+        if not advanced_available and base_available:
             research["human"] = base_human
             research["global_context_score"] = float(
                 (base.get("research") or {}).get("composite_score") or 0.0
