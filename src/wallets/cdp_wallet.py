@@ -117,7 +117,13 @@ class CredentialVault:
     def configured(self) -> bool:
         if all(os.getenv(key, "").strip() for key in _CREDENTIAL_KEYS):
             return True
-        return all(self.backend.get_password(SERVICE_NAME, key) for key in _CREDENTIAL_KEYS)
+        try:
+            return all(
+                self.backend.get_password(SERVICE_NAME, key)
+                for key in _CREDENTIAL_KEYS
+            )
+        except Exception:
+            return False
 
     def save(self, api_key_id: str, api_key_secret: str, wallet_secret: str) -> None:
         values = {
@@ -146,7 +152,10 @@ class CredentialVault:
             if existing:
                 continue
 
-            value = self.backend.get_password(SERVICE_NAME, key)
+            try:
+                value = self.backend.get_password(SERVICE_NAME, key)
+            except Exception:
+                value = None
             if not value:
                 missing.append(key)
                 continue
