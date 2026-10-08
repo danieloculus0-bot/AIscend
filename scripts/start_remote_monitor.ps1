@@ -43,4 +43,10 @@ Write-Host "Trading, bridge, credential, start/stop, and full-dashboard routes a
 Write-Host "For access away from home, use a private Tailnet or an HTTPS tunnel in front of /monitor."
 Write-Host ""
 
-python web_app.py
+$repoRoot = Split-Path -Parent $PSScriptRoot
+$venvPython = Join-Path $repoRoot ".venv\Scripts\python.exe"
+if (Test-Path $venvPython) {
+    & $venvPython (Join-Path $repoRoot "web_app.py")
+} else {
+    python (Join-Path $repoRoot "web_app.py")
+}
