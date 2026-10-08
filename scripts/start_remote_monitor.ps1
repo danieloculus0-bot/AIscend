@@ -4,7 +4,7 @@ if (-not $env:AISCEND_REMOTE_TOKEN) {
     $bytes = New-Object byte[] 24
     $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
     try { $rng.GetBytes($bytes) } finally { $rng.Dispose() }
-    $env:AISCEND_REMOTE_TOKEN = [Convert]::ToHexString($bytes).ToLowerInvariant()
+    $env:AISCEND_REMOTE_TOKEN = ([BitConverter]::ToString($bytes) -replace '-', '').ToLowerInvariant()
 }
 
 $tailscaleIp = $null
