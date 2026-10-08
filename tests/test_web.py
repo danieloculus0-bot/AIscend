@@ -94,6 +94,52 @@ class WebAppTests(unittest.TestCase):
             )
         self.assertEqual(response.status_code, 401)
 
+    def test_candle_endpoint_uses_advanced_trade_candles(self):
+        class FakeResponse:
+            def to_dict(self):
+                return {
+                    "candles": [
+                        {
+                            "start": "200",
+                            "low": "1.00",
+                            "high": "1.20",
+                            "open": "1.05",
+                            "close": "1.15",
+                            "volume": "10",
+                        },
+                        {
+                            "start": "100",
+                            "low": "0.90",
+                            "high": "1.10",
+                            "open": "1.00",
+                            "close": "1.05",
+                            "volume": "8",
+                        },
+                    ]
+                }
+
+        class FakeClient:
+            def get_candles(self, **kwargs):
+                self.kwargs = kwargs
+                return FakeResponse()
+
+        fake_client = FakeClient()
+
+        class FakeVault:
+            def client(self):
+                return fake_client
+
+        client = app.test_client()
+        with patch("web_app.AdvancedTradeVault", return_value=FakeVault()):
+            response = client.get("/api/candles?product=BTC-USD")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["product"], "BTC-USD")
+        self.assertEqual([row["time"] for row in data["candles"]], [100, 200])
+        self.assertEqual(fake_client.kwargs["granularity"], "FIVE_MINUTE")
+
     def test_failed_cycle_is_written_to_decision_journal(self):
         class BrokenEngine:
             def step(self):
