@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import asdict, dataclass
-from decimal import Decimal
+from decimal import Decimal, ROUND_DOWN
 from typing import Any
 
 from coinbase.rest import RESTClient
@@ -93,6 +93,87 @@ class AdvancedTradeSpot:
         if callable(method):
             return method()
         return {}
+
+    @staticmethod
+    def _floor_to_increment(value: Decimal, increment: Decimal) -> Decimal:
+        value = Decimal(str(value))
+        increment = Decimal(str(increment))
+        if value <= 0:
+            raise ValueError("order size must be positive")
+        if increment <= 0:
+            return value
+        steps = (value / increment).to_integral_value(rounding=ROUND_DOWN)
+        normalized = steps * increment
+        if normalized <= 0:
+            raise ValueError(
+                f"order size {value} is below Coinbase increment {increment}"
+            )
+        return normalized
+
+    def _normalized_order_size(
+        self,
+        product_id: str,
+        value: Decimal,
+        *,
+        side: str,
+    ) -> Decimal:
+        product = self.product(product_id)
+        key = "quote_increment" if side.upper() == "BUY" else "base_increment"
+        increment = Decimal(str(product.get(key) or "0"))
+        normalized = self._floor_to_increment(value, increment)
+
+        min_key = "quote_min_size" if side.upper() == "BUY" else "base_min_size"
+        minimum = Decimal(str(product.get(min_key) or "0"))
+        if minimum > 0 and normalized < minimum:
+            raise ValueError(
+                f"{product_id.upper()} {side.upper()} size {normalized} "
+                f"is below Coinbase minimum {minimum}"
+            )
+        return normalized
+
+    @classmethod
+    def _require_order_success(
+        cls,
+        response: Any,
+        operation: str,
+    ) -> dict[str, Any]:
+        payload = cls._dict(response)
+        success = payload.get("success")
+        success_response = payload.get("success_response") or {}
+        order_id = str(
+            success_response.get("order_id")
+            or payload.get("order_id")
+            or ""
+        ).strip()
+
+        if success is False:
+            error = payload.get("error_response") or payload.get("failure_reason") or {}
+            if isinstance(error, dict):
+                code = str(
+                    error.get("error")
+                    or error.get("error_details")
+                    or error.get("failure_reason")
+                    or ""
+                ).strip()
+                message = str(
+                    error.get("message")
+                    or error.get("error_details")
+                    or error.get("preview_failure_reason")
+                    or ""
+                ).strip()
+                detail = ": ".join(part for part in (code, message) if part)
+            else:
+                detail = str(error).strip()
+            raise RuntimeError(
+                f"Coinbase rejected {operation}"
+                + (f": {detail}" if detail else ".")
+            )
+
+        if not order_id:
+            raise RuntimeError(
+                f"Coinbase did not return an order id for {operation}: {payload}"
+            )
+        return payload
 
     def status(self) -> AdvancedTradeStatus:
         client = self.vault.client()
@@ -278,28 +359,70 @@ class AdvancedTradeSpot:
     def preview_market_buy(self, product_id: str, quote_size: Decimal) -> dict[str, Any]:
         if quote_size <= 0:
             raise ValueError("quote_size must be positive")
+        quote_size = self._normalized_order_size(
+            product_id,
+            quote_size,
+            side="BUY",
+        )
         response = self.vault.client().preview_market_order_buy(
             product_id=product_id.upper(),
             quote_size=str(quote_size),
         )
         return self._dict(response)
 
+    def preview_market_sell(self, product_id: str, base_size: Decimal) -> dict[str, Any]:
+        if base_size <= 0:
+            raise ValueError("base_size must be positive")
+        base_size = self._normalized_order_size(
+            product_id,
+            base_size,
+            side="SELL",
+        )
+        response = self.vault.client().preview_market_order_sell(
+            product_id=product_id.upper(),
+            base_size=str(base_size),
+        )
+        return self._dict(response)
+
     def market_buy(self, product_id: str, quote_size: Decimal, client_order_id: str) -> dict[str, Any]:
         if quote_size <= 0:
             raise ValueError("quote_size must be positive")
+        quote_size = self._normalized_order_size(
+            product_id,
+            quote_size,
+            side="BUY",
+        )
         response = self.vault.client().market_order_buy(
             client_order_id=client_order_id,
             product_id=product_id.upper(),
             quote_size=str(quote_size),
         )
-        return self._dict(response)
+        return self._require_order_success(
+            response,
+            f"market buy {product_id.upper()}",
+        )
 
     def market_sell(self, product_id: str, base_size: Decimal, client_order_id: str) -> dict[str, Any]:
         if base_size <= 0:
             raise ValueError("base_size must be positive")
+        base_size = self._normalized_order_size(
+            product_id,
+            base_size,
+            side="SELL",
+        )
         response = self.vault.client().market_order_sell(
             client_order_id=client_order_id,
             product_id=product_id.upper(),
             base_size=str(base_size),
         )
+        return self._require_order_success(
+            response,
+            f"market sell {product_id.upper()}",
+        )
+
+    def order(self, order_id: str) -> dict[str, Any]:
+        order_id = str(order_id or "").strip()
+        if not order_id:
+            raise ValueError("order_id is required")
+        response = self.vault.client().get_order(order_id=order_id)
         return self._dict(response)

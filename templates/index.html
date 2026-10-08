@@ -50,6 +50,10 @@
     details.panel[open] > summary::after { content:'-'; }
     details.panel[open] > summary { margin-bottom:12px; }
     .decision-current { padding:10px 8px; border-top:1px solid #262c34; border-bottom:1px solid #262c34; background:#10141a; }
+    .asset-link { color:#a9c7ff; text-decoration:none; font-weight:700; }
+    .asset-link:hover { text-decoration:underline; }
+    .candle-wrap { position:relative; height:220px; background:#10141a; border:1px solid #262c34; border-radius:8px; overflow:hidden; }
+    #candleChart { width:100%; height:100%; display:block; }
     .decision-current .label { margin-bottom:4px; }
     .decision-scroll { max-height:300px; overflow-y:auto; }
     .decision-scroll thead th { position:sticky; top:0; background:#15191f; z-index:2; }
@@ -92,7 +96,7 @@
 <body>
 <div class="wrap">
   <div class="top">
-    <div><h1>AIscend</h1><div class="sub">Autonomous capital game - one point per completed double</div></div>
+    <div><h1>AIscend</h1></div>
     <div id="runnerPill" class="pill">STOPPED</div>
   </div>
 
@@ -259,6 +263,14 @@
       </div>
 
       <div class="panel" style="margin-top:14px">
+        <h2 id="candleTitle">MARKET PREVIEW · --</h2>
+        <div class="candle-wrap">
+          <canvas id="candleChart"></canvas>
+        </div>
+        <div id="candleMeta" class="small">5-minute candles · waiting for a held asset</div>
+      </div>
+
+      <div class="panel" style="margin-top:14px">
         <h2>DECISION JOURNAL</h2>
         <div id="currentDecision" class="decision-current small">Current decision: --</div>
         <div class="decision-scroll">
@@ -280,6 +292,8 @@ let petBlink = false;
 let petBob = false;
 let petQuipIndex = 0;
 let previousPoints = null;
+let activeCandleProduct = null;
+let candleFetchInFlight = false;
 
 function network(){ return $('network').value; }
 function rail(){ return $('executionRail').value; }
@@ -648,9 +662,21 @@ function renderSnapshot(s){
   drawPet();
 
   const tbody=$('positions'); tbody.innerHTML='';
+  let largestProduct=null;
+  let largestValue=-1;
   for(const [sym,p] of Object.entries(s.positions || {})){
     const price=Number((s.prices||{})[sym]||0);
-    tbody.insertAdjacentHTML('beforeend', '<tr><td>'+escapeHtml(sym)+'</td><td>'+Number(p.qty).toFixed(10)+'</td><td>'+money(price)+'</td><td>'+money(Number(p.qty)*price)+'</td></tr>');
+    const value=Number(p.qty)*price;
+    const product=positionProduct(sym);
+    const assetCell=product
+      ? '<button type="button" class="asset-link" style="width:auto;padding:0;border:0;background:none;margin:0" onclick="loadCandles(\''+escapeHtml(product)+'\')">'+escapeHtml(sym)+'</button>'+
+        ' <a class="asset-link" href="https://www.coinbase.com/advanced-trade/spot/'+encodeURIComponent(product)+'" target="_blank" rel="noopener" title="Open on Coinbase">↗</a>'
+      : escapeHtml(sym);
+    tbody.insertAdjacentHTML('beforeend', '<tr><td>'+assetCell+'</td><td>'+Number(p.qty).toFixed(10)+'</td><td>'+money(price)+'</td><td>'+money(value)+'</td></tr>');
+    if(product && value>largestValue){ largestValue=value; largestProduct=product; }
+  }
+  if(largestProduct && (!activeCandleProduct || !(s.positions||{})['ADV:'+activeCandleProduct])){
+    loadCandles(largestProduct);
   }
 }
 
@@ -747,6 +773,89 @@ async function stopRunner(){
 
 function escapeHtml(s){
   return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+}
+
+function positionProduct(sym){
+  const raw=String(sym||'').replace(/^ADV:/,'').trim().toUpperCase();
+  return raw.includes('-') ? raw : null;
+}
+
+async function loadCandles(product){
+  product=String(product||'').toUpperCase();
+  if(!product || candleFetchInFlight) return;
+  activeCandleProduct=product;
+  candleFetchInFlight=true;
+  $('candleTitle').textContent='MARKET PREVIEW · '+product;
+  $('candleMeta').textContent='Loading 5-minute candles...';
+  try{
+    const r=await fetch('/api/candles?product='+encodeURIComponent(product));
+    const j=await r.json();
+    if(!j.ok) throw new Error(j.error||'Candle feed unavailable');
+    drawCandles(j.candles||[]);
+    const rows=j.candles||[];
+    const last=rows.at(-1);
+    const first=rows[0];
+    const move=(last&&first&&Number(first.open)) ? ((Number(last.close)/Number(first.open))-1)*100 : 0;
+    const high=rows.length ? Math.max(...rows.map(x=>Number(x.high)||0)) : 0;
+    const low=rows.length ? Math.min(...rows.map(x=>Number(x.low)||0).filter(x=>x>0)) : 0;
+    $('candleMeta').textContent=last
+      ? '5m candles · last '+money(last.close)+' · window '+(move>=0?'+':'')+move.toFixed(2)+'% · H '+money(high)+' · L '+money(low)
+      : 'No candle data.';
+  }catch(e){
+    $('candleMeta').textContent='Candle feed: '+e;
+  }finally{
+    candleFetchInFlight=false;
+  }
+}
+
+function drawCandles(rows){
+  const canvas=$('candleChart');
+  const rect=canvas.getBoundingClientRect();
+  const dpr=window.devicePixelRatio||1;
+  canvas.width=Math.max(320,Math.floor(rect.width*dpr));
+  canvas.height=Math.max(160,Math.floor(rect.height*dpr));
+  const ctx=canvas.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+
+  const w=rect.width, h=rect.height;
+  ctx.clearRect(0,0,w,h);
+  if(!rows.length) return;
+
+  const pad={l:10,r:54,t:12,b:20};
+  const lo=Math.min(...rows.map(x=>Number(x.low)));
+  const hi=Math.max(...rows.map(x=>Number(x.high)));
+  const span=Math.max(1e-12,hi-lo);
+  const y=v=>pad.t+(hi-Number(v))/span*(h-pad.t-pad.b);
+  const step=(w-pad.l-pad.r)/rows.length;
+  const body=Math.max(2,Math.min(8,step*0.58));
+
+  ctx.font='11px system-ui';
+  ctx.textAlign='left';
+  ctx.textBaseline='middle';
+  ctx.strokeStyle='#2d353f';
+  ctx.fillStyle='#8f99a8';
+
+  for(let i=0;i<=4;i++){
+    const yy=pad.t+(h-pad.t-pad.b)*(i/4);
+    const price=hi-span*(i/4);
+    ctx.beginPath(); ctx.moveTo(pad.l,yy); ctx.lineTo(w-pad.r,yy); ctx.stroke();
+    ctx.fillText(price.toLocaleString(undefined,{maximumSignificantDigits:7}),w-pad.r+6,yy);
+  }
+
+  rows.forEach((x,i)=>{
+    const cx=pad.l+step*(i+0.5);
+    const open=Number(x.open), close=Number(x.close);
+    const up=close>=open;
+    ctx.strokeStyle=up ? '#8ee2ad' : '#ff9d9d';
+    ctx.fillStyle=ctx.strokeStyle;
+    ctx.beginPath();
+    ctx.moveTo(cx,y(x.high));
+    ctx.lineTo(cx,y(x.low));
+    ctx.stroke();
+    const top=Math.min(y(open),y(close));
+    const bh=Math.max(1,Math.abs(y(open)-y(close)));
+    ctx.fillRect(cx-body/2,top,body,bh);
+  });
 }
 
 function drawPet(){

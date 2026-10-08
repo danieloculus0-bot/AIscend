@@ -122,7 +122,11 @@ class CoinbaseAssetUniverse:
             if not product_id:
                 continue
             cached = self._cache.get(product_id)
-            if cached and time.time() - cached.scanned_at < self.asset_cache_seconds:
+            if (
+                cached
+                and product_id.upper() not in priority
+                and time.time() - cached.scanned_at < self.asset_cache_seconds
+            ):
                 continue
             try:
                 asset = self._scan_product(product)

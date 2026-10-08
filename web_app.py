@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import hmac
+import ipaddress
 import json
 import os
 import threading
 import time
 import uuid
+import re
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -290,15 +293,81 @@ def _runner(network: str, interval: float, rail: str) -> None:
 
 
 
+def _request_is_remote() -> bool:
+    peer = str(request.remote_addr or "").strip()
+    if not peer:
+        return False
+
+    try:
+        peer_is_loopback = ipaddress.ip_address(peer).is_loopback
+    except ValueError:
+        peer_is_loopback = peer.lower() == "localhost"
+
+    # Only trust forwarding headers from a loopback reverse proxy such as a
+    # locally-running tunnel. A LAN client must not be able to spoof
+    # X-Forwarded-For: 127.0.0.1 and unlock the trading API.
+    if not peer_is_loopback:
+        return True
+
+    forwarded = (
+        request.headers.get("CF-Connecting-IP", "").strip()
+        or request.headers.get("X-Forwarded-For", "").split(",", 1)[0].strip()
+    )
+    if not forwarded:
+        return False
+    try:
+        return not ipaddress.ip_address(forwarded).is_loopback
+    except ValueError:
+        return forwarded.lower() not in {"localhost"}
+
+
 def _monitor_token_ok() -> bool:
     configured = os.getenv("AISCEND_REMOTE_TOKEN", "").strip()
     if not configured:
-        return True
+        # Localhost remains convenient, but LAN/tunnel traffic is never allowed
+        # to fall back to an unauthenticated monitor.
+        return not _request_is_remote()
     supplied = (
-        request.args.get("token", "").strip()
-        or request.headers.get("X-AIscend-Token", "").strip()
+        request.headers.get("X-AIscend-Token", "").strip()
+        or request.cookies.get("aiscend_monitor", "").strip()
+        or request.args.get("token", "").strip()
     )
-    return supplied == configured
+    return bool(supplied) and hmac.compare_digest(supplied, configured)
+
+
+_REMOTE_SAFE_PATHS = {"/monitor", "/api/monitor/status", "/api/candles"}
+
+
+@app.before_request
+def _remote_surface_guard():
+    if not _request_is_remote():
+        return None
+    if request.path not in _REMOTE_SAFE_PATHS:
+        return jsonify(
+            {
+                "ok": False,
+                "error": "Remote access is read-only. Use /monitor.",
+            }
+        ), 403
+    if not _monitor_token_ok():
+        return jsonify(
+            {
+                "ok": False,
+                "error": (
+                    "Remote monitor token required. Set AISCEND_REMOTE_TOKEN "
+                    "on the AIscend host."
+                ),
+            }
+        ), 401
+    return None
+
+
+@app.after_request
+def _no_store_remote_monitor(response):
+    if request.path in _REMOTE_SAFE_PATHS:
+        response.headers["Cache-Control"] = "no-store, private"
+        response.headers["Pragma"] = "no-cache"
+    return response
 
 
 def _active_monitor_payload() -> dict[str, Any]:
@@ -327,10 +396,24 @@ def index():
 def monitor():
     if not _monitor_token_ok():
         return "Unauthorized", 401
-    return render_template(
-        "monitor.html",
-        token=request.args.get("token", ""),
+
+    supplied = request.args.get("token", "").strip()
+    response = app.make_response(
+        render_template(
+            "monitor.html",
+            token=supplied,
+        )
     )
+    if supplied:
+        response.set_cookie(
+            "aiscend_monitor",
+            supplied,
+            max_age=12 * 60 * 60,
+            httponly=True,
+            samesite="Strict",
+            secure=bool(request.is_secure),
+        )
+    return response
 
 
 @app.get("/api/monitor/status")
@@ -339,6 +422,50 @@ def monitor_status():
         return jsonify({"ok": False, "error": "Unauthorized"}), 401
     try:
         return jsonify(_active_monitor_payload())
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.get("/api/candles")
+def candles():
+    if _request_is_remote() and not _monitor_token_ok():
+        return jsonify({"ok": False, "error": "Unauthorized"}), 401
+    product = str(request.args.get("product") or "").strip().upper()
+    if not re.fullmatch(r"[A-Z0-9-]{3,40}", product):
+        return jsonify({"ok": False, "error": "Invalid Coinbase product."}), 400
+
+    try:
+        end_ts = int(time.time())
+        start_ts = end_ts - (60 * 5 * 60)
+        client = AdvancedTradeVault().client()
+        # Use the authenticated Advanced Trade candle endpoint. Some products
+        # available to the portfolio return 404 from Coinbase's public-market
+        # candle route even though the authenticated product route works.
+        payload = client.get_candles(
+            product_id=product,
+            start=str(start_ts),
+            end=str(end_ts),
+            granularity="FIVE_MINUTE",
+            limit=60,
+        )
+        raw = payload.to_dict() if hasattr(payload, "to_dict") else payload
+        rows = (raw or {}).get("candles") or []
+
+        candles = []
+        for row in reversed(rows):
+            if not isinstance(row, dict):
+                continue
+            candles.append(
+                {
+                    "time": int(row.get("start") or 0),
+                    "low": float(row.get("low") or 0),
+                    "high": float(row.get("high") or 0),
+                    "open": float(row.get("open") or 0),
+                    "close": float(row.get("close") or 0),
+                    "volume": float(row.get("volume") or 0),
+                }
+            )
+        return jsonify({"ok": True, "product": product, "candles": candles})
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
 

@@ -100,14 +100,55 @@ class FakeClient:
             }
         )
 
+    def get_product(self, product_id, **kwargs):
+        return FakeResponse(
+            {
+                "product_id": product_id.upper(),
+                "price": "100",
+                "base_increment": "0.00000001",
+                "quote_increment": "0.01",
+                "base_min_size": "0.00000001",
+                "quote_min_size": "0.01",
+            }
+        )
+
     def preview_market_order_buy(self, **kwargs):
         return FakeResponse({"preview_id": "p1", **kwargs})
 
+    def preview_market_order_sell(self, **kwargs):
+        return FakeResponse({"preview_id": "p2", **kwargs})
+
     def market_order_buy(self, **kwargs):
-        return FakeResponse({"success": True, **kwargs})
+        return FakeResponse(
+            {
+                "success": True,
+                "success_response": {"order_id": "buy-1"},
+                **kwargs,
+            }
+        )
 
     def market_order_sell(self, **kwargs):
-        return FakeResponse({"success": True, **kwargs})
+        return FakeResponse(
+            {
+                "success": True,
+                "success_response": {"order_id": "sell-1"},
+                **kwargs,
+            }
+        )
+
+    def get_order(self, order_id):
+        return FakeResponse(
+            {
+                "order": {
+                    "order_id": order_id,
+                    "status": "FILLED",
+                    "filled_size": "1",
+                    "filled_value": "1",
+                    "total_fees": "0.01",
+                    "settled": True,
+                }
+            }
+        )
 
 
 class FakeVault(AdvancedTradeVault):
@@ -152,10 +193,14 @@ class AdvancedTradeTests(unittest.TestCase):
         rail = AdvancedTradeSpot(FakeVault())
         preview = rail.preview_market_buy("eth-usdc", Decimal("5"))
         self.assertEqual(preview["product_id"], "ETH-USDC")
+        sell_preview = rail.preview_market_sell("btc-usd", Decimal("0.001"))
+        self.assertEqual(sell_preview["product_id"], "BTC-USD")
         buy = rail.market_buy("btc-usd", Decimal("3"), "test-buy")
         self.assertTrue(buy["success"])
         sell = rail.market_sell("btc-usd", Decimal("0.001"), "test-sell")
         self.assertTrue(sell["success"])
+        order = rail.order("buy-1")
+        self.assertEqual(order["order"]["status"], "FILLED")
 
 
 if __name__ == "__main__":

@@ -63,6 +63,221 @@ class AdvancedSpotEngine:
         base, _, quote = product_id.upper().rpartition("-")
         return base, quote
 
+    def _funding_route(
+        self,
+        product_id: str,
+        product_ids: tuple[str, ...],
+        cash_by_quote: dict[str, float],
+        funding_value_usd: dict[str, float] | None = None,
+    ) -> dict[str, Any] | None:
+        base, target_quote = self._split_product(product_id)
+        direct = float(cash_by_quote.get(target_quote, 0.0))
+        if direct > 0.0:
+            return {
+                "mode": "DIRECT",
+                "signal_product": product_id,
+                "execution_product": product_id,
+                "quote": target_quote,
+                "funding_quote": target_quote,
+                "available": direct,
+            }
+
+        funding_value_usd = funding_value_usd or {}
+        funded_quotes = sorted(
+            (
+                (str(quote).upper(), float(amount))
+                for quote, amount in cash_by_quote.items()
+                if float(amount) > 0.0
+            ),
+            key=lambda row: (
+                float(funding_value_usd.get(row[0], 0.0)),
+                row[1],
+            ),
+            reverse=True,
+        )
+
+        # Prefer a one-leg crypto/crypto market when Coinbase lists the target
+        # asset against something we already hold.
+        for funded_quote, amount in funded_quotes:
+            if funded_quote == base:
+                continue
+            alternate = f"{base}-{funded_quote}"
+            if alternate in product_ids:
+                return {
+                    "mode": "ALT_PAIR",
+                    "signal_product": product_id,
+                    "execution_product": alternate,
+                    "quote": funded_quote,
+                    "funding_quote": funded_quote,
+                    "available": amount,
+                    "target_asset": base,
+                }
+
+        # Coinbase may list the pair in the opposite orientation. Selling
+        # SOURCE-TARGET is still a direct one-leg swap from the held source
+        # crypto into the desired target crypto, with no dollar round trip.
+        for funded_asset, amount in funded_quotes:
+            if funded_asset == base:
+                continue
+            inverse = f"{funded_asset}-{base}"
+            if inverse in product_ids:
+                return {
+                    "mode": "INVERSE_PAIR",
+                    "signal_product": product_id,
+                    "execution_product": inverse,
+                    "quote": base,
+                    "funding_quote": funded_asset,
+                    "available": amount,
+                    "source_asset": funded_asset,
+                    "target_asset": base,
+                }
+
+        # Coinbase commonly exposes USD and USDC as a directly tradable pair.
+        # If the signal only exists on one dollar quote, fund it automatically
+        # from the other rather than throwing away an otherwise executable setup.
+        if target_quote in DOLLAR_ASSETS:
+            for funded_quote, amount in funded_quotes:
+                if funded_quote not in DOLLAR_ASSETS or funded_quote == target_quote:
+                    continue
+
+                sell_pair = f"{funded_quote}-{target_quote}"
+                if sell_pair in product_ids:
+                    return {
+                        "mode": "CONVERT",
+                        "signal_product": product_id,
+                        "execution_product": product_id,
+                        "quote": target_quote,
+                        "funding_quote": funded_quote,
+                        "available": amount,
+                        "conversion_product": sell_pair,
+                        "conversion_side": "SELL",
+                    }
+
+                buy_pair = f"{target_quote}-{funded_quote}"
+                if buy_pair in product_ids:
+                    return {
+                        "mode": "CONVERT",
+                        "signal_product": product_id,
+                        "execution_product": product_id,
+                        "quote": target_quote,
+                        "funding_quote": funded_quote,
+                        "available": amount,
+                        "conversion_product": buy_pair,
+                        "conversion_side": "BUY",
+                    }
+
+        return None
+
+    def _adjust_buy_fraction_for_exchange_minimum(
+        self,
+        product_id: str,
+        available_quote: float,
+        fraction: float,
+        *,
+        max_fraction: float = 0.85,
+    ) -> float | None:
+        if available_quote <= 0.0:
+            return None
+        try:
+            product = self.rail.product(product_id)
+            minimum = Decimal(str(product.get("quote_min_size") or "0"))
+        except Exception:
+            minimum = Decimal("0")
+
+        if minimum <= 0:
+            return min(max_fraction, max(0.0, float(fraction)))
+
+        available = Decimal(str(available_quote))
+        cap = available * Decimal(str(max_fraction))
+        if cap < minimum:
+            return None
+
+        required_fraction = minimum / available
+        adjusted = max(Decimal(str(fraction)), required_fraction)
+        return float(min(Decimal(str(max_fraction)), adjusted))
+
+    def _adjust_sell_fraction_for_exchange_minimum(
+        self,
+        product_id: str,
+        available_base: float,
+        fraction: float,
+        *,
+        max_fraction: float = 0.85,
+    ) -> float | None:
+        if available_base <= 0.0:
+            return None
+        try:
+            product = self.rail.product(product_id)
+            minimum = Decimal(str(product.get("base_min_size") or "0"))
+        except Exception:
+            minimum = Decimal("0")
+
+        if minimum <= 0:
+            return min(max_fraction, max(0.0, float(fraction)))
+
+        available = Decimal(str(available_base))
+        cap = available * Decimal(str(max_fraction))
+        if cap < minimum:
+            return None
+
+        required_fraction = minimum / available
+        adjusted = max(Decimal(str(fraction)), required_fraction)
+        return float(min(Decimal(str(max_fraction)), adjusted))
+
+    def _viable_funding_route(
+        self,
+        signal_product: str,
+        initial_route: dict[str, Any] | None,
+        snapshot: dict[str, Any],
+        fraction: float,
+    ) -> tuple[dict[str, Any] | None, float | None]:
+        route = initial_route
+        pool = dict(snapshot.get("cash_by_quote") or {})
+        values = dict(snapshot.get("balance_values_usd") or {})
+        product_ids: tuple[str, ...] | None = None
+
+        for _ in range(max(1, len(pool) + 1)):
+            if not route:
+                return None, None
+
+            product_id = str(
+                route.get("execution_product") or signal_product
+            ).upper()
+            available = float(route.get("available") or 0.0)
+            if str(route.get("mode") or "").upper() == "INVERSE_PAIR":
+                adjusted = self._adjust_sell_fraction_for_exchange_minimum(
+                    product_id,
+                    available,
+                    fraction,
+                )
+            else:
+                adjusted = self._adjust_buy_fraction_for_exchange_minimum(
+                    product_id,
+                    available,
+                    fraction,
+                )
+
+            if adjusted is not None:
+                return route, adjusted
+
+            failed_asset = str(route.get("funding_quote") or "").upper()
+            if failed_asset:
+                pool.pop(failed_asset, None)
+                values.pop(failed_asset, None)
+            else:
+                return None, None
+
+            if product_ids is None:
+                product_ids = tuple(self.rail.status().product_ids)
+            route = self._funding_route(
+                signal_product,
+                product_ids,
+                pool,
+                values,
+            )
+
+        return None, None
+
     def _product_for_currency(
         self,
         currency: str,
@@ -260,6 +475,13 @@ class AdvancedSpotEngine:
 
     def sync(self) -> dict[str, Any]:
         status = self.rail.status()
+        product_ids = tuple(status.product_ids)
+        raw_balances = {
+            item.currency: float(item.available)
+            for item in status.balances
+            if float(item.available) > 0.000000001
+        }
+
         listing = self.listing_sentinel.poll()
         priority_products = [
             str(event.get("product") or "").upper()
@@ -269,6 +491,16 @@ class AdvancedSpotEngine:
             )
             if event.get("product")
         ]
+        # Held assets are exit-critical. Force their preferred Coinbase pair
+        # into every research cycle instead of waiting for the rotating scanner
+        # to wander back to them.
+        for currency in raw_balances:
+            if currency in DOLLAR_ASSETS:
+                continue
+            held_product = self._product_for_currency(currency, product_ids)
+            if held_product and held_product not in priority_products:
+                priority_products.append(held_product)
+
         universe = self.asset_universe.collect(
             priority_products=priority_products,
         )
@@ -278,23 +510,10 @@ class AdvancedSpotEngine:
         except Exception as exc:
             human = None
             human_error = str(exc)
-        product_ids = tuple(status.product_ids)
-
-        raw_balances = {
-            item.currency: float(item.available)
-            for item in status.balances
-            if float(item.available) > 0.000000001
-        }
-        quote_currencies = {
-            self._split_product(product_id)[1]
-            for product_id in product_ids
-            if self._split_product(product_id)[1]
-        }
-        cash_by_quote = {
-            quote: raw_balances.get(quote, 0.0)
-            for quote in quote_currencies
-            if raw_balances.get(quote, 0.0) > 0.000000001
-        }
+        # Any held asset can fund another asset directly when Coinbase exposes
+        # a crypto/crypto pair. Keeping all balances here lets the router prefer
+        # a one-leg swap over selling back to USD/USDC and buying again.
+        cash_by_quote = dict(raw_balances)
 
         # Preserve the game's dollar-denominated bankroll accounting while
         # allowing execution to use any funded quote currency.
@@ -372,6 +591,7 @@ class AdvancedSpotEngine:
             universe,
             product_ids,
             cash_by_quote,
+            balance_values_usd,
             positions,
             listing,
             human,
@@ -425,6 +645,7 @@ class AdvancedSpotEngine:
         universe: dict[str, Any],
         product_ids: tuple[str, ...],
         cash_by_quote: dict[str, float],
+        funding_value_usd: dict[str, float],
         positions: dict[str, dict[str, float | str]],
         listing: dict[str, Any],
         human: HumanSignals | None,
@@ -471,6 +692,12 @@ class AdvancedSpotEngine:
             item["human_weight"] = human_weight
             item["human_context"] = human_context
             item["decision_score"] = fused_score
+            item["funding_route"] = self._funding_route(
+                product,
+                product_ids,
+                cash_by_quote,
+                funding_value_usd,
+            )
             rows.append(item)
 
         longs = sorted(
@@ -478,15 +705,12 @@ class AdvancedSpotEngine:
             key=lambda item: float(item.get("decision_score") or 0.0),
             reverse=True,
         )
-        funded_longs = [
+        executable_longs = [
             item
             for item in longs
-            if cash_by_quote.get(
-                self._split_product(str(item.get("product") or ""))[1],
-                0.0,
-            ) > 0.0
+            if item.get("funding_route")
         ]
-        best = funded_longs[0] if funded_longs else (longs[0] if longs else None)
+        best = executable_longs[0] if executable_longs else (longs[0] if longs else None)
         held = []
         for product_id in positions:
             item = next(
@@ -515,8 +739,10 @@ class AdvancedSpotEngine:
         prediction = "BULLISH" if score >= 0.16 else "BEARISH" if score <= -0.16 else "NEUTRAL"
         if best:
             product = str(best.get("product") or "")
-            quote = self._split_product(product)[1]
-            funded = cash_by_quote.get(quote, 0.0) > 0.0
+            route = best.get("funding_route") or {}
+            execution_product = str(route.get("execution_product") or product)
+            quote = str(route.get("quote") or self._split_product(execution_product)[1])
+            funded = bool(route)
             listing_event = best.get("listing_event")
             listing_note = ""
             if isinstance(listing_event, dict):
@@ -533,13 +759,25 @@ class AdvancedSpotEngine:
                     f"human {float(best.get('human_score') or 0):+.3f} at "
                     f"{float(best.get('human_weight') or 0) * 100:.0f}% weight."
                 )
+            route_note = ""
+            if route.get("mode") == "ALT_PAIR":
+                route_note = (
+                    f" Signal from {product}; execution rerouted to {execution_product} "
+                    f"using funded {quote}."
+                )
+            elif route.get("mode") == "CONVERT":
+                route_note = (
+                    f" Will convert {route.get('funding_quote')} to {quote} through "
+                    f"{route.get('conversion_product')} before execution."
+                )
             thesis = (
                 f"Best {'funded ' if funded else ''}tradable spot candidate {product}: "
                 f"decision score {score:+.3f}, raw {float(best.get('score') or 0):+.3f}, "
                 f"1h {float(best.get('return_1h') or 0):+.2%}, "
                 f"6h {float(best.get('return_6h') or 0):+.2%}, "
                 f"volume {float(best.get('volume_ratio') or 0):.2f}x; "
-                f"{quote} available {cash_by_quote.get(quote, 0.0):.8g}."
+                f"{quote} funding available {float(route.get('available') or 0.0):.8g}."
+                f"{route_note}"
                 f"{listing_note}"
                 f"{human_note}"
             )
@@ -612,14 +850,13 @@ class AdvancedSpotEngine:
                     )
 
         if status == "HELD" and best is not None:
-            product_id = str(best.get("product") or "").upper()
+            signal_product = str(best.get("product") or "").upper()
+            route = best.get("funding_route") or {}
+            product_id = str(route.get("execution_product") or signal_product).upper()
             score = float(best.get("decision_score") or best.get("score") or 0.0)
             spread_bps = float(best.get("spread_bps") or 0.0)
             volume_ratio = float(best.get("volume_ratio") or 0.0)
-            _, quote = self._split_product(product_id)
-            available_quote = float(
-                (before.get("cash_by_quote") or {}).get(quote, 0.0)
-            )
+            available_quote = float(route.get("available") or 0.0)
 
             if (
                 score >= 0.18
@@ -628,6 +865,31 @@ class AdvancedSpotEngine:
                 and available_quote > 0.0
             ):
                 fraction = min(0.85, max(0.20, 0.20 + abs(score) * 0.65))
+                route, adjusted_fraction = self._viable_funding_route(
+                    signal_product,
+                    route,
+                    before,
+                    fraction,
+                )
+                if route is None or adjusted_fraction is None:
+                    decision = Decision(
+                        "HOLD",
+                        None,
+                        0.0,
+                        (
+                            f"{signal_product} clears the signal threshold, but no "
+                            "available Coinbase funding route can satisfy the exchange "
+                            "minimum within the 85% cap."
+                        ),
+                    )
+                    status = "HELD"
+                    self.store.add_decision(decision, status)
+                    return self.sync()
+                product_id = str(
+                    route.get("execution_product") or signal_product
+                ).upper()
+                available_quote = float(route.get("available") or 0.0)
+                fraction = adjusted_fraction
                 listing_event = best.get("listing_event")
                 listing_note = ""
                 if isinstance(listing_event, dict):
@@ -644,6 +906,22 @@ class AdvancedSpotEngine:
                         f"human {float(best.get('human_score') or 0):+.3f} "
                         f"at {float(best.get('human_weight') or 0) * 100:.0f}% weight."
                     )
+                route_note = ""
+                if route.get("mode") == "ALT_PAIR":
+                    route_note = (
+                        f" Signal source {signal_product}; executing {product_id} "
+                        f"against funded {route.get('quote')}."
+                    )
+                elif route.get("mode") == "INVERSE_PAIR":
+                    route_note = (
+                        f" Direct crypto swap: selling {route.get('funding_quote')} "
+                        f"through {product_id} to acquire {route.get('target_asset')}."
+                    )
+                elif route.get("mode") == "CONVERT":
+                    route_note = (
+                        f" Auto-funding {route.get('quote')} from {route.get('funding_quote')} "
+                        f"through {route.get('conversion_product')}."
+                    )
                 decision = Decision(
                     "BUY",
                     product_id,
@@ -651,12 +929,13 @@ class AdvancedSpotEngine:
                     (
                         f"Best Coinbase-wide executable spot setup at {score:+.3f}; "
                         f"spread {spread_bps:.1f} bps, volume {volume_ratio:.2f}x."
+                        f"{route_note}"
                         f"{listing_note}"
                         f"{human_note}"
                     ),
                 )
                 try:
-                    self._execute_buy(decision, before)
+                    self._execute_buy(decision, before, funding_route=route)
                     status = "LIVE_EXECUTED"
                 except Exception as exc:
                     status = "EXECUTION_ERROR"
@@ -671,21 +950,253 @@ class AdvancedSpotEngine:
         self.store.add_decision(decision, status)
         return self.sync()
 
-    def _execute_buy(self, decision: Decision, snapshot: dict[str, Any]) -> None:
-        product_id = str(decision.symbol)
+    @staticmethod
+    def _confirmed_fee(order: dict[str, Any] | None) -> Decimal | None:
+        if not isinstance(order, dict):
+            return None
+        value = order.get("total_fees")
+        if value in (None, ""):
+            value = order.get("fee")
+        try:
+            fee = Decimal(str(value or "0"))
+        except Exception:
+            return None
+        return fee if fee > 0 else None
+
+    @staticmethod
+    def _validate_execution_preview(
+        preview: dict[str, Any] | None,
+        product_id: str,
+        *,
+        max_spread_bps: float = 75.0,
+        max_fee_fraction: float = 0.03,
+    ) -> None:
+        if not isinstance(preview, dict):
+            return
+
+        errs = preview.get("errs") or preview.get("errors") or []
+        if errs:
+            raise RuntimeError(
+                f"Coinbase preview rejected {product_id}: {str(errs)[:240]}"
+            )
+
+        try:
+            bid = Decimal(str(preview.get("best_bid") or "0"))
+            ask = Decimal(str(preview.get("best_ask") or "0"))
+            if bid > 0 and ask > 0:
+                mid = (bid + ask) / Decimal("2")
+                spread_bps = float(((ask - bid) / mid) * Decimal("10000"))
+                if spread_bps > max_spread_bps:
+                    raise RuntimeError(
+                        f"{product_id} execution spread {spread_bps:.1f} bps "
+                        f"exceeds {max_spread_bps:.1f} bps cap."
+                    )
+        except RuntimeError:
+            raise
+        except Exception:
+            pass
+
+        try:
+            fee = Decimal(str(preview.get("commission_total") or "0"))
+            total = Decimal(
+                str(
+                    preview.get("order_total")
+                    or preview.get("quote_size")
+                    or "0"
+                )
+            )
+            if fee > 0 and total > 0:
+                fee_fraction = float(fee / total)
+                if fee_fraction > max_fee_fraction:
+                    raise RuntimeError(
+                        f"{product_id} preview fee {fee_fraction:.2%} exceeds "
+                        f"{max_fee_fraction:.2%} cap."
+                    )
+        except RuntimeError:
+            raise
+        except Exception:
+            pass
+
+    @staticmethod
+    def _submitted_order_id(order: dict[str, Any]) -> str:
+        success_response = order.get("success_response") or {}
+        return str(
+            success_response.get("order_id")
+            or order.get("order_id")
+            or ""
+        ).strip()
+
+    def _confirm_order_fill(
+        self,
+        order: dict[str, Any],
+        product_id: str,
+    ) -> dict[str, Any] | None:
+        fetch_order = getattr(self.rail, "order", None)
+        if not callable(fetch_order):
+            return None
+
+        order_id = self._submitted_order_id(order)
+        if not order_id:
+            raise RuntimeError(
+                f"Coinbase accepted {product_id} without an order id."
+            )
+
+        last: dict[str, Any] = {}
+        for attempt in range(8):
+            payload = fetch_order(order_id)
+            details = payload.get("order") or payload
+            if isinstance(details, dict):
+                last = details
+                status = str(details.get("status") or "").upper()
+                reject_reason = str(
+                    details.get("reject_message")
+                    or details.get("reject_reason")
+                    or details.get("cancel_message")
+                    or ""
+                ).strip()
+                filled_size = Decimal(str(details.get("filled_size") or "0"))
+                filled_value = Decimal(str(details.get("filled_value") or "0"))
+                settled = bool(details.get("settled", False))
+
+                if filled_size > 0 or filled_value > 0 or settled or status == "FILLED":
+                    return details
+
+                if status in {"FAILED", "REJECTED", "CANCELLED", "CANCELED", "EXPIRED"}:
+                    raise RuntimeError(
+                        f"Coinbase order {order_id} ended {status}"
+                        + (f": {reject_reason}" if reject_reason else "")
+                    )
+            if attempt < 7:
+                time.sleep(0.5)
+
+        raise RuntimeError(
+            f"Coinbase order {order_id} was submitted but no fill was confirmed. "
+            f"Last status: {last.get('status') or 'unknown'}."
+        )
+
+    def _execute_buy(
+        self,
+        decision: Decision,
+        snapshot: dict[str, Any],
+        funding_route: dict[str, Any] | None = None,
+    ) -> None:
+        route = funding_route or {}
+        product_id = str(route.get("execution_product") or decision.symbol).upper()
         _, quote = self._split_product(product_id)
-        available = Decimal(str((snapshot.get("cash_by_quote") or {}).get(quote, 0.0)))
-        spend = available * Decimal(str(decision.fraction))
+        mode = str(route.get("mode") or "DIRECT").upper()
+
+        if mode == "INVERSE_PAIR":
+            available_base = Decimal(str(route.get("available") or "0"))
+            sell_qty = available_base * Decimal(str(decision.fraction))
+            if sell_qty <= 0:
+                raise RuntimeError(
+                    f"Insufficient {route.get('funding_quote')} for direct crypto swap."
+                )
+
+            preview = self.rail.preview_market_sell(product_id, sell_qty)
+            self._validate_execution_preview(preview, product_id)
+            client_order_id = f"aiscend-swap-{uuid.uuid4()}"
+            order = self.rail.market_sell(
+                product_id,
+                sell_qty,
+                client_order_id=client_order_id,
+            )
+            confirmed_order = self._confirm_order_fill(order, product_id)
+            self.store.add_ledger(
+                "ADVANCED_SWAP",
+                product_id,
+                float(sell_qty),
+                0.0,
+                0.0,
+                f"{decision.rationale} | preview={str(preview)[:220]} | order={str(order)[:220]}",
+            )
+
+            try:
+                base_asset, quote_asset = self._split_product(product_id)
+                fee = self._confirmed_fee(confirmed_order)
+                self.audit.record_trade(
+                    venue="coinbase",
+                    rail="coinbase-advanced",
+                    network="coinbase",
+                    side="SELL",
+                    product_id=product_id,
+                    base_asset=base_asset,
+                    quote_asset=quote_asset,
+                    base_quantity=sell_qty,
+                    fee_asset=quote_asset if fee is not None else "",
+                    fee_quantity=fee,
+                    order_id=self.audit.provider_id(order, "order_id", "orderId"),
+                    client_order_id=client_order_id,
+                    status="filled",
+                    rationale=decision.rationale,
+                    source="coinbase_advanced_direct_crypto_swap",
+                    raw_provider_response={
+                        "preview": preview,
+                        "order": order,
+                        "confirmed_order": confirmed_order,
+                    },
+                )
+            except Exception as exc:
+                self.store.add_ledger(
+                    "AUDIT_ERROR",
+                    product_id,
+                    0.0,
+                    0.0,
+                    0.0,
+                    f"Direct crypto swap executed but audit write failed: {exc}",
+                )
+            return
+
+        if mode == "CONVERT":
+            funding_quote = str(route.get("funding_quote") or "").upper()
+            available_funding = Decimal(
+                str((snapshot.get("cash_by_quote") or {}).get(funding_quote, 0.0))
+            )
+            convert_amount = available_funding * Decimal(str(decision.fraction))
+            if convert_amount <= 0:
+                raise RuntimeError(
+                    f"Insufficient {funding_quote} to fund {quote} conversion."
+                )
+            self._execute_quote_conversion(
+                route,
+                convert_amount,
+                decision.rationale,
+            )
+
+            target_available = Decimal("0")
+            for attempt in range(6):
+                refreshed = self.rail.status()
+                target_available = next(
+                    (
+                        Decimal(str(item.available))
+                        for item in refreshed.balances
+                        if item.currency.upper() == quote
+                    ),
+                    Decimal("0"),
+                )
+                if target_available > 0:
+                    break
+                if attempt < 5:
+                    time.sleep(0.5)
+            spend = target_available * Decimal("0.995")
+        else:
+            available = Decimal(
+                str(route.get("available") or (snapshot.get("cash_by_quote") or {}).get(quote, 0.0))
+            )
+            spend = available * Decimal(str(decision.fraction))
+
         if spend <= 0:
             raise RuntimeError(f"Insufficient {quote} for Coinbase Advanced buy.")
 
         preview = self.rail.preview_market_buy(product_id, spend)
+        self._validate_execution_preview(preview, product_id)
         client_order_id = f"aiscend-{uuid.uuid4()}"
         order = self.rail.market_buy(
             product_id,
             spend,
             client_order_id=client_order_id,
         )
+        confirmed_order = self._confirm_order_fill(order, product_id)
         self.store.add_ledger(
             "ADVANCED_BUY",
             product_id,
@@ -720,12 +1231,18 @@ class AdvancedSpotEngine:
                 base_quantity=estimated_base or None,
                 quote_quantity=spend,
                 unit_price_quote=unit_price,
+                fee_asset=quote if self._confirmed_fee(confirmed_order) is not None else "",
+                fee_quantity=self._confirmed_fee(confirmed_order),
                 order_id=self.audit.provider_id(order, "order_id", "orderId"),
                 client_order_id=client_order_id,
-                status="provider_response",
+                status="filled",
                 rationale=decision.rationale,
                 source="coinbase_advanced_order_response",
-                raw_provider_response={"preview": preview, "order": order},
+                raw_provider_response={
+                    "preview": preview,
+                    "order": order,
+                    "confirmed_order": confirmed_order,
+                },
             )
         except Exception as exc:
             self.store.add_ledger(
@@ -737,6 +1254,89 @@ class AdvancedSpotEngine:
                 f"Advanced BUY executed but audit write failed: {exc}",
             )
 
+    def _execute_quote_conversion(
+        self,
+        route: dict[str, Any],
+        amount: Decimal,
+        rationale: str,
+    ) -> None:
+        conversion_product = str(route.get("conversion_product") or "").upper()
+        conversion_side = str(route.get("conversion_side") or "").upper()
+        if not conversion_product or conversion_side not in {"BUY", "SELL"}:
+            raise RuntimeError("Invalid quote-conversion route.")
+
+        client_order_id = f"aiscend-quote-{uuid.uuid4()}"
+        if conversion_side == "SELL":
+            preview = self.rail.preview_market_sell(
+                conversion_product,
+                amount,
+            )
+            self._validate_execution_preview(preview, conversion_product)
+            order = self.rail.market_sell(
+                conversion_product,
+                amount,
+                client_order_id=client_order_id,
+            )
+        else:
+            preview = self.rail.preview_market_buy(
+                conversion_product,
+                amount,
+            )
+            self._validate_execution_preview(preview, conversion_product)
+            order = self.rail.market_buy(
+                conversion_product,
+                amount,
+                client_order_id=client_order_id,
+            )
+        confirmed_order = self._confirm_order_fill(order, conversion_product)
+
+        self.store.add_ledger(
+            "ADVANCED_QUOTE_CONVERSION",
+            conversion_product,
+            float(amount) if conversion_side == "SELL" else 0.0,
+            0.0,
+            -float(amount) if conversion_side == "BUY" else 0.0,
+            (
+                f"Auto-funded quote currency before buy. {rationale} | "
+                f"preview={str(preview)[:180]} | order={str(order)[:220]}"
+            ),
+        )
+
+        try:
+            base, quote = self._split_product(conversion_product)
+            self.audit.record_trade(
+                venue="coinbase",
+                rail="coinbase-advanced",
+                network="coinbase",
+                side=conversion_side,
+                product_id=conversion_product,
+                base_asset=base,
+                quote_asset=quote,
+                base_quantity=amount if conversion_side == "SELL" else None,
+                quote_quantity=amount if conversion_side == "BUY" else None,
+                fee_asset=quote if self._confirmed_fee(confirmed_order) is not None else "",
+                fee_quantity=self._confirmed_fee(confirmed_order),
+                order_id=self.audit.provider_id(order, "order_id", "orderId"),
+                client_order_id=client_order_id,
+                status="filled",
+                rationale=f"Automatic quote funding. {rationale}",
+                source="coinbase_advanced_quote_conversion",
+                raw_provider_response={
+                    "preview": preview,
+                    "order": order,
+                    "confirmed_order": confirmed_order,
+                },
+            )
+        except Exception as exc:
+            self.store.add_ledger(
+                "AUDIT_ERROR",
+                conversion_product,
+                0.0,
+                0.0,
+                0.0,
+                f"Quote conversion executed but audit write failed: {exc}",
+            )
+
     def _execute_sell(self, decision: Decision, snapshot: dict[str, Any]) -> None:
         product_id = str(decision.symbol)
         position = (snapshot.get("positions") or {}).get(product_id) or {}
@@ -744,19 +1344,22 @@ class AdvancedSpotEngine:
         if qty <= 0:
             raise RuntimeError(f"No {product_id} position available to sell.")
 
+        preview = self.rail.preview_market_sell(product_id, qty)
+        self._validate_execution_preview(preview, product_id)
         client_order_id = f"aiscend-{uuid.uuid4()}"
         order = self.rail.market_sell(
             product_id,
             qty,
             client_order_id=client_order_id,
         )
+        confirmed_order = self._confirm_order_fill(order, product_id)
         self.store.add_ledger(
             "ADVANCED_SELL",
             product_id,
             float(qty),
             0.0,
             0.0,
-            f"{decision.rationale} | order={str(order)[:220]}",
+            f"{decision.rationale} | preview={str(preview)[:180]} | order={str(order)[:220]}",
         )
 
         try:
@@ -770,12 +1373,18 @@ class AdvancedSpotEngine:
                 base_asset=base,
                 quote_asset=quote,
                 base_quantity=qty,
+                fee_asset=quote if self._confirmed_fee(confirmed_order) is not None else "",
+                fee_quantity=self._confirmed_fee(confirmed_order),
                 order_id=self.audit.provider_id(order, "order_id", "orderId"),
                 client_order_id=client_order_id,
-                status="provider_response",
+                status="filled",
                 rationale=decision.rationale,
                 source="coinbase_advanced_order_response",
-                raw_provider_response=order,
+                raw_provider_response={
+                    "preview": preview,
+                    "order": order,
+                    "confirmed_order": confirmed_order,
+                },
             )
         except Exception as exc:
             self.store.add_ledger(

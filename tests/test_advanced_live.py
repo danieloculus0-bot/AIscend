@@ -5,7 +5,7 @@ from pathlib import Path
 
 from src.advanced_live import AdvancedSpotEngine
 from src.core import StateStore
-from src.wallets.advanced_trade import AdvancedBalance, AdvancedTradeStatus
+from src.wallets.advanced_trade import AdvancedBalance, AdvancedTradeSpot, AdvancedTradeStatus
 
 
 class FakeRail:
@@ -30,6 +30,9 @@ class FakeRail:
 
     def preview_market_buy(self, product_id, quote_size):
         return {"preview_id": "preview", "product_id": product_id, "quote_size": str(quote_size)}
+
+    def preview_market_sell(self, product_id, base_size):
+        return {"preview_id": "preview-sell", "product_id": product_id, "base_size": str(base_size)}
 
     def market_buy(self, product_id, quote_size, client_order_id):
         spend = Decimal(str(quote_size))
@@ -259,6 +262,31 @@ class AdvancedLiveTests(unittest.TestCase):
             self.assertGreater(snap["balance_values_usd"].get("EUR", 0.0), 0.0)
             store.close()
 
+    def test_held_asset_is_prioritized_for_exit_research(self):
+        class CapturingUniverse(FakeUniverse):
+            def __init__(self):
+                self.priority = None
+
+            def collect(self, priority_products=None):
+                self.priority = tuple(priority_products or ())
+                return super().collect(priority_products=priority_products)
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "advanced.db")
+            rail = FakeRail()
+            rail.aleo = Decimal("2")
+            universe = CapturingUniverse()
+            engine = AdvancedSpotEngine(
+                store,
+                rail=rail,
+                asset_universe=universe,
+                listing_sentinel=FakeListingSentinel(),
+                human_researcher=FakeHumanResearch(),
+            )
+            engine.sync()
+            self.assertIn("ALEO-USDC", universe.priority)
+            store.close()
+
     def test_engine_uses_full_scored_universe_not_absolute_ranked_top(self):
         class FullUniverse:
             def collect(self, priority_products=None):
@@ -311,6 +339,164 @@ class AdvancedLiveTests(unittest.TestCase):
             self.assertEqual(row["action"],"BUY")
             self.assertEqual(row["symbol"],"ALEO-USDC")
             store.close()
+
+    def test_engine_auto_funds_usd_candidate_from_usdc(self):
+        class DollarRouteRail(FakeRail):
+            def __init__(self):
+                super().__init__()
+                self.usd = Decimal("0")
+                self.zro = Decimal("0")
+                self.conversions = []
+
+            def status(self):
+                balances = []
+                if self.usdc > 0:
+                    balances.append(AdvancedBalance("USDC", self.usdc, Decimal("0")))
+                if self.usd > 0:
+                    balances.append(AdvancedBalance("USD", self.usd, Decimal("0")))
+                if self.zro > 0:
+                    balances.append(AdvancedBalance("ZRO", self.zro, Decimal("0")))
+                return AdvancedTradeStatus(
+                    configured=True,
+                    balances=tuple(balances),
+                    tradable_spot_products=2,
+                    product_ids=("USDC-USD", "ZRO-USD"),
+                )
+
+            def product(self, product_id):
+                prices = {"USDC-USD": "1.00", "ZRO-USD": "2.00"}
+                return {"product_id": product_id, "price": prices[product_id]}
+
+            def market_sell(self, product_id, base_size, client_order_id):
+                qty = Decimal(str(base_size))
+                if product_id == "USDC-USD":
+                    self.usdc -= qty
+                    self.usd += qty
+                    self.conversions.append((product_id, qty, client_order_id))
+                    return {"success": True, "order_id": "convert-1"}
+                return super().market_sell(product_id, base_size, client_order_id)
+
+            def market_buy(self, product_id, quote_size, client_order_id):
+                spend = Decimal(str(quote_size))
+                if product_id == "ZRO-USD":
+                    self.usd -= spend
+                    self.zro += spend / Decimal("2")
+                    self.buys.append((product_id, spend, client_order_id))
+                    return {"success": True, "order_id": "zro-buy"}
+                return super().market_buy(product_id, quote_size, client_order_id)
+
+        class DollarUniverse:
+            def collect(self, priority_products=None):
+                zro = {
+                    "product": "ZRO-USD",
+                    "base": "ZRO",
+                    "quote": "USD",
+                    "price": 2.0,
+                    "return_5m": 0.02,
+                    "return_1h": 0.024,
+                    "return_6h": 0.08,
+                    "volume_ratio": 3.4,
+                    "spread_bps": 5.0,
+                    "score": 0.82,
+                }
+                return {
+                    "available": True,
+                    "product_count": 2,
+                    "scanned_count": 1,
+                    "errors": [],
+                    "top": [zro],
+                    "buy_top": [zro],
+                    "scored": [zro],
+                }
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "advanced.db")
+            rail = DollarRouteRail()
+            engine = AdvancedSpotEngine(
+                store,
+                rail=rail,
+                asset_universe=DollarUniverse(),
+                listing_sentinel=FakeListingSentinel(),
+                human_researcher=FakeHumanResearch(),
+            )
+            engine.step()
+            row = store.latest_decisions(1)[0]
+            self.assertEqual(row["action"], "BUY")
+            self.assertEqual(row["symbol"], "ZRO-USD")
+            self.assertEqual(row["status"], "LIVE_EXECUTED")
+            self.assertTrue(rail.conversions)
+            self.assertTrue(rail.buys)
+            self.assertGreater(rail.zro, 0)
+            self.assertLess(rail.usdc, Decimal("25.00"))
+            self.assertIn("Auto-funding USD from USDC", row["rationale"])
+            store.close()
+
+    def test_engine_prefers_equivalent_pair_in_funded_quote(self):
+        engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+        route = engine._funding_route(
+            "ZRO-USD",
+            ("ZRO-USD", "ZRO-USDC"),
+            {"USDC": 25.0},
+        )
+        self.assertIsNotNone(route)
+        self.assertEqual(route["mode"], "ALT_PAIR")
+        self.assertEqual(route["execution_product"], "ZRO-USDC")
+        self.assertEqual(route["quote"], "USDC")
+
+    def test_crypto_funding_routes_rank_by_usd_value_not_token_count(self):
+        engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+        route = engine._funding_route(
+            "ZRO-USD",
+            ("ZRO-USD", "ZRO-GROVE", "ZRO-BTC"),
+            {"GROVE": 1000.0, "BTC": 0.001},
+            {"GROVE": 5.0, "BTC": 20.0},
+        )
+        self.assertIsNotNone(route)
+        self.assertEqual(route["mode"], "ALT_PAIR")
+        self.assertEqual(route["execution_product"], "ZRO-BTC")
+        self.assertEqual(route["funding_quote"], "BTC")
+
+    def test_unusable_quote_dust_falls_through_to_another_route(self):
+        class RouteRail(FakeRail):
+            def product(self, product_id):
+                return {
+                    "product_id": product_id,
+                    "price": "1",
+                    "quote_min_size": "1",
+                    "base_min_size": "0.0001",
+                }
+
+            def status(self):
+                return AdvancedTradeStatus(
+                    configured=True,
+                    balances=(),
+                    tradable_spot_products=2,
+                    product_ids=("ZRO-USD", "ZRO-USDC"),
+                )
+
+        engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+        engine.rail = RouteRail()
+        initial = engine._funding_route(
+            "ZRO-USD",
+            ("ZRO-USD", "ZRO-USDC"),
+            {"USD": 0.10, "USDC": 25.0},
+            {"USD": 0.10, "USDC": 25.0},
+        )
+        self.assertEqual(initial["mode"], "DIRECT")
+
+        route, fraction = engine._viable_funding_route(
+            "ZRO-USD",
+            initial,
+            {
+                "cash_by_quote": {"USD": 0.10, "USDC": 25.0},
+                "balance_values_usd": {"USD": 0.10, "USDC": 25.0},
+            },
+            0.40,
+        )
+        self.assertIsNotNone(route)
+        self.assertEqual(route["mode"], "ALT_PAIR")
+        self.assertEqual(route["execution_product"], "ZRO-USDC")
+        self.assertEqual(fraction, 0.40)
 
     def test_fresh_public_listing_signal_can_trigger_candidate(self):
         class FreshRail(FakeRail):
@@ -398,6 +584,256 @@ class AdvancedLiveTests(unittest.TestCase):
                 best["pre_human_score"],
             )
             self.assertIn("Human Weather", snap["research"]["thesis"])
+            store.close()
+
+    def test_router_uses_held_crypto_as_direct_quote(self):
+        engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+        route = engine._funding_route(
+            "TRAC-USD",
+            ("TRAC-USD", "TRAC-GROVE"),
+            {"GROVE": 2400.0},
+        )
+        self.assertIsNotNone(route)
+        self.assertEqual(route["mode"], "ALT_PAIR")
+        self.assertEqual(route["execution_product"], "TRAC-GROVE")
+        self.assertEqual(route["funding_quote"], "GROVE")
+
+    def test_router_uses_inverse_pair_for_direct_crypto_swap(self):
+        engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+        route = engine._funding_route(
+            "TRAC-USD",
+            ("TRAC-USD", "GROVE-TRAC"),
+            {"GROVE": 2400.0},
+        )
+        self.assertIsNotNone(route)
+        self.assertEqual(route["mode"], "INVERSE_PAIR")
+        self.assertEqual(route["execution_product"], "GROVE-TRAC")
+        self.assertEqual(route["source_asset"], "GROVE")
+        self.assertEqual(route["target_asset"], "TRAC")
+
+    def test_inverse_pair_execution_sells_source_crypto_directly_into_target(self):
+        class SwapRail(FakeRail):
+            def __init__(self):
+                super().__init__()
+                self.usdc = Decimal("0")
+                self.grove = Decimal("100")
+                self.trac = Decimal("0")
+                self.sells = []
+
+            def status(self):
+                balances = []
+                if self.grove > 0:
+                    balances.append(AdvancedBalance("GROVE", self.grove, Decimal("0")))
+                if self.trac > 0:
+                    balances.append(AdvancedBalance("TRAC", self.trac, Decimal("0")))
+                return AdvancedTradeStatus(
+                    configured=True,
+                    balances=tuple(balances),
+                    tradable_spot_products=2,
+                    product_ids=("GROVE-TRAC", "TRAC-USD"),
+                )
+
+            def product(self, product_id):
+                if product_id == "GROVE-TRAC":
+                    return {
+                        "product_id": product_id,
+                        "price": "0.02",
+                        "base_min_size": "1",
+                        "base_increment": "1",
+                        "quote_increment": "0.0001",
+                    }
+                return {
+                    "product_id": product_id,
+                    "price": "0.40",
+                    "quote_min_size": "1",
+                    "base_increment": "0.1",
+                    "quote_increment": "0.01",
+                }
+
+            def preview_market_sell(self, product_id, base_size):
+                return {
+                    "product_id": product_id,
+                    "base_size": str(base_size),
+                    "commission_total": "0.01",
+                }
+
+            def market_sell(self, product_id, base_size, client_order_id):
+                qty = Decimal(str(base_size))
+                self.grove -= qty
+                self.trac += qty * Decimal("0.02")
+                self.sells.append((product_id, qty, client_order_id))
+                return {"success": True, "order_id": "swap-1"}
+
+        class SwapUniverse:
+            def collect(self, priority_products=None):
+                trac = {
+                    "product": "TRAC-USD",
+                    "base": "TRAC",
+                    "quote": "USD",
+                    "price": 0.40,
+                    "return_5m": 0.02,
+                    "return_1h": 0.04,
+                    "return_6h": 0.10,
+                    "volume_ratio": 2.0,
+                    "spread_bps": 8.0,
+                    "score": 0.78,
+                }
+                return {
+                    "available": True,
+                    "product_count": 2,
+                    "scanned_count": 1,
+                    "errors": [],
+                    "top": [trac],
+                    "buy_top": [trac],
+                    "scored": [trac],
+                }
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "advanced.db")
+            rail = SwapRail()
+            engine = AdvancedSpotEngine(
+                store,
+                rail=rail,
+                asset_universe=SwapUniverse(),
+                listing_sentinel=FakeListingSentinel(),
+                human_researcher=FakeHumanResearch(),
+            )
+            engine.step()
+            row = store.latest_decisions(1)[0]
+            self.assertEqual(row["action"], "BUY")
+            self.assertEqual(row["status"], "LIVE_EXECUTED")
+            self.assertTrue(rail.sells)
+            self.assertLess(rail.grove, Decimal("100"))
+            self.assertGreater(rail.trac, Decimal("0"))
+            self.assertIn("Direct crypto swap", row["rationale"])
+            store.close()
+
+    def test_buy_fraction_is_raised_to_coinbase_minimum_when_possible(self):
+        class MinimumRail(FakeRail):
+            def product(self, product_id):
+                return {
+                    "product_id": product_id,
+                    "price": "2.00",
+                    "quote_min_size": "1",
+                }
+
+        engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+        engine.rail = MinimumRail()
+        adjusted = engine._adjust_buy_fraction_for_exchange_minimum(
+            "ALEO-USDC",
+            2.0,
+            0.40,
+        )
+        self.assertEqual(adjusted, 0.5)
+
+    def test_buy_is_skipped_when_coinbase_minimum_exceeds_risk_cap(self):
+        class MinimumRail(FakeRail):
+            def product(self, product_id):
+                return {
+                    "product_id": product_id,
+                    "price": "2.00",
+                    "quote_min_size": "1",
+                }
+
+        engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+        engine.rail = MinimumRail()
+        adjusted = engine._adjust_buy_fraction_for_exchange_minimum(
+            "ALEO-USDC",
+            1.0,
+            0.40,
+        )
+        self.assertIsNone(adjusted)
+
+    def test_execution_preview_rejects_pathological_spread(self):
+        with self.assertRaisesRegex(RuntimeError, "execution spread"):
+            AdvancedSpotEngine._validate_execution_preview(
+                {
+                    "best_bid": "1.00",
+                    "best_ask": "1.02",
+                    "order_total": "10",
+                    "commission_total": "0.01",
+                },
+                "TEST-USDC",
+            )
+
+    def test_execution_preview_rejects_excessive_fee(self):
+        with self.assertRaisesRegex(RuntimeError, "preview fee"):
+            AdvancedSpotEngine._validate_execution_preview(
+                {
+                    "best_bid": "1.00",
+                    "best_ask": "1.001",
+                    "order_total": "10",
+                    "commission_total": "0.50",
+                },
+                "TEST-USDC",
+            )
+
+    def test_coinbase_order_size_is_floored_to_product_increment(self):
+        self.assertEqual(
+            AdvancedTradeSpot._floor_to_increment(
+                Decimal("9.123456789"),
+                Decimal("0.01"),
+            ),
+            Decimal("9.12"),
+        )
+        self.assertEqual(
+            AdvancedTradeSpot._floor_to_increment(
+                Decimal("1.23456789"),
+                Decimal("0.0001"),
+            ),
+            Decimal("1.2345"),
+        )
+
+    def test_coinbase_rejection_response_raises_instead_of_faking_execution(self):
+        with self.assertRaisesRegex(RuntimeError, "Coinbase rejected market buy DIA-USDC"):
+            AdvancedTradeSpot._require_order_success(
+                {
+                    "success": False,
+                    "error_response": {
+                        "error": "INVALID_ARGUMENT",
+                        "message": "order rejected",
+                    },
+                },
+                "market buy DIA-USDC",
+            )
+
+    def test_unfilled_coinbase_order_is_not_marked_live_executed(self):
+        class UnfilledRail(FakeRail):
+            def market_buy(self, product_id, quote_size, client_order_id):
+                return {
+                    "success": True,
+                    "success_response": {
+                        "order_id": "accepted-but-not-filled",
+                        "product_id": product_id,
+                    },
+                }
+
+            def order(self, order_id):
+                return {
+                    "order": {
+                        "order_id": order_id,
+                        "status": "FAILED",
+                        "filled_size": "0",
+                        "filled_value": "0",
+                        "settled": False,
+                        "reject_message": "exchange rejected order",
+                    }
+                }
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "advanced.db")
+            engine = AdvancedSpotEngine(
+                store,
+                rail=UnfilledRail(),
+                asset_universe=FakeUniverse(),
+                listing_sentinel=FakeListingSentinel(),
+                human_researcher=FakeHumanResearch(),
+            )
+            engine.step()
+            row = store.latest_decisions(1)[0]
+            self.assertEqual(row["action"], "BUY")
+            self.assertEqual(row["status"], "EXECUTION_ERROR")
+            self.assertIn("exchange rejected order", row["rationale"])
             store.close()
 
     def test_execution_failure_still_hits_decision_journal(self):

@@ -10,7 +10,7 @@ The live experiment is intended to start with a tiny bankroll, currently around 
 
 ## Project status
 
-**Version:** 0.16.1  
+**Version:** 0.17.0  
 **Platform:** Windows x64 + browser via GitHub Codespaces  
 **State:** Synthetic desktop sandbox + Coinbase live desktop mode  
 **Live-money execution:** Base smart-account swaps and Coinbase Advanced spot orders are implemented
@@ -533,9 +533,11 @@ Version 0.15 adds direct USDC plumbing between the Base smart wallet and the Coi
 
 ## Remote monitor
 
-The Flask app already binds to `0.0.0.0:8000`. Version 0.15 adds a read-only `/monitor` page that auto-refreshes bankroll, current rail, research, BEAN, Coinbase candidates, positions, and the decision journal without exposing trade controls.
+The Flask app binds to `0.0.0.0:8000`, but non-local requests are now restricted to the read-only monitor surface: `/monitor`, `/api/monitor/status`, and `/api/candles`. Trading, bridge, credential, runner-control, and full-dashboard routes return 403 to remote clients.
 
-For a private home-PC to work-PC link, the included Windows helper `scripts/start_remote_monitor.ps1` detects a Tailscale IPv4 address and prints the monitor URL. Both PCs need to be on the same Tailnet. Optional `AISCEND_REMOTE_TOKEN` protects the monitor route with a query/header token when desired.
+Remote monitor access requires `AISCEND_REMOTE_TOKEN`. The included Windows helper `scripts/start_remote_monitor.ps1` generates a strong process-local token when one is not already set, prints a home-LAN URL when available, prints a Tailnet URL when Tailscale is installed, and then starts the app. The token is moved into request headers after the monitor page loads so it does not remain in browser history/API URLs.
+
+For access away from home, put the read-only monitor behind a private Tailnet or an HTTPS tunnel. Do not expose the unrestricted local dashboard directly to the public internet.
 
 
 ## Universal Coinbase spot scan + Listing Sentinel
