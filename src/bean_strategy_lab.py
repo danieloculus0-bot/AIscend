@@ -6,6 +6,7 @@ review"; there is deliberately no route to live strategy activation.
 """
 from __future__ import annotations
 
+from contextlib import contextmanager
 from datetime import datetime, timezone
 import json
 import math
@@ -301,10 +302,17 @@ class BeanStrategyLab:
             # Recover interrupted runs after app shutdown without erasing lessons.
             db.execute("UPDATE experiments SET state='INTERRUPTED' WHERE state='RUNNING' AND created < ?", (time.time()-1200,))
 
+    @contextmanager
     def _connect(self):
+        # sqlite3's built-in context manager commits but does NOT close files.
+        # Closing explicitly matters on Windows, including test cleanup.
         db = sqlite3.connect(self.path, timeout=15)
         db.row_factory = sqlite3.Row
-        return db
+        try:
+            with db:
+                yield db
+        finally:
+            db.close()
 
     def status(self):
         with self._lock, self._connect() as db:
