@@ -218,14 +218,23 @@ def _fitness(bars, pairs, rule):
     return min(a["net_return"], b["net_return"]) - 0.6 * max(a["drawdown"], b["drawdown"])
 
 
-def evolve(dataset, *, seed, generations=GENERATION_COUNT, population=POPULATION):
+def evolve(dataset, *, seed, generations=GENERATION_COUNT, population=POPULATION, memory=None):
     bars, pairs = dataset["bars"], dataset["pairs"]
     cut = int(len(bars) * 0.68)
     train, holdout = bars[:cut], bars[cut:]
     if len(train) <= WARMUP + 8 or len(holdout) <= WARMUP + 4:
         raise ValueError("Not enough independent training and evaluation data")
     rng = random.Random(seed)
-    genes = [_random(rng) for _ in range(population)]
+    prior = []
+    for candidate in (memory or []):
+        entry = tuple(candidate)
+        if (len(entry) == 4 and entry[0] in MODES and entry[1] in LOOKBACKS
+                and entry[2] in THRESHOLDS and entry[3] in REBALANCES
+                and entry not in prior):
+            prior.append(entry)
+    # Retest previous training champions on the NEW training period. Past
+    # holdout outcomes are deliberately never used as optimization scores.
+    genes = prior[:population] + [_random(rng) for _ in range(max(0, population-len(prior)))]
     grades, history = {}, []
     def fitness(g):
         if g not in grades:
@@ -257,7 +266,8 @@ def evolve(dataset, *, seed, generations=GENERATION_COUNT, population=POPULATION
     btc_return = btc_final / CAPITAL - 1
     return {"schema": "bean.manual.school.v1", "candidate": list(champion),
             "train_score": round(grades[champion], 6), "generations": history,
-            "unique_candidates": len(grades), "holdout": result,
+            "unique_candidates": len(grades), "memory_seeds_tested": len(prior[:population]),
+            "holdout": result,
             "btc_return": round(btc_return, 6),
             "profitable": result["net_return"] > 0,
             "beats_cash_and_btc": result["net_return"] > max(0, btc_return),
@@ -265,6 +275,13 @@ def evolve(dataset, *, seed, generations=GENERATION_COUNT, population=POPULATION
             "catalog_count": dataset["catalog_count"],
             "attempted": dataset["attempted"], "skipped": dataset["skipped"],
             "data_end": dataset["end"],
+            "lessons": [
+                "PASS on the current historical holdout; still requires genuinely new forward data."
+                if result["net_return"] > max(0, btc_return)
+                else "This candidate failed to beat cash and BTC after modeled costs; retain the training rules but do not promote.",
+                "Experimented on %d of %d selected markets; missing history is not filled in." %
+                (len(pairs), len(dataset["attempted"])),
+            ],
             "limitations": "Research-only. Historical prices with modeled costs, no real fills. "
                            "Repeated runs on similar periods are not independent forward validation."}
 
@@ -326,7 +343,15 @@ class BeanStrategyLab:
     def _work(self, event_id, ordinal, seed):
         try:
             dataset = self.collector(ordinal-1)
-            report = evolve(dataset, seed=seed)
+            with self._lock, self._connect() as db:
+                previous = db.execute(
+                    "SELECT result FROM experiments WHERE result IS NOT NULL AND id != ? "
+                    "ORDER BY created DESC LIMIT 8", (event_id,)
+                ).fetchall()
+            # Only inherit proposed genetic parameters from prior training.
+            # NEVER select seeds using previously observed holdout profitability.
+            inherited = [json.loads(row["result"]).get("candidate") for row in previous]
+            report = evolve(dataset, seed=seed, memory=[x for x in inherited if x])
             result, state, error = json.dumps(report, separators=(",", ":")), "REVIEW", None
         except Exception as exc:
             result, state, error = None, "FAILED", f"{type(exc).__name__}: {str(exc)[:260]}"
