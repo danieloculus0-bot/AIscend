@@ -32,9 +32,19 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: danieloculus0-bot/BEAN
+          ref: main
+          path: _bean_core
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Record actual BEAN Core revision and verify integration contract
+        run: |
+          python -c "from src.bean_core_bridge import core_identity; import json; print(json.dumps(core_identity('_bean_core'), sort_keys=True))"
+          python -m unittest discover -s tests -p 'test_bean_core_bridge.py' -v
       - name: Compile optimization source
         run: python -m compileall -q scripts/bean_optimization_lab.py tests/test_bean_optimization_lab.py
       - name: Run independent unit tests
