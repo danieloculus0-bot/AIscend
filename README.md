@@ -26,7 +26,7 @@ Once autonomy is started, the agent does not ask for per-trade human approval.
 - **[Historical replay and evolutionary research](scripts/bean_historical_replay.py):** Independent research tools, broader eligible market cohort tests, repeatable comparisons, and a credential-free [BEAN Core advisory bridge](src/bean_core_bridge.py).
 - **Persistent Coinbase authentication:** Successful browser connections now store the CDP wallet and separate Advanced API keys in the operating-system credential store for future launches. No wallet secrets are stored in Git or browser local storage.
 
-The strategy studies are distinct from the live trading runner; launching Strategy School does not activate one of its winners for real-money orders.
+The strategy studies are distinct from the live trading runner; launching Strategy School does not activate one of its winners for real-money orders. Strategy School now recovers all distinct saved candidate parameters from its existing local SQLite experiment history, replays eight recent candidates plus a rotating eight older ones on each new exam, and displays how much history was actually reused. It never feeds historical holdout scores back into training or interprets research selection as a live deployment.
 
 ### Verified repository snapshot (October 11, 2026)
 
