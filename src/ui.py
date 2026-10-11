@@ -283,7 +283,7 @@ class MainWindow(QMainWindow):
         running = bool(report.get("running"))
         self.bean_run_button.setEnabled(latest is None and not running)
         self.bean_retry_button.setEnabled(latest is not None and not running)
-        qualified = bool((latest or {}).get("report", {}).get("beats_cash_and_btc"))
+        qualified = bool(((latest or {}).get("report") or {}).get("beats_cash_and_btc"))
         self.bean_approve_button.setEnabled(
             not running and qualified and latest.get("state") == "REVIEW"
             if latest else False
