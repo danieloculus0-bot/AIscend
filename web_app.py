@@ -15,6 +15,7 @@ from flask import Flask, jsonify, render_template, request
 from src.advanced_live import AdvancedSpotEngine
 from src.audit import AuditTrail
 from src.bean import BeanMemory
+from src.bean_strategy_lab import BeanStrategyLab
 from src.core import Decision, StateStore, app_data_dir
 from src.live import LiveEngine
 from src.opportunities import OpportunityUniverse
@@ -25,6 +26,7 @@ from src.wallets.cdp_wallet import CdpWallet, CredentialVault
 
 
 app = Flask(__name__)
+_bean_lab = BeanStrategyLab()
 
 _loop_lock = threading.Lock()
 _stop_event = threading.Event()
@@ -360,6 +362,30 @@ def monitor_status():
         return jsonify(_active_monitor_payload())
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.get("/api/bean-lab")
+def bean_lab_status():
+    return jsonify({"ok": True, **_bean_lab.status()})
+
+
+@app.post("/api/bean-lab/start")
+def bean_lab_start():
+    try:
+        return jsonify({"ok": True, **_bean_lab.start()}), 202
+    except RuntimeError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 409
+
+
+@app.post("/api/bean-lab/approve")
+def bean_lab_approve():
+    event_id = str((request.get_json(silent=True) or {}).get("event_id") or "").strip()
+    if not event_id:
+        return jsonify({"ok": False, "error": "Choose a finished event to approve"}), 400
+    try:
+        return jsonify({"ok": True, **_bean_lab.approve(event_id)})
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 409
 
 
 @app.get("/api/runner")
