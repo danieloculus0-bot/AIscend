@@ -643,12 +643,12 @@ function renderSnapshot(s){
   $('multiple').textContent = Number(s.multiple || 0).toFixed(4) + 'x';
   $('wallet').textContent = 'Wallet: ' + (s.wallet_address || '--');
 
-  const bp=s.bean_policy || {};
-  $('beanLivePolicy').textContent=bp.status==='READY'
-    ? 'BEAN live gate READY · exam #'+bp.experiment+' · target '+(bp.target||'CASH')+
-      ' · '+Number(bp.bars||0)+' completed hourly candles · buy confirmation active'
-    : 'BEAN live gate: '+(bp.status||'NOT EVALUATED')+
-      (bp.reason?' · '+bp.reason:'')+'. Unavailable policy never manufactures an order.';
+  const beanPolicy=s.bean_policy || {};
+  $('beanLivePolicy').textContent=beanPolicy.status==='READY'
+    ? 'BEAN live gate READY · exam #'+beanPolicy.experiment+' · target '+(beanPolicy.target||'CASH')+
+      ' · '+Number(beanPolicy.bars||0)+' completed hourly candles · buy confirmation active'
+    : 'BEAN live gate: '+(beanPolicy.status||'NOT EVALUATED')+
+      (beanPolicy.reason?' · '+beanPolicy.reason:'')+'. Unavailable policy never manufactures an order.';
   const r=s.research || {};
   $('researchPrediction').textContent = r.prediction || 'UNKNOWN';
   $('researchConfidence').textContent = r.available ? (Number(r.confidence || 0)*100).toFixed(1)+'%' : '--';
