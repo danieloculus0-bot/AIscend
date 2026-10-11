@@ -12,6 +12,7 @@ import math
 from pathlib import Path
 import time
 from urllib.parse import urlencode
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 PAIRS = ("BTC-USD", "ETH-USD", "SOL-USD", "ADA-USD")  # legacy fixture fallback
@@ -55,8 +56,24 @@ def fetch_candles(product, start, end, request_fn=urlopen):
         url = ("https://api.coinbase.com/api/v3/brokerage/market/products/"
                + product + "/candles?" + query)
         req = Request(url, headers={"User-Agent": "BEAN-AIscend-historical-research/1"})
-        with request_fn(req, timeout=30) as response:
-            body = json.load(response)
+        # Public Coinbase API limits are real: back off on transient 429/5xx
+        # responses instead of disguising missing history as an empty market.
+        for attempt in range(5):
+            try:
+                with request_fn(req, timeout=30) as response:
+                    body = json.load(response)
+                break
+            except HTTPError as exc:
+                if exc.code not in (429, 500, 502, 503, 504) or attempt == 4:
+                    raise
+                retry_after = getattr(exc, "headers", {}) or {}
+                try:
+                    retry_seconds = float(retry_after.get("Retry-After", 0))
+                except (TypeError, ValueError):
+                    retry_seconds = 0.0
+                time.sleep(min(30.0, max(2.0 * 2 ** attempt, retry_seconds)))
+        if request_fn is urlopen:
+            time.sleep(0.3)  # avoid bursting through public rate limits
         candles = body.get("candles")
         if not isinstance(candles, list) or not candles:
             raise ValueError("No Coinbase candles for " + product)
