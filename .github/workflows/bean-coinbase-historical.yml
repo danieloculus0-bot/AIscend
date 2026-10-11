@@ -20,9 +20,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: danieloculus0-bot/BEAN
+          ref: main
+          path: _bean_core
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Verify exact BEAN Core revision for this challenge
+        run: python -c "from src.bean_core_bridge import core_identity; import json; print(json.dumps(core_identity('_bean_core'), sort_keys=True))"
       - name: Verify historical replay tests
         run: python -m unittest discover -s tests -p test_bean_historical_replay.py -v
       - name: Verify multi-window acceptance gate
