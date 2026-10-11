@@ -49,6 +49,14 @@ class HistoricalReplayTests(unittest.TestCase):
         self.assertEqual(report["strategy"]["rule"], "cash")
         self.assertAlmostEqual(report["holdout"]["final"], START)
 
+    def test_new_strategy_families_preserve_accounting(self):
+        data = fixture()
+        for family in ("trend", "persistent"):
+            result = run(data["bars"], family, 12, 0.005)
+            self.assertGreater(result["final"], 0)
+            self.assertGreaterEqual(result["trades"], 0)
+            self.assertLessEqual(result["max_drawdown"], 1)
+
     def test_missing_data_rejected(self):
         with self.assertRaises(ValueError):
             assess({"bars": [], "source": "missing"})
