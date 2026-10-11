@@ -280,7 +280,7 @@
         <div id="beanResearchWatch" class="small" style="margin-top:8px">Autonomous research: checking...</div>
         <button id="beanResearchToggle" onclick="toggleBeanResearch()" style="max-width:240px;margin-top:7px">PAUSE AUTOMATIC RESEARCH</button>
         <div id="beanLabGateStatus" class="bean-result small" style="margin-top:10px">Independent strategy gate: awaiting fresh candle evaluation.</div>
-        <div id="beanLabActivation" class="small" style="margin-top:5px">The selected strategy can confirm or veto existing buys. It cannot originate live trades.</div>
+        <div id="beanLabActivation" class="small" style="margin-top:5px">No approval required for research selection. The selected strategy can confirm or veto existing buys; it cannot originate live trades.</div>
         <details style="margin-top:13px"><summary style="cursor:pointer;color:#b4dbc1;font-weight:700">LESSON JOURNAL · RECENT EXPERIMENTS</summary>
           <div id="beanLabHistory" class="bean-history small">No lessons recorded yet.</div>
         </details>
@@ -374,8 +374,8 @@ function renderBeanLab(payload){
       (gate.reason?' · '+gate.reason:'')+
       '. This reading does not place or approve a real-money order.';
   $('beanLabActivation').textContent=payload.live_strategy_activation==='BUY_CONFIRMATION_GATE'
-    ? 'Live BUY confirmation is installed; SELL protection unchanged. Research results never originate orders.'
-    : 'Deployment: NOT ACTIVE. Selection is historical research, not live trading.';
+    ? 'No approval required for research selection. Live BUY confirmation is installed; SELL protection unchanged. Research results never originate orders.'
+    : 'No approval required for research selection. Deployment: NOT ACTIVE. Historical research does not initiate live orders.';
   $('beanLabRun').disabled=!!latest||beanLabRunning;
   $('beanLabRetry').disabled=!latest||beanLabRunning;
   if(!latest){ $('beanLabResult').textContent='Research only. BEAN can run an exam without placing a trade.'; }
