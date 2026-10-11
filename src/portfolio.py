@@ -54,7 +54,7 @@ def choose_execution_rail(
         return "base"
     if weakest:
         weakest_product = str(weakest.get("product") or "").upper()
-        weakest_score = float(weakest.get("score") or 0.0)
+        weakest_score = float(weakest.get("decision_score") if weakest.get("decision_score") is not None else (weakest.get("score") or 0.0))
         if weakest_product in (advanced.get("positions") or {}) and weakest_score <= -0.14:
             return "advanced"
 
@@ -67,8 +67,7 @@ def choose_execution_rail(
     )
     advanced_buy = False
     advanced_score = float(
-        best.get("decision_score")
-        or best.get("score")
+        (best.get("decision_score") if best.get("decision_score") is not None else best.get("score"))
         or radar.get("score")
         or 0.0
     )
