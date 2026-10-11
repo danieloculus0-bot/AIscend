@@ -16,6 +16,7 @@ from src.advanced_live import AdvancedSpotEngine
 from src.audit import AuditTrail
 from src.bean import BeanMemory
 from src.bean_policy import BeanPolicyGate
+from src.bean_research_supervisor import BeanResearchSupervisor
 from src.bean_strategy_lab import BeanStrategyLab
 from src.core import Decision, StateStore, app_data_dir
 from src.live import LiveEngine
@@ -29,6 +30,7 @@ from src.wallets.cdp_wallet import CdpWallet, CredentialVault
 app = Flask(__name__)
 _bean_lab = BeanStrategyLab()
 _bean_policy = BeanPolicyGate(lab=_bean_lab)
+_bean_supervisor = BeanResearchSupervisor(_bean_lab, _bean_policy)
 
 _loop_lock = threading.Lock()
 _stop_event = threading.Event()
@@ -372,6 +374,7 @@ def monitor_status():
 def bean_lab_status():
     status = _bean_lab.status()
     status["live_strategy_activation"] = "BUY_CONFIRMATION_GATE"
+    status["research_watch"] = _bean_supervisor.status()
     return jsonify({"ok": True, **status})
 
 
@@ -381,6 +384,15 @@ def bean_lab_start():
         return jsonify({"ok": True, **_bean_lab.start()}), 202
     except RuntimeError as exc:
         return jsonify({"ok": False, "error": str(exc)}), 409
+
+
+@app.post("/api/bean-research/enable")
+def bean_research_enable():
+    payload = request.get_json(silent=True) or {}
+    if type(payload.get("enabled")) is not bool:
+        return jsonify({"ok": False, "error": "enabled must be a boolean"}), 400
+    return jsonify({"ok": True, "research_watch":
+                    _bean_supervisor.set_enabled(payload["enabled"])})
 
 
 @app.get("/api/runner")
@@ -723,5 +735,12 @@ def stop():
 
 
 if __name__ == "__main__":
+    # Research is a separate background process within the Flask server, with
+    # its own durable hourly cursor. No trading/autonomy runner is started here.
+    _bean_supervisor.start()
     port = int(os.getenv("PORT", "8000"))
-    app.run(host=os.getenv("AISCEND_BIND_HOST", "127.0.0.1"), port=port, debug=False, threaded=True)
+    try:
+        app.run(host=os.getenv("AISCEND_BIND_HOST", "127.0.0.1"),
+                port=port, debug=False, threaded=True)
+    finally:
+        _bean_supervisor.stop()

@@ -19,6 +19,34 @@ The current application is fully runnable against a persistent synthetic market.
 
 Once autonomy is started, the agent does not ask for per-trade human approval.
 
+## Unattended BEAN Strategy Research (Python browser server)
+
+Starting `python web_app.py` now launches a **research-only** supervisor
+alongside the dashboard. It checks for freshly completed Coinbase hourly bars
+five minutes after each hour, automatically begins one new Strategy School
+experiment per new data window, rotates the market cohort, and preserves its
+attempt cursor in the same local SQLite file across restarts. Manual RUN/TRY
+AGAIN still works; overlapping experiments are not started.
+
+BEAN now tests **seven** causal rule families, including new acceleration and
+volatility-adjusted strategies. Prior strategy genes (including rejected
+candidates) stay in the archive and older lessons are rotated into new training.
+These tests are historical; an exam marked selected is not proof of future
+returns.
+
+Separately, the research supervisor periodically evaluates the newest selected
+rule against current completed Coinbase hourly candles **without placing an
+order**. The Strategy School panel shows the real status (READY,
+DATA_UNAVAILABLE, NOT_EVALUATED), its target when available, and the next
+research time. The **PAUSE/RESUME AUTOMATIC RESEARCH** control is local-only
+and survives a restart. It does not pause an already running experiment.
+
+The live BEAN gate remains **buy confirmation only**. It may confirm or veto
+an order that the existing live engine was already going to make; it never
+originates a live order, overrides sell decisions, or turns historic holdout
+numbers into wallet gains. Stopping the Python server also stops unattended
+research; this is not a cloud service and does not run when the PC is off.
+
 ## BEAN integration and evidence (v0.17.1)
 
 - **[BEAN Strategy School](src/bean_strategy_lab.py):** Runs historical Coinbase candidate research with training and chronological holdout grading, saves experiment lessons, and automatically selects only candidates meeting its research checks. `AUTO_SELECTED` is an experimental result, **not a live policy deployment** or evidence of future profits.
