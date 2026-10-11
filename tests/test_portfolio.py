@@ -133,6 +133,28 @@ class PortfolioCoordinatorTests(unittest.TestCase):
         }
         self.assertEqual(choose_execution_rail(base, advanced), "advanced")
 
+    def test_coordinator_does_not_override_zero_fused_score(self):
+        base = {"cash": 0.0, "net_liquidation": 0.0, "positions": {},
+                "research": {"available": False}}
+        advanced = {
+            "net_liquidation": 25.0,
+            "cash_by_quote": {"USDC": 25.0},
+            "positions": {},
+            "market_radar": {"score": 0.8,
+                             "best_long": {"product": "DOGE-USDC",
+                                           "decision_score": 0.0,
+                                           "score": 0.8,
+                                           "spread_bps": 1.0,
+                                           "volume_ratio": 2.0}},
+        }
+        # Funding does not override a suppressed trading signal.
+        self.assertEqual(choose_execution_rail(base, advanced), "advanced")
+        advanced["market_radar"]["weakest_held"] = {
+            "product": "DOGE-USDC", "decision_score": -0.5, "score": 0.8,
+        }
+        advanced["positions"] = {"DOGE-USDC": {"qty": 1}}
+        self.assertEqual(choose_execution_rail(base, advanced), "advanced")
+
     def test_coordinator_journals_hold_on_funded_rail(self):
         base = {
             "cash": 0.0,
