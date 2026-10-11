@@ -15,6 +15,7 @@ from flask import Flask, jsonify, render_template, request
 from src.advanced_live import AdvancedSpotEngine
 from src.audit import AuditTrail
 from src.bean import BeanMemory
+from src.bean_policy import BeanPolicyGate
 from src.bean_strategy_lab import BeanStrategyLab
 from src.core import Decision, StateStore, app_data_dir
 from src.live import LiveEngine
@@ -27,6 +28,7 @@ from src.wallets.cdp_wallet import CdpWallet, CredentialVault
 
 app = Flask(__name__)
 _bean_lab = BeanStrategyLab()
+_bean_policy = BeanPolicyGate(lab=_bean_lab)
 
 _loop_lock = threading.Lock()
 _stop_event = threading.Event()
@@ -96,10 +98,12 @@ def _make_engine(network: str, rail: str = "base"):
             store=store,
             rail=AdvancedTradeSpot(),
             bean=BeanMemory(shared.conn),
+            policy_gate=_bean_policy,
         )
         setattr(engine, "_shared_memory_store", shared)
     else:
-        engine = LiveEngine(store=store, wallet=CdpWallet(network=network))
+        engine = LiveEngine(store=store, wallet=CdpWallet(network=network),
+                            policy_gate=_bean_policy)
     return store, engine
 
 
@@ -366,7 +370,9 @@ def monitor_status():
 
 @app.get("/api/bean-lab")
 def bean_lab_status():
-    return jsonify({"ok": True, **_bean_lab.status()})
+    status = _bean_lab.status()
+    status["live_strategy_activation"] = "BUY_CONFIRMATION_GATE"
+    return jsonify({"ok": True, **status})
 
 
 @app.post("/api/bean-lab/start")
