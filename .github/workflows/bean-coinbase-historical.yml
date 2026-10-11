@@ -6,6 +6,7 @@ on:
   pull_request:
     paths:
       - 'scripts/bean_historical_replay.py'
+      - 'scripts/bean_historical_batch.py'
       - 'tests/test_bean_historical_replay.py'
       - 'scripts/bean_strategy_gate.py'
       - 'scripts/bean_strategy_school.py'
@@ -41,22 +42,8 @@ jobs:
         run: python -m unittest discover -s tests -p test_bean_strategy_school.py -v
       - name: Record every online Coinbase USD/USDC market
         run: python -m scripts.bean_historical_replay --catalog-only --out artifacts/bean-market-catalog.json
-      - name: Evaluate two Coinbase windows with untouched chronological holdouts
-        run: |
-          python -m scripts.bean_historical_replay --days 30 --out artifacts/bean-historical-30d.json
-          python -m scripts.bean_historical_replay --days 60 --out artifacts/bean-historical-60d.json
-          python -m scripts.bean_strategy_gate artifacts/bean-historical-30d.json artifacts/bean-historical-60d.json --out artifacts/bean-promotion-gate.json
-      - name: BEAN Strategy School learning passes on historical evidence
-        run: |
-          python - <<'PY'
-          import json, time
-          from pathlib import Path
-          from scripts.bean_historical_replay import collect
-          end = int(time.time() // 3600 * 3600)
-          data = collect(end - 30 * 86400, end)
-          Path('artifacts/bean-school-dataset.json').write_text(json.dumps(data))
-          PY
-          python -m scripts.bean_strategy_school --dataset artifacts/bean-school-dataset.json --out artifacts/bean-school-report.json
+      - name: Evaluate both periods and Strategy School from one cached 60-day download
+        run: python -m scripts.bean_historical_batch --out-dir artifacts
       - name: Preserve scored results and provenance
         if: always()
         uses: actions/upload-artifact@v4
