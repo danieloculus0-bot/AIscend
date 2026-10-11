@@ -63,8 +63,8 @@
       box-shadow:inset 0 0 0 2px #050705;
     }
     #pet {
-      width:176px;
-      height:176px;
+      width:192px;
+      height:192px;
       image-rendering:pixelated;
       image-rendering:crisp-edges;
       display:block;
@@ -113,7 +113,7 @@
 <body>
 <div class="wrap">
   <div class="top">
-    <div><h1>AIscend</h1><div class="sub">Autonomous capital game - one point per completed double</div></div>
+    <div><h1>AIscend</h1><div class="sub">Autonomous capital research and execution</div></div>
     <div id="runnerPill" class="pill">STOPPED</div>
   </div>
 
@@ -127,10 +127,10 @@
   <div class="layout">
     <div>
       <div class="panel">
-        <h2 id="traderThingTitle">TRADER THING</h2>
+        <h2 id="traderThingTitle">BEAN</h2>
         <div class="petbox">
-          <canvas id="pet" width="144" height="144"></canvas>
-          <div class="petname">AIS-0</div>
+          <canvas id="pet" width="192" height="192" role="img" aria-label="BEAN retro pixel-art mascot with sprout and waving arms"></canvas>
+          <div class="petname">BEAN</div>
           <div id="petMood">just sitting there</div>
         </div>
       </div>
@@ -864,83 +864,140 @@ function escapeHtml(s){
 function drawPet(){
   const canvas=$('pet');
   const ctx=canvas.getContext('2d');
-  const px=8;
-  const ink='#a7d49b';
-  const bg='#0b100b';
-  ctx.fillStyle=bg;
+  if(!ctx) return;
+  // 48x48 Game Boy-inspired pixel canvas, scaled without smoothing.
+  // BEAN's silhouette follows the official two-leaf sprout + waving body.
+  const unit=4, size=48;
+  const color={
+    bg:'#0b100b', outline:'#29482d', shadow:'#457c42',
+    bean:'#83ba60', light:'#a7d49b', shine:'#d7edba',
+    ink:'#081108', blush:'#619d51'
+  };
+  ctx.imageSmoothingEnabled=false;
+  ctx.fillStyle=color.bg;
   ctx.fillRect(0,0,canvas.width,canvas.height);
-  ctx.fillStyle=ink;
+  const pixel=(x,y,shade)=>{
+    x=Math.round(x); y=Math.round(y);
+    if(x<0||y<0||x>=size||y>=size) return;
+    ctx.fillStyle=shade;
+    ctx.fillRect(x*unit,y*unit,unit,unit);
+  };
+  const oval=(cx,cy,rx,ry,shade,rotation=0)=>{
+    const co=Math.cos(rotation), si=Math.sin(rotation);
+    const reach=Math.ceil(Math.max(rx,ry))+2;
+    for(let y=Math.floor(cy-reach);y<=cy+reach;y++){
+      for(let x=Math.floor(cx-reach);x<=cx+reach;x++){
+        const dx=x-cx, dy=y-cy;
+        const u=dx*co+dy*si, v=-dx*si+dy*co;
+        if(u*u/(rx*rx)+v*v/(ry*ry)<=1) pixel(x,y,shade);
+      }
+    }
+  };
+  const stroke=(ax,ay,bx,by,width,shade)=>{
+    const dx=bx-ax,dy=by-ay,len=dx*dx+dy*dy||1;
+    for(let y=Math.floor(Math.min(ay,by)-width-1);y<=Math.ceil(Math.max(ay,by)+width+1);y++){
+      for(let x=Math.floor(Math.min(ax,bx)-width-1);x<=Math.ceil(Math.max(ax,bx)+width+1);x++){
+        const t=Math.max(0,Math.min(1,((x-ax)*dx+(y-ay)*dy)/len));
+        if((x-ax-t*dx)**2+(y-ay-t*dy)**2<=width*width) pixel(x,y,shade);
+      }
+    }
+  };
 
-  const ox=0;
-  const oy=petBob?1:0;
-  const p=(x,y)=>ctx.fillRect((x+ox)*px,(y+oy)*px,px,px);
-  const line=(x1,x2,y)=>{ for(let x=x1;x<=x2;x++) p(x,y); };
+  // Two distinct leaves, curved stem, and chunky four-color foliage.
+  stroke(24,15,24,8,2.0,color.outline);
+  stroke(24,13,27,7,1.7,color.shadow);
+  oval(17.5,6.7,8.8,4.2,color.outline,0.34);
+  oval(17.5,6.2,7.5,3.1,color.bean,0.34);
+  oval(15.5,5.0,3.7,1.0,color.shine,0.34);
+  oval(32.2,7.0,8.2,4.0,color.outline,-0.32);
+  oval(32,6.4,7.0,2.9,color.bean,-0.32);
+  oval(34,5.1,3.6,1.0,color.light,-0.32);
+  stroke(24,14,24,9,1.1,color.light);
 
-  // SAME dumb little AIS-0 body. Do not improve it.
-  line(6,11,2); p(4,3); p(5,3); p(12,3); p(13,3);
-  p(3,4); p(14,4); p(2,5); p(15,5);
-  p(2,6); p(15,6); p(2,7); p(15,7); p(2,8); p(15,8);
-  p(2,9); p(15,9); p(3,10); p(14,10); p(4,11); p(5,11); p(12,11); p(13,11);
-  line(6,11,12);
+  // Arms remain visible outside the body. BEAN waves one hand.
+  const waving=['buy','win','point','up','interested'].includes(petState);
+  const handY=waving?13:16;
+  stroke(14,25,8,23,4,color.outline);
+  stroke(8,23,5,handY+3,3.5,color.outline);
+  oval(5.8,handY+1,3.7,4.2,color.outline,-0.15);
+  stroke(14,25,8,23,2.8,color.bean);
+  stroke(8,23,5,handY+3,2.3,color.bean);
+  oval(5.7,handY+1,2.5,3.1,color.bean,-0.15);
+  stroke(8,handY+1,10,handY+4,1.8,color.outline);
+  stroke(8,handY+1,10,handY+4,1.1,color.bean);
+  pixel(4,handY-1,color.light);
+  stroke(37,27,42,30,4,color.outline);
+  stroke(42,30,43,34,3.6,color.outline);
+  stroke(37,27,42,30,2.7,color.bean);
+  stroke(42,30,43,34,2.3,color.bean);
+  oval(43,34.5,3.4,3.4,color.outline);
+  oval(43,34,2.4,2.5,color.bean);
+  pixel(44,33,color.light);
 
-  line(6,11,13); p(5,14); p(12,14); p(5,15); p(12,15);
-  p(7,14); p(10,14); p(8,15); p(9,15);
-  p(6,16); p(7,16); p(10,16); p(11,16);
+  // Rounded bean body, rim light and belly shading. No black faceplate.
+  oval(24.5,27.6,14.6,15.7,color.outline);
+  oval(25,32,13.7,10.5,color.outline);
+  oval(24.5,27.1,13.2,14.4,color.shadow);
+  oval(25,32,12.3,9.5,color.shadow);
+  oval(23.2,26.4,11.5,12.7,color.bean);
+  oval(23.5,32,10.6,8.0,color.bean);
+  oval(20,22,6.9,6.0,color.light,-0.18);
+  oval(20,17.1,5.3,1.6,color.shine,-0.14);
+  oval(21,34,6.6,5.1,color.light,0.12);
+  oval(30.8,34,4.3,5.9,color.shadow,0.20);
+  oval(23,28,9,7,color.bean);
 
-  // Tiny expressions, still gloriously shitty.
-  if(petBlink){
-    line(5,6,6); line(11,12,6);
-  } else if(petState==='dead'){
-    p(5,5); p(6,6); p(6,5); p(5,6);
-    p(11,5); p(12,6); p(12,5); p(11,6);
-  } else if(petState==='sell' || petState==='down' || petState==='poop' || petState==='trouble'){
-    p(5,6); p(6,7); p(11,7); p(12,6);
-  } else if(petState==='interested'){
-    p(5,5); p(6,6); p(11,6); p(12,5);
-  } else if(petState==='curious' || petState==='bean'){
-    p(5,6); p(6,6); p(11,5); p(12,5);
-  } else if(petState==='point' || petState==='win'){
-    p(5,5); p(6,5); p(5,6); p(6,6);
-    p(11,5); p(12,5); p(11,6); p(12,6);
-  } else if(petState==='buy' || petState==='up'){
-    p(5,5); p(6,6); p(11,6); p(12,5);
-  } else {
-    p(5,6); p(6,6); p(11,6); p(12,6);
+  // Expressive DARK eyes set directly in the GREEN body, with tiny highlights.
+  const unhappy=['down','poop','sell','trouble'].includes(petState);
+  const happy=['up','buy','point','win','interested'].includes(petState);
+  if(petState==='dead'){
+    stroke(17,24,21,28,1.0,color.ink);
+    stroke(21,24,17,28,1.0,color.ink);
+    stroke(28,24,32,28,1.0,color.ink);
+    stroke(32,24,28,28,1.0,color.ink);
+  }else if(petBlink){
+    stroke(17,26,21,26,0.85,color.ink);
+    stroke(28,26,32,26,0.85,color.ink);
+  }else{
+    oval(19,26,2.7,3.2,color.ink);
+    oval(30,26,2.7,3.2,color.ink);
+    pixel(18,24,color.shine);
+    pixel(29,24,color.shine);
+    if(petState==='curious'){ pixel(31,25,color.light); }
+    if(unhappy){
+      stroke(17,22,21,23,0.7,color.outline);
+      stroke(28,23,32,22,0.7,color.outline);
+    }
+  }
+  // Rounded cheeks and a stateful pixel mouth preserve the familiar moods.
+  pixel(15,30,color.blush);
+  pixel(16,31,color.blush);
+  pixel(33,30,color.blush);
+  pixel(34,31,color.blush);
+  if(unhappy){
+    stroke(21,34,24,32,0.8,color.ink);
+    stroke(24,32,27,34,0.8,color.ink);
+  }else if(petState==='think'||petState==='bean'){
+    oval(24.5,33.5,1.8,2.2,color.ink);
+    pixel(38,15,color.light);
+    pixel(41,12,color.light);
+  }else if(petState==='dead'){
+    stroke(22,33,27,33,0.8,color.ink);
+  }else if(petState==='curious'){
+    oval(24.5,33,2.4,2.5,color.ink);
+  }else{
+    oval(24.5,33.3,happy?5.0:3.9,happy?2.9:2.2,color.ink);
+    oval(24.5,34.6,happy?2.7:2.0,0.9,color.blush);
   }
 
-  if(petState==='up' || petState==='buy' || petState==='point' || petState==='win'){
-    p(6,9); p(7,10); p(8,10); p(9,10); p(10,10); p(11,9);
-  } else if(petState==='down' || petState==='poop'){
-    p(6,10); p(7,9); p(8,9); p(9,9); p(10,9); p(11,10);
-  } else if(petState==='sell'){
-    p(6,9); p(7,9); p(10,10); p(11,10);
-  } else if(petState==='think' || petState==='bean'){
-    p(8,9); p(9,9);
-    p(16,4); p(17,3); // two stupid little thought pixels
-  } else if(petState==='curious'){
-    p(7,9); p(8,9); p(9,9);
-  } else if(petState==='interested'){
-    p(7,10); p(8,10); p(9,10); p(10,9);
-  } else if(petState==='trouble'){
-    p(7,10); p(8,9); p(9,10); p(10,9);
-  } else if(petState==='dead'){
-    line(7,10,10);
-  } else {
-    line(7,10,9);
-  }
-
-  if(petState==='point' || petState==='win'){
-    p(1,12); p(2,11); p(15,11); p(16,12);
-  } else if(petState==='poop'){
-    p(4,14); p(13,14);
-    // Tactical shit. Three pixels of dignity, gone forever.
-    p(16,13);
-    p(15,14); p(16,14);
-    p(14,15); p(15,15); p(16,15); p(17,15);
-    p(15,10); p(16,9); p(15,8); // stink
-  } else {
-    p(4,14); p(13,14);
-  }
+  // Independent little shoes, shaded like chunky original-game sprites.
+  oval(17.5,42.0,5.1,3.6,color.outline);
+  oval(31.3,42.0,5.1,3.6,color.outline);
+  oval(17.1,41.6,3.8,2.6,color.shadow);
+  oval(31.0,41.6,3.8,2.6,color.shadow);
+  oval(16,40.8,2.2,1.1,color.light);
+  oval(29.8,40.8,2.2,1.1,color.light);
+  pixel(14,43,color.bean); pixel(29,43,color.bean);
 
   const moods={
     idle:[
@@ -1015,22 +1072,22 @@ function drawPet(){
     ]
   };
   const labels={
-    idle:'TRADER THING',
-    think:'TRADER THING',
-    curious:'TRADER THING · WATCHING',
-    interested:'TRADER THING · INTERESTED',
-    bean:'TRADER THING · BEAN',
-    trouble:'TRADER THING · TROUBLESHOOTER',
-    poop:'TRADER THING · SOMETHING IS FUCKED',
-    buy:'TRADER THING · BUY',
-    sell:'TRADER THING · SELL',
-    up:'TRADER THING · SMUG',
-    down:'TRADER THING · PISSED',
-    point:'TRADER THING · POINT',
-    win:'TRADER THING · WINNER',
-    dead:'TRADER THING · DEAD'
+    idle:'BEAN',
+    think:'BEAN · THINKING',
+    curious:'BEAN · WATCHING',
+    interested:'BEAN · INTERESTED',
+    bean:'BEAN · LEARNING',
+    trouble:'BEAN · TROUBLESHOOTER',
+    poop:'BEAN · SOMETHING IS FUCKED',
+    buy:'BEAN · BUY',
+    sell:'BEAN · SELL',
+    up:'BEAN · SMUG',
+    down:'BEAN · PISSED',
+    point:'BEAN · POINT',
+    win:'BEAN · WINNER',
+    dead:'BEAN · DEAD'
   };
-  $('traderThingTitle').textContent=labels[petState] || 'TRADER THING';
+  $('traderThingTitle').textContent=labels[petState] || 'BEAN';
   const lines=moods[petState] || ['...'];
   $('petMood').textContent=lines[petQuipIndex % lines.length];
 }
