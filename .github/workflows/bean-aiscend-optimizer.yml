@@ -1,0 +1,83 @@
+name: BEAN AIscend autonomous optimization laboratory
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 8 * * *'
+  pull_request:
+    paths:
+      - 'scripts/bean_optimization_lab.py'
+      - 'tests/test_bean_optimization_lab.py'
+      - '.github/workflows/bean-aiscend-optimizer.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/bean_optimization_lab.py'
+      - 'tests/test_bean_optimization_lab.py'
+      - '.github/workflows/bean-aiscend-optimizer.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bean-aiscend-optimizer
+  cancel-in-progress: false
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile optimization source
+        run: python -m compileall -q scripts/bean_optimization_lab.py tests/test_bean_optimization_lab.py
+      - name: Run independent unit tests
+        run: python -m unittest discover -s tests -p 'test_bean_optimization_lab.py' -v
+      - name: Run BEAN research iteration
+        run: python -m scripts.bean_optimization_lab --output artifacts/bean-optimization.json
+      - name: Preserve numerical evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: bean-aiscend-lab-${{ github.run_id }}
+          path: artifacts/bean-optimization.json
+          retention-days: 90
+      - name: Stage holdout-accepted research proposal
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, pathlib
+          x = json.loads(pathlib.Path("artifacts/bean-optimization.json").read_text())
+          if x["accept_for_review"]:
+              pathlib.Path("research").mkdir(exist_ok=True)
+              pathlib.Path("research/bean_strategy_candidate.json").write_text(
+                  json.dumps(x, indent=2, sort_keys=True) + "\n")
+              pathlib.Path("artifacts/review_ready").write_text("yes")
+          PY
+      - name: Propose only passing research for human review, never activate live trading
+        if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if [ ! -f artifacts/review_ready ]; then
+            echo 'No credible challenger passed the independent holdout gate.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git config user.name "bean-aiscend-lab"
+          git config user.email "bean-aiscend-lab@users.noreply.github.com"
+          git switch -c "bean/aiscend-candidate-$GITHUB_RUN_ID"
+          git add research/bean_strategy_candidate.json
+          git diff --cached --quiet && exit 0
+          git commit -m "research(bean): publish holdout-accepted AIscend parameter candidate"
+          git -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" push origin HEAD
+          gh pr create --base main --head "bean/aiscend-candidate-$GITHUB_RUN_ID" \
+            --title "BEAN AIscend strategy candidate: independent holdout" \
+            --body "Synthetic cost-aware parameter research only. No live trading policy changed. Inspect the run artifact, test additional real-market datasets, and review before promotion." || true
