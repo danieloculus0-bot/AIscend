@@ -1,6 +1,6 @@
-# Autonomous Capital Lab
+# AIscend | Autonomous Capital Lab
 
-> Working codename. The product name is intentionally decoupled from the codebase.
+AIscend is the project name. `AutonomousCapitalLab` remains the configurable desktop/build identity.
 
 A Windows desktop experiment built around one question:
 
@@ -27,6 +27,14 @@ Once autonomy is started, the agent does not ask for per-trade human approval.
 - **Persistent Coinbase authentication:** Successful browser connections now store the CDP wallet and separate Advanced API keys in the operating-system credential store for future launches. No wallet secrets are stored in Git or browser local storage.
 
 The strategy studies are distinct from the live trading runner; launching Strategy School does not activate one of its winners for real-money orders.
+
+### Verified repository snapshot (October 11, 2026)
+
+- `VERSION` is **0.17.1**. [Windows CI on main](https://github.com/danieloculus0-bot/AIscend/actions/runs/38121668571) completed **144 regression tests** and the executable/ZIP/checksum build successfully. This is a source/build result, not proof that the user's running Windows installation was updated.
+- Three [read-only GitHub research workflows](.github/workflows/) now schedule a BEAN optimization laboratory, Coinbase historical/Strategy School challenges, and rotating full-universe evolutionary cohorts. They publish test/evidence artifacts, **not** automatic live strategies or exchange orders. Network data availability and outcomes vary by run.
+- [The BEAN Core advisory bridge](src/bean_core_bridge.py) can inspect a separately checked-out Core revision and pass a credential-free snapshot into Core's **mock** reasoning adapter. AIscend's embedded `BeanMemory` remains a distinct component; this bridge neither authorizes trades nor silently installs BEAN Core as the live trading policy.
+- The optional [local Ollama code engineer](docs/BEAN_UNATTENDED_LOCAL_ENGINEER.md) can automatically commit and push candidate changes from a clean local main checkout **when explicitly launched with the bundled PowerShell script**. It compiles and tests candidates, but regression success alone cannot prove a strategy is profitable or a modification is desirable. The scheduled GitHub research workflows are separate and read-only.
+- A successful Coinbase order-creation response is **not** a verified fill. Complete fill/fee reconciliation, valuation of every asset, independently measured returns, and a cost-aware sell-to-rotate strategy remain unverified. No win at the $100,000 Level 1 target is claimed.
 
 ## What works now
 
@@ -63,7 +71,7 @@ The strategy studies are distinct from the live trading runner; launching Strate
 - Game score with exactly one point per completed bankroll doubling
 - Deliberately shitty dot-matrix trader pet whose face barely reacts to what the bot is doing
 - Mandatory **Level 1** win condition at **$100,000 net liquidation value**
-- First-launch **Market Arsenal** exposing Crypto, Predictions, Stocks & ETFs, and Options
+- First-launch **Market Arsenal** exposing Crypto, Predictions, Stocks & ETFs, Futures, Perpetuals, and Options
 - Public prediction-market discovery through Kalshi market-data APIs
 - Cross-market opportunity normalization so future venue executors can plug into the same research layer
 - **Human Weather** research layer combining global news, politics, weird-event pressure, social-media sentiment, Fear & Greed, and price action
@@ -120,7 +128,7 @@ That means:
 
 No local install is required.
 
-1. Open the private AIscend repository on GitHub.
+1. Open the [public AIscend repository](https://github.com/danieloculus0-bot/AIscend) on GitHub.
 2. Choose **Code > Codespaces > Create codespace on main**.
 3. The dev container installs dependencies and starts `web_app.py` automatically.
 4. Open the forwarded **AIscend Web** port when GitHub presents it.
@@ -173,8 +181,8 @@ Expected output:
 
 ```text
 dist\AutonomousCapitalLab.exe
-dist\AutonomousCapitalLab-v0.1.0-windows-x64.zip
-dist\AutonomousCapitalLab-v0.1.0-windows-x64.zip.sha256
+dist\AutonomousCapitalLab-v0.17.1-windows-x64.zip
+dist\AutonomousCapitalLab-v0.17.1-windows-x64.zip.sha256
 ```
 
 For an already-prepared build environment:
@@ -440,18 +448,20 @@ $env:AUTOCAPITAL_BUILD_NAME="NewName"
 
 ## Multi-market lanes
 
-AIscend exposes four market lanes from first launch:
+AIscend exposes six enabled market lanes:
 
-- **Crypto**: live autonomous execution is wired today through the CDP smart account.
-- **Predictions**: public market discovery is live and normalized into the opportunity scanner. Autonomous execution remains locked until a supported authenticated trading adapter is connected.
-- **Stocks & ETFs**: the lane is present and research-ready. Autonomous execution remains locked until a supported brokerage API is connected.
-- **Options**: the lane is present and research-ready. Autonomous execution remains locked until a supported options API is connected.
+- **Crypto spot**: funded Base smart-account swaps and Coinbase Advanced spot execution are implemented, subject to account eligibility, provider acceptance, balances, and market filters.
+- **Predictions**: public market discovery is implemented; autonomous order execution remains unconnected.
+- **Stocks & ETFs**: a research/opportunity lane is present; live discovery and execution adapters remain unconnected.
+- **Futures**: a research/opportunity lane is present; account eligibility and an execution adapter remain unconnected.
+- **Perpetuals**: a research/opportunity lane is present; regional eligibility and an execution adapter remain unconnected.
+- **Options**: a research/opportunity lane is present; an execution adapter remains unconnected.
 
 The application does not pretend an execution connector exists when one has not been implemented. Research and execution remain separate capabilities.
 
 ## Next major milestone
 
-Add more social/event adapters, learn signal weights from realized trade outcomes, and add independent probability models plus authenticated execution adapters for prediction markets, stocks, ETFs, and options.
+Prioritize provider-order/fill/fee reconciliation, handling incomplete portfolio valuations without awarding a false game milestone, independent forward strategy grading, and a tested capital-rotation policy. Additional social/event adapters, independent probability models, and authenticated adapters for the remaining markets follow these reliability gates.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the current component boundaries and invariants.
 
@@ -544,9 +554,9 @@ Version 0.15 adds direct USDC plumbing between the Base smart wallet and the Coi
 
 ## Remote monitor
 
-The Flask app already binds to `0.0.0.0:8000`. Version 0.15 adds a read-only `/monitor` page that auto-refreshes bankroll, current rail, research, BEAN, Coinbase candidates, positions, and the decision journal without exposing trade controls.
+The Flask app binds to `127.0.0.1:8000` by default. The read-only `/monitor` page displays bankroll, rail, research, BEAN, candidates, positions, and journal data without remote trading controls. Non-loopback clients cannot access credential or trading endpoints.
 
-For a private home-PC to work-PC link, the included Windows helper `scripts/start_remote_monitor.ps1` detects a Tailscale IPv4 address and prints the monitor URL. Both PCs need to be on the same Tailnet. Optional `AISCEND_REMOTE_TOKEN` protects the monitor route with a query/header token when desired.
+For a private home-PC to work-PC link, `scripts/start_remote_monitor.ps1` requires a connected Tailscale IPv4 address **and** a nonempty `AISCEND_REMOTE_TOKEN`; it then binds only to that Tailnet IP. A remote monitor request must supply the token by query or header. Both PCs must be on the same Tailnet. The token is mandatory for the remote monitor launcher, not optional.
 
 
 ## Universal Coinbase spot scan + Listing Sentinel
