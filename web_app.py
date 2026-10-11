@@ -377,17 +377,6 @@ def bean_lab_start():
         return jsonify({"ok": False, "error": str(exc)}), 409
 
 
-@app.post("/api/bean-lab/approve")
-def bean_lab_approve():
-    event_id = str((request.get_json(silent=True) or {}).get("event_id") or "").strip()
-    if not event_id:
-        return jsonify({"ok": False, "error": "Choose a finished event to approve"}), 400
-    try:
-        return jsonify({"ok": True, **_bean_lab.approve(event_id)})
-    except ValueError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 409
-
-
 @app.get("/api/runner")
 def runner_status():
     return jsonify({"ok": True, "runner": dict(_loop_state)})

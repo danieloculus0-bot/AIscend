@@ -81,20 +81,13 @@ class WebAppTests(unittest.TestCase):
                 return {"running": False, "latest": None, "history": [], "retained_events": 0}
             def start(self):
                 return {"running": True, "latest": {"id": "test-1"}, "history": []}
-            def approve(self, event_id):
-                if event_id != "test-1":
-                    raise ValueError("No qualified research candidate")
-                return {"approved": True}
         with patch("web_app._bean_lab", FakeLab()):
             client = app.test_client()
             self.assertEqual(client.get("/api/bean-lab").get_json()["retained_events"], 0)
             start = client.post("/api/bean-lab/start")
             self.assertEqual(start.status_code, 202)
             self.assertEqual(start.get_json()["latest"]["id"], "test-1")
-            self.assertEqual(client.post("/api/bean-lab/approve",
-                                         json={"event_id": "missing"}).status_code, 409)
-            self.assertEqual(client.post("/api/bean-lab/approve",
-                                         json={"event_id": "test-1"}).get_json()["approved"], True)
+            self.assertEqual(client.post("/api/bean-lab/approve").status_code, 404)
             remote = {"REMOTE_ADDR": "100.101.102.103"}
             self.assertEqual(client.post("/api/bean-lab/start",
                                          environ_overrides=remote).status_code, 403)
@@ -103,7 +96,8 @@ class WebAppTests(unittest.TestCase):
         body = app.test_client().get("/").data
         self.assertIn(b"BEAN STRATEGY SCHOOL", body)
         self.assertIn(b"TRY AGAIN", body)
-        self.assertIn(b"APPROVE CANDIDATE FOR REVIEW", body)
+        self.assertIn(b"No approval required", body)
+        self.assertNotIn(b"APPROVE CANDIDATE FOR REVIEW", body)
 
     def test_start_refuses_silent_rail_switch_while_runner_is_active(self):
         with _loop_lock:

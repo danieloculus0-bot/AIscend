@@ -55,13 +55,13 @@ class BeanSchoolTests(unittest.TestCase):
         self.assertEqual(a["schema"], "bean.manual.school.v1")
         self.assertNotIn("live_activation", a)
 
-    def test_retry_retains_lessons_and_unqualified_cannot_be_approved(self):
+    def test_retry_retains_lessons_and_selection_is_automatic(self):
         with tempfile.TemporaryDirectory() as d:
             lab = BeanStrategyLab(Path(d) / "bean.db", collector=fixture)
             first = lab.start()["latest"]["id"]
             lab._worker.join(timeout=15)
             a = lab.status()
-            self.assertEqual(a["latest"]["state"], "REVIEW")
+            self.assertEqual(a["latest"]["state"], ("AUTO_SELECTED" if a["latest"]["report"]["beats_cash_and_btc"] else "REJECTED_BY_EVIDENCE"))
             self.assertEqual(a["latest"]["id"], first)
             self.assertIn("report", a["latest"])
             second = lab.start()["latest"]["id"]
@@ -73,21 +73,22 @@ class BeanSchoolTests(unittest.TestCase):
             self.assertGreaterEqual(b["latest"]["report"]["memory_seeds_tested"], 1)
             self.assertTrue(b["latest"]["report"]["lessons"])
             if not b["latest"]["report"]["beats_cash_and_btc"]:
-                with self.assertRaisesRegex(ValueError, "not beaten"):
+                self.assertEqual(b["latest"]["state"], "REJECTED_BY_EVIDENCE")
+                with self.assertRaisesRegex(ValueError, "did not pass"):
                     lab.approve(second)
 
-    def test_approval_requires_existing_finished_qualified_event(self):
+    def test_auto_selection_requires_evidence_and_no_human_approval(self):
         with tempfile.TemporaryDirectory() as d:
             lab = BeanStrategyLab(Path(d) / "bean.db", collector=fixture)
-            with self.assertRaisesRegex(ValueError, "Only a finished"):
+            with self.assertRaisesRegex(ValueError, "Unknown BEAN"):
                 lab.approve("not-an-event")
             lab.start()
             lab._worker.join(timeout=15)
             latest = lab.status()["latest"]
             if latest["report"]["beats_cash_and_btc"]:
-                review = lab.approve(latest["id"])
-                self.assertEqual(review["latest"]["state"], "APPROVED_FOR_REVIEW")
-                self.assertTrue(review["latest"]["approved"])
+                self.assertEqual(latest["state"], "AUTO_SELECTED")
+                self.assertTrue(latest["approved"])
+                self.assertEqual(lab.approve(latest["id"])["latest"]["state"], "AUTO_SELECTED")
             else:
                 with self.assertRaises(ValueError):
                     lab.approve(latest["id"])
