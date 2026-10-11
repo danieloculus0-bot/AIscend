@@ -10,17 +10,23 @@ import threading
 import time
 
 from .bean_strategy_lab import HOUR
+from .bean_five_minute import BAR
 
 SETTLE_SECONDS = 300
 POLL_SECONDS = 60
 POLICY_REFRESH_SECONDS = 900
+FAST_SETTLE_SECONDS = 60
 
 
 class BeanResearchSupervisor:
     def __init__(self, lab, gate, *, clock=None, settle_seconds=SETTLE_SECONDS,
-                 poll_seconds=POLL_SECONDS):
+                 poll_seconds=POLL_SECONDS, fast_lab=None, paper=None):
         self.lab = lab
         self.gate = gate
+        self.fast_lab = fast_lab
+        self.paper = paper
+        self._fast_action = "NOT_CONFIGURED"
+        self._fast_error = None
         self.clock = clock or time.time
         self.settle_seconds = settle_seconds
         self.poll_seconds = poll_seconds
@@ -90,6 +96,8 @@ class BeanResearchSupervisor:
                 self._last_action = "PAUSED_BY_USER"
             return
         now = float(self.clock())
+        if self.fast_lab is not None and self.paper is not None:
+            self.tick_fast(now)
         end = int(now // HOUR * HOUR)
         if now < end + self.settle_seconds:
             with self._lock:
@@ -140,6 +148,28 @@ class BeanResearchSupervisor:
                 self._last_action = "EXPERIMENT_ALREADY_RUNNING"
                 self._last_error = str(exc)[:180]
 
+    def tick_fast(self, now):
+        """One 300-second data-window attempt, including forward paper evidence."""
+        end = int(now // BAR * BAR)
+        if now < end + FAST_SETTLE_SECONDS:
+            return
+        if int(self._read("last_fast_attempted_bar", "-1")) >= end:
+            return
+        self._write("last_fast_attempted_bar", end)
+        try:
+            latest = self.fast_lab.status().get("latest")
+            self.paper.enqueue(latest)
+            self.paper.step(end=end)
+            if not self.fast_lab.status()["running"]:
+                self.fast_lab.start()
+                self._fast_action = "FIVE_MINUTE_EXPERIMENT_STARTED"
+            else:
+                self._fast_action = "FIVE_MINUTE_EXPERIMENT_RUNNING"
+            self._fast_error = None
+        except Exception as exc:
+            self._fast_action = "FIVE_MINUTE_ERROR"
+            self._fast_error = f"{type(exc).__name__}: {str(exc)[:180]}"
+
     def status(self):
         now = float(self.clock())
         end = int(now // HOUR * HOUR)
@@ -152,7 +182,18 @@ class BeanResearchSupervisor:
             last_policy_refresh = self._last_policy_refresh or None
         next_bar = (end + self.settle_seconds if last < end else
                     end + HOUR + self.settle_seconds)
+        fast = {"research": None, "paper": None,
+                "last_action": self._fast_action,
+                "last_error": self._fast_error, "next_at": None}
+        if self.fast_lab is not None and self.paper is not None:
+            fast_end = int(now // BAR * BAR)
+            last_fast = int(self._read("last_fast_attempted_bar", "-1"))
+            fast["next_at"] = (fast_end+FAST_SETTLE_SECONDS if last_fast < fast_end
+                               else fast_end+BAR+FAST_SETTLE_SECONDS)
+            fast["research"] = self.fast_lab.status()
+            fast["paper"] = self.paper.status()
         return {
+            "five_minute": fast,
             "enabled": self.enabled(), "worker_running": thread_active,
             "last_action": action, "last_error": error,
             "last_attempted_bar": last if last >= 0 else None,

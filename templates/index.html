@@ -277,6 +277,8 @@
         </div>
         <div id="beanLabResult" class="bean-result small" role="status" aria-live="polite">BEAN's first exam is ready. Each retry preserves previous findings and explores another Coinbase cohort.</div>
         <div id="beanLabMemory" class="small" style="margin-top:8px">Archived strategy lessons: loading...</div>
+        <div id="beanFastResearch" class="small">New five-minute research status loading.</div>
+        <div id="beanFastPaper" class="small">Independent five-minute forward simulation loading.</div>
         <div id="beanResearchWatch" class="small" style="margin-top:8px">Autonomous research: checking...</div>
         <button id="beanResearchToggle" onclick="toggleBeanResearch()" style="max-width:240px;margin-top:7px">PAUSE AUTOMATIC RESEARCH</button>
         <div id="beanLabGateStatus" class="bean-result small" style="margin-top:10px">Independent strategy gate: awaiting fresh candle evaluation.</div>
@@ -364,6 +366,18 @@ function renderBeanLab(payload){
     ' · next fresh-data trial '+next+
     (watch.last_error?' · '+watch.last_error:'')+
     ' · 7 causal rule families; rotating real Coinbase markets, no wallet orders.';
+  const fast5=watch.five_minute || {};
+  const latest5=(fast5.research || {}).latest || {};
+  const paper5=fast5.paper || {};
+  const due5=fast5.next_at ? new Date(Number(fast5.next_at)*1000).toLocaleTimeString() : '—';
+  $('beanFastResearch').textContent='Five-minute research · '+(fast5.last_action||'NOT STARTED')+
+    ' · '+Number((fast5.research||{}).retained_events||0)+' research windows · next '+due5+
+    (fast5.last_error?' · '+fast5.last_error:'')+' · latest '+(latest5.state||'N/A');
+  $('beanFastPaper').textContent='Five-minute forward paper · '+(paper5.status||'NO TRIAL')+
+    ' · '+Number(paper5.samples||0)+'/288 genuine forward bars · modeled '+
+    (paper5.net_return==null?'N/A':beanPct(paper5.net_return))+
+    ' vs BTC '+(paper5.btc_return==null?'N/A':beanPct(paper5.btc_return))+
+    ' · hypothetical fills '+Number(paper5.orders||0);
   const gate=watch.policy || {};
   beanGateEvidence=gate;
   $('beanLabGateStatus').textContent=gate.status==='READY'
