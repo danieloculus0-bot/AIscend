@@ -1,8 +1,23 @@
 import os
 import unittest
 from decimal import Decimal
+from unittest.mock import patch
 
-from src.wallets.advanced_trade import AdvancedTradeSpot, AdvancedTradeVault
+from src.wallets.advanced_trade import AdvancedTradeSpot, AdvancedTradeVault, _ADVANCED_SERVICE
+
+
+class MemoryKeyring:
+    def __init__(self):
+        self.values = {}
+
+    def get_password(self, service, name):
+        return self.values.get((service, name))
+
+    def set_password(self, service, name, value):
+        self.values[(service, name)] = value
+
+    def delete_password(self, service, name):
+        self.values.pop((service, name), None)
 
 
 class FakeResponse:
@@ -122,6 +137,52 @@ class FakeVault(AdvancedTradeVault):
 
 
 class AdvancedTradeTests(unittest.TestCase):
+    def test_os_keyring_survives_fresh_vault_without_environment(self):
+        backend = MemoryKeyring()
+        with patch.dict(os.environ, {}, clear=True):
+            first = AdvancedTradeVault(backend=backend)
+            self.assertFalse(first.configured())
+            first.configure("coinbase-id", "coinbase-private-key")
+            first.save("coinbase-id", "coinbase-private-key")
+            self.assertEqual(
+                backend.get_password(_ADVANCED_SERVICE, "ADVANCED_TRADE_API_KEY_ID"),
+                "coinbase-id",
+            )
+            os.environ.pop("ADVANCED_TRADE_API_KEY_ID", None)
+            os.environ.pop("ADVANCED_TRADE_API_KEY_SECRET", None)
+            restarted = AdvancedTradeVault(backend=backend)
+            self.assertTrue(restarted.configured())
+            with patch("src.wallets.advanced_trade.RESTClient") as client:
+                restarted.client()
+                client.assert_called_once_with(
+                    api_key="coinbase-id",
+                    api_secret="coinbase-private-key",
+                    timeout=10,
+                )
+            restarted.clear()
+            self.assertFalse(restarted.configured())
+
+    def test_incomplete_saved_pair_does_not_count_as_configured(self):
+        backend = MemoryKeyring()
+        backend.set_password(_ADVANCED_SERVICE, "ADVANCED_TRADE_API_KEY_ID", "id")
+        with patch.dict(os.environ, {}, clear=True):
+            vault = AdvancedTradeVault(backend=backend)
+            self.assertFalse(vault.configured())
+            with self.assertRaisesRegex(RuntimeError, "not configured"):
+                vault.client()
+
+    def test_environment_pair_overrides_saved_pair(self):
+        backend = MemoryKeyring()
+        with patch.dict(os.environ, {}, clear=True):
+            vault = AdvancedTradeVault(backend=backend)
+            vault.save("old-id", "old-secret")
+            vault.configure("new-id", "new-secret")
+            with patch("src.wallets.advanced_trade.RESTClient") as client:
+                vault.client()
+                client.assert_called_once_with(
+                    api_key="new-id", api_secret="new-secret", timeout=10
+                )
+
     def test_status_lists_balances_and_tradable_spot_products(self):
         status = AdvancedTradeSpot(FakeVault()).status()
         self.assertEqual(status.tradable_spot_products, 2)
