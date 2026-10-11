@@ -1,0 +1,58 @@
+name: BEAN Coinbase historical strategy challenge
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '41 9 * * *'
+  pull_request:
+    paths:
+      - 'scripts/bean_historical_replay.py'
+      - 'scripts/bean_historical_batch.py'
+      - 'scripts/bean_evolution_lab.py'
+      - 'tests/test_bean_evolution_lab.py'
+      - 'tests/test_bean_historical_replay.py'
+      - 'scripts/bean_strategy_gate.py'
+      - 'scripts/bean_strategy_school.py'
+      - 'tests/test_bean_strategy_school.py'
+      - 'tests/test_bean_strategy_gate.py'
+      - '.github/workflows/bean-coinbase-historical.yml'
+permissions:
+  contents: read
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: danieloculus0-bot/BEAN
+          ref: main
+          path: _bean_core
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify exact BEAN Core revision for this challenge
+        run: python -c "from src.bean_core_bridge import core_identity; import json; print(json.dumps(core_identity('_bean_core'), sort_keys=True))"
+      - name: Verify historical replay tests
+        run: python -m unittest discover -s tests -p test_bean_historical_replay.py -v
+      - name: Verify multi-window acceptance gate
+        run: python -m unittest discover -s tests -p test_bean_strategy_gate.py -v
+      - name: Verify BEAN Strategy School curriculum
+        run: python -m unittest discover -s tests -p test_bean_strategy_school.py -v
+      - name: Verify evolutionary mutation, crossover, sealed-holdout tests
+        run: python -m unittest discover -s tests -p test_bean_evolution_lab.py -v
+      - name: Record every online Coinbase USD/USDC market
+        run: python -m scripts.bean_historical_replay --catalog-only --out artifacts/bean-market-catalog.json
+      - name: Evaluate both periods and Strategy School from one cached 60-day download
+        run: python -m scripts.bean_historical_batch --out-dir artifacts
+      - name: Preserve scored results and provenance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bean-coinbase-history-${{ github.run_id }}
+          path: artifacts/bean-*.json
+          retention-days: 60
+          if-no-files-found: warn
