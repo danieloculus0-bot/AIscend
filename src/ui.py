@@ -36,6 +36,7 @@ from .core import (
     app_data_dir,
 )
 from .live import LiveEngine
+from .bean_strategy_lab import BeanStrategyLab
 from .wallets.cdp_wallet import CdpWallet, CredentialVault
 
 APP_NAME = os.getenv("AUTOCAPITAL_APP_NAME", "Autonomous Capital Lab")
@@ -60,6 +61,11 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.store = StateStore()
         self.engine = Engine(self.store)
+        self.bean_strategy_lab = BeanStrategyLab()
+        self.bean_last_event = None
+        self.bean_timer = QTimer(self)
+        self.bean_timer.timeout.connect(self.refresh_bean_lab)
+        self.bean_timer.start(1800)
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.run_cycle)
 
@@ -198,6 +204,41 @@ class MainWindow(QMainWindow):
         body.addWidget(controls)
 
         right = QVBoxLayout()
+        school = QFrame()
+        school.setObjectName("beanPanel")
+        school_layout = QVBoxLayout(school)
+        school_layout.setContentsMargins(15, 13, 15, 13)
+        school_layout.setSpacing(8)
+        school_title = QLabel("🌱  BEAN STRATEGY SCHOOL")
+        school_title.setObjectName("beanTitle")
+        school_layout.addWidget(school_title)
+        school_description = QLabel(
+            "Brute-force research, keep lessons, approve promising strategies for review. "
+            "No live orders or automatic deployment."
+        )
+        school_description.setWordWrap(True)
+        school_description.setObjectName("hint")
+        school_layout.addWidget(school_description)
+        school_actions = QHBoxLayout()
+        self.bean_run_button = QPushButton("RUN EXPERIMENT")
+        self.bean_run_button.setObjectName("beanButton")
+        self.bean_run_button.clicked.connect(self.run_bean_lab)
+        school_actions.addWidget(self.bean_run_button)
+        self.bean_retry_button = QPushButton("TRY AGAIN")
+        self.bean_retry_button.clicked.connect(self.run_bean_lab)
+        self.bean_retry_button.setEnabled(False)
+        school_actions.addWidget(self.bean_retry_button)
+        self.bean_approve_button = QPushButton("APPROVE FOR REVIEW")
+        self.bean_approve_button.clicked.connect(self.approve_bean_lab)
+        self.bean_approve_button.setEnabled(False)
+        school_actions.addWidget(self.bean_approve_button)
+        school_layout.addLayout(school_actions)
+        self.bean_result = QLabel("BEAN is ready for an independent research exam.")
+        self.bean_result.setWordWrap(True)
+        self.bean_result.setObjectName("beanResult")
+        school_layout.addWidget(self.bean_result)
+        right.addWidget(school)
+
         positions_title = QLabel("POSITIONS")
         positions_title.setObjectName("sectionTitle")
         right.addWidget(positions_title)
@@ -229,6 +270,70 @@ class MainWindow(QMainWindow):
 
         self.apply_style()
         self.refresh()
+        self.refresh_bean_lab()
+
+    def refresh_bean_lab(self) -> None:
+        try:
+            report = self.bean_strategy_lab.status()
+        except Exception as exc:
+            self.bean_result.setText(f"BEAN Lab unavailable: {exc}")
+            return
+        latest = report.get("latest")
+        self.bean_last_event = latest
+        running = bool(report.get("running"))
+        self.bean_run_button.setEnabled(latest is None and not running)
+        self.bean_retry_button.setEnabled(latest is not None and not running)
+        qualified = bool((latest or {}).get("report", {}).get("beats_cash_and_btc"))
+        self.bean_approve_button.setEnabled(
+            not running and qualified and latest.get("state") == "REVIEW"
+            if latest else False
+        )
+        if not latest:
+            self.bean_result.setText("Ready · Research only · No trades")
+        elif running:
+            self.bean_result.setText(
+                "BEAN is evolving strategies using public Coinbase candles. "
+                "Previous lessons remain saved."
+            )
+        elif latest.get("error"):
+            self.bean_result.setText(
+                f"Exam #{latest['ordinal']} failed: {latest['error']}. Try again to retain lessons."
+            )
+        elif latest.get("report"):
+            data = latest["report"]
+            outcome = float(data["holdout"]["net_return"]) * 100
+            self.bean_result.setText(
+                f"Exam #{latest['ordinal']} · {data['unique_candidates']} candidates · "
+                f"Holdout {outcome:+.2f}% · BTC {float(data['btc_return'])*100:+.2f}% · "
+                f"{'Approved for review' if latest['approved'] else 'Qualifies for review' if qualified else 'Needs another lesson'} "
+                f"· {len(report['history'])} recent lessons"
+            )
+        else:
+            self.bean_result.setText("The previous experiment was interrupted. Retry to continue learning.")
+
+    def run_bean_lab(self) -> None:
+        try:
+            self.bean_strategy_lab.start()
+            self.refresh_bean_lab()
+        except Exception as exc:
+            QMessageBox.warning(self, "BEAN Strategy School", str(exc))
+
+    def approve_bean_lab(self) -> None:
+        latest = self.bean_last_event
+        if not latest or not latest.get("report", {}).get("beats_cash_and_btc"):
+            return
+        answer = QMessageBox.question(
+            self, "Approve BEAN research",
+            "Approve this candidate for engineering review ONLY? "
+            "This will not change the live trading strategy."
+        )
+        if answer != QMessageBox.Yes:
+            return
+        try:
+            self.bean_strategy_lab.approve(latest["id"])
+            self.refresh_bean_lab()
+        except Exception as exc:
+            QMessageBox.warning(self, "BEAN Strategy School", str(exc))
 
     def selected_network(self) -> str | None:
         if self.execution.currentIndex() == 1:
@@ -478,6 +583,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:  # noqa: N802
         self.timer.stop()
+        self.bean_timer.stop()
         self.store.close()
         super().closeEvent(event)
 
