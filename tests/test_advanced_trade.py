@@ -131,6 +131,32 @@ class AdvancedTradeTests(unittest.TestCase):
         self.assertTrue(status.can_trade)
         self.assertTrue(status.can_transfer)
 
+    def test_rejected_order_is_not_reported_as_executed(self):
+        rail = AdvancedTradeSpot(FakeVault())
+        rail.vault.fake_client.market_order_buy = lambda **kwargs: FakeResponse(
+            {"success": False, "error_response": {"error": "INSUFFICIENT_FUND"}})
+        with self.assertRaisesRegex(RuntimeError, "not confirmed"):
+            rail.market_buy("eth-usdc", Decimal("5"), "rejected-buy")
+
+        rail.vault.fake_client.market_order_sell = lambda **kwargs: FakeResponse(
+            {"success": False, "error_response": {"error": "INVALID_SIZE"}})
+        with self.assertRaisesRegex(RuntimeError, "not confirmed"):
+            rail.market_sell("eth-usdc", Decimal("1"), "rejected-sell")
+
+    def test_missing_confirmation_is_not_treated_as_a_fill(self):
+        rail = AdvancedTradeSpot(FakeVault())
+        rail.vault.fake_client.market_order_buy = lambda **kwargs: FakeResponse(
+            {"error": "unknown response"})
+        with self.assertRaisesRegex(RuntimeError, "not confirmed"):
+            rail.market_buy("eth-usdc", Decimal("5"), "ambiguous")
+
+    def test_preview_rejection_blocks_order(self):
+        rail = AdvancedTradeSpot(FakeVault())
+        rail.vault.fake_client.preview_market_order_buy = lambda **kwargs: FakeResponse(
+            {"errs": ["PREVIEW_INVALID"]})
+        with self.assertRaisesRegex(RuntimeError, "preview rejected"):
+            rail.preview_market_buy("eth-usdc", Decimal("5"))
+
     def test_bridge_address_and_send_wrappers(self):
         vault = FakeVault()
         rail = AdvancedTradeSpot(vault)
