@@ -79,6 +79,23 @@ def run(bars, rule, lookback, threshold, *, starting=START):
             chosen = min(scores, key=scores.get)
             if scores[chosen] >= -threshold:
                 chosen = None
+        elif rule == "trend":
+            # Require both short-term and longer-term trend confirmation.
+            long_index = max(0, i - 25)
+            long_scores = {
+                p: previous[p]["close"] / bars[long_index][
+                    "prices"][p]["close"] - 1 for p in PAIRS
+            }
+            qualified = [p for p in PAIRS
+                         if scores[p] > threshold and long_scores[p] > 0]
+            chosen = max(qualified, key=lambda p: scores[p]) if qualified else None
+        elif rule == "persistent":
+            # Hysteresis avoids liquidating a trend on every small fluctuation.
+            chosen = max(scores, key=scores.get)
+            if held is not None and scores.get(held, -1) >= -threshold:
+                chosen = held
+            elif scores[chosen] <= threshold:
+                chosen = None
         else:
             chosen = None
         if held != chosen:
@@ -117,9 +134,9 @@ def assess(dataset):
     cut = int(len(bars) * 0.60)
     train, holdout = bars[:cut], bars[cut:]
     candidates = [(rule, period, threshold)
-                  for rule in ("momentum", "reversal")
-                  for period in (3, 6, 12, 24)
-                  for threshold in (0.0, 0.01, 0.03)]
+                  for rule in ("momentum", "reversal", "trend", "persistent")
+                  for period in (3, 6, 12, 24, 48)
+                  for threshold in (0.0, 0.005, 0.01, 0.03)]
     # Defensive cash is a genuine contender; a negative-edge period must not
     # force BEAN to buy a losing strategy merely to look active.
     candidates.insert(0, ("cash", 3, 0.0))
