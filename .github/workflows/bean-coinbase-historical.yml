@@ -39,6 +39,8 @@ jobs:
         run: python -m unittest discover -s tests -p test_bean_strategy_gate.py -v
       - name: Verify BEAN Strategy School curriculum
         run: python -m unittest discover -s tests -p test_bean_strategy_school.py -v
+      - name: Record every online Coinbase USD/USDC market
+        run: python -m scripts.bean_historical_replay --catalog-only --out artifacts/bean-market-catalog.json
       - name: Evaluate two Coinbase windows with untouched chronological holdouts
         run: |
           python -m scripts.bean_historical_replay --days 30 --out artifacts/bean-historical-30d.json
