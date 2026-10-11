@@ -213,7 +213,7 @@ class MainWindow(QMainWindow):
         school_title.setObjectName("beanTitle")
         school_layout.addWidget(school_title)
         school_description = QLabel(
-            "Brute-force research, keep lessons, approve promising strategies for review. "
+            "Brute-force research, retain lessons, automatically select qualified strategies. "
             "No live orders or automatic deployment."
         )
         school_description.setWordWrap(True)
@@ -228,10 +228,6 @@ class MainWindow(QMainWindow):
         self.bean_retry_button.clicked.connect(self.run_bean_lab)
         self.bean_retry_button.setEnabled(False)
         school_actions.addWidget(self.bean_retry_button)
-        self.bean_approve_button = QPushButton("APPROVE FOR REVIEW")
-        self.bean_approve_button.clicked.connect(self.approve_bean_lab)
-        self.bean_approve_button.setEnabled(False)
-        school_actions.addWidget(self.bean_approve_button)
         school_layout.addLayout(school_actions)
         self.bean_result = QLabel("BEAN is ready for an independent research exam.")
         self.bean_result.setWordWrap(True)
@@ -284,10 +280,6 @@ class MainWindow(QMainWindow):
         self.bean_run_button.setEnabled(latest is None and not running)
         self.bean_retry_button.setEnabled(latest is not None and not running)
         qualified = bool(((latest or {}).get("report") or {}).get("beats_cash_and_btc"))
-        self.bean_approve_button.setEnabled(
-            not running and qualified and latest.get("state") == "REVIEW"
-            if latest else False
-        )
         if not latest:
             self.bean_result.setText("Ready · Research only · No trades")
         elif running:
@@ -305,7 +297,7 @@ class MainWindow(QMainWindow):
             self.bean_result.setText(
                 f"Exam #{latest['ordinal']} · {data['unique_candidates']} candidates · "
                 f"Holdout {outcome:+.2f}% · BTC {float(data['btc_return'])*100:+.2f}% · "
-                f"{'Approved for review' if latest['approved'] else 'Qualifies for review' if qualified else 'Needs another lesson'} "
+                f"{'Auto-selected' if qualified else 'Rejected; learning continues'} "
                 f"· {len(report['history'])} recent lessons"
             )
         else:
@@ -314,23 +306,6 @@ class MainWindow(QMainWindow):
     def run_bean_lab(self) -> None:
         try:
             self.bean_strategy_lab.start()
-            self.refresh_bean_lab()
-        except Exception as exc:
-            QMessageBox.warning(self, "BEAN Strategy School", str(exc))
-
-    def approve_bean_lab(self) -> None:
-        latest = self.bean_last_event
-        if not latest or not latest.get("report", {}).get("beats_cash_and_btc"):
-            return
-        answer = QMessageBox.question(
-            self, "Approve BEAN research",
-            "Approve this candidate for engineering review ONLY? "
-            "This will not change the live trading strategy."
-        )
-        if answer != QMessageBox.Yes:
-            return
-        try:
-            self.bean_strategy_lab.approve(latest["id"])
             self.refresh_bean_lab()
         except Exception as exc:
             QMessageBox.warning(self, "BEAN Strategy School", str(exc))

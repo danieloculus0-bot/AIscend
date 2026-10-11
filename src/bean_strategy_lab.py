@@ -1,8 +1,8 @@
-"""BEAN Strategy Lab: user-triggered, credential-free research with approval gate.
+"""BEAN Strategy Lab: autonomous research, no user approval gate.
 
 Never imports wallet rails or places orders. Every event preserves training,
-holdout and lessons in a local SQLite journal. Approved means "for engineering
-review"; there is deliberately no route to live strategy activation.
+holdout and lessons in local SQLite. Qualified trials auto-select with no
+human approval. Strategy deployment belongs to the autonomous code engineer.
 """
 from __future__ import annotations
 
@@ -328,7 +328,7 @@ class BeanStrategyLab:
         return {"running": any(x["state"] == "RUNNING" for x in history),
                 "latest": history[0] if history else None,
                 "history": history, "retained_events": total,
-                "acceptance": "Approval marks research for review only; never changes live trading."}
+                "acceptance": "Successful evidence automatically selects research candidates. Code adoption uses autonomous tests, not manual approval."}
 
     def start(self):
         with self._lock:
@@ -360,21 +360,21 @@ class BeanStrategyLab:
             # NEVER select seeds using previously observed holdout profitability.
             inherited = [json.loads(row["result"]).get("candidate") for row in previous]
             report = evolve(dataset, seed=seed, memory=[x for x in inherited if x])
-            result, state, error = json.dumps(report, separators=(",", ":")), "REVIEW", None
+            result = json.dumps(report, separators=(",", ":"))
+            state, error = ("AUTO_SELECTED" if report.get("beats_cash_and_btc")
+                            else "REJECTED_BY_EVIDENCE"), None
         except Exception as exc:
             result, state, error = None, "FAILED", f"{type(exc).__name__}: {str(exc)[:260]}"
         with self._lock, self._connect() as db:
-            db.execute("UPDATE experiments SET state=?, finished=?, result=?, error=? WHERE id=?",
-                       (state, time.time(), result, error, event_id))
+            db.execute("UPDATE experiments SET state=?, finished=?, result=?, error=?, approved=? WHERE id=?",
+                       (state, time.time(), result, error, int(state == "AUTO_SELECTED"), event_id))
 
     def approve(self, event_id):
+        """Legacy API compatibility; no human approval is required or consumed."""
         with self._lock, self._connect() as db:
-            row = db.execute("SELECT state, result FROM experiments WHERE id=?", (event_id,)).fetchone()
-            if row is None or row["state"] != "REVIEW" or not row["result"]:
-                raise ValueError("Only a finished BEAN candidate can be approved for review")
-            report = json.loads(row["result"])
-            if not report.get("beats_cash_and_btc"):
-                raise ValueError("Candidate has not beaten cash and BTC on its held-out exam")
-            db.execute("UPDATE experiments SET state='APPROVED_FOR_REVIEW', approved=1 WHERE id=?",
-                       (event_id,))
+            row = db.execute("SELECT state FROM experiments WHERE id=?", (event_id,)).fetchone()
+            if row is None:
+                raise ValueError("Unknown BEAN experiment")
+            if row["state"] != "AUTO_SELECTED":
+                raise ValueError("Candidate did not pass autonomous evidence gates")
         return self.status()
