@@ -10,7 +10,7 @@ The live experiment is intended to start with a tiny bankroll, currently around 
 
 ## Project status
 
-**Version:** 0.16.1  
+**Version:** 0.17.1  
 **Platform:** Windows x64 + browser via GitHub Codespaces  
 **State:** Synthetic desktop sandbox + Coinbase live desktop mode  
 **Live-money execution:** Base smart-account swaps and Coinbase Advanced spot orders are implemented
@@ -18,6 +18,15 @@ The live experiment is intended to start with a tiny bankroll, currently around 
 The current application is fully runnable against a persistent synthetic market. It already exercises the complete autonomous loop without requiring a brokerage account, wallet, API key, or internet connection.
 
 Once autonomy is started, the agent does not ask for per-trade human approval.
+
+## BEAN integration and evidence (v0.17.1)
+
+- **[BEAN Strategy School](src/bean_strategy_lab.py):** Runs historical Coinbase candidate research with training and chronological holdout grading, saves experiment lessons, and automatically selects only candidates meeting its research checks. `AUTO_SELECTED` is an experimental result, **not a live policy deployment** or evidence of future profits.
+- **[Local autonomous engineer](docs/BEAN_UNATTENDED_LOCAL_ENGINEER.md):** Optionally asks an installed local Ollama coding model for Python edit proposals, compiles candidates and runs regression tests in temporary Git worktrees, and can automatically adopt passing edits in a clean local checkout. BEAN Core's GitHub evidence/memory subsystem is a separate integration; the AIscend engineer's JSONL lesson log is not BEAN Core's database.
+- **[Historical replay and evolutionary research](scripts/bean_historical_replay.py):** Independent research tools, broader eligible market cohort tests, repeatable comparisons, and a credential-free [BEAN Core advisory bridge](src/bean_core_bridge.py).
+- **Persistent Coinbase authentication:** Successful browser connections now store the CDP wallet and separate Advanced API keys in the operating-system credential store for future launches. No wallet secrets are stored in Git or browser local storage.
+
+The strategy studies are distinct from the live trading runner; launching Strategy School does not activate one of its winners for real-money orders.
 
 ## What works now
 
