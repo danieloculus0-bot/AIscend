@@ -508,6 +508,8 @@ Version 0.13 also adds an optional Coinbase Advanced execution rail. It is separ
 
 - Base smart wallet remains the default live rail.
 - Coinbase Advanced can be connected with a dedicated Advanced Trade API key.
+- **Windows credential persistence:** After a successful dashboard connection, CDP key ID, CDP private key, and wallet secret are stored using the OS keyring in Windows Credential Manager. The separate Coinbase Advanced key pair is stored there too. Both are automatically reused on later AIscend launches under the same Windows user; no unencrypted `.env`, browser localStorage, or Git repository secrets are created. Existing dashboard users need to connect each rail one final time after installing this update to save the previously process-only credentials.
+- Persistent storage does not start live trading automatically. Disconnect/replace an Advanced key by using the `AdvancedTradeVault.clear()` method from a trusted local Python session; CDP credentials can be removed with `.\.venv\Scripts\python.exe scripts\cdp_wallet.py clear`.
 - The Advanced engine ranks currently-scored account-eligible Coinbase spot products and can buy the strongest qualifying USD/USDC setup.
 - Held products are re-evaluated and can be sold when their signal deteriorates.
 - No borrowing or short selling is used by this spot engine.
