@@ -277,7 +277,10 @@
         </div>
         <div id="beanLabResult" class="bean-result small" role="status" aria-live="polite">BEAN's first exam is ready. Each retry preserves previous findings and explores another Coinbase cohort.</div>
         <div id="beanLabMemory" class="small" style="margin-top:8px">Archived strategy lessons: loading...</div>
-        <div id="beanLabActivation" class="small" style="margin-top:5px">No approval required for research selection. Deployment: RESEARCH ONLY. No Strategy School trades are activated.</div>
+        <div id="beanResearchWatch" class="small" style="margin-top:8px">Autonomous research: checking...</div>
+        <button id="beanResearchToggle" onclick="toggleBeanResearch()" style="max-width:240px;margin-top:7px">PAUSE AUTOMATIC RESEARCH</button>
+        <div id="beanLabGateStatus" class="bean-result small" style="margin-top:10px">Independent strategy gate: awaiting fresh candle evaluation.</div>
+        <div id="beanLabActivation" class="small" style="margin-top:5px">The selected strategy can confirm or veto existing buys. It cannot originate live trades.</div>
         <details style="margin-top:13px"><summary style="cursor:pointer;color:#b4dbc1;font-weight:700">LESSON JOURNAL · RECENT EXPERIMENTS</summary>
           <div id="beanLabHistory" class="bean-history small">No lessons recorded yet.</div>
         </details>
@@ -332,6 +335,8 @@ let previousPoints = null;
 
 let beanLabLatest = null;
 let beanLabRunning = false;
+let beanResearchEnabled = true;
+let beanGateEvidence = null;
 function beanPct(n){ const x=Number(n); return Number.isFinite(x) ? (x>=0?'+':'')+(x*100).toFixed(2)+'%' : '—'; }
 function renderBeanLab(payload){
   const latest=payload.latest||null;
@@ -348,8 +353,28 @@ function renderBeanLab(payload){
   $('beanLabMemory').textContent='Durable lessons: '+archived+' unique strategy candidates in SQLite'+
     (report?' · '+replayed+' replayed in the latest training session':'')+
     ' · older lessons rotate back into training.';
+  const watch=payload.research_watch || {};
+  beanResearchEnabled=!!watch.enabled;
+  $('beanResearchToggle').textContent=beanResearchEnabled?'PAUSE AUTOMATIC RESEARCH':'RESUME AUTOMATIC RESEARCH';
+  const next=watch.next_experiment_at
+    ? new Date(Number(watch.next_experiment_at)*1000).toLocaleTimeString():'—';
+  $('beanResearchWatch').textContent='Autonomous research: '+
+    (beanResearchEnabled?(watch.worker_running?'RUNNING':'STARTING'):'PAUSED')+
+    ' · '+(watch.last_action||'Awaiting first check')+
+    ' · next fresh-data trial '+next+
+    (watch.last_error?' · '+watch.last_error:'')+
+    ' · 7 causal rule families; rotating real Coinbase markets, no wallet orders.';
+  const gate=watch.policy || {};
+  beanGateEvidence=gate;
+  $('beanLabGateStatus').textContent=gate.status==='READY'
+    ? 'Independent BEAN gate: READY · exam #'+gate.experiment+
+      ' · target '+(gate.target||'CASH')+' · '+Number(gate.bars||0)+
+      ' completed hourly candles · verifies existing buys only'
+    : 'Independent BEAN gate: '+(gate.status||'NOT EVALUATED')+
+      (gate.reason?' · '+gate.reason:'')+
+      '. This reading does not place or approve a real-money order.';
   $('beanLabActivation').textContent=payload.live_strategy_activation==='BUY_CONFIRMATION_GATE'
-    ? 'BEAN live BUY gate installed: fresh hourly evidence confirms or blocks existing BUY signals. Never opens new trades; SELL protection unchanged.'
+    ? 'Live BUY confirmation is installed; SELL protection unchanged. Research results never originate orders.'
     : 'Deployment: NOT ACTIVE. Selection is historical research, not live trading.';
   $('beanLabRun').disabled=!!latest||beanLabRunning;
   $('beanLabRetry').disabled=!latest||beanLabRunning;
@@ -384,6 +409,21 @@ async function startBeanLab(){
     if(!j.ok){$('beanLabResult').textContent=j.error||'Experiment could not start';return;}
     renderBeanLab(j);
   }catch(e){$('beanLabResult').textContent='Unable to start: '+e.message;}
+}
+async function toggleBeanResearch(){
+  const button=$('beanResearchToggle');
+  button.disabled=true;
+  try{
+    const response=await fetch('/api/bean-research/enable',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({enabled:!beanResearchEnabled})
+    });
+    const result=await response.json();
+    if(!result.ok) throw Error(result.error||'Unable to update research mode');
+    await refreshBeanLab();
+  }catch(error){
+    $('beanResearchWatch').textContent='Research control error: '+error.message;
+  }finally{ button.disabled=false; }
 }
 function network(){ return $('network').value; }
 function rail(){ return $('executionRail').value; }
@@ -643,7 +683,8 @@ function renderSnapshot(s){
   $('multiple').textContent = Number(s.multiple || 0).toFixed(4) + 'x';
   $('wallet').textContent = 'Wallet: ' + (s.wallet_address || '--');
 
-  const beanPolicy=s.bean_policy || {};
+  const beanPolicy=(beanGateEvidence && beanGateEvidence.status!=='NOT_EVALUATED')
+    ? beanGateEvidence : (s.bean_policy || {});
   $('beanLivePolicy').textContent=beanPolicy.status==='READY'
     ? 'BEAN live gate READY · exam #'+beanPolicy.experiment+' · target '+(beanPolicy.target||'CASH')+
       ' · '+Number(beanPolicy.bars||0)+' completed hourly candles · buy confirmation active'
@@ -1115,6 +1156,7 @@ fetch('/api/capabilities').then(r=>r.json()).then(renderCapabilities).catch(()=>
 scanUniverse();
 refreshBeanLab();
 setInterval(()=>{if(beanLabRunning) refreshBeanLab();},3000);
+setInterval(refreshBeanLab,15000);
 refreshAdvanced();
 refreshBridge();
 drawPet();
