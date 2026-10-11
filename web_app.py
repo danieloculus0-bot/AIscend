@@ -17,6 +17,7 @@ from src.audit import AuditTrail
 from src.bean import BeanMemory
 from src.bean_policy import BeanPolicyGate
 from src.bean_research_supervisor import BeanResearchSupervisor
+from src.bean_five_minute import FastPaperBook, collect_5m
 from src.bean_strategy_lab import BeanStrategyLab
 from src.core import Decision, StateStore, app_data_dir
 from src.live import LiveEngine
@@ -30,7 +31,11 @@ from src.wallets.cdp_wallet import CdpWallet, CredentialVault
 app = Flask(__name__)
 _bean_lab = BeanStrategyLab()
 _bean_policy = BeanPolicyGate(lab=_bean_lab)
-_bean_supervisor = BeanResearchSupervisor(_bean_lab, _bean_policy)
+_bean_fast_lab = BeanStrategyLab(app_data_dir() / 'bean-five-minute-lab.sqlite3',
+                                 collector=collect_5m)
+_bean_paper = FastPaperBook()
+_bean_supervisor = BeanResearchSupervisor(_bean_lab, _bean_policy,
+                                           fast_lab=_bean_fast_lab, paper=_bean_paper)
 
 _loop_lock = threading.Lock()
 _stop_event = threading.Event()
