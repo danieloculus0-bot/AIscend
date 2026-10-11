@@ -313,7 +313,9 @@ def _remote_read_only_boundary():
         return None
     if request.method != "GET":
         return jsonify({"ok": False, "error": "Remote trading controls are disabled"}), 403
-    if request.path in {"/monitor", "/api/monitor/status"} and _monitor_token_ok():
+    if (request.path in {"/monitor", "/api/monitor/status"}
+            and os.getenv("AISCEND_REMOTE_TOKEN", "").strip()
+            and _monitor_token_ok()):
         return None
     return jsonify({"ok": False, "error": "Remote access is restricted to the read-only monitor"}), 401
 
