@@ -423,7 +423,8 @@ def configure_advanced():
         vault = AdvancedTradeVault()
         vault.configure(api_key_id, api_key_secret)
         status = AdvancedTradeSpot(vault).status()
-        return jsonify({"ok": True, **status.as_dict()})
+        vault.save(api_key_id, api_key_secret)
+        return jsonify({"ok": True, "persisted": True, **status.as_dict()})
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
 
@@ -611,8 +612,10 @@ def configure():
 
         import asyncio
 
-        address = asyncio.run(CdpWallet(network=network).ensure_account())
-        return jsonify({"ok": True, "address": address, "network": network})
+        vault = CredentialVault()
+        address = asyncio.run(CdpWallet(vault=vault, network=network).ensure_account())
+        vault.save(api_key_id, api_key_secret, wallet_secret)
+        return jsonify({"ok": True, "address": address, "network": network, "persisted": True})
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
 

@@ -181,6 +181,7 @@
         <label>Wallet Secret</label>
         <input id="walletSecret" type="password" autocomplete="off">
         <button onclick="configure()" class="primary">CONNECT WALLET</button>
+        <div class="small">Saved securely for future launches on this Windows account.</div>
         <div id="wallet" class="small">Wallet: --</div>
         <div id="message"></div>
       </div>
@@ -191,6 +192,7 @@
         <label>Advanced Trade API key JSON</label>
         <input id="advancedKeyfile" type="file" accept=".json,application/json">
         <button onclick="configureAdvanced()" class="primary">CONNECT ADVANCED</button>
+        <div class="small">Saved securely for future launches on this Windows account.</div>
         <div id="advancedStatus" class="small">Advanced: not connected</div>
         <div id="bridgeStatus" class="small bridge-status">Bridge: checking...</div>
         <label>Bridge USDC amount</label>
@@ -566,7 +568,8 @@ async function configureAdvanced(){
     if(!j.ok){ $('advancedStatus').textContent='Advanced: '+(j.error||'connection failed'); return; }
     const balances=(j.balances||[]).map(b=>b.currency+' '+b.available).join(' · ');
     $('advancedStatus').textContent='Advanced: connected · '+Number(j.tradable_spot_products||0)+' tradable spot products'+
-      (balances ? ' · '+balances : '');
+      (balances ? ' · '+balances : '')+' · saved';
+    $('advancedKeyfile').value='';
     fetch('/api/capabilities').then(r=>r.json()).then(renderCapabilities);
     refreshBridge();
   }catch(e){
@@ -599,8 +602,9 @@ async function configure(){
   const j = await r.json();
   if(!j.ok){ msg(j.error); petState='dead'; drawPet(); return; }
   $('walletSecret').value = '';
+  $('keyfile').value = '';
   $('wallet').textContent = 'Wallet: ' + j.address;
-  msg('Connected.', true);
+  msg('Connected. Credentials saved to Windows Credential Manager.', true);
   petState='idle';
   refreshStatus();
 }
