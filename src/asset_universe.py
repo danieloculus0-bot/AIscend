@@ -267,6 +267,8 @@ class CoinbaseAssetUniverse:
         closes = [float(row[4]) for row in ordered if len(row) > 5]
         volumes = [float(row[5]) for row in ordered if len(row) > 5]
         price = float(ticker["price"])
+        if not math.isfinite(price) or price <= 0.0:
+            return None
 
         # A newly-listed product is still a valid research object even when it
         # has only minutes of candles. Use only the horizons that actually exist
@@ -284,6 +286,10 @@ class CoinbaseAssetUniverse:
 
         bid = float(book["bids"][0][0])
         ask = float(book["asks"][0][0])
+        # An invalid or inverted book must not create a false cheap spread.
+        if (not math.isfinite(bid) or not math.isfinite(ask)
+                or bid <= 0.0 or ask <= 0.0 or ask < bid):
+            return None
         mid = (bid + ask) / 2.0
         spread_bps = ((ask - bid) / mid) * 10000.0 if mid else 0.0
 
