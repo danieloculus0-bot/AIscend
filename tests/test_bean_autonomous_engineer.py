@@ -73,7 +73,7 @@ class AutonomousEngineerTests(unittest.TestCase):
             return FakeResponse(json.dumps(result).encode())
 
         author = OllamaAuthor(model="qwen2.5-coder:1.5b", opener=fake_open)
-        result = author.patch("src/example.py", "def f():\\n    return 1\\n", [])
+        result = author.patch("src/example.py", "def f():\n    return 1\n", [])
         self.assertIn("return 2", result["code"])
         _, timeout, payload = calls[0]
         self.assertEqual(timeout, OLLAMA_GENERATION_TIMEOUT)
@@ -86,7 +86,7 @@ class AutonomousEngineerTests(unittest.TestCase):
 
         author = OllamaAuthor(model="qwen2.5-coder:1.5b", opener=fake_open)
         with self.assertRaisesRegex(RuntimeError, "Ollama /api/chat timed out"):
-            author.patch("src/example.py", "def f():\\n    return 1\\n", [])
+            author.patch("src/example.py", "def f():\n    return 1\n", [])
 
     def test_wallet_env_is_not_passed_to_candidate_tests(self):
         with patch.dict(os.environ, {"CDP_API_KEY_SECRET": "private",
