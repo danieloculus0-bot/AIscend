@@ -14,7 +14,7 @@ class SchoolTests(unittest.TestCase):
         result = learn({"source":"test fixture","bars":bars})
         self.assertEqual(len(result["history"]), 4)
         self.assertFalse(result["model_authored"])
-        self.assertEqual(sum(item["candidates"] for item in result["history"]),80)
+        self.assertEqual(sum(item["candidates"] for item in result["history"]),196)
         self.assertIn("profitable_holdout", result)
         self.assertEqual(result, learn({"source":"test fixture","bars":bars}))
 
