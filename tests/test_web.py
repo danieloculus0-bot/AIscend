@@ -100,6 +100,38 @@ class WebAppTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_unattended_research_status_and_local_pause_api(self):
+        client = app.test_client()
+        sample = {"enabled": True, "worker_running": True,
+                  "policy": {"status": "NOT_EVALUATED"},
+                  "next_experiment_at": 1791750000}
+        with patch("web_app._bean_supervisor") as watch:
+            watch.status.return_value = sample
+            watch.set_enabled.return_value = {**sample, "enabled": False}
+            result = client.get("/api/bean-lab").get_json()
+            self.assertEqual(result["research_watch"], sample)
+            self.assertEqual(result["live_strategy_activation"], "BUY_CONFIRMATION_GATE")
+            self.assertEqual(client.post("/api/bean-research/enable",
+                                         json={"enabled": "false"}).status_code, 400)
+            pause = client.post("/api/bean-research/enable",
+                                json={"enabled": False})
+            self.assertEqual(pause.status_code, 200)
+            self.assertFalse(pause.get_json()["research_watch"]["enabled"])
+            watch.set_enabled.assert_called_once_with(False)
+
+            remote = {"REMOTE_ADDR": "100.101.102.103"}
+            self.assertEqual(client.post("/api/bean-research/enable",
+                                         json={"enabled": False},
+                                         environ_overrides=remote).status_code, 403)
+
+    def test_unattended_research_controls_and_real_gate_status_visible(self):
+        page = app.test_client().get("/").get_data(as_text=True)
+        self.assertIn('id="beanResearchWatch"', page)
+        self.assertIn('id="beanResearchToggle"', page)
+        self.assertIn('id="beanLabGateStatus"', page)
+        self.assertIn("/api/bean-research/enable", page)
+        self.assertIn("Independent BEAN gate", page)
+
     def test_dashboard_cdp_connect_persists_only_after_wallet_validation(self):
         key = {"id": "sample-id", "privateKey": "sample-key"}
         client = app.test_client()
