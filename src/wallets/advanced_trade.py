@@ -5,9 +5,11 @@ from dataclasses import asdict, dataclass
 from decimal import Decimal
 from typing import Any
 
+import keyring
 from coinbase.rest import RESTClient
 
 
+_ADVANCED_SERVICE = "AutonomousCapitalLab/AdvancedTrade"
 _ADVANCED_KEYS = (
     "ADVANCED_TRADE_API_KEY_ID",
     "ADVANCED_TRADE_API_KEY_SECRET",
@@ -50,10 +52,29 @@ class AdvancedTradeStatus:
 
 
 class AdvancedTradeVault:
-    """Process-local Coinbase Advanced credentials for the browser runtime."""
+    """Coinbase Advanced keys held in OS credential storage or environment."""
+
+    def __init__(self, backend: Any | None = None) -> None:
+        self.backend = backend if backend is not None else keyring
+
+    def _credentials(self) -> tuple[str, str] | None:
+        # Use a complete environment pair first; never mix credentials from
+        # separate sources if only one environment variable was provided.
+        env_pair = tuple(os.getenv(key, "").strip() for key in _ADVANCED_KEYS)
+        if all(env_pair):
+            return env_pair
+
+        try:
+            stored_pair = tuple(
+                (self.backend.get_password(_ADVANCED_SERVICE, key) or "").strip()
+                for key in _ADVANCED_KEYS
+            )
+        except Exception:
+            return None
+        return stored_pair if all(stored_pair) else None
 
     def configured(self) -> bool:
-        return all(os.getenv(key, "").strip() for key in _ADVANCED_KEYS)
+        return self._credentials() is not None
 
     def configure(self, api_key_id: str, api_key_secret: str) -> None:
         api_key_id = api_key_id.strip()
@@ -63,12 +84,30 @@ class AdvancedTradeVault:
         os.environ["ADVANCED_TRADE_API_KEY_ID"] = api_key_id
         os.environ["ADVANCED_TRADE_API_KEY_SECRET"] = api_key_secret
 
+    def save(self, api_key_id: str, api_key_secret: str) -> None:
+        """Persist only after the provided credentials authenticate."""
+        api_key_id = api_key_id.strip()
+        api_key_secret = api_key_secret.strip()
+        if not api_key_id or not api_key_secret:
+            raise ValueError("Advanced Trade API key id and private key are required.")
+        self.backend.set_password(_ADVANCED_SERVICE, _ADVANCED_KEYS[0], api_key_id)
+        self.backend.set_password(_ADVANCED_SERVICE, _ADVANCED_KEYS[1], api_key_secret)
+
+    def clear(self) -> None:
+        for key in _ADVANCED_KEYS:
+            try:
+                self.backend.delete_password(_ADVANCED_SERVICE, key)
+            except Exception:
+                pass
+            os.environ.pop(key, None)
+
     def client(self, timeout: int = 10) -> RESTClient:
-        if not self.configured():
+        credentials = self._credentials()
+        if credentials is None:
             raise RuntimeError("Coinbase Advanced Trade is not configured.")
         return RESTClient(
-            api_key=os.environ["ADVANCED_TRADE_API_KEY_ID"],
-            api_secret=os.environ["ADVANCED_TRADE_API_KEY_SECRET"],
+            api_key=credentials[0],
+            api_secret=credentials[1],
             timeout=timeout,
         )
 
