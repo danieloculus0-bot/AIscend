@@ -14,10 +14,35 @@ import time
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-PAIRS = ("BTC-USD", "ETH-USD", "SOL-USD", "ADA-USD")
+PAIRS = ("BTC-USD", "ETH-USD", "SOL-USD", "ADA-USD")  # legacy fixture fallback
+QUOTE_ASSETS = {"USD", "USDC"}
 COST = 0.006  # fee + adverse fill/slippage each side (stress assumption)
 START = 25.0
 GOAL = 100000.0
+
+
+def discover_products(request_fn=urlopen):
+    """Discover all online USD/USDC spot markets; do not impose a coin allowlist."""
+    req = Request("https://api.exchange.coinbase.com/products",
+                  headers={"User-Agent": "BEAN-AIscend-research/1"})
+    with request_fn(req, timeout=30) as response:
+        payload = json.load(response)
+    if not isinstance(payload, list):
+        raise ValueError("Coinbase product catalog unavailable")
+    products = {}
+    for row in payload:
+        base = str(row.get("base_currency") or "").upper()
+        quote = str(row.get("quote_currency") or "").upper()
+        product = str(row.get("id") or "").upper()
+        if (row.get("status") != "online" or row.get("trading_disabled") is True
+                or quote not in QUOTE_ASSETS or not base or not product
+                or base in {"USD", "USDC"}):
+            continue
+        # Keep one quote product per underlying coin to avoid double-counting.
+        old = products.get(base)
+        if old is None or (quote == "USD" and old.endswith("-USDC")):
+            products[base] = product
+    return sorted(products.values())
 
 
 def fetch_candles(product, start, end, request_fn=urlopen):
@@ -44,8 +69,11 @@ def fetch_candles(product, start, end, request_fn=urlopen):
     return out
 
 
-def collect(start, end):
-    series = {p: fetch_candles(p, start, end) for p in PAIRS}
+def collect(start, end, pairs=None):
+    pairs = tuple(pairs if pairs is not None else PAIRS)
+    if not pairs:
+        raise ValueError("No valid products to research")
+    series = {p: fetch_candles(p, start, end) for p in pairs}
     # Align a real timestamp shared by every product; missing hours are dropped.
     common = sorted(set.intersection(*(set(s) for s in series.values())))
     if len(common) < 120:
@@ -54,12 +82,13 @@ def collect(start, end):
     if any(b - a != 3600 for a, b in zip(common, common[1:])):
         raise ValueError("Coinbase price history contains missing hourly bars")
     return {"schema": "bean.coinbase.hourly.v1", "source": "Coinbase public candles",
-            "pairs": list(PAIRS), "start": start, "end": end,
-            "bars": [{"ts": ts, "prices": {p: series[p][ts] for p in PAIRS}}
+            "pairs": list(pairs), "start": start, "end": end,
+            "bars": [{"ts": ts, "prices": {p: series[p][ts] for p in pairs}}
                      for ts in common]}
 
 
-def run(bars, rule, lookback, threshold, *, starting=START):
+def run(bars, rule, lookback, threshold, *, starting=START, pairs=None):
+    pairs = tuple(pairs if pairs is not None else bars[0]["prices"])
     cash, units, held = float(starting), 0.0, None
     equity, trades, peak, drawdown = [], 0, starting, 0.0
     # Current bar open is executable; signals rely only on closes strictly earlier.
@@ -68,7 +97,7 @@ def run(bars, rule, lookback, threshold, *, starting=START):
         previous = bars[i-1]["prices"]
         old = bars[i - lookback - 1]["prices"]
         scores = {p: previous[p]["close"] / old[p]["close"] - 1
-                  for p in PAIRS}
+                  for p in pairs}
         if rule == "buy_hold":
             chosen = "BTC-USD"
         elif rule == "momentum":
@@ -84,7 +113,7 @@ def run(bars, rule, lookback, threshold, *, starting=START):
             long_index = max(0, i - 25)
             long_scores = {
                 p: previous[p]["close"] / bars[long_index][
-                    "prices"][p]["close"] - 1 for p in PAIRS
+                    "prices"][p]["close"] - 1 for p in pairs
             }
             qualified = [p for p in PAIRS
                          if scores[p] > threshold and long_scores[p] > 0]
@@ -121,6 +150,7 @@ def run(bars, rule, lookback, threshold, *, starting=START):
 
 def assess(dataset):
     bars = dataset["bars"]
+    pairs = tuple(dataset.get("pairs") or PAIRS)
     if len(bars) < 120:
         raise ValueError("Not enough chronological bars for independent test")
     if any(b["ts"] - a["ts"] != 3600 for a, b in zip(bars, bars[1:])):
@@ -129,7 +159,7 @@ def assess(dataset):
            bar["prices"][p]["close"] <= 0 or
            not math.isfinite(bar["prices"][p]["open"]) or
            not math.isfinite(bar["prices"][p]["close"])
-           for bar in bars for p in PAIRS):
+           for bar in bars for p in pairs):
         raise ValueError("Missing or invalid price bars")
     cut = int(len(bars) * 0.60)
     train, holdout = bars[:cut], bars[cut:]
@@ -140,13 +170,13 @@ def assess(dataset):
     # Defensive cash is a genuine contender; a negative-edge period must not
     # force BEAN to buy a losing strategy merely to look active.
     candidates.insert(0, ("cash", 3, 0.0))
-    ranked = [(run(train, *c), c) for c in candidates]
+    ranked = [(run(train, *c, pairs=pairs), c) for c in candidates]
     # Optimize return penalized by realized drawdown, not number of trades.
     score = lambda r: math.log(max(1e-12, r["multiple"])) - r["max_drawdown"]
     best_train, best = max(ranked, key=lambda pair: score(pair[0]))
-    challenger = run(holdout, *best)
-    benchmark = run(holdout, "buy_hold", 3, 0)
-    cash = run(holdout, "cash", 3, 0)
+    challenger = run(holdout, *best, pairs=pairs)
+    benchmark = run(holdout, "buy_hold", 3, 0, pairs=pairs)
+    cash = run(holdout, "cash", 3, 0, pairs=pairs)
     return {"schema": "bean.coinbase.walkforward.v1",
             "historical_source": dataset["source"],
             "as_of": datetime.now(timezone.utc).isoformat(),
@@ -166,12 +196,17 @@ def main():
     ap.add_argument("--out", type=Path, default=Path("artifacts/bean-historical.json"))
     ap.add_argument("--dataset", type=Path)
     ap.add_argument("--days", type=int, default=30)
+    ap.add_argument("--discover-all", action="store_true", help="Discover all Coinbase USD/USDC assets; no allowlist")
+    ap.add_argument("--max-products", type=int, default=0, help="Optional API workload limit, 0 means no cap")
     args = ap.parse_args()
     if args.dataset:
         data = json.loads(args.dataset.read_text())
     else:
         end = int(time.time() // 3600 * 3600)
-        data = collect(end - args.days * 86400, end)
+        pairs = discover_products() if args.discover_all else PAIRS
+        if args.max_products > 0:
+            pairs = pairs[:args.max_products]
+        data = collect(end - args.days * 86400, end, pairs=pairs)
     result = assess(data)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(result, indent=2) + "\n")
