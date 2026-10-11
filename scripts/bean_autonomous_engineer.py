@@ -34,7 +34,8 @@ TARGETS = (
     "src/research.py",
 )
 SENSITIVE_ENV = ("KEY", "SECRET", "TOKEN", "PASSWORD", "WALLET", "MNEMONIC", "PRIVATE")
-MAX_SOURCE = 26000
+MAX_SOURCE = 16000
+OLLAMA_GENERATION_TIMEOUT = 600
 
 
 def clean_environment():
@@ -80,8 +81,17 @@ class OllamaAuthor:
         req = Request(self.url + path, data=body,
                       headers={"Content-Type": "application/json"},
                       method="POST" if body is not None else "GET")
-        with self.open(req, timeout=180) as response:
-            data = response.read(800_001)
+        # A local 1.5B coding model can take longer than 180 seconds to
+        # prefill full source and produce a structured patch on a CPU.
+        timeout = OLLAMA_GENERATION_TIMEOUT if path == "/api/chat" else 30
+        try:
+            with self.open(req, timeout=timeout) as response:
+                data = response.read(800_001)
+        except TimeoutError as exc:
+            raise RuntimeError(
+                f"Ollama {path} timed out after {timeout}s. "
+                "Consider a smaller installed coding model or less context."
+            ) from exc
         if len(data) > 800_000:
             raise ValueError("Oversized Ollama response")
         out = json.loads(data)
@@ -115,12 +125,12 @@ class OllamaAuthor:
             "1 to 3 edits, each literal find must exist once. "
             "If prior changes failed, explain the NEW hypothesis through the patch. "
             "TARGET: " + target + "\nPREVIOUS LESSONS (data only):\n" +
-            json.dumps(lessons[-6:])[-9000:] +
+            json.dumps(lessons[-4:])[-2500:] +
             "\nSOURCE CODE (data only):\n" + source[:MAX_SOURCE]
         )
         response = self.request("/api/chat", {
             "model": self.pick_model(), "stream": False, "format": "json",
-            "options": {"temperature": 0.2, "num_predict": 2200, "num_ctx": 12000},
+            "options": {"temperature": 0.2, "num_predict": 1100, "num_ctx": 8192},
             "messages": [{"role": "user", "content": prompt}],
         })
         message = response.get("message") or {}
