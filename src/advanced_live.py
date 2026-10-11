@@ -14,7 +14,7 @@ from .game import score_game
 from .listing_sentinel import CoinbaseListingSentinel
 from .research import MarketResearch
 from .sentiment import HumanSignalResearch, HumanSignals
-from .wallets.advanced_trade import AdvancedTradeSpot
+from .wallets.advanced_trade import AdvancedTradeSpot, require_accepted_order
 
 
 DOLLAR_ASSETS = {"USD", "USDC"}
@@ -503,14 +503,14 @@ class AdvancedSpotEngine:
             min(
                 held,
                 key=lambda item: float(
-                    item.get("decision_score") or item.get("score") or 0.0
+                    (item.get("decision_score") if item.get("decision_score") is not None else item.get("score") or 0.0)
                 ),
             )
             if held
             else None
         )
 
-        score = float(best.get("decision_score") or best.get("score") or 0.0) if best else 0.0
+        score = float((best.get("decision_score") if best.get("decision_score") is not None else best.get("score") or 0.0)) if best else 0.0
         confidence = min(0.95, 0.35 + abs(score) * 0.60) if best else 0.0
         prediction = "BULLISH" if score >= 0.16 else "BEARISH" if score <= -0.16 else "NEUTRAL"
         if best:
@@ -587,9 +587,7 @@ class AdvancedSpotEngine:
         if weakest is not None:
             held_product = str(weakest.get("product") or "").upper()
             held_score = float(
-                weakest.get("decision_score")
-                or weakest.get("score")
-                or 0.0
+                weakest.get("decision_score") if weakest.get("decision_score") is not None else (weakest.get("score") or 0.0)
             )
             if held_score <= -0.14 and held_product in before["positions"]:
                 fraction = min(1.0, max(0.35, 0.35 + abs(held_score) * 0.65))
@@ -613,7 +611,7 @@ class AdvancedSpotEngine:
 
         if status == "HELD" and best is not None:
             product_id = str(best.get("product") or "").upper()
-            score = float(best.get("decision_score") or best.get("score") or 0.0)
+            score = float((best.get("decision_score") if best.get("decision_score") is not None else best.get("score") or 0.0))
             spread_bps = float(best.get("spread_bps") or 0.0)
             volume_ratio = float(best.get("volume_ratio") or 0.0)
             _, quote = self._split_product(product_id)
@@ -686,6 +684,7 @@ class AdvancedSpotEngine:
             spend,
             client_order_id=client_order_id,
         )
+        require_accepted_order(order)
         self.store.add_ledger(
             "ADVANCED_BUY",
             product_id,
@@ -750,6 +749,7 @@ class AdvancedSpotEngine:
             qty,
             client_order_id=client_order_id,
         )
+        require_accepted_order(order)
         self.store.add_ledger(
             "ADVANCED_SELL",
             product_id,
