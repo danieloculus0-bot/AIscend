@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import math
 import time
 from typing import Protocol
@@ -8,6 +9,7 @@ from typing import Protocol
 from .asset_universe import CoinbaseAssetUniverse
 from .audit import AuditTrail
 from .bean import BeanMemory
+from .bean_policy import BeanPolicyGate
 from .core import Decider, Decision, RiskGovernor, StateStore
 from .game import score_game
 from .research import MarketResearch, ResearchDecider
@@ -37,6 +39,7 @@ class LiveEngine:
         asset_universe: CoinbaseAssetUniverse | None = None,
         bean: BeanMemory | None = None,
         audit: AuditTrail | None = None,
+        policy_gate: BeanPolicyGate | None = None,
     ) -> None:
         self.store = store
         self.wallet = wallet
@@ -45,6 +48,7 @@ class LiveEngine:
         self.bean = bean or BeanMemory(self.store.conn)
         self.audit = audit or AuditTrail()
         self.decider: Decider = decider or ResearchDecider()
+        self.policy_gate = policy_gate or BeanPolicyGate()
         self._snapshot: dict | None = None
 
     def set_decider(self, decider: Decider) -> None:
@@ -137,6 +141,7 @@ class LiveEngine:
             "research": research,
             "asset_universe": universe,
             "bean": bean,
+            "bean_policy": json.loads(self.store.get_meta("bean_policy_latest") or "{}"),
         }
         return self._snapshot
 
@@ -144,6 +149,22 @@ class LiveEngine:
         before = self.sync()
         raw = self.decider.decide(before)
         decision, status = RiskGovernor.normalize(raw, before)
+        try:
+            policy = self.policy_gate.assess()
+        except Exception as exc:
+            policy = {"status": "DATA_UNAVAILABLE", "trade_effect": "NONE",
+                      "reason": f"Policy evaluation failed: {type(exc).__name__}"}
+        self.store.set_meta("bean_policy_latest", json.dumps(policy))
+        if status == "OK" and decision.action == "BUY" and policy.get("status") == "READY":
+            exam = policy["experiment"]
+            target = policy.get("target") or "CASH"
+            if not self.policy_gate.permits_buy(policy, decision.symbol):
+                decision = Decision("HOLD", None, 0.0,
+                                    f"BEAN exam #{exam} blocked Base BUY: hourly target {target}.")
+                status = "HELD"
+            else:
+                decision = Decision(decision.action, decision.symbol, decision.fraction,
+                                    f"{decision.rationale} BEAN exam #{exam} confirmed {target}.")
 
         execution: SwapExecution | None = None
         if status == "OK":
