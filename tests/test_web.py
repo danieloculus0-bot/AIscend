@@ -49,6 +49,57 @@ class WebAppTests(unittest.TestCase):
         self.assertIn('id="beanLivePolicy"', html)
         self.assertIn("BUY_CONFIRMATION_GATE", html)
 
+    def test_bean_sprite_is_not_the_old_trader_thing(self):
+        html = app.test_client().get("/").get_data(as_text=True)
+        self.assertIn("Autonomous capital research and execution", html)
+        self.assertNotIn("Autonomous capital game - one point", html)
+        self.assertIn('<h2 id="traderThingTitle">BEAN</h2>', html)
+        self.assertIn('<div class="petname">BEAN</div>', html)
+        self.assertIn('width="192" height="192"', html)
+        self.assertIn("48x48 Game Boy-inspired pixel canvas", html)
+        self.assertIn("const waving=", html)
+        self.assertNotIn("TRADER THING", html)
+        self.assertNotIn("AIS-0", html)
+
+    @unittest.skipUnless(shutil.which("node"), "Node.js required for sprite pixel validation")
+    def test_bean_sprite_eyes_arms_and_expression_pixels(self):
+        """Render real canvas calls through a tiny pixel-grid test double."""
+        html = app.test_client().get("/").get_data(as_text=True)
+        snippet = html.split("function drawPet(){", 1)[1].split("  const moods={", 1)[0]
+        script = "function drawPet(){" + snippet + "\\n}\n"
+        script += """
+        let petState='idle', petBlink=false;
+        const pixels=Array.from({length:48},()=>Array(48).fill(''));
+        const context={
+          fillStyle:'',
+          fillRect(x,y,w,h){
+            const left=Math.max(0,Math.floor(x/4)),top=Math.max(0,Math.floor(y/4));
+            const right=Math.min(48,Math.ceil((x+w)/4));
+            const bottom=Math.min(48,Math.ceil((y+h)/4));
+            for(let j=top;j<bottom;j++)for(let i=left;i<right;i++)
+              pixels[j][i]=this.fillStyle;
+          }
+        };
+        const $=()=>({width:192,height:192,getContext:()=>context});
+        function check(condition,message){if(!condition)throw Error(message);}
+        drawPet();
+        check(pixels[26][19]==='#081108','left eye must be dark on bean');
+        check(pixels[26][30]==='#081108','right eye must be dark on bean');
+        check(pixels[26][24]!=='#0b100b' && pixels[26][24]!=='#081108',
+              'face between eyes must remain green, not blacked out');
+        check(pixels[19][6]!=='#0b100b','left waving arm missing');
+        check(pixels[34][43]!=='#0b100b','right arm/hand missing');
+        const normal=pixels[33][24];
+        petState='down';drawPet();
+        check(pixels[33][24]!==normal,'facial expressions must respond to states');
+        console.log('BEAN 48px sprite: eyes, green face, both arms, expressions OK');
+        """
+        result = subprocess.run(
+            [shutil.which("node"), "-"], input=script,
+            capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_dashboard_cdp_connect_persists_only_after_wallet_validation(self):
         key = {"id": "sample-id", "privateKey": "sample-key"}
         client = app.test_client()
