@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import math
 import time
 import uuid
@@ -9,6 +10,7 @@ from typing import Any
 from .asset_universe import CoinbaseAssetUniverse
 from .audit import AuditTrail
 from .bean import BeanMemory
+from .bean_policy import BeanPolicyGate
 from .core import Decision, StateStore
 from .game import score_game
 from .listing_sentinel import CoinbaseListingSentinel
@@ -41,6 +43,7 @@ class AdvancedSpotEngine:
         human_researcher: HumanSignalResearch | None = None,
         bean: BeanMemory | None = None,
         audit: AuditTrail | None = None,
+        policy_gate: BeanPolicyGate | None = None,
     ) -> None:
         self.store = store
         self.rail = rail or AdvancedTradeSpot()
@@ -56,6 +59,7 @@ class AdvancedSpotEngine:
         )
         self.bean = bean or BeanMemory(self.store.conn)
         self.audit = audit or AuditTrail()
+        self.policy_gate = policy_gate or BeanPolicyGate()
         self._snapshot: dict[str, Any] | None = None
 
     @staticmethod
@@ -426,6 +430,7 @@ class AdvancedSpotEngine:
             "asset_universe": universe,
             "listing_sentinel": listing,
             "bean": self.bean.snapshot(),
+            "bean_policy": json.loads(self.store.get_meta("bean_policy_latest") or "{}"),
             "market_radar": radar,
             "execution_rail": "coinbase-advanced",
         }
@@ -583,6 +588,12 @@ class AdvancedSpotEngine:
 
     def step(self) -> dict[str, Any]:
         before = self.sync()
+        try:
+            policy = self.policy_gate.assess()
+        except Exception as exc:
+            policy = {"status": "DATA_UNAVAILABLE", "trade_effect": "NONE",
+                      "reason": f"Policy evaluation failed: {type(exc).__name__}"}
+        self.store.set_meta("bean_policy_latest", json.dumps(policy))
         radar = before.get("market_radar") or {}
         best = radar.get("best_long")
         weakest = radar.get("weakest_held")
@@ -664,17 +675,31 @@ class AdvancedSpotEngine:
                         f"{human_note}"
                     ),
                 )
-                try:
-                    self._execute_buy(decision, before)
-                    status = "LIVE_EXECUTED"
-                except Exception as exc:
-                    status = "EXECUTION_ERROR"
-                    decision = Decision(
-                        decision.action,
-                        decision.symbol,
-                        decision.fraction,
-                        f"{decision.rationale} Execution failed: {exc}",
-                    )
+                if policy.get("status") == "READY":
+                    exam = policy["experiment"]
+                    target = policy.get("target") or "CASH"
+                    if not self.policy_gate.permits_buy(policy, decision.symbol):
+                        decision = Decision(
+                            "HOLD", None, 0.0,
+                            f"BEAN exam #{exam} blocked Advanced BUY {product_id}; "
+                            f"completed-hour target {target}.")
+                    else:
+                        decision = Decision(decision.action, decision.symbol,
+                                            decision.fraction,
+                                            f"{decision.rationale} BEAN exam #{exam} "
+                                            f"confirmed {target}.")
+                if decision.action == "BUY":
+                    try:
+                        self._execute_buy(decision, before)
+                        status = "LIVE_EXECUTED"
+                    except Exception as exc:
+                        status = "EXECUTION_ERROR"
+                        decision = Decision(
+                            decision.action,
+                            decision.symbol,
+                            decision.fraction,
+                            f"{decision.rationale} Execution failed: {exc}",
+                        )
 
         # Every cycle is journaled, including exchange/API execution failures.
         self.store.add_decision(decision, status)
