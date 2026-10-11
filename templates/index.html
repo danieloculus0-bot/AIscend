@@ -273,8 +273,7 @@
           <button id="beanLabRetry" onclick="startBeanLab()" disabled>↻ TRY AGAIN</button>
         </div>
         <div id="beanLabResult" class="bean-result small" role="status" aria-live="polite">BEAN's first exam is ready. Each retry preserves previous findings and explores another Coinbase cohort.</div>
-        <div class="bean-actions"><button id="beanLabApprove" onclick="approveBeanLab()" disabled>APPROVE CANDIDATE FOR REVIEW</button></div>
-        <div class="small" style="margin-top:8px">Approval creates a research record only. It does not activate, install, or change the live trading strategy.</div>
+        <div class="small" style="margin-top:8px">No approval required: BEAN autonomously selects candidates that pass its evidence checks. The local Ollama engineer can implement verified code changes.</div>
         <details style="margin-top:13px"><summary style="cursor:pointer;color:#b4dbc1;font-weight:700">LESSON JOURNAL · RECENT EXPERIMENTS</summary>
           <div id="beanLabHistory" class="bean-history small">No lessons recorded yet.</div>
         </details>
@@ -342,15 +341,13 @@ function renderBeanLab(payload){
   $('beanLabReturn').className=report?(report.holdout.net_return>0?'bean-pos':'bean-neg'):'';
   $('beanLabRun').disabled=!!latest||beanLabRunning;
   $('beanLabRetry').disabled=!latest||beanLabRunning;
-  $('beanLabApprove').disabled=!latest||latest.state!=='REVIEW'||!report||!report.beats_cash_and_btc;
   if(!latest){ $('beanLabResult').textContent='Research only. BEAN can run an exam without placing a trade.'; }
   else if(beanLabRunning){ $('beanLabResult').textContent='BEAN is researching Coinbase candles and evolving trading policies. You can keep using the dashboard.'; }
   else if(latest.error){ $('beanLabResult').textContent='Experiment '+latest.ordinal+' failed: '+latest.error+'. Previous lessons are retained. Try again when ready.'; }
   else if(report){
     $('beanLabResult').textContent='Exam '+latest.ordinal+' · '+report.pairs.join(', ')+' · '+report.unique_candidates+
       ' candidates · Holdout '+beanPct(report.holdout?.net_return)+' vs BTC '+beanPct(report.btc_return)+
-      ' · '+(report.beats_cash_and_btc?'Qualified for human review.':'Not qualified; keep experimenting.')+
-      (latest.approved?' · Approved for review.':'');
+      ' · '+(report.beats_cash_and_btc?'Automatically selected.':'Rejected by historical evidence; keep evolving.');
   } else { $('beanLabResult').textContent='Experiment interrupted. Previous results are retained.'; }
   const recent=(payload.history||[]).slice(0,8);
   $('beanLabHistory').innerHTML=recent.length?recent.map(entry=>{
@@ -376,17 +373,6 @@ async function startBeanLab(){
     renderBeanLab(j);
   }catch(e){$('beanLabResult').textContent='Unable to start: '+e.message;}
 }
-async function approveBeanLab(){
-  const latest=beanLabLatest;
-  if(!latest||!latest.report||!latest.report.beats_cash_and_btc)return;
-  if(!confirm('Approve this BEAN candidate for ENGINEERING REVIEW only? This does not enable live trading.'))return;
-  const r=await fetch('/api/bean-lab/approve',{method:'POST',
-    headers:{'Content-Type':'application/json'},body:JSON.stringify({event_id:latest.id})});
-  const j=await r.json();
-  if(j.ok)renderBeanLab(j);
-  else $('beanLabResult').textContent=j.error||'Approval was rejected.';
-}
-
 function network(){ return $('network').value; }
 function rail(){ return $('executionRail').value; }
 function msg(text, ok=false){ $('message').className = ok ? 'success' : 'error'; $('message').textContent = text || ''; }
