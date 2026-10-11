@@ -7,6 +7,8 @@ on:
     paths:
       - 'scripts/bean_historical_replay.py'
       - 'scripts/bean_historical_batch.py'
+      - 'scripts/bean_evolution_lab.py'
+      - 'tests/test_bean_evolution_lab.py'
       - 'tests/test_bean_historical_replay.py'
       - 'scripts/bean_strategy_gate.py'
       - 'scripts/bean_strategy_school.py'
@@ -40,6 +42,8 @@ jobs:
         run: python -m unittest discover -s tests -p test_bean_strategy_gate.py -v
       - name: Verify BEAN Strategy School curriculum
         run: python -m unittest discover -s tests -p test_bean_strategy_school.py -v
+      - name: Verify evolutionary mutation, crossover, sealed-holdout tests
+        run: python -m unittest discover -s tests -p test_bean_evolution_lab.py -v
       - name: Record every online Coinbase USD/USDC market
         run: python -m scripts.bean_historical_replay --catalog-only --out artifacts/bean-market-catalog.json
       - name: Evaluate both periods and Strategy School from one cached 60-day download
