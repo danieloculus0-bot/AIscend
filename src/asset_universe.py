@@ -232,10 +232,14 @@ class CoinbaseAssetUniverse:
             # batch across the entire unseen universe so every cycle samples
             # very different parts of Coinbase while the cache fills in.
             last = len(unseen) - 1
+            offset = cls._cursor % len(unseen)
             indices = [
-                round(i * last / (count - 1))
+                (round(i * last / (count - 1)) + offset) % len(unseen)
                 for i in range(count)
             ]
+            # Advance even when every request in this batch fails. Otherwise
+            # uncached products at these exact indices starve the whole catalog.
+            cls._cursor = (cls._cursor + 1) % len(unseen)
             return [unseen[index] for index in indices]
 
         start = cls._cursor % len(products)
