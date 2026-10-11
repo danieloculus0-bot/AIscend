@@ -11,6 +11,7 @@ import time
 from scripts.bean_historical_replay import collect, assess
 from scripts.bean_strategy_gate import judge
 from scripts.bean_strategy_school import learn
+from scripts.bean_evolution_lab import evolve
 
 
 def examine_dataset(data: dict) -> dict:
@@ -25,6 +26,7 @@ def examine_dataset(data: dict) -> dict:
     return {"30d": report30, "60d": report60,
             "promotion": judge([report30, report60]),
             "school": learn(recent),
+            "evolution": evolve(data),
             "overlapping_windows": True}
 
 
@@ -43,6 +45,7 @@ def main():
         "60d": "bean-historical-60d.json",
         "promotion": "bean-promotion-gate.json",
         "school": "bean-school-report.json",
+        "evolution": "bean-evolution-report.json",
     }
     for key, name in files.items():
         (args.out_dir / name).write_text(
@@ -57,6 +60,9 @@ def main():
         "holdout_net_60d": reports["60d"]["holdout"]["net_return"],
         "school_holdout_net": reports["school"]["holdout"]["net_return"],
         "promoted": reports["promotion"]["accepted"],
+        "evolved_candidates": reports["evolution"]["candidates_tested"],
+        "evolution_holdout_net": reports["evolution"]["final_holdout"]["net_return"],
+        "evolution_beats_both": reports["evolution"]["beats_both_benchmarks"],
         "warning": "30d and 60d windows overlap; independent validation required",
     }, indent=2))
 
