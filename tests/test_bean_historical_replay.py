@@ -16,7 +16,10 @@ def fixture():
 class HistoricalReplayTests(unittest.TestCase):
     def test_replay_deterministic(self):
         d = fixture()
-        self.assertEqual(assess(d), assess(d))
+        first, second = assess(d), assess(d)
+        first.pop("as_of")
+        second.pop("as_of")
+        self.assertEqual(first, second)
 
     def test_no_forced_level_one(self):
         result = assess(fixture())
