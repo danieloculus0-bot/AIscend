@@ -503,7 +503,7 @@ class AdvancedSpotEngine:
             min(
                 held,
                 key=lambda item: float(
-                    item.get("decision_score") or item.get("score") or 0.0
+                    item.get("decision_score") if item.get("decision_score") is not None else item.get("score", 0.0)
                 ),
             )
             if held
@@ -588,8 +588,8 @@ class AdvancedSpotEngine:
             held_product = str(weakest.get("product") or "").upper()
             held_score = float(
                 weakest.get("decision_score")
-                or weakest.get("score")
-                or 0.0
+                if weakest.get("decision_score") is not None
+                else weakest.get("score", 0.0)
             )
             if held_score <= -0.14 and held_product in before["positions"]:
                 fraction = min(1.0, max(0.35, 0.35 + abs(held_score) * 0.65))
