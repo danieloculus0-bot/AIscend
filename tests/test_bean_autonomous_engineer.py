@@ -36,6 +36,34 @@ class AutonomousEngineerTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_plan({"edits": []}, source)
 
+    def test_rejects_diagnostic_only_claimed_timeout_fix(self):
+        source = (
+            "def collect(errors, exc):\n"
+            "    errors.append(f'coinbase_products: {exc}')\n"
+            "    return 1\n"
+        )
+        plan = {
+            "edits": [{
+                "find": "errors.append(f'coinbase_products: {exc}')",
+                "replace": "errors.append(f'coinbase_products: timeout=6.0{exc}')",
+            }],
+            "hypothesis": "Reduce timeout to 6 seconds",
+        }
+        with self.assertRaisesRegex(ValueError, "Diagnostic-only"):
+            validate_plan(plan, source)
+
+    def test_accepts_actual_functional_timeout_change(self):
+        source = (
+            "def fetch(url, timeout=6.0):\n"
+            "    return request(url, timeout=timeout)\n"
+        )
+        plan = {
+            "edits": [{"find": "timeout=6.0", "replace": "timeout=3.0"}],
+            "hypothesis": "Reduce request timeout",
+        }
+        fixed = validate_plan(plan, source)
+        self.assertIn("timeout=3.0", fixed["code"])
+
     def test_local_ollama_transport_only(self):
         self.assertEqual(checked_ollama_url("http://127.0.0.1:11434"),
                          "http://127.0.0.1:11434")

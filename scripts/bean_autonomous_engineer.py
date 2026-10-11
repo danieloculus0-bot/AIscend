@@ -116,7 +116,10 @@ class OllamaAuthor:
             "You are BEAN autonomously engineering your own AIscend strategy "
             "system for a tiny $25 bankroll. Find and repair a REAL defect, "
             "or improve robust net-of-cost performance without lookahead. "
-            "Produce a small, independently testable code change. "
+            "Produce a small, independently testable code change that genuinely "
+            "changes functional behavior. Diagnostic/error-message-only changes "
+            "are not optimizations and will be rejected. Never claim a timeout "
+            "or performance improvement unless the edit actually implements it. "
             "Never modify or disable tests, journal accounting, minimum sizes, "
             "or wallet balance limits. Do not supply shell commands. "
             "Reply with JSON {\\\"edits\\\":[{\\\"find\\\":\\\"literal old text\\\","
@@ -141,6 +144,24 @@ class OllamaAuthor:
         return validate_plan(proposal, source)
 
 
+def functional_signature(code: str) -> str:
+    """Normalize errors.append message content to identify diagnostic-only edits.
+
+    An error-message change can compile and pass every regression test without
+    implementing BEAN's claimed behavior improvement. Ignore only the argument
+    of errors.append, not other string constants or executable logic.
+    """
+    tree = ast.parse(code)
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "append"
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "errors"):
+            node.args = [ast.Constant(value="<error message>")]
+    return ast.dump(tree, include_attributes=False)
+
+
 def validate_plan(plan, source):
     if not isinstance(plan, dict) or not isinstance(plan.get("edits"), list):
         raise ValueError("Expected JSON edit list")
@@ -160,6 +181,10 @@ def validate_plan(plan, source):
     ast.parse(candidate)
     if candidate == source:
         raise ValueError("No effective code change")
+    if functional_signature(candidate) == functional_signature(source):
+        raise ValueError(
+            "Diagnostic-only or comment-only patch is not a functional improvement"
+        )
     return {"code": candidate, "hypothesis": str(plan.get("hypothesis", ""))[:350]}
 
 
