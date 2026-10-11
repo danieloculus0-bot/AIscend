@@ -415,7 +415,7 @@ class AdvancedLiveTests(unittest.TestCase):
             record = store.latest_decisions(1)[0]
             self.assertEqual(record["status"], "EXECUTION_ERROR")
             self.assertIn("not confirmed", record["rationale"])
-            self.assertFalse(any(row["action"] == "ADVANCED_BUY"
+            self.assertFalse(any(row["kind"] == "ADVANCED_BUY"
                                  for row in store.latest_ledger(10)))
             store.close()
 
