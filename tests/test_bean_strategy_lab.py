@@ -70,6 +70,8 @@ class BeanSchoolTests(unittest.TestCase):
             self.assertEqual(b["retained_events"], 2)
             self.assertNotEqual(second, first)
             self.assertEqual(b["history"][1]["id"], first)
+            self.assertGreaterEqual(b["latest"]["report"]["memory_seeds_tested"], 1)
+            self.assertTrue(b["latest"]["report"]["lessons"])
             if not b["latest"]["report"]["beats_cash_and_btc"]:
                 with self.assertRaisesRegex(ValueError, "not beaten"):
                     lab.approve(second)
