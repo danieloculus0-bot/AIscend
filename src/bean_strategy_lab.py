@@ -282,7 +282,7 @@ class BeanStrategyLab:
                 state TEXT NOT NULL, ordinal INTEGER NOT NULL, seed INTEGER NOT NULL,
                 result TEXT, error TEXT, approved INTEGER NOT NULL DEFAULT 0)""")
             # Recover interrupted runs after app shutdown without erasing lessons.
-            db.execute("UPDATE experiments SET state='INTERRUPTED' WHERE state='RUNNING'")
+            db.execute("UPDATE experiments SET state='INTERRUPTED' WHERE state='RUNNING' AND created < ?", (time.time()-1200,))
 
     def _connect(self):
         db = sqlite3.connect(self.path, timeout=15)
@@ -292,6 +292,7 @@ class BeanStrategyLab:
     def status(self):
         with self._lock, self._connect() as db:
             rows = db.execute("SELECT * FROM experiments ORDER BY created DESC LIMIT 12").fetchall()
+            total = db.execute("SELECT COUNT(*) FROM experiments").fetchone()[0]
         history = []
         for row in rows:
             report = json.loads(row["result"]) if row["result"] else None
@@ -301,7 +302,7 @@ class BeanStrategyLab:
                             "report": report})
         return {"running": any(x["state"] == "RUNNING" for x in history),
                 "latest": history[0] if history else None,
-                "history": history, "retained_events": len(history),
+                "history": history, "retained_events": total,
                 "acceptance": "Approval marks research for review only; never changes live trading."}
 
     def start(self):
