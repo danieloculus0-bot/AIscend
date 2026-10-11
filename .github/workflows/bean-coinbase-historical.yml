@@ -7,6 +7,8 @@ on:
     paths:
       - 'scripts/bean_historical_replay.py'
       - 'tests/test_bean_historical_replay.py'
+      - 'scripts/bean_strategy_gate.py'
+      - 'tests/test_bean_strategy_gate.py'
       - '.github/workflows/bean-coinbase-historical.yml'
 permissions:
   contents: read
@@ -23,13 +25,18 @@ jobs:
           python-version: '3.12'
       - name: Verify historical replay tests
         run: python -m unittest discover -s tests -p test_bean_historical_replay.py -v
-      - name: Evaluate real Coinbase candles for independently held-out period
-        run: python -m scripts.bean_historical_replay --days 30 --out artifacts/bean-historical.json
+      - name: Verify multi-window acceptance gate
+        run: python -m unittest discover -s tests -p test_bean_strategy_gate.py -v
+      - name: Evaluate two Coinbase windows with untouched chronological holdouts
+        run: |
+          python -m scripts.bean_historical_replay --days 30 --out artifacts/bean-historical-30d.json
+          python -m scripts.bean_historical_replay --days 60 --out artifacts/bean-historical-60d.json
+          python -m scripts.bean_strategy_gate artifacts/bean-historical-30d.json artifacts/bean-historical-60d.json --out artifacts/bean-promotion-gate.json
       - name: Preserve scored results and provenance
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: bean-coinbase-history-${{ github.run_id }}
-          path: artifacts/bean-historical.json
+          path: artifacts/bean-*.json
           retention-days: 60
           if-no-files-found: warn
