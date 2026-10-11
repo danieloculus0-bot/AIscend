@@ -43,6 +43,8 @@ jobs:
           python --version
           Write-Host "Version:"
           Get-Content VERSION
+          Write-Host "Node.js browser syntax checker:"
+          node --version
 
       - name: Run canonical Windows build
         shell: pwsh
