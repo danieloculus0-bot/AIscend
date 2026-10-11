@@ -50,6 +50,9 @@ def collect(start, end):
     common = sorted(set.intersection(*(set(s) for s in series.values())))
     if len(common) < 120:
         raise ValueError("Insufficient overlapping historical Coinbase observations")
+    # Missing hours invalidate a nominally continuous hourly walk-forward.
+    if any(b - a != 3600 for a, b in zip(common, common[1:])):
+        raise ValueError("Coinbase price history contains missing hourly bars")
     return {"schema": "bean.coinbase.hourly.v1", "source": "Coinbase public candles",
             "pairs": list(PAIRS), "start": start, "end": end,
             "bars": [{"ts": ts, "prices": {p: series[p][ts] for p in PAIRS}}
@@ -103,12 +106,23 @@ def assess(dataset):
     bars = dataset["bars"]
     if len(bars) < 120:
         raise ValueError("Not enough chronological bars for independent test")
+    if any(b["ts"] - a["ts"] != 3600 for a, b in zip(bars, bars[1:])):
+        raise ValueError("Non-contiguous price history cannot be treated as hourly")
+    if any(p not in bar["prices"] or bar["prices"][p]["open"] <= 0 or
+           bar["prices"][p]["close"] <= 0 or
+           not math.isfinite(bar["prices"][p]["open"]) or
+           not math.isfinite(bar["prices"][p]["close"])
+           for bar in bars for p in PAIRS):
+        raise ValueError("Missing or invalid price bars")
     cut = int(len(bars) * 0.60)
     train, holdout = bars[:cut], bars[cut:]
     candidates = [(rule, period, threshold)
                   for rule in ("momentum", "reversal")
                   for period in (3, 6, 12, 24)
                   for threshold in (0.0, 0.01, 0.03)]
+    # Defensive cash is a genuine contender; a negative-edge period must not
+    # force BEAN to buy a losing strategy merely to look active.
+    candidates.append(("cash", 3, 0.0))
     ranked = [(run(train, *c), c) for c in candidates]
     # Optimize return penalized by realized drawdown, not number of trades.
     score = lambda r: math.log(max(1e-12, r["multiple"])) - r["max_drawdown"]
@@ -125,6 +139,7 @@ def assess(dataset):
             "training": best_train, "holdout": challenger,
             "buy_hold_btc": benchmark, "cash": cash,
             "beats_btc_holdout": challenger["final"] > benchmark["final"],
+            "beats_cash_holdout": challenger["final"] > cash["final"],
             "level_one_achieved": challenger["level_one"],
             "note": "Historical replay is not live performance. Selection was only on training bars; holdout is untouched."}
 
