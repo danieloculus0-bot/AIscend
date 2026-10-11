@@ -301,6 +301,25 @@ def _monitor_token_ok() -> bool:
     return supplied == configured
 
 
+@app.before_request
+def _remote_read_only_boundary():
+    """A remote monitor client may not access dashboard credentials or trades.
+
+    Browser UI and trading controls are intentionally local-only. Tailscale
+    monitors get only the token-protected read-only monitor endpoints.
+    """
+    remote = (request.remote_addr or "").strip()
+    if remote in {"127.0.0.1", "::1"}:
+        return None
+    if request.method != "GET":
+        return jsonify({"ok": False, "error": "Remote trading controls are disabled"}), 403
+    if (request.path in {"/monitor", "/api/monitor/status"}
+            and os.getenv("AISCEND_REMOTE_TOKEN", "").strip()
+            and _monitor_token_ok()):
+        return None
+    return jsonify({"ok": False, "error": "Remote access is restricted to the read-only monitor"}), 401
+
+
 def _active_monitor_payload() -> dict[str, Any]:
     rail = str(_loop_state.get("rail") or "auto")
     network = str(_loop_state.get("network") or "base")
@@ -681,4 +700,4 @@ def stop():
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8000"))
-    app.run(host="0.0.0.0", port=port, debug=False, threaded=True)
+    app.run(host=os.getenv("AISCEND_BIND_HOST", "127.0.0.1"), port=port, debug=False, threaded=True)

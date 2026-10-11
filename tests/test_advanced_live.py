@@ -400,6 +400,52 @@ class AdvancedLiveTests(unittest.TestCase):
             self.assertIn("Human Weather", snap["research"]["thesis"])
             store.close()
 
+    def test_provider_rejection_does_not_enter_executed_ledger(self):
+        class RejectingRail(FakeRail):
+            def market_buy(self, product_id, quote_size, client_order_id):
+                return {"success": False, "error_response": {"error": "MINIMUM_NOT_MET"}}
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "advanced.db")
+            engine = AdvancedSpotEngine(
+                store, rail=RejectingRail(), asset_universe=FakeUniverse(),
+                listing_sentinel=FakeListingSentinel(),
+                human_researcher=FakeHumanResearch(),
+            )
+            engine.step()
+            record = store.latest_decisions(1)[0]
+            self.assertEqual(record["status"], "EXECUTION_ERROR")
+            self.assertIn("not confirmed", record["rationale"])
+            self.assertFalse(any(row["kind"] == "ADVANCED_BUY"
+                                 for row in store.latest_ledger(10)))
+            store.close()
+
+    def test_balance_holds_remain_in_net_value_not_spendable_cash(self):
+        class HoldingRail(FakeRail):
+            def status(self):
+                return AdvancedTradeStatus(
+                    configured=True, tradable_spot_products=2,
+                    product_ids=("ALEO-USDC", "ETH-USDC"),
+                    balances=(
+                        AdvancedBalance("USDC", Decimal("20"), Decimal("5")),
+                        AdvancedBalance("ALEO", Decimal("1"), Decimal("2")),
+                    ),
+                )
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "advanced.db")
+            engine = AdvancedSpotEngine(
+                store, rail=HoldingRail(), asset_universe=FakeUniverse(),
+                listing_sentinel=FakeListingSentinel(),
+                human_researcher=FakeHumanResearch(),
+            )
+            snap = engine.sync()
+            self.assertEqual(snap["cash_by_quote"]["USDC"], 20.0)
+            self.assertEqual(snap["cash"], 25.0)
+            self.assertEqual(snap["positions"]["ALEO-USDC"]["qty"], 3.0)
+            self.assertEqual(snap["positions"]["ALEO-USDC"]["available_qty"], 1.0)
+            self.assertEqual(snap["net_liquidation"], 31.0)
+            self.assertTrue(snap["valuation_complete"])
+            store.close()
+
     def test_execution_failure_still_hits_decision_journal(self):
         class BrokenRail(FakeRail):
             def preview_market_buy(self, product_id, quote_size):

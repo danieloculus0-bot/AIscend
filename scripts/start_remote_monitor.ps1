@@ -7,22 +7,23 @@ try {
     $tailscaleIp = $null
 }
 
+if (-not $tailscaleIp) {
+    throw "Tailscale must be connected before exposing the AIscend monitor."
+}
+if ([string]::IsNullOrWhiteSpace($env:AISCEND_REMOTE_TOKEN)) {
+    throw "Set AISCEND_REMOTE_TOKEN before starting the remote monitor. Remote access must be authenticated."
+}
+
+# Never publish trading controls on the LAN. The Flask app also rejects
+# non-loopback requests except token-authenticated, read-only monitor GETs.
+$env:AISCEND_BIND_HOST = $tailscaleIp
+
 Write-Host ""
-Write-Host "AIscend remote monitor"
-Write-Host "----------------------"
-if ($tailscaleIp) {
-    Write-Host "From another PC on your Tailnet:"
-    Write-Host ("http://" + $tailscaleIp + ":8000/monitor")
-} else {
-    Write-Host "Tailscale not detected. The app still listens on 0.0.0.0:8000."
-    Write-Host "Install/connect Tailscale on both PCs for simple private remote access."
-}
-if ($env:AISCEND_REMOTE_TOKEN) {
-    Write-Host "Remote token protection: ON"
-    Write-Host "Append ?token=<your token> to the monitor URL."
-} else {
-    Write-Host "Remote token protection: OFF (fine for a private Tailnet)."
-}
+Write-Host "AIscend remote monitor (read-only)"
+Write-Host "----------------------------------"
+Write-Host ("Tailnet monitor: http://" + $tailscaleIp + ":8000/monitor")
+Write-Host "Append ?token=<your token> to the monitor URL."
+Write-Host "Trading controls remain local-only."
 Write-Host ""
 
 python web_app.py
