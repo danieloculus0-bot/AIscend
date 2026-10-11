@@ -10,17 +10,23 @@ import threading
 import time
 
 from .bean_strategy_lab import HOUR
+from .bean_five_minute import BAR
 
 SETTLE_SECONDS = 300
 POLL_SECONDS = 60
 POLICY_REFRESH_SECONDS = 900
+FAST_SETTLE_SECONDS = 60
 
 
 class BeanResearchSupervisor:
     def __init__(self, lab, gate, *, clock=None, settle_seconds=SETTLE_SECONDS,
-                 poll_seconds=POLL_SECONDS):
+                 poll_seconds=POLL_SECONDS, fast_lab=None, paper=None):
         self.lab = lab
         self.gate = gate
+        self.fast_lab = fast_lab
+        self.paper = paper
+        self._fast_action = "NOT_CONFIGURED"
+        self._fast_error = None
         self.clock = clock or time.time
         self.settle_seconds = settle_seconds
         self.poll_seconds = poll_seconds
@@ -90,6 +96,8 @@ class BeanResearchSupervisor:
                 self._last_action = "PAUSED_BY_USER"
             return
         now = float(self.clock())
+        if self.fast_lab is not None and self.paper is not None:
+            self.tick_fast(now)
         end = int(now // HOUR * HOUR)
         if now < end + self.settle_seconds:
             with self._lock:
