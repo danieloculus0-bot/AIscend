@@ -377,6 +377,20 @@ class AdvancedSpotEngine:
             human,
         )
 
+        # Every held asset is challenged against the best ranked alternative.
+        # Advisory only: UNKNOWN evidence cannot become an automatic sell.
+        from .rotation_review import review_rotation
+        scored = universe.get("scored") or universe.get("top") or []
+        scored_by_product = {
+            str(row.get("product") or "").upper(): row
+            for row in scored if isinstance(row, dict)
+        }
+        rotation_reviews = [
+            review_rotation(product, scored_by_product.get(product.upper()),
+                            radar.get("best_long")).as_dict()
+            for product in positions
+        ]
+
         self._snapshot = {
             "cash": cash,
             "cash_by_quote": cash_by_quote,
@@ -416,6 +430,7 @@ class AdvancedSpotEngine:
             "listing_sentinel": listing,
             "bean": self.bean.snapshot(),
             "market_radar": radar,
+            "rotation_reviews": rotation_reviews,
             "execution_rail": "coinbase-advanced",
         }
         return self._snapshot
