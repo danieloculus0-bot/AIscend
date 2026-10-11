@@ -58,6 +58,14 @@ class AssetUniverseTests(unittest.TestCase):
         batch=universe._next_batch(products)
         self.assertEqual([row["id"] for row in batch],["AAA-USD","CCC-USD","EEE-USD"])
 
+    def test_failed_cold_start_scans_do_not_starve_unseen_products(self):
+        universe = FakeUniverse()
+        products = [{"id": f"COIN{i}-USD"} for i in range(7)]
+        attempts = set()
+        for _ in range(7):
+            attempts.update(x["id"] for x in universe._next_batch(products))
+        self.assertEqual(attempts, {row["id"] for row in products})
+
     def test_buy_top_prefers_positive_signal_over_large_negative_move(self):
         class RankingUniverse(FakeUniverse):
             def _scan_product(self, product):
