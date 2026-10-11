@@ -14,12 +14,13 @@ LESSONS = ("momentum", "reversal", "trend", "persistent")
 
 def learn(dataset: dict, rounds: int = 4) -> dict:
     bars = dataset["bars"]
+    pairs = tuple(dataset.get("pairs") or bars[0]["prices"])
     cut = int(len(bars) * .6)
     train, holdout = bars[:cut], bars[cut:]
     history = []
     champion = ("cash", 3, 0.0)
     def grade(params):
-        result = run(train, *params)
+        result = run(train, *params, pairs=pairs)
         return result["multiple"] - result["max_drawdown"]
     top = grade(champion)
     # Each pass widens the candidate lesson space, but the holdout stays sealed.
@@ -39,9 +40,9 @@ def learn(dataset: dict, rounds: int = 4) -> dict:
         history.append({"lesson": lesson + 1, "candidates": len(subset),
                         "best": list(best), "train_score": round(best_score, 8),
                         "promoted_on_training": accepted})
-    final = run(holdout, *champion)
-    cash = run(holdout, "cash", 3, 0)
-    btc = run(holdout, "buy_hold", 3, 0)
+    final = run(holdout, *champion, pairs=pairs)
+    cash = run(holdout, "cash", 3, 0, pairs=pairs)
+    btc = run(holdout, "buy_hold", 3, 0, pairs=pairs)
     return {"schema": "bean.strategy.school.v1", "school": "parameter_mutation",
             "model_authored": False, "source": dataset.get("source"),
             "history": history, "candidate_count": sum(x["candidates"] for x in history),
