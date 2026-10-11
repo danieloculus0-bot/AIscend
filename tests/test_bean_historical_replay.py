@@ -1,5 +1,5 @@
 import unittest
-from scripts.bean_historical_replay import run, assess, discover_products, START
+from scripts.bean_historical_replay import run, assess, discover_products, fetch_candles, START
 from io import BytesIO
 
 
@@ -82,6 +82,27 @@ class HistoricalReplayTests(unittest.TestCase):
             def __exit__(self, *args): self.close()
         result = discover_products(request_fn=lambda request,timeout: Response(json.dumps(payload).encode()))
         self.assertEqual(result, ["DOGE-USD", "SHIB-USD"])
+
+    def test_rate_limit_is_retried_without_substituting_fake_candles(self):
+        import json
+        from unittest.mock import patch
+        from urllib.error import HTTPError
+        class Response(BytesIO):
+            def __enter__(self): return self
+            def __exit__(self, *args): self.close()
+        attempts = [0]
+        def request(req, timeout):
+            attempts[0] += 1
+            if attempts[0] == 1:
+                raise HTTPError(req.full_url, 429, "Too Many Requests",
+                                {"Retry-After": "1"}, None)
+            return Response(json.dumps({"candles": [
+                {"start": "0", "open": "1.0", "close": "1.1"}]}).encode())
+        with patch("scripts.bean_historical_replay.time.sleep") as sleep:
+            bars = fetch_candles("DOGE-USD", 0, 3600, request_fn=request)
+        self.assertEqual(attempts[0], 2)
+        self.assertEqual(bars[0]["close"], 1.1)
+        sleep.assert_called_once()
 
     def test_missing_data_rejected(self):
         with self.assertRaises(ValueError):
