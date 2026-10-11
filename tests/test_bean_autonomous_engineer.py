@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from io import BytesIO
 import subprocess
 import sys
 from pathlib import Path
@@ -10,7 +11,8 @@ import unittest
 from unittest.mock import patch
 
 from scripts.bean_autonomous_engineer import (
-    Engineer, Lessons, clean_environment, checked_ollama_url, validate_plan,
+    Engineer, Lessons, OllamaAuthor, OLLAMA_GENERATION_TIMEOUT,
+    clean_environment, checked_ollama_url, validate_plan,
 )
 
 
@@ -42,6 +44,49 @@ class AutonomousEngineerTests(unittest.TestCase):
                     "http://localhost:11434/path"):
             with self.assertRaises(ValueError):
                 checked_ollama_url(url)
+
+    def test_local_ollama_chat_has_extended_timeout_and_bounded_context(self):
+        calls = []
+
+        class FakeResponse:
+            def __init__(self, payload):
+                self.payload = payload
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                pass
+
+            def read(self, _limit):
+                return self.payload
+
+        def fake_open(request, timeout):
+            payload = json.loads(request.data) if request.data else {}
+            calls.append((request.full_url, timeout, payload))
+            result = {
+                "message": {"content": json.dumps({
+                    "edits": [{"find": "return 1", "replace": "return 2"}],
+                    "hypothesis": "fix",
+                })}
+            }
+            return FakeResponse(json.dumps(result).encode())
+
+        author = OllamaAuthor(model="qwen2.5-coder:1.5b", opener=fake_open)
+        result = author.patch("src/example.py", "def f():\\n    return 1\\n", [])
+        self.assertIn("return 2", result["code"])
+        _, timeout, payload = calls[0]
+        self.assertEqual(timeout, OLLAMA_GENERATION_TIMEOUT)
+        self.assertEqual(payload["options"]["num_ctx"], 8192)
+        self.assertEqual(payload["options"]["num_predict"], 1100)
+
+    def test_ollama_timeout_returns_actionable_failure(self):
+        def fake_open(_request, _timeout):
+            raise TimeoutError("timed out")
+
+        author = OllamaAuthor(model="qwen2.5-coder:1.5b", opener=fake_open)
+        with self.assertRaisesRegex(RuntimeError, "Ollama /api/chat timed out"):
+            author.patch("src/example.py", "def f():\\n    return 1\\n", [])
 
     def test_wallet_env_is_not_passed_to_candidate_tests(self):
         with patch.dict(os.environ, {"CDP_API_KEY_SECRET": "private",
