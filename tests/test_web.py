@@ -31,7 +31,7 @@ class WebAppTests(unittest.TestCase):
     def test_dashboard_cdp_connect_persists_only_after_wallet_validation(self):
         key = {"id": "sample-id", "privateKey": "sample-key"}
         client = app.test_client()
-        with patch("web_app.CdpWallet") as wallet_cls, patch("web_app.CredentialVault") as vault_cls:
+        with patch("web_app.CdpWallet") as wallet_cls, patch("web_app.CredentialVault") as vault_cls, patch.dict("os.environ", {}, clear=False):
             wallet_cls.return_value.ensure_account = AsyncMock(return_value="0x123")
             response = client.post(
                 "/api/configure",
@@ -51,7 +51,7 @@ class WebAppTests(unittest.TestCase):
     def test_failed_cdp_connect_does_not_persist_wallet(self):
         key = {"id": "sample-id", "privateKey": "sample-key"}
         client = app.test_client()
-        with patch("web_app.CdpWallet") as wallet_cls, patch("web_app.CredentialVault") as vault_cls:
+        with patch("web_app.CdpWallet") as wallet_cls, patch("web_app.CredentialVault") as vault_cls, patch.dict("os.environ", {}, clear=False):
             wallet_cls.return_value.ensure_account = AsyncMock(
                 side_effect=RuntimeError("invalid credentials")
             )
