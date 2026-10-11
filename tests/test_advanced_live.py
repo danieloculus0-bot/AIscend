@@ -165,6 +165,54 @@ class FakeUniverse:
 
 
 class AdvancedLiveTests(unittest.TestCase):
+    def test_bean_gate_can_veto_advanced_buy_without_touching_wallet(self):
+        class BeanDisagrees:
+            def assess(self):
+                return {"status": "READY", "experiment": 66,
+                        "target": "ETH-USD", "bars": 75}
+
+            def permits_buy(self, policy, symbol):
+                return symbol == "ETH-USDC"
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "advanced.db")
+            rail = FakeRail()
+            engine = AdvancedSpotEngine(
+                store, rail=rail, asset_universe=FakeUniverse(),
+                listing_sentinel=FakeListingSentinel(),
+                human_researcher=FakeHumanResearch(),
+                policy_gate=BeanDisagrees(),
+            )
+            after = engine.step()
+            row = store.latest_decisions(1)[0]
+            self.assertEqual(row["action"], "HOLD")
+            self.assertIn("BEAN exam #66 blocked", row["rationale"])
+            self.assertEqual(after["cash"], 25.0)
+            self.assertFalse(rail.buys)
+            store.close()
+
+    def test_no_candle_evidence_does_not_fake_trade_signal(self):
+        class BeanUnavailable:
+            def assess(self):
+                return {"status": "DATA_UNAVAILABLE", "trade_effect": "NONE"}
+
+            def permits_buy(self, policy, symbol):
+                return True
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "advanced.db")
+            rail = FakeRail()
+            engine = AdvancedSpotEngine(
+                store, rail=rail, asset_universe=FakeUniverse(),
+                listing_sentinel=FakeListingSentinel(),
+                human_researcher=FakeHumanResearch(),
+                policy_gate=BeanUnavailable(),
+            )
+            engine.step()
+            self.assertTrue(rail.buys)
+            self.assertEqual(store.latest_decisions(1)[0]["status"], "LIVE_EXECUTED")
+            store.close()
+
     def test_engine_selects_best_tradable_coinbase_spot_candidate(self):
         with tempfile.TemporaryDirectory() as td:
             store = StateStore(Path(td) / "advanced.db")
