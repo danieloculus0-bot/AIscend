@@ -13,7 +13,7 @@ import math
 import random
 from pathlib import Path
 
-MODES = ("momentum", "reversal", "dual_trend", "dip_rebound",
+MODES = ("cash", "momentum", "reversal", "dual_trend", "dip_rebound",
          "breakout", "volatility", "regime_rotation")
 CHOICES = {
     "mode": MODES,
@@ -63,6 +63,8 @@ def _prices(bars, pair, start, stop):
 
 def signals(bars, i, pairs, g):
     """Causal signal: consume only closes strictly before execution bar i."""
+    if g["mode"] == "cash":
+        return []
     previous = bars[i - 1]["prices"]
     fast_at = bars[i - g["fast"] - 1]["prices"]
     slow_at = bars[i - g["slow"] - 1]["prices"]
@@ -178,7 +180,7 @@ def validate(dataset):
     return bars, pairs
 
 
-def evolve(dataset, *, generations=6, population=36, seed=6410):
+def evolve(dataset, *, generations=12, population=72, seed=6410):
     bars, pairs = validate(dataset)
     generations = max(1, min(int(generations), 30))
     population = max(8, min(int(population), 120))
@@ -188,7 +190,9 @@ def evolve(dataset, *, generations=6, population=36, seed=6410):
         raise ValueError("Insufficient independent training and holdout hours")
 
     rng = random.Random(seed)
-    genes = [random_genome(rng) for _ in range(population)]
+    # Idle cash is always an available rival, never a forced loss maker.
+    cash_genome = normalize({name: values[0] for name, values in CHOICES.items()})
+    genes = [cash_genome] + [random_genome(rng) for _ in range(population - 1)]
     cache = {}
     history = []
 
@@ -232,7 +236,7 @@ def evolve(dataset, *, generations=6, population=36, seed=6410):
             "training_era_returns": grade(ranked[0][2])[2],
         })
         parents = [g for _, _, g in ranked[:max(4, population // 4)]]
-        next_gen = parents[:]
+        next_gen = [cash_genome] + [g for g in parents if key(g) != key(cash_genome)]
         while len(next_gen) < population:
             r = rng.random()
             if r < 0.20:
@@ -289,8 +293,8 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--dataset", type=Path, required=True)
     p.add_argument("--out", type=Path, default=Path("artifacts/bean-evolution.json"))
-    p.add_argument("--generations", type=int, default=6)
-    p.add_argument("--population", type=int, default=36)
+    p.add_argument("--generations", type=int, default=12)
+    p.add_argument("--population", type=int, default=72)
     p.add_argument("--seed", type=int, default=6410)
     a = p.parse_args()
     report = evolve(json.loads(a.dataset.read_text(encoding="utf-8")),
