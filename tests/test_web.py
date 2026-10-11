@@ -66,7 +66,7 @@ class WebAppTests(unittest.TestCase):
         """Render real canvas calls through a tiny pixel-grid test double."""
         html = app.test_client().get("/").get_data(as_text=True)
         snippet = html.split("function drawPet(){", 1)[1].split("  const moods={", 1)[0]
-        script = "function drawPet(){" + snippet + "\\n}\n"
+        script = "function drawPet(){" + snippet + "\n}\n"
         script += """
         let petState='idle', petBlink=false;
         const pixels=Array.from({length:48},()=>Array(48).fill(''));
