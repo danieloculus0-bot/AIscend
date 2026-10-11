@@ -81,7 +81,7 @@ class AutonomousEngineerTests(unittest.TestCase):
         self.assertEqual(payload["options"]["num_predict"], 1100)
 
     def test_ollama_timeout_returns_actionable_failure(self):
-        def fake_open(_request, _timeout):
+        def fake_open(_request, timeout):
             raise TimeoutError("timed out")
 
         author = OllamaAuthor(model="qwen2.5-coder:1.5b", opener=fake_open)
