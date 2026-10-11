@@ -122,7 +122,7 @@ def assess(dataset):
                   for threshold in (0.0, 0.01, 0.03)]
     # Defensive cash is a genuine contender; a negative-edge period must not
     # force BEAN to buy a losing strategy merely to look active.
-    candidates.append(("cash", 3, 0.0))
+    candidates.insert(0, ("cash", 3, 0.0))
     ranked = [(run(train, *c), c) for c in candidates]
     # Optimize return penalized by realized drawdown, not number of trades.
     score = lambda r: math.log(max(1e-12, r["multiple"])) - r["max_drawdown"]
