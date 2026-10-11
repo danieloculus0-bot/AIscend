@@ -1,5 +1,8 @@
 import io
 import json
+import re
+import shutil
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -27,6 +30,24 @@ class WebAppTests(unittest.TestCase):
         response = client.get("/")
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"AIscend", response.data)
+
+    @unittest.skipUnless(shutil.which("node"), "Node.js required for browser JS syntax validation")
+    def test_dashboard_inline_javascript_compiles(self):
+        """HTTP 200 is insufficient if an inline JS syntax error bricks the UI."""
+        html = app.test_client().get("/").get_data(as_text=True)
+        scripts = re.findall(r"<script(?:\\s[^>]*)?>(.*?)</script>", html, re.DOTALL)
+        self.assertTrue(scripts, "Dashboard must ship a JavaScript entrypoint")
+        for script in scripts:
+            result = subprocess.run(
+                [shutil.which("node"), "--check"], input=script,
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_bean_gate_is_displayed_in_live_engine(self):
+        html = app.test_client().get("/").get_data(as_text=True)
+        self.assertIn('id="beanLivePolicy"', html)
+        self.assertIn("BUY_CONFIRMATION_GATE", html)
 
     def test_dashboard_cdp_connect_persists_only_after_wallet_validation(self):
         key = {"id": "sample-id", "privateKey": "sample-key"}
