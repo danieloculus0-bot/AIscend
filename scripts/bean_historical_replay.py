@@ -132,7 +132,7 @@ def run(bars, rule, lookback, threshold, *, starting=START, pairs=None):
                 p: previous[p]["close"] / bars[long_index][
                     "prices"][p]["close"] - 1 for p in pairs
             }
-            qualified = [p for p in PAIRS
+            qualified = [p for p in pairs
                          if scores[p] > threshold and long_scores[p] > 0]
             chosen = max(qualified, key=lambda p: scores[p]) if qualified else None
         elif rule == "persistent":
