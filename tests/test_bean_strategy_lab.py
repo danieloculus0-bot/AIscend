@@ -1,9 +1,11 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
 
+from src.bean_policy import BeanPolicyGate
 from src.bean_strategy_lab import (
-    BeanStrategyLab, select_markets, simulate, evolve, WARMUP
+    BeanStrategyLab, select_markets, simulate, evolve, WARMUP, HOUR
 )
 
 
@@ -22,6 +24,61 @@ def fixture(_ordinal=0):
 
 
 class BeanSchoolTests(unittest.TestCase):
+    def test_policy_uses_fresh_complete_hourly_closes_not_backtest_returns(self):
+        with tempfile.TemporaryDirectory() as d:
+            lab = BeanStrategyLab(Path(d) / "bean.db")
+            with lab._connect() as db:
+                db.execute(
+                    "INSERT INTO experiments(id,created,state,ordinal,seed,result) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    ("selected", 1., "AUTO_SELECTED", 66, 1,
+                     json.dumps({"candidate": ["momentum", 6, 0.003, 3],
+                                 "pairs": ["BTC-USD", "ETH-USD"],
+                                 "holdout": {"net_return": .5274}})),
+                )
+
+            calls = []
+            def bars(product, start, end):
+                calls.append(product)
+                return {
+                    ts: {"open": 100., "close": (
+                        100. * (1.01 ** ((ts - start) // HOUR))
+                        if product == "ETH-USD" else 100.)}
+                    for ts in range(start, end, HOUR)
+                }
+            gate = BeanPolicyGate(lab, fetcher=bars,
+                                  clock=lambda: 1000 * HOUR + 1)
+            result = gate.assess()
+            self.assertEqual(result["status"], "READY")
+            self.assertEqual(result["target"], "ETH-USD")
+            self.assertEqual(result["experiment"], 66)
+            self.assertEqual(result["markets"], 2)
+            self.assertTrue(gate.permits_buy(result, "WETH"))
+            self.assertFalse(gate.permits_buy(result, "BTC-USDC"))
+            self.assertEqual(gate.assess(), result)
+            self.assertEqual(len(calls), 2)
+
+    def test_policy_missing_current_candle_cannot_issue_signal(self):
+        with tempfile.TemporaryDirectory() as d:
+            lab = BeanStrategyLab(Path(d) / "bean.db")
+            with lab._connect() as db:
+                db.execute(
+                    "INSERT INTO experiments(id,created,state,ordinal,seed,result) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    ("selected", 1., "AUTO_SELECTED", 66, 1,
+                     json.dumps({"candidate": ["momentum", 6, 0.003, 3],
+                                 "pairs": ["BTC-USD", "ETH-USD"]})),
+                )
+            def missing(product, start, end):
+                return {ts: {"open": 100., "close": 100.}
+                        for ts in range(start, end - HOUR, HOUR)}
+            gate = BeanPolicyGate(lab, fetcher=missing,
+                                  clock=lambda: 1000 * HOUR + 1)
+            result = gate.assess()
+            self.assertEqual(result["status"], "DATA_UNAVAILABLE")
+            self.assertEqual(result["trade_effect"], "NONE")
+            self.assertTrue(gate.permits_buy(result, "ETH-USDC"))
+
     def test_cohort_rotation_includes_doge_and_shib(self):
         catalog = list(("BTC-USD", "ETH-USD", "SOL-USD", "DOGE-USD", "SHIB-USD",
                         "UNI-USD", "XRP-USD", "LINK-USD", "AAVE-USD", "BCH-USD",
