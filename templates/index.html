@@ -87,6 +87,27 @@
       font-size:12px;
     }
     @media(max-width:850px){ .grid{grid-template-columns:1fr 1fr}.layout{grid-template-columns:1fr} }
+    /* BEAN Strategy School — research-only control surface */
+    .bean-school { position:relative; overflow:hidden; border-color:#2e5644; background:linear-gradient(150deg,#14271f 0%,#15191f 58%); }
+    .bean-school:before { content:""; position:absolute; inset:0 0 auto; height:3px; background:linear-gradient(90deg,#8be4ac,#46976e,#193929); }
+    .bean-head { display:flex; align-items:start; justify-content:space-between; gap:10px; }
+    .bean-head h2 { margin:0 0 5px; color:#c8f5d6; }
+    .bean-tag { flex-shrink:0; border:1px solid #397759; background:#1b3f2d; color:#b2efc7; font-size:10px; padding:6px 9px; border-radius:100px; font-weight:800; letter-spacing:.04em; }
+    .bean-school .small { line-height:1.5; }
+    .bean-score { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin:14px 0; }
+    .bean-score > div { border:1px solid #33493c; background:#101c16; padding:12px; border-radius:9px; min-width:0; }
+    .bean-score strong { display:block; margin-top:5px; font-size:19px; font-variant-numeric:tabular-nums; }
+    .bean-actions { display:flex; gap:9px; }
+    .bean-actions button { margin-top:0; }
+    .bean-actions .primary { background:#23744d; border-color:#399d69; }
+    .bean-actions .primary:hover { background:#2e9060; }
+    .bean-actions button:disabled { cursor:default; opacity:.46; }
+    .bean-result { margin:12px 0; padding:10px 12px; border:1px solid #304536; border-radius:8px; background:#101b15; }
+    .bean-history { margin-top:10px; display:grid; gap:6px; }
+    .bean-history-row { display:flex; gap:8px; align-items:center; justify-content:space-between; border-top:1px solid #334036; padding-top:7px; font-size:12px; }
+    .bean-neg { color:#ffa09c; }
+    .bean-pos { color:#98efb6; }
+    @media(max-width:520px){ .bean-score{grid-template-columns:1fr 1fr}.bean-actions{flex-wrap:wrap} }
   </style>
 </head>
 <body>
@@ -184,7 +205,7 @@
 
       <div class="panel" style="margin-top:14px">
         <h2>REMOTE MONITOR</h2>
-        <div class="small">Read-only monitor at <b>/monitor</b>. The app already listens on all interfaces. Use the included Tailscale helper on the home PC for private remote viewing from work.</div>
+        <div class="small">Read-only monitor at <b>/monitor</b>. The local dashboard does not expose trading controls remotely. Use the Tailscale monitor helper with an access token for read-only viewing.</div>
         <button onclick="window.open('/monitor','_blank')">OPEN MONITOR</button>
       </div>
     </div>
@@ -234,6 +255,31 @@
         <div id="beanTrust" class="small" style="margin-top:8px">Trust model has no graded outcomes yet.</div>
       </details>
 
+      <section class="panel bean-school" style="margin-top:14px" aria-label="BEAN Strategy School">
+        <div class="bean-head">
+          <div>
+            <h2>BEAN STRATEGY SCHOOL</h2>
+            <div class="small">A tiny, ruthless research laboratory. Real Coinbase candle tests, persistent lessons, no wallet orders.</div>
+          </div>
+          <span class="bean-tag" id="beanLabState">READY TO LEARN</span>
+        </div>
+        <div class="bean-score">
+          <div><div class="label">Experiments</div><strong id="beanLabCount">0</strong></div>
+          <div><div class="label">Candidates</div><strong id="beanLabCandidates">—</strong></div>
+          <div><div class="label">Holdout</div><strong id="beanLabReturn">—</strong></div>
+        </div>
+        <div class="bean-actions">
+          <button id="beanLabRun" class="primary" onclick="startBeanLab()">🌱 RUN BEAN EXPERIMENT</button>
+          <button id="beanLabRetry" onclick="startBeanLab()" disabled>↻ TRY AGAIN</button>
+        </div>
+        <div id="beanLabResult" class="bean-result small" role="status" aria-live="polite">BEAN's first exam is ready. Each retry preserves previous findings and explores another Coinbase cohort.</div>
+        <div class="bean-actions"><button id="beanLabApprove" onclick="approveBeanLab()" disabled>APPROVE CANDIDATE FOR REVIEW</button></div>
+        <div class="small" style="margin-top:8px">Approval creates a research record only. It does not activate, install, or change the live trading strategy.</div>
+        <details style="margin-top:13px"><summary style="cursor:pointer;color:#b4dbc1;font-weight:700">LESSON JOURNAL · RECENT EXPERIMENTS</summary>
+          <div id="beanLabHistory" class="bean-history small">No lessons recorded yet.</div>
+        </details>
+      </section>
+
       <details class="panel" style="margin-top:14px">
         <summary>COINBASE ASSET UNIVERSE</summary>
         <div id="universeSummary" class="small">Universe not loaded yet.</div>
@@ -280,6 +326,66 @@ let petBlink = false;
 let petBob = false;
 let petQuipIndex = 0;
 let previousPoints = null;
+
+let beanLabLatest = null;
+let beanLabRunning = false;
+function beanPct(n){ const x=Number(n); return Number.isFinite(x) ? (x>=0?'+':'')+(x*100).toFixed(2)+'%' : '—'; }
+function renderBeanLab(payload){
+  const latest=payload.latest||null;
+  beanLabLatest=latest;
+  beanLabRunning=!!payload.running;
+  const report=latest&&latest.report;
+  $('beanLabState').textContent=latest ? latest.state.replaceAll('_',' ') : 'READY TO LEARN';
+  $('beanLabCount').textContent=String(payload.retained_events||0);
+  $('beanLabCandidates').textContent=report?String(report.unique_candidates||0):'—';
+  $('beanLabReturn').textContent=report?beanPct(report.holdout?.net_return):'—';
+  $('beanLabReturn').className=report?(report.holdout.net_return>0?'bean-pos':'bean-neg'):'';
+  $('beanLabRun').disabled=!!latest||beanLabRunning;
+  $('beanLabRetry').disabled=!latest||beanLabRunning;
+  $('beanLabApprove').disabled=!latest||latest.state!=='REVIEW'||!report||!report.beats_cash_and_btc;
+  if(!latest){ $('beanLabResult').textContent='Research only. BEAN can run an exam without placing a trade.'; }
+  else if(beanLabRunning){ $('beanLabResult').textContent='BEAN is researching Coinbase candles and evolving trading policies. You can keep using the dashboard.'; }
+  else if(latest.error){ $('beanLabResult').textContent='Experiment '+latest.ordinal+' failed: '+latest.error+'. Previous lessons are retained. Try again when ready.'; }
+  else if(report){
+    $('beanLabResult').textContent='Exam '+latest.ordinal+' · '+report.pairs.join(', ')+' · '+report.unique_candidates+
+      ' candidates · Holdout '+beanPct(report.holdout?.net_return)+' vs BTC '+beanPct(report.btc_return)+
+      ' · '+(report.beats_cash_and_btc?'Qualified for human review.':'Not qualified; keep experimenting.')+
+      (latest.approved?' · Approved for review.':'');
+  } else { $('beanLabResult').textContent='Experiment interrupted. Previous results are retained.'; }
+  const recent=(payload.history||[]).slice(0,8);
+  $('beanLabHistory').innerHTML=recent.length?recent.map(entry=>{
+    const p=entry.report;
+    const outcome=p?beanPct(p.holdout?.net_return):(entry.error?'FAILED':entry.state);
+    const cls=p&&p.holdout?.net_return>0?'bean-pos':'bean-neg';
+    return '<div class="bean-history-row"><span>Experiment #'+Number(entry.ordinal)+' · '+escapeHtml(entry.state)+'</span>'+
+      '<span class="'+cls+'">'+escapeHtml(outcome)+'</span></div>';
+  }).join(''):'No lessons recorded yet.';
+}
+async function refreshBeanLab(){
+  try{const r=await fetch('/api/bean-lab');const j=await r.json();
+    if(j.ok)renderBeanLab(j);
+  }catch(e){$('beanLabResult').textContent='BEAN Lab unavailable: '+e.message;}
+}
+async function startBeanLab(){
+  if(beanLabRunning)return;
+  $('beanLabResult').textContent='Initiating BEAN experiment...';
+  try{
+    const r=await fetch('/api/bean-lab/start',{method:'POST'});
+    const j=await r.json();
+    if(!j.ok){$('beanLabResult').textContent=j.error||'Experiment could not start';return;}
+    renderBeanLab(j);
+  }catch(e){$('beanLabResult').textContent='Unable to start: '+e.message;}
+}
+async function approveBeanLab(){
+  const latest=beanLabLatest;
+  if(!latest||!latest.report||!latest.report.beats_cash_and_btc)return;
+  if(!confirm('Approve this BEAN candidate for ENGINEERING REVIEW only? This does not enable live trading.'))return;
+  const r=await fetch('/api/bean-lab/approve',{method:'POST',
+    headers:{'Content-Type':'application/json'},body:JSON.stringify({event_id:latest.id})});
+  const j=await r.json();
+  if(j.ok)renderBeanLab(j);
+  else $('beanLabResult').textContent=j.error||'Approval was rejected.';
+}
 
 function network(){ return $('network').value; }
 function rail(){ return $('executionRail').value; }
@@ -944,6 +1050,8 @@ setInterval(()=>{ if($('runnerPill').textContent.startsWith('RUNNING')) scanUniv
 fetch('/api/credentials').then(r=>r.json()).then(j=>{ if(j.configured) msg('CDP credentials detected.', true); });
 fetch('/api/capabilities').then(r=>r.json()).then(renderCapabilities).catch(()=>{ $('venueSummary').textContent='Venue capabilities unavailable.'; });
 scanUniverse();
+refreshBeanLab();
+setInterval(()=>{if(beanLabRunning) refreshBeanLab();},3000);
 refreshAdvanced();
 refreshBridge();
 drawPet();
