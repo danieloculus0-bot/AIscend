@@ -95,6 +95,22 @@ class AssetUniverseTests(unittest.TestCase):
         second=universe.collect()
         self.assertEqual(first,second)
 
+    def test_invalid_or_crossed_books_are_not_tradable_signals(self):
+        universe = FakeUniverse()
+        base_get = universe._get_json
+        for bid, ask in ((2.0, 1.0), (0.0, 1.0), (float("nan"), 1.0)):
+            def get_json(path, bid=bid, ask=ask):
+                if "book" in path:
+                    return {"bids": [[str(bid), "1", 1]],
+                            "asks": [[str(ask), "1", 1]]}
+                return base_get(path)
+            universe._get_json = get_json
+            self.assertIsNone(universe._scan_product(
+                {"id": "AAA-USD", "base_currency": "AAA",
+                 "quote_currency": "USD"}
+            ))
+        universe._get_json = base_get
+
     def test_liquidity_factor_hammers_thin_markets(self):
         universe=FakeUniverse()
         self.assertLess(universe._liquidity_factor(0.04),0.20)
