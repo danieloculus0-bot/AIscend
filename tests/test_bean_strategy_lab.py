@@ -4,8 +4,9 @@ import unittest
 from pathlib import Path
 
 from src.bean_policy import BeanPolicyGate
+from src.bean_research_supervisor import BeanResearchSupervisor
 from src.bean_strategy_lab import (
-    BeanStrategyLab, select_markets, simulate, evolve, WARMUP, HOUR
+    BeanStrategyLab, select_markets, simulate, evolve, WARMUP, HOUR, MODES, _choose
 )
 
 
@@ -78,6 +79,81 @@ class BeanSchoolTests(unittest.TestCase):
             self.assertEqual(result["status"], "DATA_UNAVAILABLE")
             self.assertEqual(result["trade_effect"], "NONE")
             self.assertTrue(gate.permits_buy(result, "ETH-USDC"))
+
+    def test_autonomous_research_on_new_hour_only_with_durable_cursor(self):
+        class ReadOnlyGate:
+            def __init__(self):
+                self.calls = 0
+
+            def assess(self):
+                self.calls += 1
+                return {"status": "READY", "target": "ETH-USD",
+                        "trade_effect": "BUY_CONFIRMATION_ONLY"}
+
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "bean.db"
+            lab = BeanStrategyLab(path, collector=fixture)
+            # Test the coordinator with a research start spy. Other tests
+            # exercise the actual background evolution against unit fixtures.
+            starts = []
+            lab.start = lambda: starts.append(True)
+            clock = [1000 * HOUR + 299]
+            gate = ReadOnlyGate()
+            watch = BeanResearchSupervisor(lab, gate, clock=lambda: clock[0])
+            watch.tick()
+            self.assertEqual(len(starts), 0)
+            self.assertEqual(gate.calls, 0)
+
+            clock[0] += 2
+            watch.tick()
+            self.assertEqual(len(starts), 1)
+            self.assertEqual(gate.calls, 1)
+            self.assertEqual(watch.status()["policy"]["status"], "READY")
+            watch.tick()
+            self.assertEqual(len(starts), 1)
+
+            # Restarting the process against the same SQLite file cannot
+            # repeat the previous hour, even if the last trial failed.
+            reopened = BeanStrategyLab(path, collector=fixture)
+            reopened_starts = []
+            reopened.start = lambda: reopened_starts.append(True)
+            recovered = BeanResearchSupervisor(
+                reopened, gate, clock=lambda: clock[0])
+            recovered.tick()
+            self.assertEqual(len(reopened_starts), 0)
+
+            self.assertFalse(recovered.set_enabled(False)["enabled"])
+            clock[0] += HOUR
+            recovered.tick()
+            self.assertEqual(len(reopened_starts), 0)
+            self.assertFalse(BeanResearchSupervisor(
+                reopened, gate, clock=lambda: clock[0]).enabled())
+            # set_enabled(True) starts the daemon scheduler; stop it
+            # immediately and run its deterministic tick explicitly.
+            recovered.set_enabled(True)
+            recovered.stop()
+            recovered.tick()
+            self.assertEqual(len(reopened_starts), 1)
+            recovered.tick()
+            self.assertEqual(len(reopened_starts), 1)
+
+    def test_bean_can_explore_new_causal_rule_families(self):
+        self.assertIn("acceleration", MODES)
+        self.assertIn("risk_adjusted", MODES)
+        bars = []
+        for i in range(100):
+            btc = 100 + i * 0.1
+            eth = 100 + i * 0.1 + max(0, i-88)**2 * 0.3
+            bars.append({"ts": i * HOUR,
+                         "prices": {"BTC-USD": {"close": btc, "open": btc},
+                                    "ETH-USD": {"close": eth, "open": eth}}})
+        self.assertEqual(
+            _choose(bars, len(bars), ["BTC-USD", "ETH-USD"],
+                    ("acceleration", 12, 0.003, 3)), "ETH-USD")
+        self.assertIn(
+            _choose(bars, len(bars), ["BTC-USD", "ETH-USD"],
+                    ("risk_adjusted", 12, 0.003, 3)),
+            (None, "BTC-USD", "ETH-USD"))
 
     def test_cohort_rotation_includes_doge_and_shib(self):
         catalog = list(("BTC-USD", "ETH-USD", "SOL-USD", "DOGE-USD", "SHIB-USD",
