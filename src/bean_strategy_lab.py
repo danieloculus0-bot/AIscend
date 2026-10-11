@@ -28,7 +28,8 @@ WARMUP = 60       # identical initial observation window for all candidates
 COST = 0.006      # research fee + adverse fill/slippage per side
 CAPITAL = 25.0
 BASELINE = ("BTC-USD", "ETH-USD", "SOL-USD", "DOGE-USD", "SHIB-USD")
-MODES = ("momentum", "reversal", "dual_trend", "breakout", "persistent")
+MODES = ("momentum", "reversal", "dual_trend", "breakout", "persistent",
+         "acceleration", "risk_adjusted")
 LOOKBACKS = (3, 6, 12, 24, 48)
 THRESHOLDS = (0.0, 0.003, 0.008, 0.016, 0.03)
 REBALANCES = (3, 6, 12, 24)
@@ -162,6 +163,29 @@ def _choose(bars, i, pairs, rule):
         eligible = {p: v for p, v in scores.items()
                     if v > threshold and recent[p]["close"] >=
                     max(bars[k]["prices"][p]["close"] for k in range(i-lookback-1, i-1))}
+    elif mode == "acceleration":
+        # New family: rising momentum in the *second* half of the lookback;
+        # all observations precede the next-bar execution.
+        half = max(1, lookback // 2)
+        middle = bars[i-half-1]["prices"]
+        eligible = {}
+        for p, total in scores.items():
+            early = middle[p]["close"] / past[p]["close"] - 1
+            late = recent[p]["close"] / middle[p]["close"] - 1
+            if total > threshold and late > early and late > 0:
+                eligible[p] = late - early
+    elif mode == "risk_adjusted":
+        # New family: penalize volatile returns rather than chasing raw gains.
+        eligible = {}
+        for p, momentum in scores.items():
+            if momentum <= threshold:
+                continue
+            closes = [bars[k]["prices"][p]["close"]
+                      for k in range(i-lookback-1, i)]
+            moves = [closes[k] / closes[k-1] - 1
+                     for k in range(1, len(closes))]
+            volatility = math.sqrt(sum(v*v for v in moves) / len(moves))
+            eligible[p] = momentum / max(volatility, 0.003)
     else:
         eligible = {p: v for p, v in scores.items() if v > threshold}
     return max(eligible, key=eligible.get) if eligible else None
