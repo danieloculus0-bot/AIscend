@@ -280,10 +280,17 @@ class AdvancedSpotEngine:
             human_error = str(exc)
         product_ids = tuple(status.product_ids)
 
-        raw_balances = {
+        # Holdings reserved by open orders remain part of portfolio value,
+        # but must never be treated as spendable buying/selling inventory.
+        spendable_balances = {
             item.currency: float(item.available)
             for item in status.balances
             if float(item.available) > 0.000000001
+        }
+        raw_balances = {
+            item.currency: float(item.available + item.hold)
+            for item in status.balances
+            if float(item.available + item.hold) > 0.000000001
         }
         quote_currencies = {
             self._split_product(product_id)[1]
@@ -291,9 +298,9 @@ class AdvancedSpotEngine:
             if self._split_product(product_id)[1]
         }
         cash_by_quote = {
-            quote: raw_balances.get(quote, 0.0)
+            quote: spendable_balances.get(quote, 0.0)
             for quote in quote_currencies
-            if raw_balances.get(quote, 0.0) > 0.000000001
+            if spendable_balances.get(quote, 0.0) > 0.000000001
         }
 
         # Preserve the game's dollar-denominated bankroll accounting while
@@ -329,6 +336,7 @@ class AdvancedSpotEngine:
 
             positions[product_id] = {
                 "qty": qty,
+                "available_qty": spendable_balances.get(currency, 0.0),
                 "avg_cost": usd_rate,
                 "base": currency,
             }
@@ -381,6 +389,9 @@ class AdvancedSpotEngine:
             "cash": cash,
             "cash_by_quote": cash_by_quote,
             "balance_values_usd": balance_values_usd,
+            "balance_on_hold": {item.currency: float(item.hold) for item in status.balances if item.hold > 0},
+            "valuation_complete": all(currency in balance_values_usd for currency in raw_balances),
+            "unpriced_balances": {currency: qty for currency, qty in raw_balances.items() if currency not in balance_values_usd},
             "starting_cash": start,
             "positions": positions,
             "prices": prices,
@@ -739,7 +750,7 @@ class AdvancedSpotEngine:
     def _execute_sell(self, decision: Decision, snapshot: dict[str, Any]) -> None:
         product_id = str(decision.symbol)
         position = (snapshot.get("positions") or {}).get(product_id) or {}
-        qty = Decimal(str(position.get("qty") or 0.0)) * Decimal(str(decision.fraction))
+        qty = Decimal(str(position.get("available_qty", position.get("qty", 0.0)) or 0.0)) * Decimal(str(decision.fraction))
         if qty <= 0:
             raise RuntimeError(f"No {product_id} position available to sell.")
 
