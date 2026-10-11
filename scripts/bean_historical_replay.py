@@ -197,8 +197,19 @@ def main():
     ap.add_argument("--dataset", type=Path)
     ap.add_argument("--days", type=int, default=30)
     ap.add_argument("--discover-all", action="store_true", help="Discover all Coinbase USD/USDC assets; no allowlist")
+    ap.add_argument("--catalog-only", action="store_true", help="Save full eligible Coinbase product manifest without downloading candles")
     ap.add_argument("--max-products", type=int, default=0, help="Optional API workload limit, 0 means no cap")
     args = ap.parse_args()
+    if args.catalog_only:
+        products = discover_products()
+        result = {"schema": "bean.coinbase.catalog.v1", "source": "Coinbase Exchange public products",
+                  "markets": products, "asset_count": len(products),
+                  "qualification": "Online USD/USDC public products; account execution not verified"}
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(json.dumps(result, indent=2) + "\n")
+        print(json.dumps({"asset_count": len(products), "contains_DOGE": "DOGE-USD" in products,
+                          "contains_SHIB": "SHIB-USD" in products}))
+        return
     if args.dataset:
         data = json.loads(args.dataset.read_text())
     else:
