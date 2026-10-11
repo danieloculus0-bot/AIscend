@@ -58,6 +58,14 @@ class AssetUniverseTests(unittest.TestCase):
         batch=universe._next_batch(products)
         self.assertEqual([row["id"] for row in batch],["AAA-USD","CCC-USD","EEE-USD"])
 
+    def test_failed_cold_start_scans_do_not_starve_unseen_products(self):
+        universe = FakeUniverse()
+        products = [{"id": f"COIN{i}-USD"} for i in range(7)]
+        attempts = set()
+        for _ in range(7):
+            attempts.update(x["id"] for x in universe._next_batch(products))
+        self.assertEqual(attempts, {row["id"] for row in products})
+
     def test_buy_top_prefers_positive_signal_over_large_negative_move(self):
         class RankingUniverse(FakeUniverse):
             def _scan_product(self, product):
@@ -86,6 +94,22 @@ class AssetUniverseTests(unittest.TestCase):
         first=universe.collect()
         second=universe.collect()
         self.assertEqual(first,second)
+
+    def test_invalid_or_crossed_books_are_not_tradable_signals(self):
+        universe = FakeUniverse()
+        base_get = universe._get_json
+        for bid, ask in ((2.0, 1.0), (0.0, 1.0), (float("nan"), 1.0)):
+            def get_json(path, bid=bid, ask=ask):
+                if "book" in path:
+                    return {"bids": [[str(bid), "1", 1]],
+                            "asks": [[str(ask), "1", 1]]}
+                return base_get(path)
+            universe._get_json = get_json
+            self.assertIsNone(universe._scan_product(
+                {"id": "AAA-USD", "base_currency": "AAA",
+                 "quote_currency": "USD"}
+            ))
+        universe._get_json = base_get
 
     def test_liquidity_factor_hammers_thin_markets(self):
         universe=FakeUniverse()

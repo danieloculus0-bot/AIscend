@@ -14,7 +14,7 @@ from .game import score_game
 from .listing_sentinel import CoinbaseListingSentinel
 from .research import MarketResearch
 from .sentiment import HumanSignalResearch, HumanSignals
-from .wallets.advanced_trade import AdvancedTradeSpot
+from .wallets.advanced_trade import AdvancedTradeSpot, require_accepted_order
 
 
 DOLLAR_ASSETS = {"USD", "USDC"}
@@ -280,10 +280,17 @@ class AdvancedSpotEngine:
             human_error = str(exc)
         product_ids = tuple(status.product_ids)
 
-        raw_balances = {
+        # Holdings reserved by open orders remain part of portfolio value,
+        # but must never be treated as spendable buying/selling inventory.
+        spendable_balances = {
             item.currency: float(item.available)
             for item in status.balances
             if float(item.available) > 0.000000001
+        }
+        raw_balances = {
+            item.currency: float(item.available + item.hold)
+            for item in status.balances
+            if float(item.available + item.hold) > 0.000000001
         }
         quote_currencies = {
             self._split_product(product_id)[1]
@@ -291,9 +298,9 @@ class AdvancedSpotEngine:
             if self._split_product(product_id)[1]
         }
         cash_by_quote = {
-            quote: raw_balances.get(quote, 0.0)
+            quote: spendable_balances.get(quote, 0.0)
             for quote in quote_currencies
-            if raw_balances.get(quote, 0.0) > 0.000000001
+            if spendable_balances.get(quote, 0.0) > 0.000000001
         }
 
         # Preserve the game's dollar-denominated bankroll accounting while
@@ -329,6 +336,7 @@ class AdvancedSpotEngine:
 
             positions[product_id] = {
                 "qty": qty,
+                "available_qty": spendable_balances.get(currency, 0.0),
                 "avg_cost": usd_rate,
                 "base": currency,
             }
@@ -381,6 +389,9 @@ class AdvancedSpotEngine:
             "cash": cash,
             "cash_by_quote": cash_by_quote,
             "balance_values_usd": balance_values_usd,
+            "balance_on_hold": {item.currency: float(item.hold) for item in status.balances if item.hold > 0},
+            "valuation_complete": all(currency in balance_values_usd for currency in raw_balances),
+            "unpriced_balances": {currency: qty for currency, qty in raw_balances.items() if currency not in balance_values_usd},
             "starting_cash": start,
             "positions": positions,
             "prices": prices,
@@ -503,14 +514,14 @@ class AdvancedSpotEngine:
             min(
                 held,
                 key=lambda item: float(
-                    item.get("decision_score") or item.get("score") or 0.0
+                    (item.get("decision_score") if item.get("decision_score") is not None else item.get("score") or 0.0)
                 ),
             )
             if held
             else None
         )
 
-        score = float(best.get("decision_score") or best.get("score") or 0.0) if best else 0.0
+        score = float((best.get("decision_score") if best.get("decision_score") is not None else best.get("score") or 0.0)) if best else 0.0
         confidence = min(0.95, 0.35 + abs(score) * 0.60) if best else 0.0
         prediction = "BULLISH" if score >= 0.16 else "BEARISH" if score <= -0.16 else "NEUTRAL"
         if best:
@@ -587,9 +598,7 @@ class AdvancedSpotEngine:
         if weakest is not None:
             held_product = str(weakest.get("product") or "").upper()
             held_score = float(
-                weakest.get("decision_score")
-                or weakest.get("score")
-                or 0.0
+                weakest.get("decision_score") if weakest.get("decision_score") is not None else (weakest.get("score") or 0.0)
             )
             if held_score <= -0.14 and held_product in before["positions"]:
                 fraction = min(1.0, max(0.35, 0.35 + abs(held_score) * 0.65))
@@ -613,7 +622,7 @@ class AdvancedSpotEngine:
 
         if status == "HELD" and best is not None:
             product_id = str(best.get("product") or "").upper()
-            score = float(best.get("decision_score") or best.get("score") or 0.0)
+            score = float((best.get("decision_score") if best.get("decision_score") is not None else best.get("score") or 0.0))
             spread_bps = float(best.get("spread_bps") or 0.0)
             volume_ratio = float(best.get("volume_ratio") or 0.0)
             _, quote = self._split_product(product_id)
@@ -686,6 +695,7 @@ class AdvancedSpotEngine:
             spend,
             client_order_id=client_order_id,
         )
+        require_accepted_order(order)
         self.store.add_ledger(
             "ADVANCED_BUY",
             product_id,
@@ -740,7 +750,7 @@ class AdvancedSpotEngine:
     def _execute_sell(self, decision: Decision, snapshot: dict[str, Any]) -> None:
         product_id = str(decision.symbol)
         position = (snapshot.get("positions") or {}).get(product_id) or {}
-        qty = Decimal(str(position.get("qty") or 0.0)) * Decimal(str(decision.fraction))
+        qty = Decimal(str(position.get("available_qty", position.get("qty", 0.0)) or 0.0)) * Decimal(str(decision.fraction))
         if qty <= 0:
             raise RuntimeError(f"No {product_id} position available to sell.")
 
@@ -750,6 +760,7 @@ class AdvancedSpotEngine:
             qty,
             client_order_id=client_order_id,
         )
+        require_accepted_order(order)
         self.store.add_ledger(
             "ADVANCED_SELL",
             product_id,

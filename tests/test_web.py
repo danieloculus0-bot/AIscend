@@ -46,6 +46,35 @@ class WebAppTests(unittest.TestCase):
             finally:
                 check.close()
 
+    def test_remote_monitor_requires_token_and_is_read_only(self):
+        client = app.test_client()
+        remote = {"REMOTE_ADDR": "100.101.102.103"}
+        with patch.dict("os.environ", {"AISCEND_REMOTE_TOKEN": "test-only-secret"}):
+            self.assertEqual(
+                client.get("/monitor", environ_overrides=remote).status_code, 401
+            )
+            self.assertEqual(
+                client.get("/monitor?token=test-only-secret",
+                           environ_overrides=remote).status_code, 200
+            )
+            self.assertEqual(
+                client.get("/api/advanced-status",
+                           environ_overrides=remote).status_code, 401
+            )
+            self.assertEqual(
+                client.post("/api/start", json={"rail": "advanced"},
+                            environ_overrides=remote).status_code, 403
+            )
+
+    def test_remote_monitor_fails_closed_without_configured_token(self):
+        client = app.test_client()
+        with patch.dict("os.environ", {"AISCEND_REMOTE_TOKEN": ""}):
+            self.assertEqual(
+                client.get("/monitor", environ_overrides={
+                    "REMOTE_ADDR": "100.101.102.103"}).status_code,
+                401,
+            )
+
     def test_start_refuses_silent_rail_switch_while_runner_is_active(self):
         with _loop_lock:
             _loop_state.update(
