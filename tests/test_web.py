@@ -1,7 +1,9 @@
+import io
+import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from src.core import StateStore
 from web_app import _loop_lock, _loop_state, _run_once, app
@@ -25,6 +27,77 @@ class WebAppTests(unittest.TestCase):
         response = client.get("/")
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"AIscend", response.data)
+
+    def test_dashboard_cdp_connect_persists_only_after_wallet_validation(self):
+        key = {"id": "sample-id", "privateKey": "sample-key"}
+        client = app.test_client()
+        with patch("web_app.CdpWallet") as wallet_cls, patch("web_app.CredentialVault") as vault_cls:
+            wallet_cls.return_value.ensure_account = AsyncMock(return_value="0x123")
+            response = client.post(
+                "/api/configure",
+                data={
+                    "key_file": (io.BytesIO(json.dumps(key).encode()), "wallet.json"),
+                    "wallet_secret": "sample-wallet-secret",
+                    "network": "base",
+                },
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(response.get_json()["persisted"])
+            vault_cls.return_value.save.assert_called_once_with(
+                "sample-id", "sample-key", "sample-wallet-secret"
+            )
+            wallet_cls.return_value.ensure_account.assert_awaited_once()
+
+    def test_failed_cdp_connect_does_not_persist_wallet(self):
+        key = {"id": "sample-id", "privateKey": "sample-key"}
+        client = app.test_client()
+        with patch("web_app.CdpWallet") as wallet_cls, patch("web_app.CredentialVault") as vault_cls:
+            wallet_cls.return_value.ensure_account = AsyncMock(
+                side_effect=RuntimeError("invalid credentials")
+            )
+            response = client.post(
+                "/api/configure",
+                data={
+                    "key_file": (io.BytesIO(json.dumps(key).encode()), "wallet.json"),
+                    "wallet_secret": "sample-wallet-secret",
+                    "network": "base",
+                },
+            )
+            self.assertEqual(response.status_code, 400)
+            vault_cls.return_value.save.assert_not_called()
+
+    def test_dashboard_advanced_connect_persists_only_after_validation(self):
+        key = {"name": "sample-advanced-id", "privateKey": "sample-advanced-key"}
+        client = app.test_client()
+        with patch("web_app.AdvancedTradeVault") as vault_cls, patch("web_app.AdvancedTradeSpot") as spot_cls:
+            spot_cls.return_value.status.return_value.as_dict.return_value = {
+                "configured": True, "tradable_spot_products": 1
+            }
+            response = client.post(
+                "/api/configure-advanced",
+                data={"key_file": (io.BytesIO(json.dumps(key).encode()), "advanced.json")},
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(response.get_json()["persisted"])
+            vault_cls.return_value.configure.assert_called_once_with(
+                "sample-advanced-id", "sample-advanced-key"
+            )
+            vault_cls.return_value.save.assert_called_once_with(
+                "sample-advanced-id", "sample-advanced-key"
+            )
+            spot_cls.return_value.status.assert_called_once()
+
+    def test_failed_advanced_connect_does_not_persist_key(self):
+        key = {"name": "sample-advanced-id", "privateKey": "sample-advanced-key"}
+        client = app.test_client()
+        with patch("web_app.AdvancedTradeVault") as vault_cls, patch("web_app.AdvancedTradeSpot") as spot_cls:
+            spot_cls.return_value.status.side_effect = RuntimeError("permission denied")
+            response = client.post(
+                "/api/configure-advanced",
+                data={"key_file": (io.BytesIO(json.dumps(key).encode()), "advanced.json")},
+            )
+            self.assertEqual(response.status_code, 400)
+            vault_cls.return_value.save.assert_not_called()
 
     def test_failed_cycle_is_written_to_decision_journal(self):
         class BrokenEngine:
