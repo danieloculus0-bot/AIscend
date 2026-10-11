@@ -226,6 +226,8 @@ def evolve(dataset, *, generations=6, population=36, seed=6410):
             "evaluated_unique": len(cache),
             "best_training_score": round(ranked[0][0], 8),
             "leader": ranked[0][2],
+            "shortlist": [{"genome": g, "training_score": round(value, 8)}
+                          for value, _, g in ranked[:5]],
             "training_result": grade(ranked[0][2])[1],
             "training_era_returns": grade(ranked[0][2])[2],
         })
@@ -246,8 +248,19 @@ def evolve(dataset, *, generations=6, population=36, seed=6410):
     winner = champion[1]
     result = simulate(holdout, winner, pairs)
     cash = {"final": 25.0, "net_return": 0.0}
-    from scripts.bean_historical_replay import run
-    btc = run(holdout, "buy_hold", 3, 0, pairs=pairs)
+    # Benchmark buys BTC at the EXACT candidate start offset and includes
+    # the same fee stress on entry and hypothetical exit. Other starting
+    # points would bias the candidate-vs-BTC comparison.
+    btc_pair = "BTC-USD" if "BTC-USD" in pairs else None
+    if btc_pair:
+        first = holdout[WARMUP]["prices"][btc_pair]["open"]
+        last = holdout[-1]["prices"][btc_pair]["close"]
+        btc_final = 25.0 * (1.0 - COST) ** 2 * last / first
+        btc = {"final": round(btc_final, 6),
+               "net_return": round(btc_final / 25.0 - 1.0, 6),
+               "start_offset": WARMUP}
+    else:
+        raise ValueError("BTC-USD is required for like-for-like benchmark")
     passed = (result["final"] > max(cash["final"], btc["final"])
               and result["net_return"] > 0 and result["trades"] > 0)
     return {
