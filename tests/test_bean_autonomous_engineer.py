@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import sys
 from pathlib import Path
 import tempfile
 import unittest
@@ -61,6 +63,44 @@ class AutonomousEngineerTests(unittest.TestCase):
             self.assertEqual([x["state"] for x in restored],
                              ["FAILED", "ADOPTED_AUTOMATICALLY"])
             self.assertIn("ts", restored[0])
+
+    def test_unattended_successful_patch_is_merged_without_user_prompt(self):
+        class Author:
+            def patch(self, target, source, lessons):
+                return {"code": source.replace("return 1", "return 2"),
+                        "hypothesis": "Repair score result"}
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            checkout = root / "aiscend"
+            checkout.mkdir()
+            (checkout / "src").mkdir()
+            (checkout / "tests").mkdir()
+            (checkout / "src" / "bean_strategy_lab.py").write_text(
+                "def score():\n    return 1\n", encoding="utf-8")
+            (checkout / "tests" / "test_smoke.py").write_text(
+                "import unittest\nfrom src.bean_strategy_lab import score\n"
+                "class Smoke(unittest.TestCase):\n"
+                "    def test_scoring(self):\n        self.assertEqual(score(), 2)\n",
+                encoding="utf-8")
+            def cmd(*args):
+                return subprocess.run(
+                    list(args), cwd=checkout, check=True,
+                    capture_output=True, text=True,
+                )
+            cmd("git", "init", "-b", "main")
+            cmd("git", "add", ".")
+            cmd("git", "-c", "user.name=Local Test",
+                "-c", "user.email=test@example.invalid", "commit", "-m", "baseline")
+            engineer = Engineer(checkout, author=Author(),
+                                lessons=Lessons(root / "lessons.jsonl"),
+                                python=sys.executable)
+            result = engineer.iteration()
+            self.assertEqual(result["state"], "ADOPTED_AUTOMATICALLY", result)
+            self.assertEqual(
+                (checkout / "src" / "bean_strategy_lab.py").read_text(encoding="utf-8"),
+                "def score():\n    return 2\n")
+            self.assertIn("repair", result["hypothesis"].lower())
+            self.assertEqual(len(engineer.lessons.history()), 1)
 
     def test_uncommitted_checkout_is_left_unchanged(self):
         class DummyAuthor:
