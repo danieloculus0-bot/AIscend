@@ -128,10 +128,10 @@ class BeanSchoolTests(unittest.TestCase):
             self.assertEqual(len(reopened_starts), 0)
             self.assertFalse(BeanResearchSupervisor(
                 reopened, gate, clock=lambda: clock[0]).enabled())
-            # set_enabled(True) starts the daemon scheduler; stop it
-            # immediately and run its deterministic tick explicitly.
+            # Prevent a background thread from racing our deterministic
+            # clock. Production set_enabled(True) starts the daemon worker.
+            recovered.start = lambda: None
             recovered.set_enabled(True)
-            recovered.stop()
             recovered.tick()
             self.assertEqual(len(reopened_starts), 1)
             recovered.tick()
