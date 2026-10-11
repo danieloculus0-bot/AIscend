@@ -1,5 +1,6 @@
 import unittest
-from scripts.bean_historical_replay import run, assess, START
+from scripts.bean_historical_replay import run, assess, discover_products, START
+from io import BytesIO
 
 
 def fixture():
@@ -56,6 +57,31 @@ class HistoricalReplayTests(unittest.TestCase):
             self.assertGreater(result["final"], 0)
             self.assertGreaterEqual(result["trades"], 0)
             self.assertLessEqual(result["max_drawdown"], 1)
+
+    def test_dynamic_pair_universe(self):
+        data = fixture()
+        for bar in data["bars"]:
+            bar["prices"]["DOGE-USD"] = {"open": 0.12, "close": 0.12}
+            bar["prices"]["SHIB-USD"] = {"open": 0.00001, "close": 0.00001}
+        data["pairs"].extend(("DOGE-USD", "SHIB-USD"))
+        result = assess(data)
+        self.assertEqual(result["pairs"], data["pairs"])
+        self.assertIn("DOGE-USD", result["pairs"])
+        self.assertIn("SHIB-USD", result["pairs"])
+
+    def test_coinbase_catalog_includes_meme_pairs_and_prefers_usd(self):
+        import json
+        payload = [
+            {"id":"DOGE-USD", "base_currency":"DOGE", "quote_currency":"USD", "status":"online"},
+            {"id":"SHIB-USDC", "base_currency":"SHIB", "quote_currency":"USDC", "status":"online"},
+            {"id":"SHIB-USD", "base_currency":"SHIB", "quote_currency":"USD", "status":"online"},
+            {"id":"BAD-USD", "base_currency":"BAD", "quote_currency":"USD", "status":"offline"},
+        ]
+        class Response(BytesIO):
+            def __enter__(self): return self
+            def __exit__(self, *args): self.close()
+        result = discover_products(request_fn=lambda request,timeout: Response(json.dumps(payload).encode()))
+        self.assertEqual(result, ["DOGE-USD", "SHIB-USD"])
 
     def test_missing_data_rejected(self):
         with self.assertRaises(ValueError):
