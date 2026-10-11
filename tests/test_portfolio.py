@@ -147,8 +147,13 @@ class PortfolioCoordinatorTests(unittest.TestCase):
                                            "spread_bps": 1.0,
                                            "volume_ratio": 2.0}},
         }
-        # Funding does not override a suppressed trading signal.
-        self.assertEqual(choose_execution_rail(base, advanced), "advanced")
+        # A zero fused score must not steal selection from a valid Base BUY.
+        base["cash"] = 10.0
+        base["net_liquidation"] = 10.0
+        class BuyDecision:
+            action = "BUY"
+        with patch("src.portfolio.ResearchDecider.decide", return_value=BuyDecision()):
+            self.assertEqual(choose_execution_rail(base, advanced), "base")
         advanced["market_radar"]["weakest_held"] = {
             "product": "DOGE-USDC", "decision_score": -0.5, "score": 0.8,
         }
