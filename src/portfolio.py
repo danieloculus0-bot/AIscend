@@ -66,11 +66,14 @@ def choose_execution_rail(
         and base_cash > 0.0
     )
     advanced_buy = False
-    advanced_score = float(
-        (best.get("decision_score") if best.get("decision_score") is not None else best.get("score"))
-        or radar.get("score")
-        or 0.0
+    score_value = (
+        best["decision_score"]
+        if best.get("decision_score") is not None
+        else best["score"]
+        if best.get("score") is not None
+        else radar.get("score", 0.0)
     )
+    advanced_score = float(score_value or 0.0)
     if best:
         product_id = str(best.get("product") or "").upper()
         _, _, quote = product_id.rpartition("-")
