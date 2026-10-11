@@ -314,10 +314,58 @@ class BeanStrategyLab:
         finally:
             db.close()
 
+    @staticmethod
+    def _valid_lesson(candidate):
+        """Only replay known bounded strategy genes, never a saved holdout grade."""
+        if not isinstance(candidate, (list, tuple)) or len(candidate) != 4:
+            return None
+        mode, lookback, threshold, rebalance = candidate
+        if (mode in MODES and type(lookback) is int and lookback in LOOKBACKS
+                and type(threshold) in (int, float) and threshold in THRESHOLDS
+                and type(rebalance) is int and rebalance in REBALANCES):
+            return (mode, lookback, threshold, rebalance)
+        return None
+
+    def _lesson_archive(self, db, *, exclude_id=None):
+        """Recover every distinct prior candidate from the durable SQLite journal.
+
+        Research replays parameters only; historical holdout rewards do not enter
+        future training. Old lessons remain eligible beyond the last eight runs.
+        """
+        rows = db.execute(
+            "SELECT result FROM experiments WHERE result IS NOT NULL "
+            "AND (? IS NULL OR id != ?) ORDER BY ordinal DESC",
+            (exclude_id, exclude_id),
+        ).fetchall()
+        seen, archive = set(), []
+        for row in rows:
+            try:
+                report = json.loads(row["result"])
+                candidate = self._valid_lesson(report.get("candidate"))
+            except (TypeError, ValueError, AttributeError):
+                continue
+            if candidate is not None and candidate not in seen:
+                seen.add(candidate)
+                archive.append(candidate)
+        return archive
+
+    @staticmethod
+    def _replay_lessons(archive, ordinal):
+        """Replay recent genes plus a rotating slice of the full older archive."""
+        recent, older = list(archive[:8]), archive[8:]
+        if older:
+            offset = (max(1, ordinal) - 1) * 8 % len(older)
+            recent.extend(older[(offset + i) % len(older)]
+                          for i in range(min(8, len(older))))
+        return recent
+
     def status(self):
         with self._lock, self._connect() as db:
             rows = db.execute("SELECT * FROM experiments ORDER BY created DESC LIMIT 12").fetchall()
             total = db.execute("SELECT COUNT(*) FROM experiments").fetchone()[0]
+            archived = len(self._lesson_archive(db))
+            selected = db.execute("SELECT COUNT(*) FROM experiments "
+                                  "WHERE state='AUTO_SELECTED'").fetchone()[0]
         history = []
         for row in rows:
             report = json.loads(row["result"]) if row["result"] else None
@@ -328,7 +376,9 @@ class BeanStrategyLab:
         return {"running": any(x["state"] == "RUNNING" for x in history),
                 "latest": history[0] if history else None,
                 "history": history, "retained_events": total,
-                "acceptance": "Successful evidence automatically selects research candidates. Code adoption uses autonomous tests, not manual approval."}
+                "retained_lessons": archived, "research_selected": selected,
+                "live_strategy_activation": "NOT_DEPLOYED",
+                "acceptance": "Selected historical candidates are research only. Prior candidate genes are replayed from the complete journal; no Strategy School policy is applied to live orders."}
 
     def start(self):
         with self._lock:
@@ -352,14 +402,15 @@ class BeanStrategyLab:
         try:
             dataset = self.collector(ordinal-1)
             with self._lock, self._connect() as db:
-                previous = db.execute(
-                    "SELECT result FROM experiments WHERE result IS NOT NULL AND id != ? "
-                    "ORDER BY created DESC LIMIT 8", (event_id,)
-                ).fetchall()
-            # Only inherit proposed genetic parameters from prior training.
-            # NEVER select seeds using previously observed holdout profitability.
-            inherited = [json.loads(row["result"]).get("candidate") for row in previous]
-            report = evolve(dataset, seed=seed, memory=[x for x in inherited if x])
+                archive = self._lesson_archive(db, exclude_id=event_id)
+            # All past parameters survive, including rejected experiments.
+            # Replay recent genes and rotate older ones; never use prior holdout
+            # profitability to choose training seeds or to authorize trades.
+            inherited = self._replay_lessons(archive, ordinal)
+            report = evolve(dataset, seed=seed, memory=inherited)
+            report["memory_available"] = len(archive)
+            report["memory_replayed"] = len(inherited)
+            report["live_strategy_activation"] = "NOT_DEPLOYED"
             result = json.dumps(report, separators=(",", ":"))
             state, error = ("AUTO_SELECTED" if report.get("beats_cash_and_btc")
                             else "REJECTED_BY_EVIDENCE"), None
