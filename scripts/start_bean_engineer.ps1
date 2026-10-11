@@ -13,6 +13,8 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
     throw "Git is required to publish BEAN's tested engineering changes."
 }
 Set-Location $Root
+# Keep the existing AIscend environment active for build.ps1 -SkipInstall.
+$env:PATH = (Split-Path -Parent $Python) + [IO.Path]::PathSeparator + $env:PATH
 if ($Model) { $env:BEAN_OLLAMA_MODEL = $Model }
 
 Write-Host ""
