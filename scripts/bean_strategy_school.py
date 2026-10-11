@@ -23,11 +23,12 @@ def learn(dataset: dict, rounds: int = 4) -> dict:
         return result["multiple"] - result["max_drawdown"]
     top = grade(champion)
     # Each pass widens the candidate lesson space, but the holdout stays sealed.
+    rounds = max(1, min(int(rounds), 32))
     for lesson in range(rounds):
         ideas = [(rule, lookback, threshold)
                  for rule in LESSONS
-                 for lookback in (3, 6, 12, 24, 48)
-                 for threshold in (0.0, 0.005, 0.01, 0.03)]
+                 for lookback in (3, 6, 12, 24, 48, 72, 96)
+                 for threshold in (0.0, 0.002, 0.005, 0.01, 0.02, 0.03, 0.05)]
         # Distinct examination batches are deterministic and reproducible.
         subset = ideas[lesson::rounds]
         graded = sorted(((grade(p), p) for p in subset), reverse=True)
@@ -43,7 +44,8 @@ def learn(dataset: dict, rounds: int = 4) -> dict:
     btc = run(holdout, "buy_hold", 3, 0)
     return {"schema": "bean.strategy.school.v1", "school": "parameter_mutation",
             "model_authored": False, "source": dataset.get("source"),
-            "history": history, "champion": list(champion),
+            "history": history, "candidate_count": sum(x["candidates"] for x in history),
+            "champion": list(champion),
             "holdout": final, "cash": cash, "btc": btc,
             "profitable_holdout": final["net_return"] > 0,
             "beats_both_benchmarks": final["final"] > max(cash["final"], btc["final"]),
