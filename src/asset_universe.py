@@ -207,7 +207,7 @@ class CoinbaseAssetUniverse:
             cls._cursor %= max(1, len(rows))
             return rows
         except Exception as exc:
-            errors.append(f"coinbase_products: {exc}")
+            errors.append(f"coinbase_products: timeout=6.0, batch_size=8, product_refresh_seconds=55.0, asset_cache_seconds=600.0, scan_interval_seconds=55.0{exc}")
             return cls._products
 
     def _next_batch(self, products: list[dict[str, Any]]) -> list[dict[str, Any]]:
