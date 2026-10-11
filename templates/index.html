@@ -268,14 +268,15 @@
         <div class="bean-score">
           <div><div class="label">Experiments</div><strong id="beanLabCount">0</strong></div>
           <div><div class="label">Candidates</div><strong id="beanLabCandidates">—</strong></div>
-          <div><div class="label">Holdout</div><strong id="beanLabReturn">—</strong></div>
+          <div><div class="label">Historical holdout</div><strong id="beanLabReturn">—</strong></div>
         </div>
         <div class="bean-actions">
           <button id="beanLabRun" class="primary" onclick="startBeanLab()">🌱 RUN BEAN EXPERIMENT</button>
           <button id="beanLabRetry" onclick="startBeanLab()" disabled>↻ TRY AGAIN</button>
         </div>
         <div id="beanLabResult" class="bean-result small" role="status" aria-live="polite">BEAN's first exam is ready. Each retry preserves previous findings and explores another Coinbase cohort.</div>
-        <div class="small" style="margin-top:8px">No approval required: BEAN autonomously selects candidates that pass its evidence checks. The local Ollama engineer can implement verified code changes.</div>
+        <div id="beanLabMemory" class="small" style="margin-top:8px">Archived strategy lessons: loading...</div>
+        <div id="beanLabActivation" class="small" style="margin-top:5px">No approval required for research selection. Deployment: RESEARCH ONLY. No Strategy School trades are activated.</div>
         <details style="margin-top:13px"><summary style="cursor:pointer;color:#b4dbc1;font-weight:700">LESSON JOURNAL · RECENT EXPERIMENTS</summary>
           <div id="beanLabHistory" class="bean-history small">No lessons recorded yet.</div>
         </details>
@@ -336,11 +337,17 @@ function renderBeanLab(payload){
   beanLabLatest=latest;
   beanLabRunning=!!payload.running;
   const report=latest&&latest.report;
-  $('beanLabState').textContent=latest ? latest.state.replaceAll('_',' ') : 'READY TO LEARN';
+  $('beanLabState').textContent=latest ? (latest.state==='AUTO_SELECTED'?'RESEARCH SELECTED':latest.state.replaceAll('_',' ')) : 'READY TO LEARN';
   $('beanLabCount').textContent=String(payload.retained_events||0);
   $('beanLabCandidates').textContent=report?String(report.unique_candidates||0):'—';
   $('beanLabReturn').textContent=report?beanPct(report.holdout?.net_return):'—';
   $('beanLabReturn').className=report?(report.holdout.net_return>0?'bean-pos':'bean-neg'):'';
+  const archived=Number(payload.retained_lessons||0);
+  const replayed=report?Number(report.memory_replayed||0):0;
+  $('beanLabMemory').textContent='Durable lessons: '+archived+' unique strategy candidates in SQLite'+
+    (report?' · '+replayed+' replayed in the latest training session':'')+
+    ' · older lessons rotate back into training.';
+  $('beanLabActivation').textContent='Deployment: NOT ACTIVE. Selection is historical research, not live trading.';
   $('beanLabRun').disabled=!!latest||beanLabRunning;
   $('beanLabRetry').disabled=!latest||beanLabRunning;
   if(!latest){ $('beanLabResult').textContent='Research only. BEAN can run an exam without placing a trade.'; }
@@ -349,7 +356,7 @@ function renderBeanLab(payload){
   else if(report){
     $('beanLabResult').textContent='Exam '+latest.ordinal+' · '+report.pairs.join(', ')+' · '+report.unique_candidates+
       ' candidates · Holdout '+beanPct(report.holdout?.net_return)+' vs BTC '+beanPct(report.btc_return)+
-      ' · '+(report.beats_cash_and_btc?'Automatically selected.':'Rejected by historical evidence; keep evolving.');
+      ' · '+(report.beats_cash_and_btc?'Selected for research only; not live.':'Rejected by historical evidence; keep evolving.');
   } else { $('beanLabResult').textContent='Experiment interrupted. Previous results are retained.'; }
   const recent=(payload.history||[]).slice(0,8);
   $('beanLabHistory').innerHTML=recent.length?recent.map(entry=>{

@@ -77,6 +77,62 @@ class BeanSchoolTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "did not pass"):
                     lab.approve(second)
 
+    def test_long_term_archive_rotates_old_strategies_without_forgetting(self):
+        # Stored results from even REJECTED experiments must survive beyond
+        # the old eight-run seed window and remain reusable without holdout bias.
+        import json
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "bean.db"
+            lab = BeanStrategyLab(path, collector=fixture)
+            with lab._connect() as db:
+                for i in range(20):
+                    candidate = ["momentum", (3, 6, 12, 24, 48)[i % 5],
+                                 0.003, (3, 6, 12, 24)[i // 5]]
+                    db.execute(
+                        "INSERT INTO experiments(id, created, state, ordinal, seed, result) "
+                        "VALUES (?, ?, ?, ?, ?, ?)",
+                        (f"historic-{i}", float(i), "REJECTED_BY_EVIDENCE",
+                         i + 1, i, json.dumps({"candidate": candidate,
+                                              "holdout": {"net_return": -0.50}})),
+                    )
+                db.execute(
+                    "INSERT INTO experiments(id, created, state, ordinal, seed, result) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    ("invalid-historical", 21.0, "FAILED", 21, 21,
+                     '{"candidate":["nonsense",3,0,3]}'),
+                )
+                archive = lab._lesson_archive(db)
+            self.assertEqual(len(archive), 20)
+            self.assertEqual(lab.status()["retained_lessons"], 20)
+            self.assertEqual(lab.status()["live_strategy_activation"], "NOT_DEPLOYED")
+
+            old = set(archive[8:])
+            rotated = set()
+            for ordinal in range(22, 25):
+                batch = lab._replay_lessons(archive, ordinal)
+                self.assertEqual(len(batch), 16)
+                rotated.update(batch[8:])
+            self.assertEqual(rotated, old)
+            self.assertEqual(lab._replay_lessons(archive, 22)[:8], archive[:8])
+
+            # A new process opens the SAME SQLite journal and immediately
+            # recovers all historic genes without re-running their experiments.
+            reopened = BeanStrategyLab(path, collector=fixture)
+            self.assertEqual(reopened.status()["retained_events"], 21)
+            self.assertEqual(reopened.status()["retained_lessons"], 20)
+            reopened.start()
+            reopened._worker.join(timeout=15)
+            final = reopened.status()
+            self.assertFalse(final["running"])
+            self.assertEqual(final["latest"]["report"]["memory_available"], 20)
+            self.assertEqual(final["latest"]["report"]["memory_replayed"], 16)
+            self.assertEqual(final["latest"]["report"]["memory_seeds_tested"], 16)
+            self.assertEqual(final["latest"]["report"]["live_strategy_activation"],
+                             "NOT_DEPLOYED")
+            self.assertEqual(final["retained_lessons"], 21 if
+                             tuple(final["latest"]["report"]["candidate"]) not in archive
+                             else 20)
+
     def test_auto_selection_requires_evidence_and_no_human_approval(self):
         with tempfile.TemporaryDirectory() as d:
             lab = BeanStrategyLab(Path(d) / "bean.db", collector=fixture)

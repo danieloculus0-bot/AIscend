@@ -168,6 +168,9 @@ class WebAppTests(unittest.TestCase):
     def test_homepage_exposes_explicit_research_only_controls(self):
         body = app.test_client().get("/").data
         self.assertIn(b"BEAN STRATEGY SCHOOL", body)
+        self.assertIn(b"beanLabActivation", body)
+        self.assertIn(b"beanLabMemory", body)
+        self.assertIn(b"Historical holdout", body)
         self.assertIn(b"TRY AGAIN", body)
         self.assertIn(b"No approval required", body)
         self.assertNotIn(b"APPROVE CANDIDATE FOR REVIEW", body)
