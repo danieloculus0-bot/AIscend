@@ -73,6 +73,17 @@ class AdvancedTradeVault:
         )
 
 
+def require_accepted_order(response: dict[str, Any]) -> dict[str, Any]:
+    """An HTTP 200 is not proof Coinbase accepted an order."""
+    if not isinstance(response, dict) or response.get("success") is not True:
+        reason = ""
+        if isinstance(response, dict):
+            reason = str(response.get("error_response") or response.get("failure_reason")
+                         or response.get("message") or "unconfirmed order response")
+        raise RuntimeError(f"Coinbase order not confirmed accepted: {reason or 'unconfirmed response'}")
+    return response
+
+
 class AdvancedTradeSpot:
     """
     Coinbase Advanced spot execution rail.
@@ -282,7 +293,13 @@ class AdvancedTradeSpot:
             product_id=product_id.upper(),
             quote_size=str(quote_size),
         )
-        return self._dict(response)
+        preview = self._dict(response)
+        if preview.get("errs") or preview.get("errors"):
+            raise RuntimeError("Coinbase market buy preview rejected: "
+                               + str(preview.get("errs") or preview.get("errors")))
+        if not preview:
+            raise RuntimeError("Coinbase market buy preview is missing")
+        return preview
 
     def market_buy(self, product_id: str, quote_size: Decimal, client_order_id: str) -> dict[str, Any]:
         if quote_size <= 0:
@@ -292,7 +309,7 @@ class AdvancedTradeSpot:
             product_id=product_id.upper(),
             quote_size=str(quote_size),
         )
-        return self._dict(response)
+        return require_accepted_order(self._dict(response))
 
     def market_sell(self, product_id: str, base_size: Decimal, client_order_id: str) -> dict[str, Any]:
         if base_size <= 0:
@@ -302,4 +319,4 @@ class AdvancedTradeSpot:
             product_id=product_id.upper(),
             base_size=str(base_size),
         )
-        return self._dict(response)
+        return require_accepted_order(self._dict(response))
