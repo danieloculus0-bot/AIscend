@@ -44,6 +44,26 @@ class WebAppTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_dashboard_inherits_official_bean_brand_without_losing_controls(self):
+        html = app.test_client().get("/").get_data(as_text=True)
+        self.assertIn("BEAN | AIscend", html)
+        self.assertIn("BEAN INFRASTRUCTURE", html)
+        self.assertIn("bean-site-header", html)
+        self.assertIn("bean-brand-badge", html)
+        self.assertIn("bean-official.webp", html)
+        self.assertIn("danieloculus0-bot.github.io/BEAN/", html)
+        self.assertIn("--bg:#101713", html)
+        self.assertIn("--green:#91e274", html)
+        for section in ("overview", "research", "strategy-school",
+                        "live-engine", "decision-journal"):
+            self.assertIn('href="#' + section + '"', html)
+            self.assertIn('id="' + section + '"', html)
+        for required in ("runnerPill", "pet", "beanLabRun", "beanResearchToggle",
+                         "executionRail", "walletSecret", "advancedKeyfile",
+                         "decisions", "beanLivePolicy"):
+            self.assertIn('id="' + required + '"', html)
+        self.assertIn("Autonomous capital research and execution", html)
+
     def test_bean_gate_is_displayed_in_live_engine(self):
         html = app.test_client().get("/").get_data(as_text=True)
         self.assertIn('id="beanLivePolicy"', html)
