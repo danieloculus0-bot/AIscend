@@ -1,0 +1,35 @@
+name: BEAN Coinbase historical strategy challenge
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '41 9 * * *'
+  pull_request:
+    paths:
+      - 'scripts/bean_historical_replay.py'
+      - 'tests/test_bean_historical_replay.py'
+      - '.github/workflows/bean-coinbase-historical.yml'
+permissions:
+  contents: read
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify historical replay tests
+        run: python -m unittest discover -s tests -p test_bean_historical_replay.py -v
+      - name: Evaluate real Coinbase candles for independently held-out period
+        run: python -m scripts.bean_historical_replay --days 30 --out artifacts/bean-historical.json
+      - name: Preserve scored results and provenance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bean-coinbase-history-${{ github.run_id }}
+          path: artifacts/bean-historical.json
+          retention-days: 60
+          if-no-files-found: warn
