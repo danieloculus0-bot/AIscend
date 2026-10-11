@@ -33,6 +33,22 @@ class HistoricalReplayTests(unittest.TestCase):
         self.assertEqual(cash["final"], START)
         self.assertGreater(hold["trades"], 0)
 
+    def test_missing_hour_rejected(self):
+        data = fixture()
+        data["bars"][77]["ts"] += 1
+        with self.assertRaisesRegex(ValueError, "Non-contiguous"):
+            assess(data)
+
+    def test_cash_can_win_when_all_strategies_are_bad(self):
+        data = fixture()
+        for bar in data["bars"]:
+            for item in bar["prices"].values():
+                item["open"] = 100.0
+                item["close"] = 100.0
+        report = assess(data)
+        self.assertEqual(report["strategy"]["rule"], "cash")
+        self.assertAlmostEqual(report["holdout"]["final"], START)
+
     def test_missing_data_rejected(self):
         with self.assertRaises(ValueError):
             assess({"bars": [], "source": "missing"})
