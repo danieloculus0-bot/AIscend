@@ -36,6 +36,7 @@ from .core import (
     app_data_dir,
 )
 from .live import LiveEngine
+from .bean_growth_adaptive import BeanAdaptiveGrowthGate
 from .bean_strategy_lab import BeanStrategyLab
 from .wallets.cdp_wallet import CdpWallet, CredentialVault
 
@@ -406,6 +407,7 @@ class MainWindow(QMainWindow):
         new_engine = LiveEngine(
             store=new_store,
             wallet=CdpWallet(network=network),
+            growth_gate=BeanAdaptiveGrowthGate(),
         )
         try:
             snap = new_engine.sync()
