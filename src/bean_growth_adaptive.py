@@ -86,24 +86,16 @@ class BeanAdaptiveGrowthGate:
         self._lock = threading.RLock()
         with self._db() as db:
             db.execute("CREATE TABLE IF NOT EXISTS policy (product TEXT PRIMARY KEY, state TEXT NOT NULL)")
-            db.execute("CREATE TABLE IF NOT EXISTS settings (name TEXT PRIMARY KEY, value TEXT NOT NULL)")
-            db.execute("INSERT OR IGNORE INTO settings(name,value) VALUES('mode','live')")
+
 
     def _db(self):
         db = sqlite3.connect(str(self.path), timeout=15)
         db.row_factory = sqlite3.Row
         return db
 
-    def mode(self):
-        with self._lock, self._db() as db:
-            return db.execute("SELECT value FROM settings WHERE name='mode'").fetchone()[0]
-
-    def set_mode(self, mode):
-        if mode != "live":
-            raise ValueError("BEAN growth adoption runs in live mode")
-        with self._lock, self._db() as db:
-            db.execute("UPDATE settings SET value='live' WHERE name='mode'")
-        return {"mode": "live"}
+    @staticmethod
+    def mode():
+        return "live"
 
     @staticmethod
     def _product(product):
@@ -194,7 +186,7 @@ class BeanAdaptiveGrowthGate:
                 db.execute("INSERT INTO policy(product,state) VALUES(?,?) "
                            "ON CONFLICT(product) DO UPDATE SET state=excluded.state",
                            (market, json.dumps(state, sort_keys=True)))
-                mode = db.execute("SELECT value FROM settings WHERE name='mode'").fetchone()[0]
+                mode = "live"
                 ctxt = _features(state["recent_returns"])
                 adopted = _choose(state, ctxt, explore=False, seed=0)
                 target = _position(adopted, state["recent_returns"])
