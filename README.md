@@ -1,213 +1,185 @@
-# AIscend | Autonomous Capital Lab
+# AIscend 🌱
+### Autonomous Capital Lab, powered by BEAN learning
 
-AIscend is the project name. `AutonomousCapitalLab` remains the configurable desktop/build identity.
+**An open-source, small-bankroll autonomous trading experiment with real execution adapters, persistent feedback learning, and an evidence-first research lab.**
 
-A Windows desktop experiment built around one question:
+AIscend asks a simple question: **what can an adaptive agent do with a tiny, finite bankroll when it is free to make BUY, SELL, and HOLD decisions, study its mistakes, and change its behavior?** The experiment was designed around roughly **$25** of starting capital. The target for **Level 1 is $100,000 in net liquidation value**, not a claimed result.
 
-**What can an autonomous AI turn a tiny bankroll into if it is allowed to make its own buy, sell, and hold decisions?**
+AIscend is the product name. `AutonomousCapitalLab` remains the default desktop executable and build identity. Its companion is [BEAN Core](https://github.com/danieloculus0-bot/BEAN), but AIscend's embedded learning system and the separate BEAN Core repository are **not the same runtime**.
 
-The live experiment is intended to start with a tiny bankroll, currently around **$25**.
+[**Explore the public AIscend interface demo**](https://danieloculus0-bot.github.io/BEAN/aiscend.html) · [**BEAN project**](https://danieloculus0-bot.github.io/BEAN/) · [**Source**](https://github.com/danieloculus0-bot/AIscend) · [**Windows builds**](https://github.com/danieloculus0-bot/AIscend/actions/workflows/windows-build.yml)
 
-## Project status
+> **Demo versus actual software:** The public web demo is a clearly separated, sample-data presentation. It is not the running trader, does not connect to a funded wallet, and cannot establish trading performance. The executable and Python/Flask application in this repository contain the actual logic. No made-up paper-buy terminal or invented exchange modules are part of the application.
 
-**Version:** 0.17.1  
-**Platform:** Windows x64 + browser via GitHub Codespaces  
-**State:** Synthetic desktop sandbox + Coinbase live desktop mode  
-**Live-money execution:** Base smart-account swaps and Coinbase Advanced spot orders are implemented
+## At a glance
 
-The current application is fully runnable against a persistent synthetic market. It already exercises the complete autonomous loop without requiring a brokerage account, wallet, API key, or internet connection.
+| | Current implementation |
+|---|---|
+| **Source version** | `0.17.1` (from [VERSION](VERSION); main may contain newer commits without a version bump) |
+| **Desktop** | Windows, PySide6; persistent offline-capable synthetic market |
+| **Browser** | Flask dashboard, local or in GitHub Codespaces |
+| **Funded execution rails** | Coinbase CDP smart account on Base; Coinbase Advanced spot via separate credentials |
+| **Portfolio** | Linked Base + Advanced net value, decisions, optional explicit USDC bridge |
+| **Live learning** | BEAN's persistent five-minute price-bar reward learner can change the next live BUY/SELL/HOLD decision |
+| **Cross-market rotation** | Advanced spot can rank learned candidates, sell a weaker holding, and buy a stronger one on a later cycle |
+| **Independent research** | Historical Strategy School, forward paper validation, universe scans, listing research, separate BEAN Core advisory bridge |
+| **Release pipeline** | Windows Python 3.12 tests, PyInstaller EXE, ZIP and SHA-256 verification |
+| **Verified CI** | [Main build at `d7fc8e6`](https://github.com/danieloculus0-bot/AIscend/actions/runs/38232312735) completed successfully on October 12, 2026. This verifies source/build checks, **not** live profitability, real fills, or a locally installed version. |
 
-Once autonomy is started, the agent does not ask for per-trade human approval.
+### What makes AIscend different
 
-## Unattended BEAN Strategy Research (Python browser server)
+- **It can act:** its Base and Coinbase Advanced engines have concrete order/submission paths, rather than a decorative trading interface.
+- **It can change its behavior:** a contextual, Q-like reward table learns from chronologically completed five-minute Coinbase candles. A reward-driven preference change can influence actual orders through the existing adapters.
+- **It can compare assets:** the Advanced engine ranks eligible Coinbase markets using learned reward, observed spread and volume, and can exit an inferior position before attempting a new entry.
+- **It remembers:** local SQLite stores bankroll and decisions, learned market states, experimental candidates, forward-paper outcomes, and durable research lessons.
+- **It has separate evidence tracks:** simulated rewards, historical backtests, mocked execution tests, accepted exchange orders and verified actual returns are **different things**. The dashboard and documentation should never blur them.
 
-Starting `python web_app.py` now launches a **research-only** supervisor
-alongside the dashboard. It checks for freshly completed Coinbase hourly bars
-five minutes after each hour, automatically begins one new Strategy School
-experiment per new data window, rotates the market cohort, and preserves its
-attempt cursor in the same local SQLite file across restarts. Manual RUN/TRY
-AGAIN still works; overlapping experiments are not started.
+## Choose your mode
 
-BEAN now tests **seven** causal rule families, including new acceleration and
-volatility-adjusted strategies. Prior strategy genes (including rejected
-candidates) stay in the archive and older lessons are rotated into new training.
-These tests are historical; an exam marked selected is not proof of future
-returns.
+| Mode | What it does | Requires credentials? |
+|---|---|---|
+| **Synthetic desktop** | Persistent synthetic prices, autonomous decisions, game score, ledger and journal | No |
+| **Base Sepolia** | CDP smart-wallet path with testnet assets | CDP |
+| **Base mainnet** | CDP wallet, USDC/WETH pricing and Base onchain swaps | CDP and funded wallet |
+| **Coinbase Advanced** | Eligible spot product discovery, market BUY/SELL, holdings and journaling | Advanced API key and eligible account |
+| **Linked live portfolio** | Monitors Base and Advanced as one capital experiment; chooses an eligible funded rail each cycle | Appropriate rail access |
+| **Strategy School / forward paper** | Historical or next-bar experiments, independent of actual orders | Public price data, not trading keys |
 
-Separately, the research supervisor periodically evaluates the newest selected
-rule against current completed Coinbase hourly candles **without placing an
-order**. The Strategy School panel shows the real status (READY,
-DATA_UNAVAILABLE, NOT_EVALUATED), its target when available, and the next
-research time. The **PAUSE/RESUME AUTOMATIC RESEARCH** control is local-only
-and survives a restart. It does not pause an already running experiment.
+The Market Arsenal also shows **Predictions, Stocks & ETFs, Futures, Perpetuals, and Options** as research/product lanes. These are **not** six live trading connectors. Prediction-market discovery is implemented using public data, but authenticated prediction order execution is not connected. The remaining non-crypto lanes do not have live execution adapters.
 
-The live BEAN gate remains **buy confirmation only**. It may confirm or veto
-an order that the existing live engine was already going to make; it never
-originates a live order, overrides sell decisions, or turns historic holdout
-numbers into wallet gains. Stopping the Python server also stops unattended
-research; this is not a cloud service and does not run when the PC is off.
+## BEAN learning: what is genuinely wired into live decisions
 
-## BEAN integration and evidence (v0.17.1)
+The newest material changes are in [`src/bean_growth_adaptive.py`](src/bean_growth_adaptive.py), [`src/bean_growth_rotation.py`](src/bean_growth_rotation.py), [`src/live.py`](src/live.py) and [`src/advanced_live.py`](src/advanced_live.py).
 
-- **[BEAN Strategy School](src/bean_strategy_lab.py):** Runs historical Coinbase candidate research with training and chronological holdout grading, saves experiment lessons, and automatically selects only candidates meeting its research checks. `AUTO_SELECTED` is an experimental result, **not a live policy deployment** or evidence of future profits.
-- **[Local autonomous engineer](docs/BEAN_UNATTENDED_LOCAL_ENGINEER.md):** Optionally asks an installed local Ollama coding model for Python edit proposals, compiles candidates and runs regression tests in temporary Git worktrees, and can automatically adopt passing edits in a clean local checkout. BEAN Core's GitHub evidence/memory subsystem is a separate integration; the AIscend engineer's JSONL lesson log is not BEAN Core's database.
-- **[Historical replay and evolutionary research](scripts/bean_historical_replay.py):** Independent research tools, broader eligible market cohort tests, repeatable comparisons, and a credential-free [BEAN Core advisory bridge](src/bean_core_bridge.py).
-- **Persistent Coinbase authentication:** Successful browser connections now store the CDP wallet and separate Advanced API keys in the operating-system credential store for future launches. No wallet secrets are stored in Git or browser local storage.
+### 1. Learn from completed five-minute market bars
 
-The strategy studies are distinct from the live trading runner; launching Strategy School does not activate one of its winners for real-money orders.
+BEAN reads *completed* public Coinbase candles and tracks distinct per-market state in local SQLite, including:
 
-**New live confirmation link:** A previously selected research rule is re-evaluated with fresh, fully closed Coinbase hourly candles. When available, BEAN may confirm or veto an existing buy, on Base or Coinbase Advanced, while sells remain controlled by the existing engine. BEAN cannot originate orders; unavailable/partial candle histories are reported as N/A, not interpreted as a trade signal. The dashboard shows the active gate and latest audit target. Restart the Windows app after upgrading to activate it. Strategy School now recovers all distinct saved candidate parameters from its existing local SQLite experiment history, replays eight recent candidates plus a rotating eight older ones on each new exam, and displays how much history was actually reused. It never feeds historical holdout scores back into training or interprets research selection as a live deployment.
+- Five strategy actions: `momentum`, `reversion`, `trend_3`, `buy_hold` and `cash`.
+- Price-return context and a long-versus-cash target.
+- Next-bar hypothetical position rewards, including a modeled transaction cost.
+- Context/action reward values, action visits, actual preference changes and forward observation counts.
+- Persistent replay of its own state after restarting the application.
 
-### Verified repository snapshot (October 11, 2026)
+A negative reward can change the preferred next action. Regression tests verify this behavioral effect separately from simply incrementing a learning counter. This is a **small contextual reward learner**, not a neural DeepMind Atari system, not BEAN Core's separate neuroevolution research, and not proof of profitable generalization.
 
-- `VERSION` is **0.17.1**. [Windows CI on main](https://github.com/danieloculus0-bot/AIscend/actions/runs/38121668571) completed **144 regression tests** and the executable/ZIP/checksum build successfully. This is a source/build result, not proof that the user's running Windows installation was updated.
-- Three [read-only GitHub research workflows](.github/workflows/) now schedule a BEAN optimization laboratory, Coinbase historical/Strategy School challenges, and rotating full-universe evolutionary cohorts. They publish test/evidence artifacts, **not** automatic live strategies or exchange orders. Network data availability and outcomes vary by run.
-- [The BEAN Core advisory bridge](src/bean_core_bridge.py) can inspect a separately checked-out Core revision and pass a credential-free snapshot into Core's **mock** reasoning adapter. AIscend's embedded `BeanMemory` remains a distinct component; this bridge neither authorizes trades nor silently installs BEAN Core as the live trading policy.
-- The optional [local Ollama code engineer](docs/BEAN_UNATTENDED_LOCAL_ENGINEER.md) can automatically commit and push candidate changes from a clean local main checkout **when explicitly launched with the bundled PowerShell script**. It compiles and tests candidates, but regression success alone cannot prove a strategy is profitable or a modification is desirable. The scheduled GitHub research workflows are separate and read-only.
-- A successful Coinbase order-creation response is **not** a verified fill. Complete fill/fee reconciliation, valuation of every asset, independently measured returns, and a cost-aware sell-to-rotate strategy remain unverified. No win at the $100,000 Level 1 target is claimed.
+### 2. Adopt the learned policy in the trading engines
 
-## What works now
+When the learner has enough valid data, its long/cash target can become a **real decision input**, not merely a shadow recommendation:
 
-- Native-feeling Windows desktop UI built with PySide6
-- Tiny bankroll experiment with live starting value read from the wallet
-- Autonomous BUY, SELL, and HOLD decisions
-- Built-in aggressive decision engine
-- Optional OpenAI-compatible AI decision engine
-- Persistent SQLite cash, position, ledger, and decision history
-- Synthetic market with continuously changing prices
-- Net liquidation value, P/L, cash, positions, and decision journal
-- No leverage
-- No negative cash
-- No short selling
-- Full-bankroll deployment is permitted
-- Regression tests
-- Single-file Windows executable build
-- Versioned ZIP package
-- SHA-256 package checksum
-- GitHub Actions Windows build pipeline
-- Coinbase CDP non-custodial wallet adapter
-- Windows Credential Manager storage for CDP secrets
-- Named EVM smart-account creation/retrieval
-- Base and Base Sepolia balance inspection
-- Base Sepolia test-fund bootstrap
-- WETH/USDC live pricing through CDP
-- Automatic Permit2 approval when required
-- Autonomous USDC/WETH swaps with onchain reconciliation
-- Separate live SQLite journal and decision history
-- Coinbase setup directly in the Windows UI
-- Execution selector for Synthetic, Base Sepolia, or Base
-- Browser dashboard for real CDP execution
-- GitHub Codespaces environment that auto-starts the browser app
-- Game score with exactly one point per completed bankroll doubling
-- Deliberately shitty dot-matrix trader pet whose face barely reacts to what the bot is doing
-- Mandatory **Level 1** win condition at **$100,000 net liquidation value**
-- First-launch **Market Arsenal** exposing Crypto, Predictions, Stocks & ETFs, Futures, Perpetuals, and Options
-- Public prediction-market discovery through Kalshi market-data APIs
-- Cross-market opportunity normalization so future venue executors can plug into the same research layer
-- **Human Weather** research layer combining global news, politics, weird-event pressure, social-media sentiment, Fear & Greed, and price action
-- Context-aware **FOMO Index** where crowd heat can represent continuation fuel, exhaustion, or contrarian opportunity depending on confirmation
-- Parallel external-signal collection with caching so the 60-second trading loop is not blocked by slow feeds
-- **BEAN epistemic memory** for observations, inferences, hypotheses, predictions, contradictions, outcome grading, and learned source trust
-- Rotating **Coinbase-wide USD/USDC research universe** so the research layer is no longer limited to ETH/BTC
-- Multi-horizon prediction grading at 5m, 1h, and 6h for BEAN trust learning
+- **Base** can convert the learned ETH exposure into a USDC/WETH BUY, SELL or HOLD through its existing CDP wallet path.
+- **Coinbase Advanced** can assess eligible products and use the learned outcome for its real spot execution decision.
+- Existing account and venue constraints still apply. Missing candles, unavailable products, rejected orders and missing spendable quote balances must not be fabricated into fills or positive rewards.
+- The [hourly Strategy School confirmation gate](src/bean_policy.py) is a **different mechanism**: it can confirm or veto a proposed BUY based on its separately selected historical rule. It cannot independently originate a trade.
 
-## The loop
+**Crucial distinction:** tests using fake wallets demonstrate that a changed learned preference reaches the proper order methods. They do **not** prove that the user's connected exchange filled those orders, or that future returns improved.
 
-```text
-market state
-    |
-    v
-decision engine
-    |
-    v
-risk governor
-    |
-    v
-automatic execution
-    |
-    v
-cash + positions + ledger
-    |
-    v
-net liquidation value
-    |
-    +------ repeat ------+
-```
+### 3. Rank, exit and rotate capital on Advanced spot
+
+The [cross-market rotation module](src/bean_growth_rotation.py) examines eligible scanner candidates and already-held positions, even when a held asset is missing from the current top scanner results. It ranks adopted long strategies by learned reward adjusted for modeled spread and cost.
+
+The [Advanced live engine](src/advanced_live.py) can sell a held asset when its learned policy favors cash or another opportunity clears the coded improvement threshold. Proceeds can support a different BUY on a **subsequent** cycle. The sell and subsequent buy are **not one atomic exchange transaction**.
+
+The existing [rotation tests](tests/test_bean_growth_rotation.py) verify mocked SELL then BUY execution calls and durable decision records. The ranking formula and threshold are research heuristics, **not** independently validated trading edge or a prediction of actual net returns.
+
+### 4. Keep research, advisory reasoning and live execution separate
+
+| Component | Evidence / action boundary |
+|---|---|
+| [Hourly Strategy School](src/bean_strategy_lab.py) | Researches seven causal rule families on Coinbase history; stores selected and rejected candidates and chronological holdout results |
+| [Unattended research supervisor](src/bean_research_supervisor.py) | Checks completed hourly windows after a settling delay, runs at most one new experiment per fresh window, persists a restart-safe cursor; runs while the local Flask process is alive |
+| [Five-minute research and forward-paper book](src/bean_five_minute.py) | Tests new five-minute candidates and next-bar hypothetical trades without accessing wallet/order methods |
+| [Embedded BEAN memory](src/bean.py) | Tracks typed claims, contradictory evidence, market observations, predictions and graded signal/source trust |
+| [BEAN Core advisory adapter](src/bean_core_bridge.py) | Can call a separately checked-out BEAN Core mock reasoning adapter using a credential-free observation; cannot authorize an exchange trade |
+| [Local Ollama engineering loop](docs/BEAN_UNATTENDED_LOCAL_ENGINEER.md) | Optional explicit PowerShell launch; proposes and tests local code edits, and **can modify/push source** if allowed by the user's checkout. It is not a cloud daemon that operates when the PC is off. |
+
+`AUTO_SELECTED` in Strategy School means a **research candidate passed its historical selection check**. The newer five-minute live-adoption path is separate. Neither label means realized wallet profit.
+
+## The product interface
+
+The browser dashboard and desktop app expose execution controls, linked capital, net liquidation, positions and the **Decision Journal**. The interface also includes:
+
+- **BEAN Strategy School** with research history and experiment status.
+- **Adaptive growth / learning evidence** including reward observations and actual policy preference revisions.
+- **Market Arsenal** with clear research-only versus executable lane labels.
+- **Coinbase asset universe and Listing Sentinel**, which scan public metadata and track newly visible products and trading-state changes.
+- **Human Weather and the FOMO Index**, combining market momentum with public news, social sentiment, politics, unusual events, Fear & Greed and feed-quality information.
+- **An intentionally retro BEAN trader pet** that responds visually to trading or research state, without changing order logic.
+
+The dashboard uses the project's **BEAN dark-Mint design language** and official sprouted BEAN identity. The public [interface demo](https://danieloculus0-bot.github.io/BEAN/aiscend.html) is a separate illustrative surface; this repository's [`templates/index.html`](templates/index.html) is the Python application's own dashboard.
 
 ## Game rules
 
-AIscend is scored like a game whose objective is **maximum wealth growth in minimum time**.
+The challenge is maximum bankroll growth with speed measured independently:
 
 ```text
-score = floor(log2(current bankroll / starting bankroll))
+score = floor(log2(current net liquidation / original bankroll))
 ```
 
-That means:
+- Every **completed bankroll doubling** earns one point. Trading frequency alone earns nothing.
+- The baseline bankroll stays tied to the original experiment when funds move between Base and Advanced. Moving funds is **not** profit.
+- **Level 1** requires **$100,000** of verified net liquidation value. With a $25 start, that is a 4,000x target, slightly less than twelve complete doublings.
+- HOLD is a legitimate decision. No borrowing, margin or short sales are implemented in the current spot strategy.
+- A displayed score is only as reliable as its holdings valuation. Unpriced assets, pending orders, fees and transfer reconciliation can make a provisional net value incomplete.
 
-- Every **completed bankroll doubling is worth exactly 1 point**.
-- 1x to less than 2x = 0 points, 2x to less than 4x = 1 point, 4x to less than 8x = 2 points, and so on.
-- Time does not subtract points. Speed is tracked separately as time-to-milestone and acts as the tiebreaker.
-- Trading more often does not itself earn points. Only net wealth and speed matter.
-- HOLD is valid when waiting has better expected value than churn.
-- No additional capital is added after the run starts.
-- Point milestones are pure doublings: 2x, 4x, 8x, 16x, 32x, and so on.
-- **Level 1 is not won until the bankroll reaches $100,000 net liquidation value.**
-- $100,000 is the first level success measure, not the end of the overall game.
+Nothing in this repository documents a completed Level 1 victory.
 
-## Run it in a browser with GitHub Codespaces
+## Install and run on Windows
 
-No local install is required.
-
-1. Open the [public AIscend repository](https://github.com/danieloculus0-bot/AIscend) on GitHub.
-2. Choose **Code > Codespaces > Create codespace on main**.
-3. The dev container installs dependencies and starts `web_app.py` automatically.
-4. Open the forwarded **AIscend Web** port when GitHub presents it.
-5. In the browser dashboard, upload the downloaded Coinbase CDP API-key JSON and enter the Wallet Secret.
-6. Select **Base · live money** and run one cycle or start continuous autonomy.
-
-The browser dashboard shows the live wallet, bankroll, P/L, wealth multiple, game score, research brain, Market Arsenal, cross-market opportunity scan, positions, decision journal, and the intentionally terrible dot-matrix trader pet.
-
-## Windows quick start
-
-Requires Python 3.11 or newer. Python 3.12 is used by CI.
+Python **3.11+** is required. GitHub CI currently uses **Python 3.12**.
 
 ```powershell
 git clone https://github.com/danieloculus0-bot/AIscend.git
 cd AIscend
-
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-python main.py
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+
+# Desktop, synthetic by default
+.\.venv\Scripts\python.exe main.py
+
+# Or start the local browser dashboard
+.\.venv\Scripts\python.exe web_app.py
 ```
 
-The experiment database lives at:
+The browser dashboard is served at [http://127.0.0.1:8000](http://127.0.0.1:8000). Starting the browser app also enables its local research supervisor. Closing the Python server stops that supervisor.
 
-```text
-%LOCALAPPDATA%\AutonomousCapitalLab\state.db
-```
+### Alternative: GitHub Codespaces
 
-Closing the application preserves the bankroll, positions, market state, ledger, and decision history.
+Choose **Code > Codespaces > Create codespace on main** in this repository. [`devcontainer.json`](.devcontainer/devcontainer.json) installs dependencies and starts `web_app.py` with port **8000** forwarded.
 
-## Build the Windows application
+Codespaces is a remote hosted environment, not your already-funded local Windows installation. It does not inherit Windows Credential Manager entries or automatically carry over local SQLite research and trade history. Treat live keys in any hosted environment as sensitive credentials.
 
-The repository has one canonical build path:
+### Connect Coinbase deliberately
+
+**Base CDP smart wallet:** Use the Windows app's **CONFIGURE COINBASE** action or the local configuration script:
 
 ```powershell
+.\configure-cdp.ps1 -KeyFile "C:\path\to\cdp_api_key.json"
+.\.venv\Scripts\python.exe scripts\cdp_wallet.py --network base status
+```
+
+The script prompts for the wallet secret; it should not be pasted into GitHub, issues, commit messages, website demos or chat messages. On Windows, supported credentials are persisted through the operating-system credential backend. CDP and Advanced Trade use **separate credentials and execution rails**.
+
+**Coinbase Advanced:** Connect through the browser application's Advanced configuration controls with an appropriate Advanced Trade key. Eligibility, available quote balances and the provider's order acceptance rules apply.
+
+The default local synthetic experience needs **no exchange account, paid API or funded wallet**.
+
+## Building, testing and deployment
+
+```powershell
+# Complete Python regression suite
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+
+# Focused live-learning and rotation tests
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p test_bean_growth_adaptive.py -v
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p test_bean_growth_live_adoption.py -v
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p test_bean_growth_rotation.py -v
+
+# Canonical Windows build
 .\build.ps1
 ```
 
-The build script:
-
-1. Reads the version from `VERSION`
-2. Installs dependencies
-3. Runs the regression suite
-4. Compiles Python sources as a syntax sanity check
-5. Builds a single-file Windows executable with PyInstaller
-6. Creates a versioned Windows ZIP package
-7. Generates a SHA-256 checksum
-
-Expected output:
+`build.ps1` runs regression tests, compiles Python sources, builds a one-file PyInstaller EXE, packages a versioned Windows ZIP and generates a SHA-256 checksum.
 
 ```text
 dist\AutonomousCapitalLab.exe
@@ -215,483 +187,48 @@ dist\AutonomousCapitalLab-v0.17.1-windows-x64.zip
 dist\AutonomousCapitalLab-v0.17.1-windows-x64.zip.sha256
 ```
 
-For an already-prepared build environment:
-
-```powershell
-.\build.ps1 -SkipInstall
-```
-
-Tests can technically be skipped with `-SkipTests`, but normal local and CI builds run them.
-
-## GitHub Actions
-
-Every push to `main`, pull request to `main`, version tag matching `v*`, or manual workflow run executes the Windows pipeline.
-
-CI:
-
-- Uses `windows-latest`
-- Uses Python 3.12
-- Calls the same `build.ps1` used locally
-- Requires tests to pass
-- Requires PyInstaller packaging to succeed
-- Re-verifies the generated SHA-256 checksum
-- Uploads the EXE, ZIP, and checksum as a GitHub Actions artifact
-
-That keeps local builds and CI from quietly becoming two different systems.
-
-## Coinbase CDP wallet setup
-
-Version 0.3 connects the decision/governor loop to a real Coinbase CDP capital rail.
-
-The wallet is a **non-custodial CDP API-key smart account**. AIscend creates an owner account plus the named smart account `autonomous-capital`, reads balances on Base/Base Sepolia, prices WETH against USDC, and can execute swaps.
-
-### 1. Create the CDP project
-
-Sign in to the Coinbase Developer Platform portal with the dedicated project identity.
-
-Create:
-
-- A **Secret API key**
-- A **Wallet Secret**
-
-Do **not** paste either secret into ChatGPT, an issue, a commit, or a README.
-
-### 2. Store the credentials locally
-
-From PowerShell in the repository, you can load the downloaded CDP key JSON directly:
-
-```powershell
-.\configure-cdp.ps1 -KeyFile "C:\path\to\cdp_api_key.json"
-```
-
-The script reads the key ID/private key from the JSON and prompts for the Wallet Secret. Running `.\configure-cdp.ps1` without `-KeyFile` prompts for all three values.
-
-The secret fields are not echoed.
-
-They are stored through the Windows credential backend under:
-
-```text
-AutonomousCapitalLab/CDP
-```
-
-They are not written to the repository or SQLite database.
-
-The setup then creates or retrieves:
-
-```text
-owner: autonomous-capital-owner
-smart account: autonomous-capital
-```
-
-### 3. Check the wallet
-
-```powershell
-.\.venv\Scripts\python.exe scripts\cdp_wallet.py status
-```
-
-Default network:
-
-```text
-base-sepolia
-```
-
-Check Base mainnet without executing anything:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\cdp_wallet.py --network base status
-```
-
-### 4. Test with fake money first
-
-Request testnet USDC:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\cdp_wallet.py faucet --token usdc
-```
-
-Or Base Sepolia ETH:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\cdp_wallet.py faucet --token eth
-```
-
-Faucet calls are hard-blocked unless the selected network is `base-sepolia`.
-
-### Remove the stored CDP credentials
-
-```powershell
-.\.venv\Scripts\python.exe scripts\cdp_wallet.py clear
-```
-
-### Live execution
-
-The Windows UI now supports the full live path without requiring terminal setup.
-
-1. Launch the application.
-2. Click **CONFIGURE COINBASE**.
-3. Select the downloaded CDP API key JSON.
-4. Enter the Wallet Secret.
-5. Choose **Coinbase live · Base Sepolia** or **Coinbase live · Base** under Execution.
-6. Start autonomy.
-
-The app stores the CDP credentials through Windows Credential Manager and creates/retrieves the dedicated AIscend smart account.
-
-The command-line runner remains available for diagnostics and automation.
-
-Inspect the live/testnet portfolio without trading:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\aiscend_live.py --network base-sepolia status
-```
-
-Run one autonomous decision cycle:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\aiscend_live.py --network base once
-```
-
-Run continuously:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\aiscend_live.py --network base run --interval 60
-```
-
-The live runner uses the same decision engine and risk governor as the synthetic application. USDC is treated as cash and WETH as the first live risk asset. Decisions and executions are recorded in a separate `live-base.db` journal.
-
-## Human Weather algorithm
-
-Version 0.10 adds a second evidence plane beside technical market data.
-
-The live score now blends Coinbase ETH/BTC price action with:
-- GDELT global news and political/event headlines
-- Reddit attention and sentiment from crypto and market communities
-- Alternative.me Fear & Greed data
-- crowd excitement / panic language
-- politics and geopolitical risk pressure
-- unusual-event / weird-news pressure
-- momentum and volume confirmation
-
-FOMO is intentionally contextual rather than treated as an automatic sell signal. Confirmed high-FOMO momentum can lower the entry threshold, euphoric reversal raises the threshold and can accelerate exits, and extreme fear plus a real price reversal can become a contrarian buy setup.
-
-Human signals are cached between cycles to limit rate pressure while technical market data remains live.
-
-## Decision engines
-
-### Built-in autonomous engine
-
-Runs locally with no model server and no API key.
-
-It is intentionally aggressive because the experiment is starting with tiny capital. It can deploy up to 100% of currently available cash.
-
-### OpenAI-compatible AI
-
-Select **OpenAI-compatible AI** in the app and supply an endpoint and model.
-
-The endpoint must support the common:
-
-```text
-/v1/chat/completions
-```
-
-request format.
-
-If the endpoint requires a bearer token:
-
-```powershell
-$env:AUTOCAPITAL_API_KEY="your-key"
-python main.py
-```
-
-The API key is read from the Windows environment and is not written to the experiment database.
-
-## Account boundary
-
-The agent currently operates under a deliberately small set of hard invariants:
-
-- It cannot borrow.
-- It cannot create negative cash.
-- It cannot sell an asset it does not own.
-- It cannot short.
-- It can deploy 100% of its existing bankroll.
-- It does not require human confirmation for each trade.
-- Every decision is journaled, including HOLD and rejected actions.
-
-The governor sits below the AI decision layer. A future model or strategy can change its behavior without gaining the ability to rewrite those account boundaries.
-
-## Synthetic versus live execution
-
-Synthetic desktop path:
-
-```text
-AI / strategy -> governor -> synthetic market
-```
-
-Live path:
-
-```text
-AI / strategy -> governor -> CDP smart-account adapter -> Base -> onchain reconciliation
-```
-
-The venue remains separate from the decision layer, so additional assets and execution venues can be added without rewriting the strategy/governor core.
-
-## Tests
-
-Run directly:
-
-```powershell
-python -m unittest discover -s tests -v
-```
-
-Or run the full build, which includes the tests:
-
-```powershell
-.\build.ps1
-```
-
-## Versioning
-
-The application version lives in:
-
-```text
-VERSION
-```
-
-Build artifacts include that version automatically.
-
-## Naming
-
-The final product name has not been chosen.
-
-The visible application name can be overridden without refactoring the code:
-
-```powershell
-$env:AUTOCAPITAL_APP_NAME="New Name"
-python main.py
-```
-
-The executable/build artifact name can also be overridden:
-
-```powershell
-$env:AUTOCAPITAL_BUILD_NAME="NewName"
-.\build.ps1
-```
-
-## Multi-market lanes
-
-AIscend exposes six enabled market lanes:
-
-- **Crypto spot**: funded Base smart-account swaps and Coinbase Advanced spot execution are implemented, subject to account eligibility, provider acceptance, balances, and market filters.
-- **Predictions**: public market discovery is implemented; autonomous order execution remains unconnected.
-- **Stocks & ETFs**: a research/opportunity lane is present; live discovery and execution adapters remain unconnected.
-- **Futures**: a research/opportunity lane is present; account eligibility and an execution adapter remain unconnected.
-- **Perpetuals**: a research/opportunity lane is present; regional eligibility and an execution adapter remain unconnected.
-- **Options**: a research/opportunity lane is present; an execution adapter remains unconnected.
-
-The application does not pretend an execution connector exists when one has not been implemented. Research and execution remain separate capabilities.
-
-## Next major milestone
-
-Prioritize provider-order/fill/fee reconciliation, handling incomplete portfolio valuations without awarding a false game milestone, independent forward strategy grading, and a tested capital-rotation policy. Additional social/event adapters, independent probability models, and authenticated adapters for the remaining markets follow these reliability gates.
-
-See [ARCHITECTURE.md](ARCHITECTURE.md) for the current component boundaries and invariants.
-
-
-## BEAN learning loop
-
-Version 0.11 adds BEAN as the learning spine behind the research layer.
-
-```text
-raw market / social / news evidence
-        |
-typed claims
-OBSERVATION / INFERENCE / HYPOTHESIS / PREDICTION
-        |
-contradiction retention
-        |
-multi-horizon prediction
-        |
-future market outcome
-        |
-prediction grading
-        |
-source / signal trust update
-        |
-next decision
-```
-
-BEAN does not erase disagreement. Technical and human evidence can coexist as contradictory claims until later outcomes provide evidence. Trust is learned from realized outcomes with Bayesian shrinkage so tiny samples do not become overconfident.
-
-## Coinbase asset breadth
-
-The research layer now discovers active Coinbase public USD and USDC products and scans them in rotating batches. This gives AIscend broad market awareness without making hundreds of public API calls every few seconds. The dashboard reports the number of discovered products, how many were recently scored, and the strongest current candidates.
-
-This is deliberately separated from execution. The current funded CDP smart-account rail is still Base USDC/WETH, so broader Coinbase assets can be researched and learned from before their execution adapters exist.
-
-
-## Signal reliability and memory compression
-
-Version 0.12 hardens the two systems exposed by the first live BEAN run:
-
-- Human Weather now has redundant public-source paths instead of silently returning zeros when one provider blocks a cloud runtime.
-- GDELT remains the primary global-news source, with Google News RSS as a fallback.
-- Reddit JSON falls back to subreddit RSS while it remains available, and Bluesky public search provides an additional social signal source.
-- Feed health and fallback diagnostics are visible in the dashboard.
-- BEAN compresses repeated observations from the same epistemic object into persistent rollups rather than counting every 60-second refresh as a new claim.
-- Predictions and resolved outcomes remain separate records and are never compressed away.
-
-
-## Signal maturity
-
-Version 0.13 keeps raw Human Weather readings intact while adding the missing context around them.
-
-- Sentiment now reports coverage: how much of the collected sample actually matched the directional lexicon.
-- Social confidence combines coverage, sample size, and source diversity.
-- Human-signal quality is tracked separately from directional sentiment.
-- The research fusion uses maturity to control influence without hiding raw +1 / -1 observations.
-- BEAN now grades news, social, politics, crowd, Fear & Greed, technical, human, and composite signal families separately as outcomes resolve.
-
-
-## Coinbase Advanced multi-asset spot rail
-
-Version 0.13 also adds an optional Coinbase Advanced execution rail. It is separate from the funded Base smart wallet.
-
-- Base smart wallet remains the default live rail.
-- Coinbase Advanced can be connected with a dedicated Advanced Trade API key.
-- **Windows credential persistence:** After a successful dashboard connection, CDP key ID, CDP private key, and wallet secret are stored using the OS keyring in Windows Credential Manager. The separate Coinbase Advanced key pair is stored there too. Both are automatically reused on later AIscend launches under the same Windows user; no unencrypted `.env`, browser localStorage, or Git repository secrets are created. Existing dashboard users need to connect each rail one final time after installing this update to save the previously process-only credentials.
-- Persistent storage does not start live trading automatically. Disconnect/replace an Advanced key by using the `AdvancedTradeVault.clear()` method from a trusted local Python session; CDP credentials can be removed with `.\.venv\Scripts\python.exe scripts\cdp_wallet.py clear`.
-- The Advanced engine ranks currently-scored account-eligible Coinbase spot products and can buy the strongest qualifying USD/USDC setup.
-- Held products are re-evaluated and can be sold when their signal deteriorates.
-- No borrowing or short selling is used by this spot engine.
-- All first-class market lanes are enabled in the Market Arsenal: crypto spot, predictions, stocks & ETFs, futures, perpetuals, and options. Research readiness remains separate from execution connectivity.
-
-
-## AIS-0 Tamagotchi behavior
-
-Version 0.14 keeps the original intentionally terrible pixel creature and gives it dead-simple emotional behavior. It still bobs and blinks, but now reacts to buys, sells, wins, losses, thinking, errors, and bearish market states. If the live research brain is bearish while the runner is active, AIS-0 may perform a tiny tactical shit and complain about the market. Mood text rotates through short, mildly profane quips without changing trading logic.
-
-
-## Wallet bridge
-
-Version 0.15 adds direct USDC plumbing between the Base smart wallet and the Coinbase Advanced account.
-
-- Base to Advanced asks Coinbase for a Base USDC receive address and sends USDC from the CDP smart account.
-- Advanced to Base sends USDC from the Coinbase App account to the existing Base smart-account address.
-- The bridge panel shows both balances plus API permission state.
-- Coinbase transfer/receive permissions are checked separately from trade permission.
-- Decision Journal is now fixed-height and scrollable.
-- Human Weather, BEAN Memory, Coinbase Asset Universe, and Market Arsenal are collapsible to keep the dashboard compact.
-
-
-## Remote monitor
-
-The Flask app binds to `127.0.0.1:8000` by default. The read-only `/monitor` page displays bankroll, rail, research, BEAN, candidates, positions, and journal data without remote trading controls. Non-loopback clients cannot access credential or trading endpoints.
-
-For a private home-PC to work-PC link, `scripts/start_remote_monitor.ps1` requires a connected Tailscale IPv4 address **and** a nonempty `AISCEND_REMOTE_TOKEN`; it then binds only to that Tailnet IP. A remote monitor request must supply the token by query or header. Both PCs must be on the same Tailnet. The token is mandatory for the remote monitor launcher, not optional.
-
-
-## Universal Coinbase spot scan + Listing Sentinel
-
-AIscend no longer limits Advanced research to USD/USDC products. The public
-Coinbase spot universe is scanned across every quote currency returned by the
-exchange, including small-cap and newly-added tokens. There is no reputation or
-market-cap allowlist; execution eligibility comes from the connected Coinbase
-Advanced account plus market/liquidity checks.
-
-The Listing Sentinel polls public Coinbase product metadata on roughly a
-one-minute cadence and persists a baseline in the Advanced state database. It
-records newly-visible product IDs and public trading-state changes such as
-auction, limit-only, trading-disabled and full-trading transitions. This is
-public-data monitoring only.
-
-Fresh products are researchable immediately. The asset scanner no longer waits
-for six hours of 5-minute candles before admitting a product. New/unseen
-products receive scan priority, and a recent public full-trading/listing event
-can temporarily boost the Advanced opportunity score while normal spread and
-volume gates still apply.
-
-The Advanced Decision Journal now records every cycle outcome, including
-exchange/API execution failures. The browser journal combines Base and Advanced
-decision histories and labels each row by rail. A running rail can no longer be
-silently replaced by starting another rail; stop the active runner before
-switching.
-
-
-## v0.16 repo audit: linked capital system
-
-The live rails now behave as one experiment instead of two unrelated games.
-
-- The original Base `live_starting_value` remains the canonical bankroll baseline when capital moves to Coinbase Advanced, so the $25 experiment does not reset to the destination balance.
-- The original game clock and milestone metadata follow the bankroll across rails.
-- Advanced execution uses the existing Base BEAN database as shared learning memory, so switching execution rails does not create a second brain.
-- The browser detects when the selected rail is empty and the other live rail holds spendable capital.
-- A successful Base/Advanced bridge move changes the selected execution rail and, when autonomy is already running, stops the old runner and restarts it on the destination rail.
-- The Decision Journal combines Base and Advanced rows and labels the rail.
-- SQLite live state uses WAL mode plus a busy timeout so the background runner, browser dashboard, and remote monitor can read/write without needless lock collisions.
-- The read-only remote monitor follows the funded rail when the runner is stopped.
-
-## Execution and tax audit trail
-
-Live executions and bridge transfers write an append-only reconciliation trail under the AIscend application-data directory:
-
-- canonical yearly JSONL
-- review-friendly yearly CSV
-- UTC timestamps
-- trades kept distinct from internal Base/Advanced transfers
-- provider order/transaction IDs when available
-- decimal quantities preserved as text
-- credential-like fields redacted from stored provider responses
-
-Audit-write failures are isolated from already-executed trades so a logging problem cannot cause an order to be retried.
-
-
-## v0.16.1 linked portfolio coordinator
-
-The dashboard/monitor and autonomous loop now operate on one combined Base + Coinbase Advanced bankroll.
-
-- `Linked portfolio - auto choose rail` is the default execution mode.
-- Net liquidation, P/L, wealth multiple, Level 1 progress, and game points use the sum of both live rails.
-- Capital can be split across Base and Advanced without AIS-0 interpreting the other rail as a loss.
-- Each autonomous cycle evaluates both live adapters and selects one funded rail to execute/journal for that cycle.
-- Exit signals are prioritized before new entries; otherwise the strongest executable funded setup wins.
-- Manual bridge controls remain explicit. The coordinator does not silently move money between rails.
-- Trade cycles and bridge transfers share one capital-operation lock so a transfer cannot race a live order.
-- Counterpart rail snapshots are cached briefly for dashboard refreshes to avoid hammering provider APIs.
-- Human Weather is fused into the Advanced candidate score while Advanced is active; the linked portfolio preserves that candidate-specific context instead of replacing it with a display-only Base copy.
-
-
-## v0.16.1 repo audit
-
-The linked-capital coordinator now refuses to select the Base execution adapter for BUY/SELL signals when Base has no executable cash/position. This closes the empty-rail failure mode exposed after moving the bankroll to Coinbase Advanced. The live runner also reports the actual rail selected on each linked-auto cycle so the dashboard shows whether AIS-0 is currently operating through Base or Advanced.
-
-
-## v0.17 Coinbase-wide market arsenal
-
-AIscend now treats Coinbase as a multi-market research surface rather than only a
-crypto execution screen.
-
-- Coinbase Advanced keeps live linked-rail crypto execution across every
-  account-tradable spot quote currency.
-- Human Weather is a real Advanced scoring input. The same cached public
-  news/social/Fear & Greed/politics/weirdness observation used by Base is
-  contextualized against each Advanced candidate's own momentum and volume.
-- The prediction-market scanner walks the open underlying Kalshi market feed
-  used by Coinbase predictions with cursor pagination instead of sampling only
-  the first page.
-- Prediction markets are classified into sports, politics, crypto, weather,
-  economics, culture and other research buckets. Sports markets are also tagged
-  by league/sport when identifiable.
-- Prediction-market priority is explicitly a market-quality score based on
-  liquidity, spread and time-to-close. It is not mislabeled as directional edge.
-  Until an independent probability model exists, YES/NO prices remain
-  market-implied probabilities and the edge state is UNMODELED.
-- The Market Arsenal ranks crypto directional opportunities and prediction
-  market-quality opportunities with the score type shown in the UI. While the
-  live runner is active, the browser refreshes the arsenal roughly once per
-  minute.
-- Prediction-market autonomous execution remains disabled. Coinbase exposes the
-  products through Coinbase Financial Markets, but AIscend will not pretend a
-  Coinbase-native programmatic order path exists until a supported connector is
-  available for the account.
-- Stocks/ETFs, futures, perpetuals and options remain declared future lanes.
-  Their capability text now says plainly that live discovery/execution adapters
-  are not connected yet.
+The [Windows Build workflow](.github/workflows/windows-build.yml) runs on pushes and pull requests to `main`, relevant version tags, and manual dispatch. The [Adaptive Growth mock integration workflow](.github/workflows/bean-adaptive-growth-smoke.yml) exercises focused learned-action and rotation behavior on **Windows and Ubuntu**.
+
+**A green test is not a deployed desktop update.** Pull the new commit and restart/rebuild the local installation. A successfully submitted Coinbase order is not automatically a verified fill.
+
+## Persistent data, wallet boundaries and remote monitor
+
+- **Synthetic state:** `%LOCALAPPDATA%\AutonomousCapitalLab\state.db` on Windows.
+- **Live state:** separate SQLite rail journals and a linked portfolio view; the original game baseline carries across rails.
+- **Learning state:** persistent five-minute learner SQLite history and separate Strategy School / forward-paper research records in the application data directory.
+- **Trade audit:** yearly append-only JSONL and CSV containing trade versus bridge-transfer classifications, timestamps and available provider IDs. Sensitive provider responses are redacted where implemented.
+- **Credential store:** Windows Credential Manager/keyring for locally configured exchange keys. No secrets belong in source files or a demo.
+- **Private remote monitoring:** `/monitor` is read-only. [`scripts/start_remote_monitor.ps1`](scripts/start_remote_monitor.ps1) requires Tailscale and an `AISCEND_REMOTE_TOKEN`, and trading endpoints remain restricted to local access.
+
+A remote monitor is not a remote autonomous runner. A PC-off Python process is not training or trading in the background.
+
+## Evidence and limitations
+
+The repository has **real executable trading integrations and real causal reward updates**. The following claims are **not established** by code tests alone:
+
+1. That the learned strategy outperforms an uninterrupted fixed strategy after **actual spreads, network fees, partial fills and market impact**.
+2. That every submitted Advanced order has a confirmed fill and fee reconciliation, or that every held coin always has reliable USD liquidation pricing.
+3. That historical Strategy School selection, hypothetical paper-forward equity or mock-adapter orders equal wallet returns.
+4. That experimental BEAN Core neural-learning results have been independently replicated inside AIscend's live policy.
+5. That prediction, equities, futures, perpetuals or options markets can currently be traded through working adapters.
+
+**Next engineering priorities:** reconcile Advanced order statuses/fills and actual fees end to end; establish trustworthy account-wide valuation before awarding milestones; independently compare the live-adopted reward policy to frozen controls on fresh forward periods; evaluate capital rotation after realized friction; and preserve all positive *and* negative experiments.
+
+## Project map
+
+| Start here | Source |
+|---|---|
+| Desktop entry point | [`main.py`](main.py), [`src/ui.py`](src/ui.py) |
+| Browser entry point and linked runner | [`web_app.py`](web_app.py), [`templates/index.html`](templates/index.html) |
+| Base smart-wallet trading | [`src/live.py`](src/live.py), [`src/wallets/`](src/wallets/) |
+| Coinbase Advanced spot | [`src/advanced_live.py`](src/advanced_live.py) |
+| Reward learning and rotation | [`src/bean_growth_adaptive.py`](src/bean_growth_adaptive.py), [`src/bean_growth_rotation.py`](src/bean_growth_rotation.py) |
+| Historical Strategy School | [`src/bean_strategy_lab.py`](src/bean_strategy_lab.py) |
+| Five-minute forward-paper research | [`src/bean_five_minute.py`](src/bean_five_minute.py) |
+| Research supervisor | [`src/bean_research_supervisor.py`](src/bean_research_supervisor.py) |
+| BEAN Core adapter | [`src/bean_core_bridge.py`](src/bean_core_bridge.py) |
+| Full architecture | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
+| Local engineering automation | [`docs/BEAN_UNATTENDED_LOCAL_ENGINEER.md`](docs/BEAN_UNATTENDED_LOCAL_ENGINEER.md) |
+| Repository tests | [`tests/`](tests/) |
+
+**Source snapshot:** README revised October 12, 2026 against `d7fc8e65c4fe9db5a1038459a0d82738fda92f7b`. Future commits, exchange availability and local installations may differ. Git history retains the original extended version-by-version notes.
