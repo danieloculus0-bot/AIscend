@@ -18,6 +18,7 @@ from src.bean import BeanMemory
 from src.bean_policy import BeanPolicyGate
 from src.bean_research_supervisor import BeanResearchSupervisor
 from src.bean_five_minute import FastPaperBook, collect_5m
+from src.bean_growth_adaptive import BeanAdaptiveGrowthGate
 from src.bean_strategy_lab import BeanStrategyLab
 from src.core import Decision, StateStore, app_data_dir
 from src.live import LiveEngine
@@ -34,6 +35,7 @@ _bean_policy = BeanPolicyGate(lab=_bean_lab)
 _bean_fast_lab = BeanStrategyLab(app_data_dir() / 'bean-five-minute-lab.sqlite3',
                                  collector=collect_5m)
 _bean_paper = FastPaperBook()
+_bean_growth = BeanAdaptiveGrowthGate()
 _bean_supervisor = BeanResearchSupervisor(_bean_lab, _bean_policy,
                                            fast_lab=_bean_fast_lab, paper=_bean_paper)
 
@@ -106,11 +108,13 @@ def _make_engine(network: str, rail: str = "base"):
             rail=AdvancedTradeSpot(),
             bean=BeanMemory(shared.conn),
             policy_gate=_bean_policy,
+            growth_gate=_bean_growth,
         )
         setattr(engine, "_shared_memory_store", shared)
     else:
         engine = LiveEngine(store=store, wallet=CdpWallet(network=network),
-                            policy_gate=_bean_policy)
+                            policy_gate=_bean_policy,
+                            growth_gate=_bean_growth)
     return store, engine
 
 
@@ -380,6 +384,7 @@ def bean_lab_status():
     status = _bean_lab.status()
     status["live_strategy_activation"] = "BUY_CONFIRMATION_GATE"
     status["research_watch"] = _bean_supervisor.status()
+    status["adaptive_growth"] = _bean_growth.status()
     return jsonify({"ok": True, **status})
 
 
@@ -398,6 +403,11 @@ def bean_research_enable():
         return jsonify({"ok": False, "error": "enabled must be a boolean"}), 400
     return jsonify({"ok": True, "research_watch":
                     _bean_supervisor.set_enabled(payload["enabled"])})
+
+
+@app.get("/api/bean-growth")
+def bean_growth_status():
+    return jsonify({"ok": True, **_bean_growth.status()})
 
 
 @app.get("/api/runner")

@@ -40,6 +40,7 @@ class LiveEngine:
         bean: BeanMemory | None = None,
         audit: AuditTrail | None = None,
         policy_gate: BeanPolicyGate | None = None,
+        growth_gate=None,
     ) -> None:
         self.store = store
         self.wallet = wallet
@@ -49,6 +50,7 @@ class LiveEngine:
         self.audit = audit or AuditTrail()
         self.decider: Decider = decider or ResearchDecider()
         self.policy_gate = policy_gate or BeanPolicyGate()
+        self.growth_gate = growth_gate
         self._snapshot: dict | None = None
 
     def set_decider(self, decider: Decider) -> None:
@@ -142,6 +144,7 @@ class LiveEngine:
             "asset_universe": universe,
             "bean": bean,
             "bean_policy": json.loads(self.store.get_meta("bean_policy_latest") or "{}"),
+            "bean_growth": json.loads(self.store.get_meta("bean_growth_latest") or "{}"),
         }
         return self._snapshot
 
@@ -149,22 +152,39 @@ class LiveEngine:
         before = self.sync()
         raw = self.decider.decide(before)
         decision, status = RiskGovernor.normalize(raw, before)
-        try:
-            policy = self.policy_gate.assess()
-        except Exception as exc:
-            policy = {"status": "DATA_UNAVAILABLE", "trade_effect": "NONE",
-                      "reason": f"Policy evaluation failed: {type(exc).__name__}"}
-        self.store.set_meta("bean_policy_latest", json.dumps(policy))
-        if status == "OK" and decision.action == "BUY" and policy.get("status") == "READY":
-            exam = policy["experiment"]
-            target = policy.get("target") or "CASH"
-            if not self.policy_gate.permits_buy(policy, decision.symbol):
-                decision = Decision("HOLD", None, 0.0,
-                                    f"BEAN exam #{exam} blocked Base BUY: hourly target {target}.")
-                status = "HELD"
+        growth = self.growth_gate.assess("WETH") if self.growth_gate is not None else None
+        if growth is not None:
+            self.store.set_meta("bean_growth_latest", json.dumps(growth))
+        adopted = bool(growth and growth.get("trade_effect") == "ADOPTED_LONG_CASH")
+        if adopted:
+            target = int(growth["target_exposure"])
+            cash = float(before.get("cash") or 0)
+            held = float((before.get("positions") or {}).get("WETH", {}).get("qty") or 0)
+            rationale = "BEAN learned " + str(growth["learned_strategy"]) + " (executed mock rewards)."
+            if target and cash > 0.000001:
+                proposed = Decision("BUY", "WETH", 1.0, rationale)
+            elif not target and held > 0:
+                proposed = Decision("SELL", "WETH", 1.0, rationale)
             else:
-                decision = Decision(decision.action, decision.symbol, decision.fraction,
-                                    f"{decision.rationale} BEAN exam #{exam} confirmed {target}.")
+                proposed = Decision("HOLD", None, 0.0, rationale)
+            decision, status = RiskGovernor.normalize(proposed, before)
+        else:
+            try:
+                policy = self.policy_gate.assess()
+            except Exception as exc:
+                policy = {"status": "DATA_UNAVAILABLE", "trade_effect": "NONE",
+                          "reason": f"Policy evaluation failed: {type(exc).__name__}"}
+            self.store.set_meta("bean_policy_latest", json.dumps(policy))
+            if status == "OK" and decision.action == "BUY" and policy.get("status") == "READY":
+                exam = policy["experiment"]
+                target = policy.get("target") or "CASH"
+                if not self.policy_gate.permits_buy(policy, decision.symbol):
+                    decision = Decision("HOLD", None, 0.0,
+                                        f"BEAN exam #{exam} blocked Base BUY: hourly target {target}.")
+                    status = "HELD"
+                else:
+                    decision = Decision(decision.action, decision.symbol, decision.fraction,
+                                        f"{decision.rationale} BEAN exam #{exam} confirmed {target}.")
 
         execution: SwapExecution | None = None
         if status == "OK":
