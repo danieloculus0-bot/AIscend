@@ -24,5 +24,7 @@ jobs:
           python-version: '3.12'
       - name: Run causal reward-learning integration tests
         run: python -m unittest discover -s tests -p test_bean_growth_adaptive.py -v
+      - name: Verify mock wallet BUY and SELL adoption
+        run: python -m unittest discover -s tests -p test_bean_growth_live_adoption.py -v
       - name: Verify syntax of live adapters
         run: python -m compileall -q src/bean_growth_adaptive.py src/live.py src/advanced_live.py web_app.py
