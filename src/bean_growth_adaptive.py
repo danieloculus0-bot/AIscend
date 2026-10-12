@@ -7,6 +7,7 @@ on the next live engine cycle. No wallet keys or exchange execution in module.
 from __future__ import annotations
 
 import hashlib
+from contextlib import contextmanager
 import json
 import math
 import random
@@ -88,10 +89,15 @@ class BeanAdaptiveGrowthGate:
             db.execute("CREATE TABLE IF NOT EXISTS policy (product TEXT PRIMARY KEY, state TEXT NOT NULL)")
 
 
+    @contextmanager
     def _db(self):
         db = sqlite3.connect(str(self.path), timeout=15)
         db.row_factory = sqlite3.Row
-        return db
+        try:
+            with db:
+                yield db
+        finally:
+            db.close()
 
     @staticmethod
     def mode():
