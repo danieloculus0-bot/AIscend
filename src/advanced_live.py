@@ -44,6 +44,7 @@ class AdvancedSpotEngine:
         bean: BeanMemory | None = None,
         audit: AuditTrail | None = None,
         policy_gate: BeanPolicyGate | None = None,
+        growth_gate=None,
     ) -> None:
         self.store = store
         self.rail = rail or AdvancedTradeSpot()
@@ -60,6 +61,7 @@ class AdvancedSpotEngine:
         self.bean = bean or BeanMemory(self.store.conn)
         self.audit = audit or AuditTrail()
         self.policy_gate = policy_gate or BeanPolicyGate()
+        self.growth_gate = growth_gate
         self._snapshot: dict[str, Any] | None = None
 
     @staticmethod
@@ -431,6 +433,7 @@ class AdvancedSpotEngine:
             "listing_sentinel": listing,
             "bean": self.bean.snapshot(),
             "bean_policy": json.loads(self.store.get_meta("bean_policy_latest") or "{}"),
+            "bean_growth": json.loads(self.store.get_meta("bean_growth_latest") or "{}"),
             "market_radar": radar,
             "execution_rail": "coinbase-advanced",
         }
@@ -688,6 +691,16 @@ class AdvancedSpotEngine:
                                             decision.fraction,
                                             f"{decision.rationale} BEAN exam #{exam} "
                                             f"confirmed {target}.")
+                if decision.action == "BUY" and self.growth_gate is not None:
+                    growth = self.growth_gate.assess(decision.symbol)
+                    self.store.set_meta("bean_growth_latest", json.dumps(growth))
+                    if (growth.get("trade_effect") == "BUY_VETO_ONLY"
+                            and not growth.get("allow_buy", True)):
+                        decision = Decision(
+                            "HOLD", None, 0.0,
+                            "BEAN adaptive growth vetoed BUY: learned "
+                            + str(growth.get("learned_strategy"))
+                            + " selected mock cash exposure.")
                 if decision.action == "BUY":
                     try:
                         self._execute_buy(decision, before)
