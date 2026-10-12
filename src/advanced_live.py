@@ -589,6 +589,70 @@ class AdvancedSpotEngine:
             ),
         }
 
+    def _adopt_growth(self, snapshot, radar):
+        """Use the learned policy to execute a BUY, SELL or HOLD, when ready."""
+        if self.growth_gate is None:
+            return None
+        held = radar.get("weakest_held")
+        best = radar.get("best_long")
+
+        if held is not None:
+            held_product = str(held.get("product") or "").upper()
+            if held_product in snapshot.get("positions", {}):
+                growth = self.growth_gate.assess(held_product)
+                self.store.set_meta("bean_growth_latest", json.dumps(growth))
+                if (growth.get("trade_effect") == "ADOPTED_LONG_CASH"
+                        and not growth.get("target_exposure")):
+                    decision = Decision("SELL", held_product, 1.0,
+                        "BEAN learned " + str(growth["learned_strategy"])
+                        + " chose cash for held asset.")
+                    try:
+                        self._execute_sell(decision, snapshot)
+                        status = "LIVE_EXECUTED"
+                    except Exception as exc:
+                        status = "EXECUTION_ERROR"
+                        decision = Decision(decision.action, decision.symbol,
+                                            decision.fraction,
+                                            f"{decision.rationale} Execution failed: {exc}")
+                    self.store.add_decision(decision, status)
+                    return self.sync()
+
+        if best is None:
+            return None
+        product = str(best.get("product") or "").upper()
+        growth = self.growth_gate.assess(product)
+        self.store.set_meta("bean_growth_latest", json.dumps(growth))
+        if growth.get("trade_effect") != "ADOPTED_LONG_CASH":
+            return None
+        action = "HOLD"
+        fraction = 0.0
+        symbol = None
+        rationale = ("BEAN learned " + str(growth["learned_strategy"])
+                     + " selected " + ("long" if growth["target_exposure"] else "cash") + ".")
+        if growth["target_exposure"]:
+            score = float(best.get("decision_score") if best.get("decision_score") is not None
+                          else best.get("score") or 0.0)
+            spread = float(best.get("spread_bps") or 0.0)
+            volume = float(best.get("volume_ratio") or 0.0)
+            _, quote = self._split_product(product)
+            cash = float((snapshot.get("cash_by_quote") or {}).get(quote, 0.0))
+            if spread <= 50.0 and volume >= .40 and cash > 0.0:
+                action, symbol = "BUY", product
+                fraction = min(.85, max(.20, .20 + abs(score) * .65))
+        decision = Decision(action, symbol, fraction, rationale)
+        status = "HELD"
+        if action == "BUY":
+            try:
+                self._execute_buy(decision, snapshot)
+                status = "LIVE_EXECUTED"
+            except Exception as exc:
+                status = "EXECUTION_ERROR"
+                decision = Decision(decision.action, decision.symbol,
+                                    decision.fraction,
+                                    f"{decision.rationale} Execution failed: {exc}")
+        self.store.add_decision(decision, status)
+        return self.sync()
+
     def step(self) -> dict[str, Any]:
         before = self.sync()
         try:
@@ -600,6 +664,9 @@ class AdvancedSpotEngine:
         radar = before.get("market_radar") or {}
         best = radar.get("best_long")
         weakest = radar.get("weakest_held")
+        adopted = self._adopt_growth(before, radar)
+        if adopted is not None:
+            return adopted
 
         decision = Decision(
             "HOLD",
