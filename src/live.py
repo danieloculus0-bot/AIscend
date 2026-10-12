@@ -40,6 +40,7 @@ class LiveEngine:
         bean: BeanMemory | None = None,
         audit: AuditTrail | None = None,
         policy_gate: BeanPolicyGate | None = None,
+        growth_gate=None,
     ) -> None:
         self.store = store
         self.wallet = wallet
@@ -49,6 +50,7 @@ class LiveEngine:
         self.audit = audit or AuditTrail()
         self.decider: Decider = decider or ResearchDecider()
         self.policy_gate = policy_gate or BeanPolicyGate()
+        self.growth_gate = growth_gate
         self._snapshot: dict | None = None
 
     def set_decider(self, decider: Decider) -> None:
@@ -142,6 +144,7 @@ class LiveEngine:
             "asset_universe": universe,
             "bean": bean,
             "bean_policy": json.loads(self.store.get_meta("bean_policy_latest") or "{}"),
+            "bean_growth": json.loads(self.store.get_meta("bean_growth_latest") or "{}"),
         }
         return self._snapshot
 
@@ -165,6 +168,19 @@ class LiveEngine:
             else:
                 decision = Decision(decision.action, decision.symbol, decision.fraction,
                                     f"{decision.rationale} BEAN exam #{exam} confirmed {target}.")
+
+        # Adopt reward-updated paper policy as an optional live BUY filter.
+        # No learned strategy can initiate an exchange order.
+        if status == "OK" and decision.action == "BUY" and self.growth_gate is not None:
+            growth = self.growth_gate.assess(decision.symbol)
+            self.store.set_meta("bean_growth_latest", json.dumps(growth))
+            if (growth.get("trade_effect") == "BUY_VETO_ONLY"
+                    and not growth.get("allow_buy", True)):
+                decision = Decision("HOLD", None, 0.0,
+                    "BEAN adaptive growth vetoed BUY: learned "
+                    + str(growth.get("learned_strategy"))
+                    + " selected mock cash exposure.")
+                status = "HELD"
 
         execution: SwapExecution | None = None
         if status == "OK":
