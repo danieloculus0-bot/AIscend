@@ -1,0 +1,28 @@
+name: Adaptive Growth Mock Integration
+on:
+  push:
+    branches:
+      - 'feature/bean-adaptive-growth-live-gate-*'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mock-adaptation:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run causal reward-learning integration tests
+        run: python -m unittest discover -s tests -p test_bean_growth_adaptive.py -v
+      - name: Verify syntax of live adapters
+        run: python -m compileall -q src/bean_growth_adaptive.py src/live.py src/advanced_live.py web_app.py
