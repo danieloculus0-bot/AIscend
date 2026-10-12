@@ -407,7 +407,26 @@ def bean_research_enable():
 
 @app.get("/api/bean-growth")
 def bean_growth_status():
-    return jsonify({"ok": True, **_bean_growth.status()})
+    # Evidence of actual learned decisions, not just historical reward counts.
+    evidence = {}
+    for rail in ("advanced", "base"):
+        path = _db_path("base", rail)
+        if not path.is_file():
+            continue
+        store = StateStore(path)
+        try:
+            growth = json.loads(store.get_meta("bean_growth_latest") or "{}")
+            latest = store.latest_decisions(1)
+            decision = dict(latest[0]) if latest else None
+            rationale = str((decision or {}).get("rationale") or "")
+            evidence[rail] = {
+                "last_policy_evaluation": growth,
+                "last_order_decision": decision,
+                "decision_derived_from_learned_policy": rationale.startswith("BEAN learned "),
+            }
+        finally:
+            store.close()
+    return jsonify({"ok": True, **_bean_growth.status(), "execution_evidence": evidence})
 
 
 @app.get("/api/runner")
