@@ -13,8 +13,8 @@ class StrategyGateTests(unittest.TestCase):
     def test_no_one_window_winner(self):
         self.assertFalse(judge([report()])["accepted"])
 
-    def test_two_independent_wins(self):
-        self.assertTrue(judge([report(), report()])["accepted"])
+    def test_duplicate_reports_are_not_independent(self):
+        self.assertFalse(judge([report(), report()])["accepted"])
 
     def test_benchmark_failure(self):
         self.assertFalse(judge([report(), report(win=False)])["accepted"])
