@@ -68,7 +68,9 @@ def _fresh_state():
             "held": 0, "equity": 100.0, "peak": 100.0, "drawdown": 0.0,
             "q": {}, "visits": {}, "paper_bars": 0, "forward_bars": 0,
             "mock_trades": 0, "history_gaps": 0, "bootstrapped": False,
-            "strategy_changes": 0, "last_action": None}
+            "strategy_changes": 0, "last_action": None,
+            "behavior_revisions": 0, "forward_behavior_revisions": 0,
+            "last_behavior_revision": None}
 
 
 class BeanAdaptiveGrowthGate:
@@ -145,11 +147,22 @@ class BeanAdaptiveGrowthGate:
             state["peak"] = max(state["peak"], state["equity"])
             state["drawdown"] = max(state["drawdown"], 1-state["equity"]/state["peak"])
             context, action = pending["context"], pending["action"]
+            preferred_before = _choose(state, context, explore=False, seed=0)
             q = state["q"].setdefault(context, {})
             old = float(q.get(action, 0.0))
             q[action] = old + LEARNING_RATE * (realized * 10000.0 - old)
             counts = state["visits"].setdefault(context, {})
             counts[action] = counts.get(action, 0) + 1
+            preferred_after = _choose(state, context, explore=False, seed=0)
+            if preferred_before != preferred_after:
+                state["behavior_revisions"] = state.get("behavior_revisions", 0) + 1
+                if state["bootstrapped"]:
+                    state["forward_behavior_revisions"] = (
+                        state.get("forward_behavior_revisions", 0) + 1)
+                state["last_behavior_revision"] = {
+                    "bar": ts, "context": context,
+                    "before": preferred_before, "after": preferred_after,
+                    "realized_reward_bps": round(realized * 10000, 4)}
             state["paper_bars"] += 1
             if state["bootstrapped"]:
                 state["forward_bars"] += 1
@@ -210,6 +223,13 @@ class BeanAdaptiveGrowthGate:
                           "paper_drawdown": round(state["drawdown"], 6),
                           "paper_trades": state["mock_trades"],
                           "strategy_changes": state["strategy_changes"],
+                          "behavior_revisions": state.get("behavior_revisions", 0),
+                          "forward_behavior_revisions": state.get("forward_behavior_revisions", 0),
+                          "last_behavior_revision": state.get("last_behavior_revision"),
+                          "context": ctxt,
+                          "chosen_action_scores_bps": {
+                              k: round(float(v), 4)
+                              for k, v in state["q"].get(ctxt, {}).items()},
                           "note": "Executed mock rewards; no verified live P/L"}
                 return result
         except Exception as exc:
@@ -220,10 +240,26 @@ class BeanAdaptiveGrowthGate:
     def status(self):
         with self._lock, self._db() as db:
             rows = db.execute("SELECT product,state FROM policy").fetchall()
-            return {"mode": self.mode(),
-                    "markets": [{ "product": row["product"],
-                                  "forward_bars": json.loads(row["state"])["forward_bars"],
-                                  "reward_updates": sum(sum(v.values()) for v in
-                                       json.loads(row["state"])["visits"].values()),
-                                  "paper_equity": json.loads(row["state"])["equity"]}
-                                for row in rows]}
+        markets = []
+        for row in rows:
+            state = json.loads(row["state"])
+            ctxt = _features(state["recent_returns"])
+            adopted = _choose(state, ctxt, explore=False, seed=0)
+            markets.append({
+                "product": row["product"],
+                "forward_bars": state["forward_bars"],
+                "reward_updates": sum(sum(v.values()) for v in state["visits"].values()),
+                "behavior_revisions": state.get("behavior_revisions", 0),
+                "forward_behavior_revisions": state.get("forward_behavior_revisions", 0),
+                "last_behavior_revision": state.get("last_behavior_revision"),
+                "learned_strategy": adopted,
+                "target_exposure": _position(adopted, state["recent_returns"]),
+                "context": ctxt,
+                "action_scores_bps": {k: round(float(v), 4)
+                                     for k, v in state["q"].get(ctxt, {}).items()},
+                "paper_equity": round(state["equity"], 6),
+                "paper_drawdown": round(state["drawdown"], 6),
+                "paper_trades": state["mock_trades"],
+                "observed_through": state["last_bar"],
+            })
+        return {"mode": self.mode(), "markets": markets}
