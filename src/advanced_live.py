@@ -636,7 +636,10 @@ class AdvancedSpotEngine:
             volume = float(best.get("volume_ratio") or 0.0)
             _, quote = self._split_product(product)
             cash = float((snapshot.get("cash_by_quote") or {}).get(quote, 0.0))
-            if spread <= 50.0 and volume >= .40 and cash > 0.0:
+            # A learned long target is a position, not permission to
+            # repeatedly buy the same already-held asset every minute.
+            if (spread <= 50.0 and volume >= .40 and cash > 0.0
+                    and product not in snapshot.get("positions", {})):
                 action, symbol = "BUY", product
                 fraction = min(.85, max(.20, .20 + abs(score) * .65))
         decision = Decision(action, symbol, fraction, rationale)
