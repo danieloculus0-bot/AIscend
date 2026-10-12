@@ -11,6 +11,7 @@ from .asset_universe import CoinbaseAssetUniverse
 from .audit import AuditTrail
 from .bean import BeanMemory
 from .bean_policy import BeanPolicyGate
+from .bean_growth_rotation import evaluate_candidates, ROTATION_BPS
 from .core import Decision, StateStore
 from .game import score_game
 from .listing_sentinel import CoinbaseListingSentinel
@@ -430,6 +431,7 @@ class AdvancedSpotEngine:
                 "human_weight": radar.get("human_weight", 0.0),
             },
             "asset_universe": universe,
+            "tradable_products": list(product_ids),
             "listing_sentinel": listing,
             "bean": self.bean.snapshot(),
             "bean_policy": json.loads(self.store.get_meta("bean_policy_latest") or "{}"),
@@ -593,27 +595,34 @@ class AdvancedSpotEngine:
         """Use the learned policy to execute a BUY, SELL or HOLD, when ready."""
         if self.growth_gate is None:
             return None
-        best = radar.get("best_long")
+        plan = evaluate_candidates(self.growth_gate, snapshot)
+        winner = plan["best_long"]
+        evaluated = {x["product"]: x for x in plan["evaluated"]}
+        self.store.set_meta("bean_growth_latest", json.dumps({
+            "trade_effect": "ADOPTED_PORTFOLIO_STRATEGY",
+            "winner": winner, "assessed_count": plan["assessed_count"],
+            "ranked": sorted(plan["evaluated"],
+                             key=lambda x: x["edge_bps"], reverse=True),
+        }))
 
-        # The account can hold assets absent from the currently ranked list.
-        # Assess every spendable held position, not only the scanner's weakest.
-        # Otherwise BEAN may have capital invested but never evaluate an exit.
-        held_rows = snapshot.get("positions") or {}
-        priority = str((radar.get("weakest_held") or {}).get("product") or "").upper()
-        products = sorted(held_rows, key=lambda p: (p != priority, p))
-        for held_product in products:
-            held_position = held_rows[held_product] or {}
-            available = float(held_position.get("available_qty",
-                                               held_position.get("qty", 0)) or 0)
+        for held_product, holding in (snapshot.get("positions") or {}).items():
+            available = float(holding.get("available_qty",
+                                          holding.get("qty", 0)) or 0)
             if available <= 0:
                 continue
-            growth = self.growth_gate.assess(held_product)
-            self.store.set_meta("bean_growth_latest", json.dumps(growth))
-            if (growth.get("trade_effect") == "ADOPTED_LONG_CASH"
-                    and not growth.get("target_exposure")):
+            current = evaluated.get(held_product)
+            if current is None:
+                continue
+            target = winner["product"] if winner else None
+            old_edge = current["edge_bps"] if current["target_exposure"] else 0
+            new_edge = winner["edge_bps"] if winner else 0
+            rotate = bool(winner and target != held_product
+                          and new_edge > old_edge + ROTATION_BPS)
+            if (not current["target_exposure"]) or rotate:
                 decision = Decision("SELL", held_product, 1.0,
-                    "BEAN learned " + str(growth["learned_strategy"])
-                    + " chose cash for held asset.")
+                    "BEAN learned rotation " + held_product + " to "
+                    + (target or "cash") + "; learned net edge "
+                    + f"{new_edge-old_edge:+.2f} bps.")
                 try:
                     self._execute_sell(decision, snapshot)
                     status = "LIVE_EXECUTED"
@@ -625,13 +634,16 @@ class AdvancedSpotEngine:
                 self.store.add_decision(decision, status)
                 return self.sync()
 
-        if best is None:
+        if winner is None:
             return None
-        product = str(best.get("product") or "").upper()
-        growth = self.growth_gate.assess(product)
-        self.store.set_meta("bean_growth_latest", json.dumps(growth))
-        if growth.get("trade_effect") != "ADOPTED_LONG_CASH":
-            return None
+        best = {"product": winner["product"],
+                "decision_score": winner["edge_bps"] / 100.0,
+                "spread_bps": winner["spread_bps"],
+                "volume_ratio": winner["volume_ratio"]}
+        product = winner["product"]
+        growth = {"trade_effect": "ADOPTED_LONG_CASH",
+                  "learned_strategy": winner["action"],
+                  "target_exposure": winner["target_exposure"]}
         action = "HOLD"
         fraction = 0.0
         symbol = None
