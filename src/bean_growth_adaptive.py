@@ -1,8 +1,8 @@
 """Causal five-minute BEAN reward-learning gate for AIscend.
 
-Research runs on real *completed public* Coinbase candles with fictional paper
-capital. Only an explicit local 'live' mode can let a learned signal veto an
-existing buy. No exchange rails, wallet keys, or self-originated orders here.
+Research uses completed public Coinbase candles and executes hypothetical
+positions for reward feedback. The adopted action actively chooses long/cash
+on the next live engine cycle. No wallet keys or exchange execution in module.
 """
 from __future__ import annotations
 
@@ -73,10 +73,10 @@ def _fresh_state():
 class BeanAdaptiveGrowthGate:
     """Executes hypothetical positions, updates rewards, adopts scored policy.
 
-    Evaluation fetches completed five-minute public candles. The first call
-    bootstraps a historical causal replay; only *subsequently closed* candles
-    count as truly observed forward samples. Live mode does not start a BUY:
-    when explicitly enabled it may veto an existing BUY after forward warmup.
+    Evaluation fetches completed five-minute public candles. First assessment
+    trains chronologically, subsequent assessments continue online learning.
+    Adopted exposure directly informs BUY, SELL or HOLD on the next cycle.
+    Money is handled only by the existing AIscend execution engines.
     """
     def __init__(self, *, path=None, fetcher=None, clock=None):
         self.path = Path(path) if path else app_data_dir() / "bean-growth-policy.sqlite3"
@@ -87,7 +87,7 @@ class BeanAdaptiveGrowthGate:
         with self._db() as db:
             db.execute("CREATE TABLE IF NOT EXISTS policy (product TEXT PRIMARY KEY, state TEXT NOT NULL)")
             db.execute("CREATE TABLE IF NOT EXISTS settings (name TEXT PRIMARY KEY, value TEXT NOT NULL)")
-            db.execute("INSERT OR IGNORE INTO settings(name,value) VALUES('mode','shadow')")
+            db.execute("INSERT OR IGNORE INTO settings(name,value) VALUES('mode','live')")
 
     def _db(self):
         db = sqlite3.connect(str(self.path), timeout=15)
@@ -99,11 +99,11 @@ class BeanAdaptiveGrowthGate:
             return db.execute("SELECT value FROM settings WHERE name='mode'").fetchone()[0]
 
     def set_mode(self, mode):
-        if mode not in ("shadow", "live"):
-            raise ValueError("mode must be shadow or live")
+        if mode != "live":
+            raise ValueError("BEAN growth adoption runs in live mode")
         with self._lock, self._db() as db:
-            db.execute("UPDATE settings SET value=? WHERE name='mode'", (mode,))
-        return {"mode": mode, "note": "A live mode only filters existing buys; no orders originated"}
+            db.execute("UPDATE settings SET value='live' WHERE name='mode'")
+        return {"mode": "live"}
 
     @staticmethod
     def _product(product):
@@ -198,10 +198,10 @@ class BeanAdaptiveGrowthGate:
                 ctxt = _features(state["recent_returns"])
                 adopted = _choose(state, ctxt, explore=False, seed=0)
                 target = _position(adopted, state["recent_returns"])
-                enough = state["forward_bars"] >= MIN_FORWARD_BARS
+                enough = state["paper_bars"] >= MIN_HISTORY
                 result = {"status": "READY" if enough else "WARMING_UP",
                           "mode": mode, "product": market,
-                          "trade_effect": "BUY_VETO_ONLY" if enough and mode == "live" else "NONE",
+                          "trade_effect": "ADOPTED_LONG_CASH" if enough else "NONE",
                           "learning_source": "completed_public_coinbase_5m_candles",
                           "learned_strategy": adopted, "target_exposure": target,
                           "allow_buy": bool(target),
