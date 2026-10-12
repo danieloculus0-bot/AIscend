@@ -152,35 +152,39 @@ class LiveEngine:
         before = self.sync()
         raw = self.decider.decide(before)
         decision, status = RiskGovernor.normalize(raw, before)
-        try:
-            policy = self.policy_gate.assess()
-        except Exception as exc:
-            policy = {"status": "DATA_UNAVAILABLE", "trade_effect": "NONE",
-                      "reason": f"Policy evaluation failed: {type(exc).__name__}"}
-        self.store.set_meta("bean_policy_latest", json.dumps(policy))
-        if status == "OK" and decision.action == "BUY" and policy.get("status") == "READY":
-            exam = policy["experiment"]
-            target = policy.get("target") or "CASH"
-            if not self.policy_gate.permits_buy(policy, decision.symbol):
-                decision = Decision("HOLD", None, 0.0,
-                                    f"BEAN exam #{exam} blocked Base BUY: hourly target {target}.")
-                status = "HELD"
-            else:
-                decision = Decision(decision.action, decision.symbol, decision.fraction,
-                                    f"{decision.rationale} BEAN exam #{exam} confirmed {target}.")
-
-        # Adopt reward-updated paper policy as an optional live BUY filter.
-        # No learned strategy can initiate an exchange order.
-        if status == "OK" and decision.action == "BUY" and self.growth_gate is not None:
-            growth = self.growth_gate.assess(decision.symbol)
+        growth = self.growth_gate.assess("WETH") if self.growth_gate is not None else None
+        if growth is not None:
             self.store.set_meta("bean_growth_latest", json.dumps(growth))
-            if (growth.get("trade_effect") == "BUY_VETO_ONLY"
-                    and not growth.get("allow_buy", True)):
-                decision = Decision("HOLD", None, 0.0,
-                    "BEAN adaptive growth vetoed BUY: learned "
-                    + str(growth.get("learned_strategy"))
-                    + " selected mock cash exposure.")
-                status = "HELD"
+        adopted = bool(growth and growth.get("trade_effect") == "ADOPTED_LONG_CASH")
+        if adopted:
+            target = int(growth["target_exposure"])
+            cash = float(before.get("cash") or 0)
+            held = float((before.get("positions") or {}).get("WETH", {}).get("qty") or 0)
+            rationale = "BEAN learned " + str(growth["learned_strategy"]) + " (executed mock rewards)."
+            if target and cash > 0.000001:
+                proposed = Decision("BUY", "WETH", 1.0, rationale)
+            elif not target and held > 0:
+                proposed = Decision("SELL", "WETH", 1.0, rationale)
+            else:
+                proposed = Decision("HOLD", None, 0.0, rationale)
+            decision, status = RiskGovernor.normalize(proposed, before)
+        else:
+            try:
+                policy = self.policy_gate.assess()
+            except Exception as exc:
+                policy = {"status": "DATA_UNAVAILABLE", "trade_effect": "NONE",
+                          "reason": f"Policy evaluation failed: {type(exc).__name__}"}
+            self.store.set_meta("bean_policy_latest", json.dumps(policy))
+            if status == "OK" and decision.action == "BUY" and policy.get("status") == "READY":
+                exam = policy["experiment"]
+                target = policy.get("target") or "CASH"
+                if not self.policy_gate.permits_buy(policy, decision.symbol):
+                    decision = Decision("HOLD", None, 0.0,
+                                        f"BEAN exam #{exam} blocked Base BUY: hourly target {target}.")
+                    status = "HELD"
+                else:
+                    decision = Decision(decision.action, decision.symbol, decision.fraction,
+                                        f"{decision.rationale} BEAN exam #{exam} confirmed {target}.")
 
         execution: SwapExecution | None = None
         if status == "OK":
