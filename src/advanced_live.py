@@ -593,29 +593,37 @@ class AdvancedSpotEngine:
         """Use the learned policy to execute a BUY, SELL or HOLD, when ready."""
         if self.growth_gate is None:
             return None
-        held = radar.get("weakest_held")
         best = radar.get("best_long")
 
-        if held is not None:
-            held_product = str(held.get("product") or "").upper()
-            if held_product in snapshot.get("positions", {}):
-                growth = self.growth_gate.assess(held_product)
-                self.store.set_meta("bean_growth_latest", json.dumps(growth))
-                if (growth.get("trade_effect") == "ADOPTED_LONG_CASH"
-                        and not growth.get("target_exposure")):
-                    decision = Decision("SELL", held_product, 1.0,
-                        "BEAN learned " + str(growth["learned_strategy"])
-                        + " chose cash for held asset.")
-                    try:
-                        self._execute_sell(decision, snapshot)
-                        status = "LIVE_EXECUTED"
-                    except Exception as exc:
-                        status = "EXECUTION_ERROR"
-                        decision = Decision(decision.action, decision.symbol,
-                                            decision.fraction,
-                                            f"{decision.rationale} Execution failed: {exc}")
-                    self.store.add_decision(decision, status)
-                    return self.sync()
+        # The account can hold assets absent from the currently ranked list.
+        # Assess every spendable held position, not only the scanner's weakest.
+        # Otherwise BEAN may have capital invested but never evaluate an exit.
+        held_rows = snapshot.get("positions") or {}
+        priority = str((radar.get("weakest_held") or {}).get("product") or "").upper()
+        products = sorted(held_rows, key=lambda p: (p != priority, p))
+        for held_product in products:
+            held_position = held_rows[held_product] or {}
+            available = float(held_position.get("available_qty",
+                                               held_position.get("qty", 0)) or 0)
+            if available <= 0:
+                continue
+            growth = self.growth_gate.assess(held_product)
+            self.store.set_meta("bean_growth_latest", json.dumps(growth))
+            if (growth.get("trade_effect") == "ADOPTED_LONG_CASH"
+                    and not growth.get("target_exposure")):
+                decision = Decision("SELL", held_product, 1.0,
+                    "BEAN learned " + str(growth["learned_strategy"])
+                    + " chose cash for held asset.")
+                try:
+                    self._execute_sell(decision, snapshot)
+                    status = "LIVE_EXECUTED"
+                except Exception as exc:
+                    status = "EXECUTION_ERROR"
+                    decision = Decision(decision.action, decision.symbol,
+                                        decision.fraction,
+                                        f"{decision.rationale} Execution failed: {exc}")
+                self.store.add_decision(decision, status)
+                return self.sync()
 
         if best is None:
             return None
@@ -642,6 +650,13 @@ class AdvancedSpotEngine:
                     and product not in snapshot.get("positions", {})):
                 action, symbol = "BUY", product
                 fraction = min(.85, max(.20, .20 + abs(score) * .65))
+        if action == "HOLD" and growth["target_exposure"]:
+            _, quote = self._split_product(product)
+            available_cash = float((snapshot.get("cash_by_quote") or {}).get(quote, 0))
+            if available_cash <= 0:
+                rationale += f" No spendable {quote} for {product}."
+            elif product in snapshot.get("positions", {}):
+                rationale += " Position already held."
         decision = Decision(action, symbol, fraction, rationale)
         status = "HELD"
         if action == "BUY":

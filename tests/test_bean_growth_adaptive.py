@@ -3,7 +3,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from src.bean_growth_adaptive import BAR, BeanAdaptiveGrowthGate, _fresh_state
+from src.bean_growth_adaptive import (BAR, BeanAdaptiveGrowthGate,
+    _fresh_state, _features, _choose, _position)
 
 
 class GrowthPolicyTests(unittest.TestCase):
@@ -52,6 +53,34 @@ class GrowthPolicyTests(unittest.TestCase):
         self.assertEqual(s["visits"][prior["context"]][prior["action"]], 1)
         self.assertEqual(s["last_bar"], BAR)
         self.assertEqual(sum(sum(r.values()) for r in s["visits"].values()), 1)
+
+    def test_negative_realized_reward_changes_preferred_action_and_position(self):
+        # No canned 'learned action': execute a real simulated long, grade
+        # its unfavorable next candle, then compare the same market context.
+        state = _fresh_state()
+        state["bootstrapped"] = True
+        state["recent_returns"] = [.01] * 12
+        state["last_close"] = 100.0
+        state["last_bar"] = BAR * 98
+        context = _features(state["recent_returns"])
+        before = _choose(state, context, explore=False, seed=0)
+        self.assertEqual(before, "momentum")
+        self.assertEqual(_position(before, state["recent_returns"]), 1)
+        state["pending"] = {"context": context, "action": before, "position": 1}
+        # Price closes ABOVE previous close (same context), but buying at
+        # the much-higher next open loses money after cost.
+        BeanAdaptiveGrowthGate._apply_bar(
+            state, {"open": 105.0, "close": 101.0}, BAR * 99, "ETH-USD")
+        current = _features(state["recent_returns"])
+        self.assertEqual(current, context)
+        after = _choose(state, current, explore=False, seed=0)
+        self.assertNotEqual(after, before)
+        self.assertEqual(_position(after, state["recent_returns"]), 0)
+        self.assertLess(state["q"][context]["momentum"], 0)
+        self.assertEqual(state["behavior_revisions"], 1)
+        self.assertEqual(state["forward_behavior_revisions"], 1)
+        self.assertEqual(state["last_behavior_revision"]["before"], before)
+        self.assertEqual(state["last_behavior_revision"]["after"], after)
 
     def test_unavailable_market_does_not_create_reward(self):
         with tempfile.TemporaryDirectory() as temp:
