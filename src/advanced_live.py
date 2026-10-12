@@ -595,7 +595,15 @@ class AdvancedSpotEngine:
         """Use the learned policy to execute a BUY, SELL or HOLD, when ready."""
         if self.growth_gate is None:
             return None
-        plan = evaluate_candidates(self.growth_gate, snapshot)
+        selection_snapshot = snapshot
+        if not (snapshot.get("asset_universe") or {}).get("scored"):
+            # Keep the direct engine's own market radar usable with callers
+            # that provide a minimized snapshot in integration tests.
+            seeds = [x for x in (radar.get("best_long"),
+                                  radar.get("weakest_held")) if x]
+            selection_snapshot = dict(snapshot)
+            selection_snapshot["asset_universe"] = {"scored": seeds}
+        plan = evaluate_candidates(self.growth_gate, selection_snapshot)
         winner = plan["best_long"]
         evaluated = {x["product"]: x for x in plan["evaluated"]}
         self.store.set_meta("bean_growth_latest", json.dumps({
@@ -635,6 +643,11 @@ class AdvancedSpotEngine:
                 return self.sync()
 
         if winner is None:
+            if plan["evaluated"]:
+                decision = Decision("HOLD", None, 0.0,
+                                    "BEAN learned policy favors cash; no positive long strategy.")
+                self.store.add_decision(decision, "HELD")
+                return self.sync()
             return None
         best = {"product": winner["product"],
                 "decision_score": winner["edge_bps"] / 100.0,
