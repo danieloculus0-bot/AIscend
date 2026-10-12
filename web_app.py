@@ -410,16 +410,6 @@ def bean_growth_status():
     return jsonify({"ok": True, **_bean_growth.status()})
 
 
-@app.post("/api/bean-growth/mode")
-def bean_growth_mode():
-    # All POSTs remain forbidden to remote monitor clients.
-    payload = request.get_json(silent=True) or {}
-    try:
-        return jsonify({"ok": True, **_bean_growth.set_mode(payload.get("mode"))})
-    except ValueError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
-
-
 @app.get("/api/runner")
 def runner_status():
     return jsonify({"ok": True, "runner": dict(_loop_state)})
