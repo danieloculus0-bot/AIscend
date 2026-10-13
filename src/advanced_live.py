@@ -622,7 +622,7 @@ class AdvancedSpotEngine:
         if winner and self._split_product(winner["product"])[1] not in accessible_quotes:
             alternatives = sorted(
                 (item for item in plan["evaluated"]
-                 if item["target_exposure"] and item["edge_bps"] > 0
+                 if item["target_exposure"]
                  and self._split_product(item["product"])[1] in accessible_quotes),
                 key=lambda item: item["edge_bps"], reverse=True)
             winner = alternatives[0] if alternatives else None
@@ -652,7 +652,7 @@ class AdvancedSpotEngine:
             # veto. Exit learned cash/negative-edge holds to free capital.
             rotate = bool(winner and target != held_product
                           and new_edge > old_edge)
-            if (not current["target_exposure"] or old_edge <= 0) or rotate:
+            if (not current["target_exposure"]) or rotate:
                 decision = Decision("SELL", held_product, 1.0,
                     "BEAN learned rotation " + held_product + " to "
                     + (target or "cash") + "; learned net edge "
