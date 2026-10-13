@@ -305,7 +305,8 @@ class AdvancedLiveTests(unittest.TestCase):
             self.assertEqual(row["status"], "LIVE_EXECUTED")
             self.assertTrue(rail.buys)
             self.assertGreater(snap["net_liquidation"], 20.0)
-            self.assertGreater(snap["balance_values_usd"].get("EUR", 0.0), 0.0)
+            self.assertEqual(snap["balance_values_usd"].get("EUR", 0.0), 0.0)
+            self.assertGreater(snap["balance_values_usd"].get("MEME", 0.0), 0.0)
             store.close()
 
     def test_engine_uses_full_scored_universe_not_absolute_ranked_top(self):
