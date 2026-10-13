@@ -15,7 +15,7 @@ AIscend is the product name. `AutonomousCapitalLab` remains the default desktop 
 
 | | Current implementation |
 |---|---|
-| **Source version** | `0.17.2` (from [VERSION](VERSION)) |
+| **Source version** | `0.17.3` (from [VERSION](VERSION)) |
 | **Desktop** | Windows, PySide6; persistent offline-capable synthetic market |
 | **Browser** | Flask dashboard, local or in GitHub Codespaces |
 | **Funded execution rails** | Coinbase CDP smart account on Base; Coinbase Advanced spot via separate credentials |
@@ -48,6 +48,9 @@ AIscend is the product name. `AutonomousCapitalLab` remains the default desktop 
 The Market Arsenal also shows **Predictions, Stocks & ETFs, Futures, Perpetuals, and Options** as research/product lanes. These are **not** six live trading connectors. Prediction-market discovery is implemented using public data, but authenticated prediction order execution is not connected. The remaining non-crypto lanes do not have live execution adapters.
 
 ## October 2026 trading and market-coverage correction
+
+- v0.17.3 also removes the stale entry and exit thresholds in the browser dashboard's `auto` execution-rail selector. Selecting `auto` no longer imposes a stricter gate than the actual trading engine.
+
 
 - The public Coinbase scanner now samples 24 products in a concurrent batch per scan, retaining previously sampled rows long enough to grow coverage across the catalog. It does not refresh every product at once.
 - The live BEAN evaluator checks 48 observed candidates per cycle, combining highly-ranked opportunities with a persistent rolling cursor across the remainder. Held positions are always eligible for evaluation.
@@ -192,8 +195,8 @@ The default local synthetic experience needs **no exchange account, paid API or 
 
 ```text
 dist\AutonomousCapitalLab.exe
-dist\AutonomousCapitalLab-v0.17.2-windows-x64.zip
-dist\AutonomousCapitalLab-v0.17.2-windows-x64.zip.sha256
+dist\AutonomousCapitalLab-v0.17.3-windows-x64.zip
+dist\AutonomousCapitalLab-v0.17.3-windows-x64.zip.sha256
 ```
 
 The [Windows Build workflow](.github/workflows/windows-build.yml) runs on pushes and pull requests to `main`, relevant version tags, and manual dispatch. The [Adaptive Growth mock integration workflow](.github/workflows/bean-adaptive-growth-smoke.yml) exercises focused learned-action and rotation behavior on **Windows and Ubuntu**.

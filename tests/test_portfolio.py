@@ -160,6 +160,33 @@ class PortfolioCoordinatorTests(unittest.TestCase):
         advanced["positions"] = {"DOGE-USDC": {"qty": 1}}
         self.assertEqual(choose_execution_rail(base, advanced), "advanced")
 
+    def test_auto_rail_allows_small_positive_scanner_signal(self):
+        base = {"cash": 10.0, "net_liquidation": 10.0,
+                "positions": {}, "research": {"composite_score": 0.02}}
+        advanced = {"cash": 25.0, "net_liquidation": 25.0,
+                    "positions": {}, "cash_by_quote": {"USDC": 25.0},
+                    "market_radar": {"best_long": {
+                        "product": "ALEO-USDC", "decision_score": 0.08,
+                        "spread_bps": 90, "volume_ratio": 0.25}}}
+        class BuyDecision:
+            action = "BUY"
+        with patch("src.portfolio.ResearchDecider.decide",
+                   return_value=BuyDecision()):
+            self.assertEqual(choose_execution_rail(base, advanced), "advanced")
+
+    def test_auto_rail_rechecks_held_advanced_asset(self):
+        base = {"cash": 10.0, "net_liquidation": 10.0,
+                "positions": {}, "research": {"composite_score": 0.25}}
+        advanced = {"net_liquidation": 15.0,
+                    "positions": {"ALEO-USDC": {"qty": 20}},
+                    "market_radar": {"weakest_held": {
+                        "product": "ALEO-USDC", "decision_score": -0.01}}}
+        class BuyDecision:
+            action = "BUY"
+        with patch("src.portfolio.ResearchDecider.decide",
+                   return_value=BuyDecision()):
+            self.assertEqual(choose_execution_rail(base, advanced), "advanced")
+
     def test_coordinator_journals_hold_on_funded_rail(self):
         base = {
             "cash": 0.0,
