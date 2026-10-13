@@ -15,7 +15,7 @@ AIscend is the product name. `AutonomousCapitalLab` remains the default desktop 
 
 | | Current implementation |
 |---|---|
-| **Source version** | `0.17.1` (from [VERSION](VERSION); main may contain newer commits without a version bump) |
+| **Source version** | `0.17.2` (from [VERSION](VERSION)) |
 | **Desktop** | Windows, PySide6; persistent offline-capable synthetic market |
 | **Browser** | Flask dashboard, local or in GitHub Codespaces |
 | **Funded execution rails** | Coinbase CDP smart account on Base; Coinbase Advanced spot via separate credentials |
@@ -47,6 +47,15 @@ AIscend is the product name. `AutonomousCapitalLab` remains the default desktop 
 
 The Market Arsenal also shows **Predictions, Stocks & ETFs, Futures, Perpetuals, and Options** as research/product lanes. These are **not** six live trading connectors. Prediction-market discovery is implemented using public data, but authenticated prediction order execution is not connected. The remaining non-crypto lanes do not have live execution adapters.
 
+## October 2026 trading and market-coverage correction
+
+- The public Coinbase scanner now samples 24 products in a concurrent batch per scan, retaining previously sampled rows long enough to grow coverage across the catalog. It does not refresh every product at once.
+- The live BEAN evaluator checks 48 observed candidates per cycle, combining highly-ranked opportunities with a persistent rolling cursor across the remainder. Held positions are always eligible for evaluation.
+- Advanced BUY decisions can request 100% of spendable quote cash. Market increments, available balances and exchange acceptance still govern what actually fills.
+- Learned switching compares modeled relative outcomes, without an additional fixed 18-basis-point hurdle. Scanner-based entry and exit no longer use the former fixed score/spread/volume cutoffs.
+- Strategy School records evidence but does not independently veto an otherwise valid BUY. BEAN's adopted learned cash/long target can still legitimately decide to HOLD.
+- This correction does **not** establish realized trading gains; confirm live portfolio outcomes against Coinbase order history and the audit journal. The web dashboard is started with `python web_app.py`, not `python main.py` (the desktop application).
+
 ## BEAN learning: what is genuinely wired into live decisions
 
 The newest material changes are in [`src/bean_growth_adaptive.py`](src/bean_growth_adaptive.py), [`src/bean_growth_rotation.py`](src/bean_growth_rotation.py), [`src/live.py`](src/live.py) and [`src/advanced_live.py`](src/advanced_live.py).
@@ -70,7 +79,7 @@ When the learner has enough valid data, its long/cash target can become a **real
 - **Base** can convert the learned ETH exposure into a USDC/WETH BUY, SELL or HOLD through its existing CDP wallet path.
 - **Coinbase Advanced** can assess eligible products and use the learned outcome for its real spot execution decision.
 - Existing account and venue constraints still apply. Missing candles, unavailable products, rejected orders and missing spendable quote balances must not be fabricated into fills or positive rewards.
-- The [hourly Strategy School confirmation gate](src/bean_policy.py) is a **different mechanism**: it can confirm or veto a proposed BUY based on its separately selected historical rule. It cannot independently originate a trade.
+- The [hourly Strategy School](src/bean_policy.py) is a **separate advisory research track**. Its historical selection does not veto an otherwise executable market BUY.
 
 **Crucial distinction:** tests using fake wallets demonstrate that a changed learned preference reaches the proper order methods. They do **not** prove that the user's connected exchange filled those orders, or that future returns improved.
 
@@ -183,8 +192,8 @@ The default local synthetic experience needs **no exchange account, paid API or 
 
 ```text
 dist\AutonomousCapitalLab.exe
-dist\AutonomousCapitalLab-v0.17.1-windows-x64.zip
-dist\AutonomousCapitalLab-v0.17.1-windows-x64.zip.sha256
+dist\AutonomousCapitalLab-v0.17.2-windows-x64.zip
+dist\AutonomousCapitalLab-v0.17.2-windows-x64.zip.sha256
 ```
 
 The [Windows Build workflow](.github/workflows/windows-build.yml) runs on pushes and pull requests to `main`, relevant version tags, and manual dispatch. The [Adaptive Growth mock integration workflow](.github/workflows/bean-adaptive-growth-smoke.yml) exercises focused learned-action and rotation behavior on **Windows and Ubuntu**.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import math
 import statistics
 import threading
@@ -52,9 +53,9 @@ class CoinbaseAssetUniverse:
     def __init__(
         self,
         timeout: float = 6.0,
-        batch_size: int = 8,
+        batch_size: int = 24,
         product_refresh_seconds: float = 55.0,
-        asset_cache_seconds: float = 600.0,
+        asset_cache_seconds: float = 3600.0,
         scan_interval_seconds: float = 55.0,
     ) -> None:
         self.timeout = timeout
@@ -117,6 +118,10 @@ class CoinbaseAssetUniverse:
                     if str(product.get("id") or "").upper() not in seen
                 ]
 
+        # Scan different products concurrently instead of waiting for three
+        # network requests per asset in sequence. Keep request concurrency
+        # bounded so a single cycle remains responsive.
+        pending = []
         for product in batch:
             product_id = str(product.get("id") or "")
             if not product_id:
@@ -124,13 +129,20 @@ class CoinbaseAssetUniverse:
             cached = self._cache.get(product_id)
             if cached and time.time() - cached.scanned_at < self.asset_cache_seconds:
                 continue
-            try:
-                asset = self._scan_product(product)
-                if asset is not None:
-                    with self._lock:
-                        self._cache[product_id] = asset
-            except Exception as exc:
-                errors.append(f"{product_id}: {exc}")
+            pending.append(product)
+        if pending:
+            with ThreadPoolExecutor(max_workers=min(8, len(pending))) as pool:
+                futures = {pool.submit(self._scan_product, item):
+                           str(item.get("id") or "") for item in pending}
+                for future in as_completed(futures):
+                    product_id = futures[future]
+                    try:
+                        asset = future.result()
+                        if asset is not None:
+                            with self._lock:
+                                self._cache[product_id] = asset
+                    except Exception as exc:
+                        errors.append(f"{product_id}: {exc}")
 
         with self._lock:
             fresh = [
@@ -162,6 +174,7 @@ class CoinbaseAssetUniverse:
             "available": bool(ranked),
             "product_count": len(products),
             "scanned_count": len(fresh),
+            "coverage_ratio": len(fresh) / len(products) if products else 0.0,
             "top": [item.as_dict() for item in ranked[:20]],
             "buy_top": [item.as_dict() for item in buy_ranked[:20]],
             "scored": [item.as_dict() for item in fresh],

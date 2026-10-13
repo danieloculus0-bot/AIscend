@@ -175,16 +175,14 @@ class LiveEngine:
                 policy = {"status": "DATA_UNAVAILABLE", "trade_effect": "NONE",
                           "reason": f"Policy evaluation failed: {type(exc).__name__}"}
             self.store.set_meta("bean_policy_latest", json.dumps(policy))
+            # Historical Strategy School is advisory, not an independent
+            # veto over the agent's funded, intentionally experimental trades.
             if status == "OK" and decision.action == "BUY" and policy.get("status") == "READY":
-                exam = policy["experiment"]
+                exam = policy.get("experiment")
                 target = policy.get("target") or "CASH"
-                if not self.policy_gate.permits_buy(policy, decision.symbol):
-                    decision = Decision("HOLD", None, 0.0,
-                                        f"BEAN exam #{exam} blocked Base BUY: hourly target {target}.")
-                    status = "HELD"
-                else:
-                    decision = Decision(decision.action, decision.symbol, decision.fraction,
-                                        f"{decision.rationale} BEAN exam #{exam} confirmed {target}.")
+                decision = Decision(decision.action, decision.symbol,
+                                    decision.fraction,
+                                    f"{decision.rationale} BEAN exam #{exam} advisory: {target}.")
 
         execution: SwapExecution | None = None
         if status == "OK":
