@@ -4,7 +4,7 @@ import json
 import math
 import time
 import uuid
-from decimal import Decimal
+from decimal import Decimal, ROUND_DOWN
 from typing import Any
 
 from .asset_universe import CoinbaseAssetUniverse
@@ -854,8 +854,17 @@ class AdvancedSpotEngine:
         _, quote = self._split_product(product_id)
         available = Decimal(str((snapshot.get("cash_by_quote") or {}).get(quote, 0.0)))
         spend = available * Decimal(str(decision.fraction))
-        if spend <= 0:
-            raise RuntimeError(f"Insufficient {quote} for Coinbase Advanced buy.")
+        # Coinbase requires each market's quote increment, including when
+        # spending the full quote balance. Rounding down is exchange sizing,
+        # not a policy cash reserve.
+        product_rules = self.rail.product(product_id)
+        increment = Decimal(str(product_rules.get("quote_increment") or "0.00000001"))
+        if increment <= 0 or not increment.is_finite():
+            raise RuntimeError(f"Invalid Coinbase quote increment for {product_id}.")
+        spend = (spend / increment).to_integral_value(rounding=ROUND_DOWN) * increment
+        minimum = Decimal(str(product_rules.get("quote_min_size") or "0"))
+        if spend <= 0 or spend < minimum:
+            raise RuntimeError(f"Available {quote} is below Coinbase order minimum for {product_id}.")
 
         preview = self.rail.preview_market_buy(product_id, spend)
         client_order_id = f"aiscend-{uuid.uuid4()}"
@@ -920,8 +929,14 @@ class AdvancedSpotEngine:
         product_id = str(decision.symbol)
         position = (snapshot.get("positions") or {}).get(product_id) or {}
         qty = Decimal(str(position.get("available_qty", position.get("qty", 0.0)) or 0.0)) * Decimal(str(decision.fraction))
-        if qty <= 0:
-            raise RuntimeError(f"No {product_id} position available to sell.")
+        product_rules = self.rail.product(product_id)
+        increment = Decimal(str(product_rules.get("base_increment") or "0.00000001"))
+        if increment <= 0 or not increment.is_finite():
+            raise RuntimeError(f"Invalid Coinbase base increment for {product_id}.")
+        qty = (qty / increment).to_integral_value(rounding=ROUND_DOWN) * increment
+        minimum = Decimal(str(product_rules.get("base_min_size") or "0"))
+        if qty <= 0 or qty < minimum:
+            raise RuntimeError(f"No executable {product_id} position available to sell.")
 
         client_order_id = f"aiscend-{uuid.uuid4()}"
         order = self.rail.market_sell(
