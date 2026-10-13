@@ -192,8 +192,8 @@ The default local synthetic experience needs **no exchange account, paid API or 
 
 ```text
 dist\AutonomousCapitalLab.exe
-dist\AutonomousCapitalLab-v0.17.1-windows-x64.zip
-dist\AutonomousCapitalLab-v0.17.1-windows-x64.zip.sha256
+dist\AutonomousCapitalLab-v0.17.2-windows-x64.zip
+dist\AutonomousCapitalLab-v0.17.2-windows-x64.zip.sha256
 ```
 
 The [Windows Build workflow](.github/workflows/windows-build.yml) runs on pushes and pull requests to `main`, relevant version tags, and manual dispatch. The [Adaptive Growth mock integration workflow](.github/workflows/bean-adaptive-growth-smoke.yml) exercises focused learned-action and rotation behavior on **Windows and Ubuntu**.
