@@ -6,6 +6,7 @@ uses its existing order methods and journal. No wallet or exchange imports.
 from __future__ import annotations
 
 from math import isfinite
+from concurrent.futures import ThreadPoolExecutor
 
 # A cycle processes a bounded chunk of candles/API calls. The cursor rotates
 # through the entire observed universe instead of permanently ignoring rank 9+.
@@ -51,13 +52,22 @@ def evaluate_candidates(growth_gate, snapshot, *, limit=EVALUATION_BATCH, cursor
             candidates.append((product, {"product": product}))
             seen.add(product)
 
-    results = []
-    for product, item in candidates:
+    # Market data fetching happens outside the learner's SQLite lock.
+    # Concurrent reads keep a broad evaluation from stalling each cycle.
+    def assess_one(candidate):
         try:
-            evidence = growth_gate.assess(product)
+            return growth_gate.assess(candidate[0])
         except Exception as exc:
-            evidence = {"status": "DATA_UNAVAILABLE",
-                        "reason": type(exc).__name__}
+            return {"status": "DATA_UNAVAILABLE",
+                    "reason": type(exc).__name__}
+
+    results = []
+    if candidates:
+        with ThreadPoolExecutor(max_workers=min(6, len(candidates))) as pool:
+            evidences = list(pool.map(assess_one, candidates))
+    else:
+        evidences = []
+    for (product, item), evidence in zip(candidates, evidences):
         if evidence.get("trade_effect") != "ADOPTED_LONG_CASH":
             continue
         action = str(evidence.get("learned_strategy") or "")
