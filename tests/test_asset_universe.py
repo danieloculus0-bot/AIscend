@@ -95,6 +95,10 @@ class AssetUniverseTests(unittest.TestCase):
         second=universe.collect()
         self.assertEqual(first,second)
 
+    def test_default_scan_has_more_than_eight_slots(self):
+        self.assertGreater(CoinbaseAssetUniverse().batch_size, 8)
+        self.assertGreater(CoinbaseAssetUniverse().asset_cache_seconds, 600)
+
     def test_invalid_or_crossed_books_are_not_tradable_signals(self):
         universe = FakeUniverse()
         base_get = universe._get_json
