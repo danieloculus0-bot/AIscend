@@ -97,7 +97,7 @@ def evaluate_candidates(growth_gate, snapshot, *, limit=EVALUATION_BATCH, cursor
         })
     # Scores are already net of modeled spread/fees. Do not apply another
     # arbitrary spread or volume veto after scoring the opportunity.
-    longs = [r for r in results if r["target_exposure"] and r["edge_bps"] > 0]
+    longs = [r for r in results if r["target_exposure"]]
     longs.sort(key=lambda r: (-r["edge_bps"], r["product"]))
     return {"best_long": longs[0] if longs else None,
             "evaluated": results, "universe_count": len(ranked),
