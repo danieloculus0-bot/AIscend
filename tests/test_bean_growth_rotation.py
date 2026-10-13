@@ -84,6 +84,40 @@ class RotationTests(unittest.TestCase):
             self.assertEqual(store.latest_decisions(1)[0]["status"], "LIVE_EXECUTED")
             store.close()
 
+    def test_evaluation_rotates_beyond_first_eight_without_ignoring_holdings(self):
+        class WideLearner:
+            def __init__(self):
+                self.calls = set()
+            def assess(self, product):
+                self.calls.add(product)
+                reward = 100 if product == "COIN69-USDC" else 15
+                return {"trade_effect": "ADOPTED_LONG_CASH",
+                        "learned_strategy": "momentum",
+                        "target_exposure": 1,
+                        "chosen_action_scores_bps": {"momentum": reward}}
+
+        products = [f"COIN{i:02d}-USDC" for i in range(70)]
+        snapshot = {
+            "positions": {"COIN50-USDC": {"qty": 1}},
+            "tradable_products": products,
+            "asset_universe": {"scored": [
+                {"product": p, "score": 0.70 - i * 0.01,
+                 "spread_bps": 2, "volume_ratio": 1.0}
+                for i, p in enumerate(products)]},
+        }
+        learner = WideLearner()
+        cursor = 0
+        observed_winner = False
+        for _ in range(4):
+            plan = evaluate_candidates(learner, snapshot, cursor=cursor)
+            cursor = plan["next_cursor"]
+            self.assertIn("COIN50-USDC", learner.calls)
+            self.assertEqual(plan["eligible_count"], 70)
+            if plan["best_long"] and plan["best_long"]["product"] == "COIN69-USDC":
+                observed_winner = True
+        self.assertTrue(observed_winner)
+        self.assertIn("COIN69-USDC", learner.calls)
+
     def test_rejected_held_position_sells_even_without_cash(self):
         with tempfile.TemporaryDirectory() as temp:
             store = StateStore(Path(temp) / "account.db")
