@@ -7,29 +7,44 @@ from __future__ import annotations
 
 from math import isfinite
 
-SCAN_LIMIT = 8
-ROTATION_BPS = 18.0
+# A cycle processes a bounded chunk of candles/API calls. The cursor rotates
+# through the entire observed universe instead of permanently ignoring rank 9+.
+# This is a throughput budget, not a restriction on which assets BEAN may trade.
+EVALUATION_BATCH = 48
 
 
-def evaluate_candidates(growth_gate, snapshot, *, limit=SCAN_LIMIT):
+def evaluate_candidates(growth_gate, snapshot, *, limit=EVALUATION_BATCH, cursor=0):
     universe = snapshot.get("asset_universe") or {}
     ranked = universe.get("scored") or universe.get("buy_top") or universe.get("top") or []
     tradable = set(snapshot.get("tradable_products") or ())
     positions = snapshot.get("positions") or {}
-    seen = set()
     candidates = []
-    for item in sorted(ranked, key=lambda x: float(
-            x.get("decision_score") if x.get("decision_score") is not None
-            else x.get("score") or 0.0), reverse=True):
+    ordered = sorted(ranked, key=lambda x: float(
+        x.get("decision_score") if x.get("decision_score") is not None
+        else x.get("score") or 0.0), reverse=True)
+    eligible = []
+    seen = set()
+    for item in ordered:
         product = str(item.get("product") or "").upper()
         if (not product or product in seen or
                 (tradable and product not in tradable) or
                 not product.endswith(("-USD", "-USDC"))):
             continue
-        candidates.append((product, item))
+        eligible.append((product, item))
         seen.add(product)
-        if len(candidates) >= limit:
-            break
+    # Keep high-scoring candidates in every cycle while rolling across all
+    # other observed products. Held positions always get assessed regardless.
+    budget = max(2, int(limit))
+    top_count = min(len(eligible), max(1, budget // 2))
+    selected = eligible[:top_count]
+    remainder = eligible[top_count:]
+    rotation_count = min(len(remainder), budget - len(selected))
+    if remainder:
+        offset = int(cursor) % len(remainder)
+        selected.extend(remainder[(offset + i) % len(remainder)]
+                        for i in range(rotation_count))
+    candidates.extend(selected)
+    seen = {product for product, _ in candidates}
     # Explicitly evaluate owned assets even if absent from the scanner.
     for product in positions:
         if product not in seen and (not tradable or product in tradable):
@@ -70,9 +85,12 @@ def evaluate_candidates(growth_gate, snapshot, *, limit=SCAN_LIMIT):
             "behavior_revisions": evidence.get("behavior_revisions", 0),
             "already_held": product in positions,
         })
-    longs = [r for r in results if r["target_exposure"]
-             and r["volume_ratio"] >= .4 and r["spread_bps"] <= 50]
+    # Scores are already net of modeled spread/fees. Do not apply another
+    # arbitrary spread or volume veto after scoring the opportunity.
+    longs = [r for r in results if r["target_exposure"] and r["edge_bps"] > 0]
     longs.sort(key=lambda r: (-r["edge_bps"], r["product"]))
     return {"best_long": longs[0] if longs else None,
             "evaluated": results, "universe_count": len(ranked),
-            "assessed_count": len(candidates), "rotation_cost_bps": ROTATION_BPS}
+            "eligible_count": len(eligible),
+            "assessed_count": len(candidates),
+            "next_cursor": (int(cursor) + rotation_count) % max(1, len(remainder))}
