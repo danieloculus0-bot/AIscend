@@ -11,7 +11,7 @@ from .asset_universe import CoinbaseAssetUniverse
 from .audit import AuditTrail
 from .bean import BeanMemory
 from .bean_policy import BeanPolicyGate
-from .bean_growth_rotation import evaluate_candidates, ROTATION_BPS
+from .bean_growth_rotation import evaluate_candidates
 from .core import Decision, StateStore
 from .game import score_game
 from .listing_sentinel import CoinbaseListingSentinel
@@ -603,12 +603,36 @@ class AdvancedSpotEngine:
                                   radar.get("weakest_held")) if x]
             selection_snapshot = dict(snapshot)
             selection_snapshot["asset_universe"] = {"scored": seeds}
-        plan = evaluate_candidates(self.growth_gate, selection_snapshot)
+        cursor = int(self.store.get_meta("bean_rotation_cursor") or "0")
+        plan = evaluate_candidates(self.growth_gate, selection_snapshot,
+                                   cursor=cursor)
+        self.store.set_meta("bean_rotation_cursor", str(plan["next_cursor"]))
         winner = plan["best_long"]
+        # Prefer markets funded by spendable cash or a held asset that can
+        # actually be liquidated into the market's quote currency. Otherwise
+        # a nominally better but unreachable USD market can strand USDC.
+        accessible_quotes = {
+            quote for quote, value in (snapshot.get("cash_by_quote") or {}).items()
+            if float(value) > 0
+        }
+        accessible_quotes.update(
+            self._split_product(product)[1]
+            for product in (snapshot.get("positions") or {})
+        )
+        if winner and self._split_product(winner["product"])[1] not in accessible_quotes:
+            alternatives = sorted(
+                (item for item in plan["evaluated"]
+                 if item["target_exposure"] and item["edge_bps"] > 0
+                 and self._split_product(item["product"])[1] in accessible_quotes),
+                key=lambda item: item["edge_bps"], reverse=True)
+            winner = alternatives[0] if alternatives else None
         evaluated = {x["product"]: x for x in plan["evaluated"]}
         self.store.set_meta("bean_growth_latest", json.dumps({
             "trade_effect": "ADOPTED_PORTFOLIO_STRATEGY",
             "winner": winner, "assessed_count": plan["assessed_count"],
+            "eligible_count": plan["eligible_count"],
+            "universe_count": plan["universe_count"],
+            "next_cursor": plan["next_cursor"],
             "ranked": sorted(plan["evaluated"],
                              key=lambda x: x["edge_bps"], reverse=True),
         }))
@@ -624,9 +648,11 @@ class AdvancedSpotEngine:
             target = winner["product"] if winner else None
             old_edge = current["edge_bps"] if current["target_exposure"] else 0
             new_edge = winner["edge_bps"] if winner else 0
+            # Rank on modeled net rewards rather than an extra fixed 18-bps
+            # veto. Exit learned cash/negative-edge holds to free capital.
             rotate = bool(winner and target != held_product
-                          and new_edge > old_edge + ROTATION_BPS)
-            if (not current["target_exposure"]) or rotate:
+                          and new_edge > old_edge)
+            if (not current["target_exposure"] or old_edge <= 0) or rotate:
                 decision = Decision("SELL", held_product, 1.0,
                     "BEAN learned rotation " + held_product + " to "
                     + (target or "cash") + "; learned net edge "
@@ -671,10 +697,9 @@ class AdvancedSpotEngine:
             cash = float((snapshot.get("cash_by_quote") or {}).get(quote, 0.0))
             # A learned long target is a position, not permission to
             # repeatedly buy the same already-held asset every minute.
-            if (spread <= 50.0 and volume >= .40 and cash > 0.0
-                    and product not in snapshot.get("positions", {})):
+            if cash > 0.0 and product not in snapshot.get("positions", {}):
                 action, symbol = "BUY", product
-                fraction = min(.85, max(.20, .20 + abs(score) * .65))
+                fraction = 1.0
         if action == "HOLD" and growth["target_exposure"]:
             _, quote = self._split_product(product)
             available_cash = float((snapshot.get("cash_by_quote") or {}).get(quote, 0))
@@ -715,7 +740,7 @@ class AdvancedSpotEngine:
             "HOLD",
             None,
             0.0,
-            "No Coinbase spot trade clears the current threshold.",
+            "No positive opportunity currently executable with available funds.",
         )
         status = "HELD"
 
@@ -724,8 +749,16 @@ class AdvancedSpotEngine:
             held_score = float(
                 weakest.get("decision_score") if weakest.get("decision_score") is not None else (weakest.get("score") or 0.0)
             )
-            if held_score <= -0.14 and held_product in before["positions"]:
-                fraction = min(1.0, max(0.35, 0.35 + abs(held_score) * 0.65))
+            best_score = float(
+                (best.get("decision_score") if best and best.get("decision_score") is not None
+                 else best.get("score") or 0.0) if best else 0.0
+            )
+            improvement = bool(
+                best and best.get("product") != held_product
+                and best_score > max(0.0, held_score)
+            )
+            if (held_score < 0.0 or improvement) and held_product in before["positions"]:
+                fraction = 1.0
                 decision = Decision(
                     "SELL",
                     held_product,
@@ -755,12 +788,11 @@ class AdvancedSpotEngine:
             )
 
             if (
-                score >= 0.18
-                and spread_bps <= 50.0
-                and volume_ratio >= 0.40
+                score > 0.0
                 and available_quote > 0.0
+                and product_id not in before["positions"]
             ):
-                fraction = min(0.85, max(0.20, 0.20 + abs(score) * 0.65))
+                fraction = 1.0
                 listing_event = best.get("listing_event")
                 listing_note = ""
                 if isinstance(listing_event, dict):
@@ -788,19 +820,8 @@ class AdvancedSpotEngine:
                         f"{human_note}"
                     ),
                 )
-                if policy.get("status") == "READY":
-                    exam = policy["experiment"]
-                    target = policy.get("target") or "CASH"
-                    if not self.policy_gate.permits_buy(policy, decision.symbol):
-                        decision = Decision(
-                            "HOLD", None, 0.0,
-                            f"BEAN exam #{exam} blocked Advanced BUY {product_id}; "
-                            f"completed-hour target {target}.")
-                    else:
-                        decision = Decision(decision.action, decision.symbol,
-                                            decision.fraction,
-                                            f"{decision.rationale} BEAN exam #{exam} "
-                                            f"confirmed {target}.")
+                # Strategy School is advisory. A historical single-asset
+                # exam must not veto a live opportunity across the universe.
                 if decision.action == "BUY" and self.growth_gate is not None:
                     growth = self.growth_gate.assess(decision.symbol)
                     self.store.set_meta("bean_growth_latest", json.dumps(growth))
