@@ -165,7 +165,7 @@ class FakeUniverse:
 
 
 class AdvancedLiveTests(unittest.TestCase):
-    def test_bean_gate_can_veto_advanced_buy_without_touching_wallet(self):
+    def test_hourly_bean_exam_cannot_veto_advanced_opportunity(self):
         class BeanDisagrees:
             def assess(self):
                 return {"status": "READY", "experiment": 66,
@@ -185,10 +185,11 @@ class AdvancedLiveTests(unittest.TestCase):
             )
             after = engine.step()
             row = store.latest_decisions(1)[0]
-            self.assertEqual(row["action"], "HOLD")
-            self.assertIn("BEAN exam #66 blocked", row["rationale"])
-            self.assertEqual(after["cash"], 25.0)
-            self.assertFalse(rail.buys)
+            self.assertEqual(row["action"], "BUY")
+            self.assertEqual(row["status"], "LIVE_EXECUTED")
+            self.assertEqual(after["cash"], 0.0)
+            self.assertTrue(rail.buys)
+            self.assertEqual(rail.buys[0][1], Decimal("25.00"))
             store.close()
 
     def test_no_candle_evidence_does_not_fake_trade_signal(self):
