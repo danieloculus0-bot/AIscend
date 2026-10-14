@@ -155,34 +155,19 @@ class LiveEngine:
         growth = self.growth_gate.assess("WETH") if self.growth_gate is not None else None
         if growth is not None:
             self.store.set_meta("bean_growth_latest", json.dumps(growth))
-        adopted = bool(growth and growth.get("trade_effect") == "ADOPTED_LONG_CASH")
-        if adopted:
-            target = int(growth["target_exposure"])
-            cash = float(before.get("cash") or 0)
-            held = float((before.get("positions") or {}).get("WETH", {}).get("qty") or 0)
-            rationale = "BEAN learned " + str(growth["learned_strategy"]) + " (executed mock rewards)."
-            if target and cash > 0.000001:
-                proposed = Decision("BUY", "WETH", 1.0, rationale)
-            elif not target and held > 0:
-                proposed = Decision("SELL", "WETH", 1.0, rationale)
-            else:
-                proposed = Decision("HOLD", None, 0.0, rationale)
-            decision, status = RiskGovernor.normalize(proposed, before)
-        else:
-            try:
-                policy = self.policy_gate.assess()
-            except Exception as exc:
-                policy = {"status": "DATA_UNAVAILABLE", "trade_effect": "NONE",
-                          "reason": f"Policy evaluation failed: {type(exc).__name__}"}
-            self.store.set_meta("bean_policy_latest", json.dumps(policy))
-            # Historical Strategy School is advisory, not an independent
-            # veto over the agent's funded, intentionally experimental trades.
-            if status == "OK" and decision.action == "BUY" and policy.get("status") == "READY":
-                exam = policy.get("experiment")
-                target = policy.get("target") or "CASH"
-                decision = Decision(decision.action, decision.symbol,
-                                    decision.fraction,
-                                    f"{decision.rationale} BEAN exam #{exam} advisory: {target}.")
+        # BEAN is evidence/research. Base's native decider owns BUY/SELL/HOLD,
+        # exactly as Advanced's primary policy owns Advanced Spot execution.
+        try:
+            policy = self.policy_gate.assess()
+        except Exception as exc:
+            policy = {"status": "DATA_UNAVAILABLE", "trade_effect": "NONE",
+                      "reason": f"Policy evaluation failed: {type(exc).__name__}"}
+        self.store.set_meta("bean_policy_latest", json.dumps(policy))
+        if status == "OK" and decision.action == "BUY" and policy.get("status") == "READY":
+            decision = Decision(
+                decision.action, decision.symbol, decision.fraction,
+                f"{decision.rationale} BEAN exam #{policy.get('experiment')} advisory "
+                f"({policy.get('target') or 'CASH'}).")
 
         execution: SwapExecution | None = None
         if status == "OK":
