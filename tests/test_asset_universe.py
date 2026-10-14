@@ -104,12 +104,22 @@ class AssetUniverseTests(unittest.TestCase):
         universe=FakeUniverse()
         first=universe.collect()
         item=universe._cache["AAA-USD"]
-        universe._cache["AAA-USD"]=replace(
-            item,score=-0.99,scanned_at=time.time()-90)
-        refreshed=universe.collect(priority_products=["AAA-USD"])
-        current=universe._cache["AAA-USD"]
-        self.assertGreater(current.scanned_at,item.scanned_at)
-        self.assertNotEqual(current.score,-0.99)
+        stale = replace(item,score=-0.99,scanned_at=time.time()-90)
+        universe._cache["AAA-USD"] = stale
+        refreshed_products = []
+        original_scan = universe._scan_product
+
+        def recorded_scan(product):
+            refreshed_products.append(product["id"])
+            return original_scan(product)
+
+        universe._scan_product = recorded_scan
+        universe.collect(priority_products=["AAA-USD"])
+        current = universe._cache["AAA-USD"]
+        self.assertIn("AAA-USD", refreshed_products,
+                      "Held assets must trigger a fresh Coinbase request")
+        self.assertGreater(current.scanned_at, stale.scanned_at)
+        self.assertNotEqual(current.score, -0.99)
 
     def test_invalid_or_crossed_books_are_not_tradable_signals(self):
         universe = FakeUniverse()
