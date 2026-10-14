@@ -913,7 +913,7 @@ async function refreshTradingDiagnostics(){
       Number(skip.no_quote_path||0)+' · order attempted '+
       (!!p.order_attempted?'YES':'NO')+
       (j.order_evidence?.state?' · Coinbase evidence '+j.order_evidence.state:'')+
-      (j.bean_bridge?.connected?' · BEAN local core connected':' · BEAN local core NOT VERIFIED')+
+      (j.bean_bridge?.installed_verified?' · BEAN core checkout verified (manual research only)':' · BEAN local core NOT CONNECTED')+
       (run.last_error?' · runner error '+run.last_error:'');
   } catch(err) {
     $('primaryPolicyStatus').textContent='Diagnostics unavailable: '+err.message;
