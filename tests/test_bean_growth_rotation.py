@@ -81,7 +81,7 @@ class RotationTests(unittest.TestCase):
             engine._adopt_growth(self.snapshot(cash={"USDC": 22.0}), radar)
             self.assertEqual(calls[1][:2], ("BUY", "ALEO-USDC"))
             self.assertEqual(store.latest_decisions(1)[0]["symbol"], "ALEO-USDC")
-            self.assertEqual(store.latest_decisions(1)[0]["status"], "LIVE_EXECUTED")
+            self.assertEqual(store.latest_decisions(1)[0]["status"], "ORDER_ACCEPTED_UNVERIFIED")
             store.close()
 
     def test_evaluation_rotates_beyond_first_eight_without_ignoring_holdings(self):
