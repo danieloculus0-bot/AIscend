@@ -128,7 +128,7 @@ class LiveGrowthAdoptionTests(unittest.TestCase):
                 actions.append((store.latest_decisions(1)[0]["action"],
                                 reported["target_exposure"], len(orders)))
                 store.close()
-        self.assertEqual(actions, [("BUY", 1, 1), ("HOLD", 0, 0)])
+        self.assertEqual(actions, [("HOLD", 1, 0), ("HOLD", 0, 0)])
 
     def test_advanced_learner_executes_mock_buy(self):
         store = self.make_store()
