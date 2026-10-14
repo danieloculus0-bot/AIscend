@@ -46,9 +46,14 @@ def verified_order(detail: dict[str, Any] | None, order_id: str) -> dict[str, An
                 "total_fees": order.get("total_fees"),
                 "evidence": "coinbase_authenticated_order_detail"}
     if status in {"FAILED", "REJECTED", "CANCELLED", "EXPIRED"}:
+        if quantity.is_finite() and quantity > 0:
+            return {"state": "PARTIAL_FILL_REQUIRES_RECONCILIATION",
+                    "order_id": order_id, "venue_status": status,
+                    "filled_size": str(quantity),
+                    "reason": "Partially filled terminal order; exchange fills and balances must be reconciled"}
         return {"state": "VENUE_NOT_FILLED", "order_id": order_id,
                 "venue_status": status,
-                "reason": "Authenticated venue did not confirm a full fill"}
+                "reason": "Authenticated venue confirmed zero filled quantity"}
     return {"state": "ORDER_ACCEPTED_UNVERIFIED", "order_id": order_id,
             "venue_status": status,
             "reason": "Accepted submission but no full Coinbase fill confirmation"}
