@@ -355,7 +355,7 @@
         </div>
         <button class="stop" onclick="stopRunner()">STOP</button>
         <button onclick="refreshStatus()">REFRESH</button>
-        <div id="beanLivePolicy" class="small" style="margin-top:10px">BEAN live gate: awaiting first cycle.</div>
+        <div id="beanLivePolicy" class="small" style="margin-top:10px">BEAN advisory research: awaiting first observation.</div>
       </div>
 
       <div class="panel" style="margin-top:14px">
@@ -578,13 +578,13 @@ function renderBeanLab(payload){
   $('beanLabGateStatus').textContent=gate.status==='READY'
     ? 'Independent BEAN gate: READY · exam #'+gate.experiment+
       ' · target '+(gate.target||'CASH')+' · '+Number(gate.bars||0)+
-      ' completed hourly candles · verifies existing buys only'
+      ' completed hourly candles · advisory only (no buy veto)'
     : 'Independent BEAN gate: '+(gate.status||'NOT EVALUATED')+
       (gate.reason?' · '+gate.reason:'')+
       '. This reading does not place or approve a real-money order.';
   $('beanLabActivation').textContent=payload.live_strategy_activation==='BUY_CONFIRMATION_GATE'
-    ? 'No approval required for research selection. Live BUY confirmation is installed; SELL protection unchanged. Research results never originate orders.'
-    : 'No approval required for research selection. Deployment: NOT ACTIVE. Historical research does not initiate live orders.';
+    ? 'Legacy BUY_CONFIRMATION_GATE flag detected; this is no longer an order authority. AIscend owns trading decisions.'
+    : 'Research-only. AIscend decides BUY/SELL/HOLD; BEAN cannot place or veto orders.';
   $('beanLabRun').disabled=!!latest||beanLabRunning;
   $('beanLabRetry').disabled=!latest||beanLabRunning;
   if(!latest){ $('beanLabResult').textContent='Research only. BEAN can run an exam without placing a trade.'; }
