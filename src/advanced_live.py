@@ -903,7 +903,7 @@ class AdvancedSpotEngine:
         self.store.set_meta("last_coinbase_submission_state", state)
         self.store.set_meta("last_coinbase_submission_evidence",
                             json.dumps(observation))
-        if callable(getter) and state == "ORDER_ACCEPTED_UNVERIFIED":
+        if state not in {"FILLED_VERIFIED", "VENUE_NOT_FILLED"}:
             # Block subsequent dependent orders until Coinbase confirms the
             # fill or rejection. Never resubmit a possibly accepted order.
             self.store.set_meta("pending_coinbase_order", json.dumps({
@@ -947,7 +947,7 @@ class AdvancedSpotEngine:
                 rationale = f"Coinbase order {order_id} did not fill: {observed.get('venue_status')}"
             return Decision("HOLD", None, 0.0, rationale), state
         return Decision("HOLD", None, 0.0,
-            f"Awaiting authenticated Coinbase fill for {product} order {order_id}. "
+            f"Awaiting authenticated Coinbase reconciliation for {product} order {order_id}. "
             f"Last check: {observed.get('reason','not filled yet')}."), "ORDER_AWAITING_VERIFICATION"
 
     def _primary_trade_step(self, snapshot: dict[str, Any]) -> dict[str, Any]:
@@ -1138,18 +1138,9 @@ class AdvancedSpotEngine:
 
         try:
             base, quote = self._split_product(product_id)
-            estimated_base = self.audit.provider_id(
-                preview,
-                "base_size",
-                "estimated_base_size",
-                "base_size_total",
-            )
-            unit_price = None
-            if estimated_base:
-                try:
-                    unit_price = spend / Decimal(estimated_base)
-                except Exception:
-                    unit_price = None
+            actual_base = evidence.get("filled_size") if result_state == "FILLED_VERIFIED" else None
+            actual_quote = evidence.get("filled_value") if result_state == "FILLED_VERIFIED" else None
+            actual_price = evidence.get("average_filled_price") if result_state == "FILLED_VERIFIED" else None
             self.audit.record_trade(
                 venue="coinbase",
                 rail="coinbase-advanced",
@@ -1158,9 +1149,10 @@ class AdvancedSpotEngine:
                 product_id=product_id,
                 base_asset=base,
                 quote_asset=quote,
-                base_quantity=estimated_base or None,
-                quote_quantity=spend,
-                unit_price_quote=unit_price,
+                base_quantity=actual_base,
+                quote_quantity=actual_quote,
+                unit_price_quote=actual_price,
+                fee_quantity=evidence.get("total_fees") if result_state == "FILLED_VERIFIED" else None,
                 order_id=self.audit.provider_id(order, "order_id", "orderId"),
                 client_order_id=client_order_id,
                 status=result_state.lower(),
@@ -1175,7 +1167,7 @@ class AdvancedSpotEngine:
                 0.0,
                 0.0,
                 0.0,
-                f"Advanced BUY executed but audit write failed: {exc}",
+                f"Coinbase BUY submission accepted but audit write failed: {exc}",
             )
 
 
@@ -1226,7 +1218,9 @@ class AdvancedSpotEngine:
                 product_id=product_id,
                 base_asset=base,
                 quote_asset=quote,
-                base_quantity=qty,
+                base_quantity=evidence.get("filled_size") if result_state == "FILLED_VERIFIED" else None,
+                quote_quantity=evidence.get("filled_value") if result_state == "FILLED_VERIFIED" else None,
+                fee_quantity=evidence.get("total_fees") if result_state == "FILLED_VERIFIED" else None,
                 order_id=self.audit.provider_id(order, "order_id", "orderId"),
                 client_order_id=client_order_id,
                 status=result_state.lower(),
@@ -1241,7 +1235,7 @@ class AdvancedSpotEngine:
                 0.0,
                 0.0,
                 0.0,
-                f"Advanced SELL executed but audit write failed: {exc}",
+                f"Coinbase SELL submission accepted but audit write failed: {exc}",
             )
 
 
