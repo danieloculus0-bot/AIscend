@@ -4,7 +4,7 @@ from pathlib import Path
 
 from src.coinbase_order_evidence import accepted_order_id, verified_order
 from src.advanced_live import AdvancedSpotEngine
-from src.core import StateStore
+from src.core import StateStore, Decision
 
 
 class OrderEvidenceTests(unittest.TestCase):
@@ -60,6 +60,35 @@ class OrderEvidenceTests(unittest.TestCase):
                 decision,state=engine._pending_order_decision()
                 self.assertEqual(state,"FILLED_VERIFIED")
                 self.assertEqual(store.get_meta("pending_coinbase_order"),"")
+            finally:
+                store.close()
+
+    def test_network_timeout_preserves_order_intent_without_resubmission(self):
+        class AmbiguousRail:
+            def product(self, product_id):
+                return {"quote_increment":"0.01","quote_min_size":"1"}
+            def preview_market_buy(self, product_id, qty):
+                return {"preview_id":"local-test"}
+            def market_buy(self, product_id, qty, client_order_id):
+                raise ConnectionError("No response; Coinbase outcome unknown")
+            def order_detail(self, order_id):
+                raise AssertionError("No order ID was received")
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td)/"ambiguous.db")
+            try:
+                engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                engine.store = store
+                engine.rail = AmbiguousRail()
+                with self.assertRaises(ConnectionError):
+                    engine._execute_buy(
+                        Decision("BUY", "ALEO-USD", 1.0, "test"),
+                        {"cash_by_quote":{"USD":25}})
+                pending=store.get_meta("pending_coinbase_order")
+                self.assertTrue(pending)
+                self.assertIn("client_order_id",pending)
+                decision,status=engine._pending_order_decision()
+                self.assertEqual(status,"ORDER_AWAITING_VERIFICATION")
+                self.assertEqual(decision.action,"HOLD")
             finally:
                 store.close()
 
