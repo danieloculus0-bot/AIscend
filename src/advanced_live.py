@@ -662,7 +662,7 @@ class AdvancedSpotEngine:
             str(row.get("product") or ""): float(row.get("spread_bps") or 0.0)
             for row in rows
         }
-        bridge_spread = known_spreads.get("USDC-USD", 0.0)
+        bridge_spread = known_spreads.get("USDC-USD", 10.0)
         source_quotes = {
             quote for quote, amount in cash.items() if float(amount) > 0
         }
@@ -680,11 +680,12 @@ class AdvancedSpotEngine:
                 bridge = source_quote != quote
                 if bridge and bridge_order(source_quote, quote, tradable) is None:
                     continue
-                for held_product in (list(held) or [None]):
+                for held_product in [None, *held]:
                     selling = held_product is not None and held_product != product
-                    if selling and self._split_product(held_product)[1] != source_quote:
+                    owned = held_product == product
+                    if held_product and self._split_product(held_product)[1] != source_quote:
                         continue
-                    if not selling and float(cash.get(source_quote, 0.0)) <= 0:
+                    if not selling and not owned and float(cash.get(source_quote, 0.0)) <= 0:
                         continue
                     options = score_route(
                         item, taker_fee_bps=fee_bps, bridge=bridge,
@@ -693,9 +694,25 @@ class AdvancedSpotEngine:
                         selling_incumbent=selling)
                     options["source_quote"] = source_quote
                     options["source_asset"] = held_product if selling else None
+                    options["already_held"] = bool(owned)
+                    # Choosing the most favorable percentage on $0.88 while
+                    # ignoring $20 in existing positions strands the bankroll.
+                    available_notional = float(cash.get(source_quote, 0.0))
+                    if selling or owned:
+                        base = self._split_product(held_product)[0]
+                        usd_value = (snapshot.get("balance_values_usd") or {}).get(base)
+                        if usd_value is None:
+                            qty = float(held[held_product].get("available_qty",
+                                        held[held_product].get("qty", 0)) or 0)
+                            price = float((snapshot.get("prices") or {}).get(held_product) or 0)
+                            usd_value = qty * price if price > 0 else max(1.0, qty)
+                        available_notional = float(usd_value)
+                    options["available_notional"] = available_notional
+                    options["projected_gain_units"] = round(
+                        options["net_projected_bps"] * available_notional / 10000, 8)
                     choices.append(options)
             if choices:
-                best_route = max(choices, key=lambda x: x["net_projected_bps"])
+                best_route = max(choices, key=lambda x: x["projected_gain_units"])
                 # Older mock learners lack scored rewards. Retain support for
                 # testing their adoption path; real policy has explicit scores.
                 if item.get("reward_available") and best_route["net_projected_bps"] <= 0:
@@ -708,7 +725,7 @@ class AdvancedSpotEngine:
             item for item in ranked if item["target_exposure"]
             and not item.get("reason_skipped")
         ]
-        winner = (max(candidates, key=lambda x: x["net_projected_bps"])
+        winner = (max(candidates, key=lambda x: x["projected_gain_units"])
                   if candidates else None)
         self.store.set_meta("bean_growth_latest", json.dumps({
             "trade_effect": "ADOPTED_COST_AWARE_PORTFOLIO_STRATEGY",
@@ -730,7 +747,9 @@ class AdvancedSpotEngine:
             key = "bean_maturity_at:" + held_product
             expires = float(self.store.get_meta(key) or "0")
             if not expires:
-                expires = now + 60 * maturity_minutes(current or {})
+                # Legacy holdings predate the new strategy clock. Observe them
+                # before applying a timed exit, unless BEAN recommends cash.
+                expires = now + 60 * (maturity_minutes(current) if current else 60)
                 self.store.set_meta(key, str(expires))
             matured = now >= expires
             # Incumbent economics count only its future exit, not a BUY fee
