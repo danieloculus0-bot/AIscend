@@ -15,7 +15,7 @@ class LearnedPolicy:
         self.calls.append(product)
         profiles = {
             "ETH-USDC": ("momentum", 1, 8),
-            "ALEO-USDC": ("reversion", 1, 55),
+            "ALEO-USDC": ("reversion", 1, 400),
             "DIMO-USDC": ("cash", 0, 0),
         }
         action, target, reward = profiles[product]

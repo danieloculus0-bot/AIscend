@@ -192,6 +192,35 @@ class AdvancedLiveTests(unittest.TestCase):
             self.assertEqual(rail.buys[0][1], Decimal("25.00"))
             store.close()
 
+    def test_existing_holdings_are_forced_into_each_market_scan(self):
+        class ObservedUniverse(FakeUniverse):
+            seen = None
+            def collect(self, priority_products=None):
+                self.seen = list(priority_products or [])
+                return super().collect(priority_products=priority_products)
+
+        class HeldRail(FakeRail):
+            def status(self):
+                return AdvancedTradeStatus(
+                    configured=True,
+                    balances=(AdvancedBalance("USDC", Decimal("0.9"), Decimal("0")),
+                              AdvancedBalance("GROVE", Decimal("10"), Decimal("0"))),
+                    tradable_spot_products=2,
+                    product_ids=("GROVE-USDC", "ALEO-USDC"))
+
+        with tempfile.TemporaryDirectory() as td:
+            store=StateStore(Path(td)/"held.db")
+            try:
+                universe=ObservedUniverse()
+                engine=AdvancedSpotEngine(
+                    store,rail=HeldRail(),asset_universe=universe,
+                    listing_sentinel=FakeListingSentinel(),
+                    human_researcher=FakeHumanResearch())
+                engine.sync()
+                self.assertIn("GROVE-USDC", universe.seen)
+            finally:
+                store.close()
+
     def test_no_candle_evidence_does_not_fake_trade_signal(self):
         class BeanUnavailable:
             def assess(self):
@@ -390,10 +419,10 @@ class AdvancedLiveTests(unittest.TestCase):
                         "base": "SHIT",
                         "quote": "USDC",
                         "price": 0.01,
-                        "return_5m": 0.0,
-                        "return_1h": 0.0,
+                        "return_5m": 0.06,
+                        "return_1h": 0.09,
                         "return_6h": 0.0,
-                        "volume_ratio": 1.0,
+                        "volume_ratio": 4.0,
                         "spread_bps": 12.0,
                         "score": 0.0,
                     }],
@@ -423,7 +452,7 @@ class AdvancedLiveTests(unittest.TestCase):
             self.assertEqual(row["action"], "BUY")
             self.assertEqual(row["symbol"], "SHIT-USDC")
             self.assertEqual(row["status"], "LIVE_EXECUTED")
-            self.assertIn("Public listing signal", row["rationale"])
+            self.assertIn("breakout BUY", row["rationale"])
             store.close()
 
     def test_human_weather_populates_and_fuses_advanced_score(self):
