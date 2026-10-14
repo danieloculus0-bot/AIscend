@@ -14,6 +14,7 @@ from .bean_policy import BeanPolicyGate
 from .bean_growth_rotation import evaluate_candidates
 from .bean_rotation_economics import (score_route, bridge_order,
                                       maturity_minutes, trade_cost_bps)
+from .primary_strategy import select_plan, proposals, exit_reason
 from .core import Decision, StateStore
 from .game import score_game
 from .listing_sentinel import CoinbaseListingSentinel
@@ -844,6 +845,139 @@ class AdvancedSpotEngine:
         self.store.add_decision(decision, status)
         return self.sync()
 
+    def _primary_trade_step(self, snapshot: dict[str, Any]) -> dict[str, Any]:
+        """AIscend, not BEAN, owns Coinbase Advanced live trading decisions.
+
+        BEAN's hypothesis/reward research is separate and may be compared with
+        this durable plan after execution. One confirmed order leg per cycle.
+        """
+        fee_bps, fee_source = self._taker_cost_bps()
+        plan = select_plan(snapshot, taker_bps=fee_bps)
+        positions = snapshot.get("positions") or {}
+        winner = plan["winner"]
+        plan["primary_engine"] = "aiscend_price_action_v1"
+        plan["fee_source"] = fee_source
+        plan["fee_bps"] = fee_bps
+        plan["bean_role"] = "research_advisory_only"
+        plan["order_attempted"] = False
+        plan["decision_reason"] = None
+        now = time.time()
+
+        def write(decision, status):
+            plan["decision"] = decision.action
+            plan["decision_reason"] = decision.rationale
+            plan["execution_status"] = status
+            self.store.set_meta("primary_trade_plan_latest", json.dumps(plan))
+            self.store.add_decision(decision, status)
+            return self.sync()
+
+        # Existing capital is the first-class input. Do not discard its
+        # ownership or assume a low cash balance means no trading opportunities.
+        for product, holding in positions.items():
+            available = float(holding.get("available_qty",
+                              holding.get("qty", 0)) or 0)
+            if available <= 0:
+                continue
+            key = "primary_maturity_at:" + product
+            deadline = float(self.store.get_meta(key) or "0")
+            if not deadline:
+                rows = (snapshot.get("asset_universe") or {}).get("scored") or []
+                current_row = next((x for x in rows
+                                    if str(x.get("product") or "") == product), {})
+                signals = proposals(current_row)
+                horizon = max((s["maturity_minutes"] for s in signals), default=60)
+                deadline = now + horizon * 60
+                self.store.set_meta(key, str(deadline))
+            issue = exit_reason(product, snapshot, deadline_reached=now >= deadline)
+            candidate = bool(winner and winner["source_asset"] == product)
+            if candidate:
+                # Opportunity cost is NOT just the replacement's expected
+                # return. Compare against the current asset's future
+                # signal, rather than churning out of another strong trend.
+                rows = (snapshot.get("asset_universe") or {}).get("scored") or []
+                current_row = next((x for x in rows
+                                    if str(x.get("product") or "") == product), {})
+                signal = proposals(current_row)
+                existing_gross = max((x["gross_projection_bps"]
+                                      for x in signal), default=0.0)
+                if winner["net_projected_bps"] <= existing_gross:
+                    candidate = False
+                    plan["incumbent_advantage_bps"] = round(existing_gross, 3)
+            if issue or candidate:
+                reason = issue or "better_net_route"
+                target = winner["product"] if candidate else "cash"
+                rationale = (f"AIscend {reason}: SELL {product} toward {target}; "
+                             f"maturity={deadline:.0f}; "
+                             f"route_net={winner['net_projected_bps'] if winner else 0:+.2f}bps; "
+                             f"taker={fee_bps:.2f}bps.")
+                decision = Decision("SELL", product, 1.0, rationale)
+                plan["order_attempted"] = True
+                try:
+                    self._execute_sell(decision, snapshot)
+                    self.store.set_meta(key, "0")
+                    status = "LIVE_EXECUTED"
+                except Exception as exc:
+                    status = "EXECUTION_ERROR"
+                    decision = Decision("SELL", product, 1.0,
+                                        rationale + f" Execution failed: {exc}")
+                return write(decision, status)
+
+        if winner is None:
+            skipped = plan.get("skipped") or {}
+            rationale = (
+                "AIscend HOLD: no cost-positive executable entry in "
+                f"{plan['examined']} scanned assets; "
+                f"signals={plan['candidate_signals']}, "
+                f"routes={plan['costed_routes']}, "
+                f"below_cost={skipped.get('negative_net_edge',0)}, "
+                f"no_quote_path={skipped.get('no_quote_path',0)}. "
+                "Current holdings evaluated separately for exits."
+            )
+            return write(Decision("HOLD", None, 0.0, rationale), "HELD")
+
+        source_asset = winner.get("source_asset")
+        product = winner["product"]
+        target_quote = self._split_product(product)[1]
+        source_quote = winner["source_quote"]
+        if source_asset:
+            reason = (f"AIscend HOLD: {product} would require selling "
+                      f"{source_asset}, but holding it currently scores "
+                      "better or equal after route costs.")
+            return write(Decision("HOLD", None, 0.0, reason), "HELD")
+
+        if source_quote != target_quote:
+            rationale = (f"AIscend cross-quote route toward {product}: "
+                         f"{source_quote}->{target_quote}; net "
+                         f"{winner['net_projected_bps']:+.2f}bps after all legs.")
+            plan["order_attempted"] = True
+            try:
+                decision = self._execute_quote_bridge(
+                    source_quote, target_quote, snapshot, rationale)
+                status = "LIVE_EXECUTED"
+            except Exception as exc:
+                status = "EXECUTION_ERROR"
+                decision = Decision("HOLD", None, 0.0,
+                                    rationale + f" Conversion failed: {exc}")
+            return write(decision, status)
+
+        decision = Decision("BUY", product, 1.0,
+            f"AIscend {winner['strategy']} BUY {product}; estimated gross "
+            f"{winner['estimated_growth_bps']:+.1f}bps, all-in route cost "
+            f"{winner['total_route_cost_bps']:.1f}bps, net "
+            f"{winner['net_projected_bps']:+.1f}bps; provisional "
+            f"maturity {winner['maturity_minutes']}m.")
+        plan["order_attempted"] = True
+        try:
+            self._execute_buy(decision, snapshot)
+            self.store.set_meta("primary_maturity_at:" + product,
+                                str(now + 60 * winner["maturity_minutes"]))
+            status = "LIVE_EXECUTED"
+        except Exception as exc:
+            status = "EXECUTION_ERROR"
+            decision = Decision("BUY", product, 1.0,
+                                decision.rationale + f" Execution failed: {exc}")
+        return write(decision, status)
+
     def step(self) -> dict[str, Any]:
         before = self.sync()
         try:
@@ -855,9 +989,9 @@ class AdvancedSpotEngine:
         radar = before.get("market_radar") or {}
         best = radar.get("best_long")
         weakest = radar.get("weakest_held")
-        adopted = self._adopt_growth(before, radar)
-        if adopted is not None:
-            return adopted
+        # BEAN produces research; the autonomous crypto strategy produces
+        # orders. Do not resurrect the BEAN long/cash veto here.
+        return self._primary_trade_step(before)
 
         decision = Decision(
             "HOLD",
