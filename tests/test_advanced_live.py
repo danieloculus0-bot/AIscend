@@ -192,6 +192,35 @@ class AdvancedLiveTests(unittest.TestCase):
             self.assertEqual(rail.buys[0][1], Decimal("25.00"))
             store.close()
 
+    def test_existing_holdings_are_forced_into_each_market_scan(self):
+        class ObservedUniverse(FakeUniverse):
+            seen = None
+            def collect(self, priority_products=None):
+                self.seen = list(priority_products or [])
+                return super().collect(priority_products=priority_products)
+
+        class HeldRail(FakeRail):
+            def status(self):
+                return AdvancedTradeStatus(
+                    configured=True,
+                    balances=(AdvancedBalance("USDC", Decimal("0.9"), Decimal("0")),
+                              AdvancedBalance("GROVE", Decimal("10"), Decimal("0"))),
+                    tradable_spot_products=2,
+                    product_ids=("GROVE-USDC", "ALEO-USDC"))
+
+        with tempfile.TemporaryDirectory() as td:
+            store=StateStore(Path(td)/"held.db")
+            try:
+                universe=ObservedUniverse()
+                engine=AdvancedSpotEngine(
+                    store,rail=HeldRail(),asset_universe=universe,
+                    listing_sentinel=FakeListingSentinel(),
+                    human_researcher=FakeHumanResearch())
+                engine.sync()
+                self.assertIn("GROVE-USDC", universe.seen)
+            finally:
+                store.close()
+
     def test_no_candle_evidence_does_not_fake_trade_signal(self):
         class BeanUnavailable:
             def assess(self):
