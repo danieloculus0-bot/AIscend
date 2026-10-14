@@ -939,6 +939,27 @@ class AdvancedSpotEngine:
             self.store.set_meta("pending_coinbase_order", "")
             self.store.set_meta("last_coinbase_submission_state", state)
             if state == "FILLED_VERIFIED":
+                # Final receipt is appended separately from the original
+                # submitted-order audit; never retroactively rewrite history.
+                try:
+                    base, quote = self._split_product(product)
+                    self.audit.record_event(
+                        event_type="coinbase_fill_reconciliation",
+                        venue="coinbase", rail="coinbase-advanced",
+                        network="coinbase", side=str(pending.get("side") or ""),
+                        product_id=product, base_asset=base, quote_asset=quote,
+                        base_quantity=observed.get("filled_size"),
+                        quote_quantity=observed.get("filled_value"),
+                        unit_price_quote=observed.get("average_filled_price"),
+                        fee_quantity=observed.get("total_fees"),
+                        order_id=order_id,
+                        client_order_id=str(pending.get("client_order_id") or ""),
+                        status="filled_verified",
+                        source="coinbase_authenticated_order_detail",
+                        raw_provider_response=observed)
+                except Exception as exc:
+                    self.store.add_ledger("AUDIT_ERROR", product, 0.0, 0.0, 0.0,
+                        f"Coinbase filled; final audit receipt failed: {exc}")
                 rationale = (f"Coinbase verified order {order_id} FILLED for {product}; "
                              f"base quantity {observed.get('filled_size')}, "
                              f"fees {observed.get('total_fees') or 'not yet reconciled'}. "
