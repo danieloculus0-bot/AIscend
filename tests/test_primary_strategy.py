@@ -1,7 +1,8 @@
 """Primary AIscend trading policy tests: price action and quote economics."""
 import unittest
+import time
 
-from src.primary_strategy import proposals, select_plan, exit_reason
+from src.primary_strategy import proposals, select_plan, exit_reason, incumbent_hold_net_bps
 
 
 def row(p, *, r5=.012, r1=.04, r6=.08, volume=2.0, spread=5):
@@ -60,6 +61,38 @@ class PrimaryPolicyTests(unittest.TestCase):
     def test_negative_trend_invalidates_existing_holding(self):
         snap={"asset_universe":{"scored":[row("GROVE-USDC",r5=-.02,r1=-.05,r6=-.1)]}}
         self.assertEqual(exit_reason("GROVE-USDC",snap),"trend_invalidation")
+
+    def test_expired_holding_without_evidence_still_exits_on_deadline(self):
+        snap={"asset_universe":{"scored":[]}}
+        self.assertIsNone(exit_reason("GROVE-USDC",snap))
+        self.assertEqual(
+            exit_reason("GROVE-USDC",snap,deadline_reached=True),
+            "planned_maturity_exit_unobserved")
+
+    def test_slow_multi_hour_downtrend_triggers_exit(self):
+        snap={"asset_universe":{"scored":[
+            row("GROVE-USDC",r5=-.001,r1=-.02,r6=-.04)]}}
+        self.assertEqual(exit_reason("GROVE-USDC",snap),"sustained_downtrend")
+
+    def test_stale_candidate_cannot_trigger_buy(self):
+        stale=row("BAD-USDC")
+        stale["scanned_at"]=time.time()-1000
+        fresh=row("GOOD-USDC",r5=.015,r1=.03,r6=.06)
+        fresh["scanned_at"]=time.time()-10
+        snap={"asset_universe":{"scored":[stale,fresh]},
+              "tradable_products":["BAD-USDC","GOOD-USDC"],
+              "cash_by_quote":{"USDC":25.0},"positions":{}}
+        result=select_plan(snap)
+        self.assertEqual(result["winner"]["product"],"GOOD-USDC")
+        self.assertEqual(result["skipped"]["stale_signal"],1)
+
+    def test_incumbent_compared_with_same_horizon_and_future_fee(self):
+        current=row("INC-USDC",r5=.012,r1=.04,r6=.08)
+        whole=incumbent_hold_net_bps(current,360,taker_bps=60)
+        short=incumbent_hold_net_bps(current,15,taker_bps=60)
+        self.assertGreater(whole,short)
+        self.assertLess(short,100)
+
 
 
 if __name__=="__main__":
