@@ -102,13 +102,22 @@ class AssetUniverseTests(unittest.TestCase):
     def test_priority_holding_refreshes_before_general_cache_expires(self):
         from dataclasses import replace
         universe=FakeUniverse()
-        first=universe.collect()
+        universe.collect()
         item=universe._cache["AAA-USD"]
-        universe._cache["AAA-USD"]=replace(
-            item,score=-0.99,scanned_at=time.time()-90)
-        refreshed=universe.collect(priority_products=["AAA-USD"])
+        stale=replace(item,score=-0.99,scanned_at=time.time()-90)
+        universe._cache["AAA-USD"]=stale
+        seen=[]
+        original_scan=universe._scan_product
+
+        def observe(product):
+            seen.append(product["id"])
+            return original_scan(product)
+
+        universe._scan_product=observe
+        universe.collect(priority_products=["AAA-USD"])
         current=universe._cache["AAA-USD"]
-        self.assertGreater(current.scanned_at,item.scanned_at)
+        self.assertIn("AAA-USD",seen)
+        self.assertGreater(current.scanned_at,stale.scanned_at)
         self.assertNotEqual(current.score,-0.99)
 
     def test_invalid_or_crossed_books_are_not_tradable_signals(self):
