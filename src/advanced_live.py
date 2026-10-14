@@ -855,6 +855,7 @@ class AdvancedSpotEngine:
         plan = select_plan(snapshot, taker_bps=fee_bps)
         positions = snapshot.get("positions") or {}
         winner = plan["winner"]
+        plan["evaluated_at"] = time.time()
         plan["primary_engine"] = "aiscend_price_action_v1"
         plan["fee_source"] = fee_source
         plan["fee_bps"] = fee_bps
