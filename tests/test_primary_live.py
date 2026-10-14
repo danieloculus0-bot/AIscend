@@ -50,7 +50,7 @@ class PrimaryLiveTests(unittest.TestCase):
             cash={"USDC":.88276},
             held={"GROVE-USDC":{"qty":10,"available_qty":10}}))
         self.assertEqual(self.actions[-1],("SELL","GROVE-USDC"))
-        self.assertEqual(self.store.latest_decisions(1)[0]["status"],"LIVE_EXECUTED")
+        self.assertEqual(self.store.latest_decisions(1)[0]["status"],"ORDER_ACCEPTED_UNVERIFIED")
 
         self.engine._primary_trade_step(self.snapshot(cash={"USDC":20}))
         self.assertEqual(self.actions[-1],("SELL","USDC-USD"))
