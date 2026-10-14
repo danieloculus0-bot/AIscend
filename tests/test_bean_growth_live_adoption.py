@@ -20,7 +20,8 @@ class FakeLearner:
     def assess(self, product):
         self.calls.append(product)
         return {"status": "READY", "trade_effect": "ADOPTED_LONG_CASH",
-                "target_exposure": self.exposure, "learned_strategy": "momentum"}
+                "target_exposure": self.exposure, "learned_strategy": "momentum",
+                "chosen_action_scores_bps": {"momentum": 400.0}}
 
 
 class HoldDecider:
@@ -52,7 +53,7 @@ class LiveGrowthAdoptionTests(unittest.TestCase):
         self.addCleanup(store.close)
         return store
 
-    def test_base_learner_can_initiate_buy_from_previous_hold(self):
+    def test_base_learner_is_advisory_not_able_to_force_buy(self):
         store = self.make_store()
         wallet = FakeWallet()
         learner = FakeLearner(exposure=1)
@@ -61,12 +62,13 @@ class LiveGrowthAdoptionTests(unittest.TestCase):
         engine.sync = lambda: {"cash": 10, "positions": {}, "prices": {"WETH": 2000}}
         engine._record_execution = lambda *_: None
         engine.step()
-        self.assertEqual(wallet.buys, [1.0])
-        self.assertEqual(store.latest_decisions(1)[0]["action"], "BUY")
-        self.assertEqual(store.latest_decisions(1)[0]["status"], "LIVE_EXECUTED")
+        self.assertEqual(wallet.buys, [])
+        self.assertEqual(store.latest_decisions(1)[0]["action"], "HOLD")
+        self.assertEqual(store.latest_decisions(1)[0]["status"], "HELD")
         self.assertEqual(learner.calls, ["WETH"])
+        self.assertEqual(json.loads(store.get_meta("bean_growth_latest"))["target_exposure"], 1)
 
-    def test_base_learner_sells_when_cash_policy_adopted(self):
+    def test_base_learner_is_advisory_not_able_to_force_sell(self):
         store = self.make_store()
         wallet = FakeWallet()
         learner = FakeLearner(exposure=0)
@@ -76,8 +78,9 @@ class LiveGrowthAdoptionTests(unittest.TestCase):
                                "prices": {"WETH": 2000}}
         engine._record_execution = lambda *_: None
         engine.step()
-        self.assertEqual(wallet.sells, [1.0])
-        self.assertEqual(store.latest_decisions(1)[0]["action"], "SELL")
+        self.assertEqual(wallet.sells, [])
+        self.assertEqual(store.latest_decisions(1)[0]["action"], "HOLD")
+        self.assertEqual(json.loads(store.get_meta("bean_growth_latest"))["target_exposure"], 0)
 
     def test_real_reward_update_changes_advanced_buy_into_hold(self):
         # Identical real growth engine, price context and buy opportunity,
@@ -127,7 +130,7 @@ class LiveGrowthAdoptionTests(unittest.TestCase):
                 actions.append((store.latest_decisions(1)[0]["action"],
                                 reported["target_exposure"], len(orders)))
                 store.close()
-        self.assertEqual(actions, [("BUY", 1, 1), ("HOLD", 0, 0)])
+        self.assertEqual(actions, [("HOLD", 1, 0), ("HOLD", 0, 0)])
 
     def test_advanced_learner_executes_mock_buy(self):
         store = self.make_store()

@@ -325,6 +325,32 @@ class AdvancedTradeSpot:
         )
         return self._dict(response)
 
+    def taker_fee_bps(self) -> float | None:
+        """Read the authenticated account's current Coinbase spot fee tier."""
+        data = self._dict(self.vault.client().get_transaction_summary(
+            product_type="SPOT"))
+        tier = data.get("fee_tier") or data.get("spot_fee_tier") or {}
+        if not isinstance(tier, dict):
+            tier = self._dict(tier)
+        raw = tier.get("taker_fee_rate") or data.get("taker_fee_rate")
+        if raw is None:
+            return None
+        value = Decimal(str(raw))
+        if not value.is_finite() or value < 0:
+            return None
+        return float(value * Decimal("10000"))
+
+    def preview_market_sell(self, product_id: str,
+                            base_size: Decimal) -> dict[str, Any]:
+        if base_size <= 0:
+            raise ValueError("base_size must be positive")
+        preview = self._dict(self.vault.client().preview_market_order_sell(
+            product_id=product_id.upper(), base_size=str(base_size)))
+        if preview.get("errs") or preview.get("errors") or not preview:
+            raise RuntimeError("Coinbase market sell preview rejected: "
+                               + str(preview.get("errs") or preview.get("errors")))
+        return preview
+
     def preview_market_buy(self, product_id: str, quote_size: Decimal) -> dict[str, Any]:
         if quote_size <= 0:
             raise ValueError("quote_size must be positive")

@@ -52,6 +52,9 @@ _loop_state: dict[str, Any] = {
     "interval": 60.0,
     "active_rail": None,
     "last_error": None,
+    "last_cycle_at": None,
+    "last_decision_action": None,
+    "last_decision_status": None,
 }
 
 
@@ -199,10 +202,11 @@ def _portfolio_status(network: str, requested_rail: str) -> dict[str, Any]:
     else:
         active_rail = requested_rail
 
-    if active_rail == "advanced" and advanced is None and base is not None:
-        active_rail = "base"
-    elif active_rail == "base" and base is None and advanced is not None:
-        active_rail = "advanced"
+    if requested_rail == "auto":
+        if active_rail == "advanced" and advanced is None and base is not None:
+            active_rail = "base"
+        elif active_rail == "base" and base is None and advanced is not None:
+            active_rail = "advanced"
 
     game_store = StateStore(_db_path("base", "base"))
     try:
@@ -297,6 +301,10 @@ def _runner(network: str, interval: float, rail: str) -> None:
                 with _loop_lock:
                     _loop_state["active_rail"] = cycle.get("active_rail") or rail
                     _loop_state["last_error"] = None
+                    _loop_state["last_cycle_at"] = time.time()
+                    decision = cycle.get("decision") or {}
+                    _loop_state["last_decision_action"] = decision.get("action")
+                    _loop_state["last_decision_status"] = decision.get("status")
             except Exception as exc:
                 with _loop_lock:
                     _loop_state["last_error"] = str(exc)
@@ -382,7 +390,7 @@ def monitor_status():
 @app.get("/api/bean-lab")
 def bean_lab_status():
     status = _bean_lab.status()
-    status["live_strategy_activation"] = "BUY_CONFIRMATION_GATE"
+    status["live_strategy_activation"] = "RESEARCH_ONLY"
     status["research_watch"] = _bean_supervisor.status()
     status["adaptive_growth"] = _bean_growth.status()
     return jsonify({"ok": True, **status})
@@ -427,6 +435,26 @@ def bean_growth_status():
         finally:
             store.close()
     return jsonify({"ok": True, **_bean_growth.status(), "execution_evidence": evidence})
+
+
+@app.get("/api/trading-diagnostics")
+def trading_diagnostics():
+    """Inspectable, read-only proof of why funded capital did or didn't move."""
+    store = StateStore(_db_path("base", "advanced"))
+    try:
+        plan = json.loads(store.get_meta("primary_trade_plan_latest") or "{}")
+        decisions = [dict(row) for row in store.latest_decisions(10)]
+    finally:
+        store.close()
+    return jsonify({
+        "ok": True,
+        "primary_engine": "aiscend_price_action_v1",
+        "bean_role": "research_advisory_only",
+        "runner": dict(_loop_state),
+        "last_plan": plan,
+        "recent_decisions": decisions,
+        "note": "LIVE_EXECUTED means Coinbase accepted an order; consult order fills for confirmed net P/L.",
+    })
 
 
 @app.get("/api/runner")

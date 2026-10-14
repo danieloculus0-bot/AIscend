@@ -355,7 +355,7 @@
         </div>
         <button class="stop" onclick="stopRunner()">STOP</button>
         <button onclick="refreshStatus()">REFRESH</button>
-        <div id="beanLivePolicy" class="small" style="margin-top:10px">BEAN live gate: awaiting first cycle.</div>
+        <div id="beanLivePolicy" class="small" style="margin-top:10px">BEAN advisory research: awaiting first observation.</div>
       </div>
 
       <div class="panel" style="margin-top:14px">
@@ -495,6 +495,18 @@
         </table>
       </div>
 
+      <div class="panel" id="primary-policy" style="margin-top:14px">
+        <h2>AIscend Trading Policy · LIVE</h2>
+        <div id="primaryPolicyStatus" class="decision-current small">
+          Checking actual Python strategy, runner and order status...
+        </div>
+        <div id="primaryPolicyReason" class="small">
+          HOLD reasons and route costs will appear after the first live cycle.
+        </div>
+        <div id="primaryPolicyEvidence" class="small"></div>
+        <div class="small">BEAN is a research assistant. It cannot override live orders.</div>
+      </div>
+
       <div class="panel" id="decision-journal" style="margin-top:14px">
         <h2>DECISION JOURNAL</h2>
         <div id="currentDecision" class="decision-current small">Current decision: --</div>
@@ -566,13 +578,13 @@ function renderBeanLab(payload){
   $('beanLabGateStatus').textContent=gate.status==='READY'
     ? 'Independent BEAN gate: READY · exam #'+gate.experiment+
       ' · target '+(gate.target||'CASH')+' · '+Number(gate.bars||0)+
-      ' completed hourly candles · verifies existing buys only'
+      ' completed hourly candles · advisory only (no buy veto)'
     : 'Independent BEAN gate: '+(gate.status||'NOT EVALUATED')+
       (gate.reason?' · '+gate.reason:'')+
       '. This reading does not place or approve a real-money order.';
   $('beanLabActivation').textContent=payload.live_strategy_activation==='BUY_CONFIRMATION_GATE'
-    ? 'No approval required for research selection. Live BUY confirmation is installed; SELL protection unchanged. Research results never originate orders.'
-    : 'No approval required for research selection. Deployment: NOT ACTIVE. Historical research does not initiate live orders.';
+    ? 'Legacy BUY_CONFIRMATION_GATE flag detected; this is no longer an order authority. AIscend owns trading decisions.'
+    : 'Research-only. AIscend decides BUY/SELL/HOLD; BEAN cannot place or veto orders.';
   $('beanLabRun').disabled=!!latest||beanLabRunning;
   $('beanLabRetry').disabled=!latest||beanLabRunning;
   if(!latest){ $('beanLabResult').textContent='Research only. BEAN can run an exam without placing a trade.'; }
@@ -862,15 +874,43 @@ async function refreshStatus(){
   const j = await r.json();
   if(!j.ok){ msg(j.error || 'Status unavailable'); renderRunner(j.runner); petState='dead'; drawPet(); return; }
 
-  if(requestedRail!=='auto' && j.suggested_rail && j.suggested_rail!==requestedRail && !(j.runner||{}).running){
-    $('executionRail').value=j.suggested_rail;
-    return refreshStatus();
-  }
-
+  // An explicit Coinbase execution-rail selection must never be silently
+  // overwritten by j.suggested_rail. Only 'auto' may choose a rail.
   msg('');
   renderDecisions(j.decisions || []);
   renderSnapshot(j.snapshot);
   renderRunner(j.runner);
+  refreshTradingDiagnostics();
+}
+
+async function refreshTradingDiagnostics(){
+  try {
+    const r=await fetch('/api/trading-diagnostics');
+    const j=await r.json();
+    if(!j.ok) throw new Error(j.error || 'Diagnostic endpoint unavailable');
+    const p=j.last_plan||{},run=j.runner||{};
+    const active=!!run.running;
+    const status=p.execution_status || 'NO_EXECUTION_YET';
+    const activeRail=run.active_rail||run.rail||'unknown';
+    const age=p.evaluated_at ? Math.round(Date.now()/1000 - Number(p.evaluated_at)) : null;
+    $('primaryPolicyStatus').textContent=
+      (active?'RUNNING':'NOT RUNNING')+' · actual rail '+activeRail+' · '+
+      (p.primary_engine || 'AIscend policy not executed yet')+
+      ' · '+status+(age!==null?' · last evaluated '+age+' seconds ago':'');
+    $('primaryPolicyReason').textContent=p.decision_reason ||
+      (active?'Awaiting first decision cycle.':'Live trading runner is stopped; dashboard alone never places orders.');
+    const skip=p.skipped||{};
+    $('primaryPolicyEvidence').textContent=
+      'Scanned '+Number(p.examined||0)+' · candidate signals '+
+      Number(p.candidate_signals||0)+' · costed routes '+
+      Number(p.costed_routes||0)+' · below total fees/spread '+
+      Number(skip.negative_net_edge||0)+' · quote path unavailable '+
+      Number(skip.no_quote_path||0)+' · order attempted '+
+      (!!p.order_attempted?'YES':'NO')+
+      (run.last_error?' · runner error '+run.last_error:'');
+  } catch(err) {
+    $('primaryPolicyStatus').textContent='Diagnostics unavailable: '+err.message;
+  }
 }
 
 function renderSnapshot(s){
@@ -883,9 +923,9 @@ function renderSnapshot(s){
   const beanPolicy=(beanGateEvidence && beanGateEvidence.status!=='NOT_EVALUATED')
     ? beanGateEvidence : (s.bean_policy || {});
   $('beanLivePolicy').textContent=beanPolicy.status==='READY'
-    ? 'BEAN live gate READY · exam #'+beanPolicy.experiment+' · target '+(beanPolicy.target||'CASH')+
-      ' · '+Number(beanPolicy.bars||0)+' completed hourly candles · buy confirmation active'
-    : 'BEAN live gate: '+(beanPolicy.status||'NOT EVALUATED')+
+    ? 'BEAN research READY · exam #'+beanPolicy.experiment+' · target '+(beanPolicy.target||'CASH')+
+      ' · '+Number(beanPolicy.bars||0)+' completed hourly candles · advisory only'
+    : 'BEAN research: '+(beanPolicy.status||'NOT EVALUATED')+
       (beanPolicy.reason?' · '+beanPolicy.reason:'')+'. Unavailable policy never manufactures an order.';
   const r=s.research || {};
   $('researchPrediction').textContent = r.prediction || 'UNKNOWN';
