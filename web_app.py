@@ -52,6 +52,9 @@ _loop_state: dict[str, Any] = {
     "interval": 60.0,
     "active_rail": None,
     "last_error": None,
+    "last_cycle_at": None,
+    "last_decision_action": None,
+    "last_decision_status": None,
 }
 
 
@@ -297,6 +300,10 @@ def _runner(network: str, interval: float, rail: str) -> None:
                 with _loop_lock:
                     _loop_state["active_rail"] = cycle.get("active_rail") or rail
                     _loop_state["last_error"] = None
+                    _loop_state["last_cycle_at"] = time.time()
+                    decision = cycle.get("decision") or {}
+                    _loop_state["last_decision_action"] = decision.get("action")
+                    _loop_state["last_decision_status"] = decision.get("status")
             except Exception as exc:
                 with _loop_lock:
                     _loop_state["last_error"] = str(exc)
