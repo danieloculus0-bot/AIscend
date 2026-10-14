@@ -44,6 +44,14 @@ class WebAppTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_execution_evidence_is_a_compact_help_popover_not_a_status_banner(self):
+        html = app.test_client().get("/").get_data(as_text=True)
+        self.assertIn('id="primary-policy"', html)
+        self.assertIn('class="info-tip"', html)
+        self.assertIn('id="primaryPolicyReason"', html)
+        self.assertNotIn('id="traderRealityBanner"', html)
+        self.assertNotIn('eligible for live buy confirmation', html.lower())
+
     def test_dashboard_inherits_official_bean_brand_without_losing_controls(self):
         html = app.test_client().get("/").get_data(as_text=True)
         self.assertIn("BEAN | AIscend", html)
