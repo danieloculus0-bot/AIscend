@@ -337,7 +337,7 @@ class AdvancedSpotEngine:
             if item.get("product")
         }
 
-        positions: dict[str, dict[str, float | str]] = {}
+        positions: dict[str, dict[str, float | str | None]] = {}
         prices: dict[str, float] = {}
         balance_values_usd: dict[str, float] = {}
 
@@ -360,7 +360,11 @@ class AdvancedSpotEngine:
             positions[product_id] = {
                 "qty": qty,
                 "available_qty": spendable_balances.get(currency, 0.0),
-                "avg_cost": usd_rate,
+                # Balances expose quantity, not verified acquisition fills.
+                # A current mark is not the historical acquisition cost.
+                "avg_cost": None,
+                "mark_price": usd_rate,
+                "cost_basis_status": "unverified_without_fills",
                 "base": currency,
             }
             prices[product_id] = usd_rate
