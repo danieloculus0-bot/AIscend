@@ -521,6 +521,10 @@ class AdvancedLiveTests(unittest.TestCase):
             self.assertEqual(snap["cash"], 25.0)
             self.assertEqual(snap["positions"]["ALEO-USDC"]["qty"], 3.0)
             self.assertEqual(snap["positions"]["ALEO-USDC"]["available_qty"], 1.0)
+            self.assertIsNone(snap["positions"]["ALEO-USDC"]["avg_cost"])
+            self.assertEqual(snap["positions"]["ALEO-USDC"]["mark_price"], 2.0)
+            self.assertEqual(snap["positions"]["ALEO-USDC"]["cost_basis_status"],
+                             "unverified_without_fills")
             self.assertEqual(snap["net_liquidation"], 31.0)
             self.assertTrue(snap["valuation_complete"])
             store.close()
