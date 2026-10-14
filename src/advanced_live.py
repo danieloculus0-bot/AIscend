@@ -713,9 +713,10 @@ class AdvancedSpotEngine:
                     choices.append(options)
             if choices:
                 best_route = max(choices, key=lambda x: x["projected_gain_units"])
-                # Older mock learners lack scored rewards. Retain support for
-                # testing their adoption path; real policy has explicit scores.
-                if item.get("reward_available") and best_route["net_projected_bps"] <= 0:
+                # Never submit a loss-expected route merely because the
+                # learner lacks a scored policy; exploration can continue
+                # through causal paper rewards until an opportunity clears.
+                if best_route["net_projected_bps"] <= 0:
                     best_route["reason_skipped"] = "projected_gain_below_route_cost"
                 ranked.append(best_route)
             else:
