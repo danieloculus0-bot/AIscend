@@ -7,11 +7,44 @@ calibrated predictions; full route costs and decision rationale are visible.
 from __future__ import annotations
 
 import math
+import time
 
 from .bean_rotation_economics import bridge_order, score_route
 
 POLICIES = ("trend", "breakout", "reversal")
 DEFAULT_TAKER_BPS = 60.0
+MAX_SIGNAL_AGE_SECONDS = 150.0
+ROTATION_MARGIN_BPS = 12.0
+
+
+def evidence_fresh(row: dict, *, max_age_seconds=MAX_SIGNAL_AGE_SECONDS) -> bool:
+    """Reject expired timestamped signals. Legacy synthetic tests lack timestamps."""
+    timestamp = row.get("scanned_at")
+    if timestamp is None:
+        return True
+    try:
+        age = time.time() - float(timestamp)
+        return math.isfinite(age) and -5.0 <= age <= max_age_seconds
+    except (TypeError, ValueError):
+        return False
+
+
+def incumbent_hold_net_bps(row: dict | None, target_minutes: int, *, taker_bps: float) -> float:
+    """Compare HOLD and rotation on an equal horizon, net of future exit costs."""
+    if not row or not evidence_fresh(row):
+        return 0.0
+    signals = proposals(row)
+    if not signals:
+        return 0.0
+    spread = max(0.0, float(row.get("spread_bps") or 0.0))
+    exit_cost = max(0.0, taker_bps) + 0.5 * spread
+    minutes = max(1, int(target_minutes))
+    return max(
+        float(signal["gross_projection_bps"]) *
+        min(1.0, minutes / max(1, int(signal["maturity_minutes"]))) - exit_cost
+        for signal in signals
+    )
+
 
 
 def proposals(row: dict, *, enabled=POLICIES) -> list[dict]:
@@ -67,8 +100,11 @@ def select_plan(snapshot: dict, *, taker_bps=DEFAULT_TAKER_BPS,
     quotes.update(p.rpartition("-")[2] for p in held)
     diag = {"examined":len(ranked), "candidate_signals":0, "costed_routes":0,
             "skipped":{"no_signal":0,"untradable":0,"no_quote_path":0,
-                       "negative_net_edge":0}, "routes":[], "winner":None}
+                       "negative_net_edge":0,"stale_signal":0}, "routes":[], "winner":None}
     for row in ranked:
+        if not evidence_fresh(row):
+            diag["skipped"]["stale_signal"] += 1
+            continue
         product = str(row.get("product") or "").upper()
         if tradable and product not in tradable:
             diag["skipped"]["untradable"] += 1
@@ -130,12 +166,16 @@ def exit_reason(held_product: str, snapshot: dict, *,
                 deadline_reached=False) -> str | None:
     rows=(snapshot.get("asset_universe") or {}).get("scored") or []
     row=next((r for r in rows if str(r.get("product") or "")==held_product),None)
-    if row is None:
-        return None  # No price evidence is not an exit signal.
+    if row is None or not evidence_fresh(row):
+        # Missing evidence cannot indefinitely extend an expired holding.
+        return "planned_maturity_exit_unobserved" if deadline_reached else None
     r5=float(row.get("return_5m") or 0.0)
     r1=float(row.get("return_1h") or 0.0)
+    r6=float(row.get("return_6h") or 0.0)
     if r5 < -0.008 and r1 < 0:
         return "trend_invalidation"
+    if r1 <= -0.015 and r6 <= -0.025:
+        return "sustained_downtrend"
     if deadline_reached:
         return "planned_maturity_exit"
     return None
