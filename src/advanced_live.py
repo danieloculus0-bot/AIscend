@@ -279,6 +279,16 @@ class AdvancedSpotEngine:
             )
             if event.get("product")
         ]
+        # Account holdings must be sampled every scan; otherwise the
+        # rotational universe can starve exit/maturity decisions of evidence.
+        for balance in status.balances:
+            qty = float(balance.available + balance.hold)
+            currency = str(balance.currency).upper()
+            if qty > 0 and currency not in DOLLAR_ASSETS:
+                held_product = self._product_for_currency(
+                    currency, tuple(status.product_ids), preferred_quote="USDC")
+                if held_product:
+                    priority_products.append(held_product)
         universe = self.asset_universe.collect(
             priority_products=priority_products,
         )
