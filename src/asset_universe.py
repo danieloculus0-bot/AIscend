@@ -153,8 +153,14 @@ class CoinbaseAssetUniverse:
                 if time.time() - item.scanned_at <= self.asset_cache_seconds * 3
             ]
 
+        # Historical cache is useful for research, not for placing live
+        # orders on five-minute momentum that is hours out of date.
+        actionable = [
+            item for item in fresh
+            if time.time() - item.scanned_at <= 150.0
+        ]
         ranked = sorted(
-            fresh,
+            actionable,
             key=lambda item: (
                 abs(item.score),
                 abs(item.return_1h),
@@ -163,7 +169,7 @@ class CoinbaseAssetUniverse:
             reverse=True,
         )
         buy_ranked = sorted(
-            fresh,
+            actionable,
             key=lambda item: (
                 item.score,
                 item.return_1h,
@@ -177,9 +183,11 @@ class CoinbaseAssetUniverse:
             "product_count": len(products),
             "scanned_count": len(fresh),
             "coverage_ratio": len(fresh) / len(products) if products else 0.0,
+            "actionable_count": len(actionable),
+            "stale_excluded": len(fresh) - len(actionable),
             "top": [item.as_dict() for item in ranked[:20]],
             "buy_top": [item.as_dict() for item in buy_ranked[:20]],
-            "scored": [item.as_dict() for item in fresh],
+            "scored": [item.as_dict() for item in actionable],
             "errors": errors,
         }
         with self._lock:
