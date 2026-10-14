@@ -149,7 +149,7 @@ class LiveGrowthAdoptionTests(unittest.TestCase):
         self.assertEqual(len(submitted), 1)
         self.assertEqual(submitted[0].action, "BUY")
         self.assertEqual(submitted[0].symbol, "ETH-USDC")
-        self.assertEqual(store.latest_decisions(1)[0]["status"], "LIVE_EXECUTED")
+        self.assertEqual(store.latest_decisions(1)[0]["status"], "ORDER_ACCEPTED_UNVERIFIED")
 
     def test_advanced_learner_executes_mock_sell(self):
         store = self.make_store()
@@ -165,7 +165,7 @@ class LiveGrowthAdoptionTests(unittest.TestCase):
         engine._adopt_growth(snapshot, radar)
         self.assertEqual(len(submitted), 1)
         self.assertEqual(submitted[0].action, "SELL")
-        self.assertEqual(store.latest_decisions(1)[0]["status"], "LIVE_EXECUTED")
+        self.assertEqual(store.latest_decisions(1)[0]["status"], "ORDER_ACCEPTED_UNVERIFIED")
 
 
 if __name__ == "__main__":
