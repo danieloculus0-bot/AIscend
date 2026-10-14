@@ -51,6 +51,10 @@
     details.panel > summary::after { content:'+'; float:right; color:#697586; }
     details.panel[open] > summary::after { content:'-'; }
     details.panel[open] > summary { margin-bottom:12px; }
+    .info-tip { display:inline-block; position:relative; font-weight:normal; letter-spacing:normal; text-transform:none; vertical-align:middle; }
+    .info-tip > summary { display:inline-block; list-style:none; cursor:help; padding:0 4px; }
+    .info-tip > summary::-webkit-details-marker { display:none; }
+    .info-tip .info-bubble { position:absolute; right:0; top:100%; z-index:20; width:min(320px,80vw); padding:12px; border:1px solid var(--line); border-radius:8px; background:var(--panel); box-shadow:var(--shadow); color:var(--text); font-size:12px; line-height:1.5; }
     .decision-current { padding:10px 8px; border-top:1px solid #262c34; border-bottom:1px solid #262c34; background:#10141a; }
     .decision-current .label { margin-bottom:4px; }
     .decision-scroll { max-height:300px; overflow-y:auto; }
@@ -300,14 +304,10 @@
     <div id="runnerPill" class="pill">STOPPED</div>
   </div>
 
-  <div id="traderRealityBanner" class="panel" role="status" style="margin-bottom:14px;border-color:#a86b39">
-    LIVE TRADER STOPPED · BEAN research may still update without a single Coinbase order.
-    Open <a href="#live-engine">LIVE ENGINE</a>, choose Coinbase Advanced spot, and press START.
-  </div>
-  <div class="grid">
+<div class="grid">
     <div class="card"><div class="label">Net liquidation</div><div id="net" class="value">--</div></div>
     <div class="card"><div class="label">Cash / USDC</div><div id="cash" class="value">--</div></div>
-    <div class="card"><div class="label">Value change since baseline (not realized P/L)</div><div id="pnl" class="value">--</div></div>
+    <div class="card"><div class="label">P/L <span title="Change in portfolio value from first observed account baseline; not realized trading profit." aria-label="P/L explanation">ⓘ</span></div><div id="pnl" class="value">--</div></div>
     <div class="card"><div class="label">Wealth multiple</div><div id="multiple" class="value">--</div></div>
   </div>
 
@@ -336,8 +336,7 @@
       </div>
 
       <div class="panel" id="live-engine" style="margin-top:14px">
-        <h2>LIVE ENGINE · COINBASE ORDERS</h2>
-        <div class="small">This is the only control that runs the live trader. BEAN experiments do not trade.</div>
+        <h2>LIVE ENGINE <span title="START runs AIscend's live Coinbase trading loop. BEAN experiments are research-only and cannot place orders." aria-label="Live trading help">ⓘ</span></h2>
         <label>Execution rail</label>
         <select id="executionRail" onchange="refreshStatus()">
           <option value="auto" selected>Linked portfolio - auto choose rail</option>
@@ -501,15 +500,16 @@
       </div>
 
       <div class="panel" id="primary-policy" style="margin-top:14px">
-        <h2>AIscend Trading Policy · LIVE</h2>
-        <div id="primaryPolicyStatus" class="decision-current small">
-          Checking actual Python strategy, runner and order status...
-        </div>
-        <div id="primaryPolicyReason" class="small">
-          HOLD reasons and route costs will appear after the first live cycle.
-        </div>
-        <div id="primaryPolicyEvidence" class="small"></div>
-        <div class="small">BEAN is a research assistant. It cannot override live orders.</div>
+        <h2>AIscend Trading Policy · LIVE
+          <details class="info-tip">
+            <summary title="Trading decision details" aria-label="Show trading decision details">ⓘ</summary>
+            <div class="info-bubble">
+              <div id="primaryPolicyReason">Awaiting first trading cycle.</div>
+              <div id="primaryPolicyEvidence" class="small"></div>
+            </div>
+          </details>
+        </h2>
+        <div id="primaryPolicyStatus" class="decision-current small">Checking trading status...</div>
       </div>
 
       <div class="panel" id="decision-journal" style="margin-top:14px">
@@ -1083,21 +1083,6 @@ function renderRunner(r){
           : (r.rail==='advanced'?'advanced':r.network)
       )
     : 'STOPPED';
-  const proof=$('traderRealityBanner');
-  if(proof){
-    if(r.running){
-      const last=r.last_cycle_at ? new Date(Number(r.last_cycle_at)*1000).toLocaleTimeString() : 'first cycle pending';
-      proof.textContent='LIVE TRADER RUNNING · requested rail '+(r.rail||'unknown')+
-        ' · actual rail '+(r.active_rail||'pending')+
-        ' · last cycle '+last+
-        (r.last_error?' · ERROR '+r.last_error:'')+
-        '. Accepted orders are not confirmed fills.';
-      proof.style.borderColor=r.last_error?'#a86b39':'#587c57';
-    }else{
-      proof.textContent='LIVE TRADER STOPPED · BEAN may research in the background, but no live order cycles run. Open LIVE ENGINE, choose Coinbase Advanced spot, then START.';
-      proof.style.borderColor='#a86b39';
-    }
-  }
   if(r.last_error){ msg(r.last_error); petState='dead'; drawPet(); }
 }
 
