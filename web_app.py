@@ -202,10 +202,11 @@ def _portfolio_status(network: str, requested_rail: str) -> dict[str, Any]:
     else:
         active_rail = requested_rail
 
-    if active_rail == "advanced" and advanced is None and base is not None:
-        active_rail = "base"
-    elif active_rail == "base" and base is None and advanced is not None:
-        active_rail = "advanced"
+    if requested_rail == "auto":
+        if active_rail == "advanced" and advanced is None and base is not None:
+            active_rail = "base"
+        elif active_rail == "base" and base is None and advanced is not None:
+            active_rail = "advanced"
 
     game_store = StateStore(_db_path("base", "base"))
     try:
