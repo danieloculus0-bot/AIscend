@@ -187,7 +187,7 @@ class CoinbaseAssetUniverse:
             "stale_excluded": len(fresh) - len(actionable),
             "top": [item.as_dict() for item in ranked[:20]],
             "buy_top": [item.as_dict() for item in buy_ranked[:20]],
-            "scored": [item.as_dict() for item in fresh],
+            "scored": [item.as_dict() for item in actionable],
             "errors": errors,
         }
         with self._lock:
