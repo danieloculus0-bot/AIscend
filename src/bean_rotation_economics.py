@@ -39,12 +39,17 @@ def score_route(candidate: dict, *, taker_fee_bps: float = 60.0,
     is a *hypothesis* and must be audited against realized outcomes.
     """
     row = dict(candidate)
-    horizon = maturity_minutes(row)
-    reward = float(row.get("reward_bps") or 0.0)
-    if not isfinite(reward):
-        raise ValueError("Non-finite learner reward")
-    bars = min(12, max(1, horizon // 5))
-    estimated_growth = reward * bars
+    horizon = int(row.get("maturity_minutes") or maturity_minutes(row))
+    if row.get("gross_projection_bps") is not None:
+        estimated_growth = float(row["gross_projection_bps"])
+        model = str(row.get("signal_source") or "unvalidated_forward_heuristic")
+    else:
+        reward = float(row.get("reward_bps") or 0.0)
+        bars = min(12, max(1, horizon // 5))
+        estimated_growth = reward * bars
+        model = "unvalidated_paper_reward_x_horizon"
+    if not isfinite(estimated_growth):
+        raise ValueError("Non-finite hypothetical growth")
     spread = max(0.0, float(row.get("spread_bps") or 0.0))
     entry = trade_cost_bps(spread, taker_fee_bps)
     eventual_exit = trade_cost_bps(spread, taker_fee_bps)
@@ -58,7 +63,7 @@ def score_route(candidate: dict, *, taker_fee_bps: float = 60.0,
         "net_projected_bps": round(estimated_growth - total, 5),
         "conversion_required": bool(bridge),
         "selling_incumbent": bool(selling_incumbent),
-        "model": "unvalidated_paper_reward_x_horizon",
+        "model": model,
         "observed_win_rate": row.get("observed_win_rate"),
         "observed_samples": int(row.get("observed_samples") or 0),
     })
