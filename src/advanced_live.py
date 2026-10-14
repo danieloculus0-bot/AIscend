@@ -1031,7 +1031,7 @@ class AdvancedSpotEngine:
                 try:
                     status = self._execute_sell(decision, snapshot) or "ORDER_ACCEPTED_UNVERIFIED"
                     if status == "FILLED_VERIFIED":
-                        self.store.set_meta(key, "0"
+                        self.store.set_meta(key, "0")
                 except Exception as exc:
                     status = "EXECUTION_ERROR"
                     decision = Decision("SELL", product, 1.0,
