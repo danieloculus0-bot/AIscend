@@ -136,6 +136,6 @@ def exit_reason(held_product: str, snapshot: dict, *,
     r1=float(row.get("return_1h") or 0.0)
     if r5 < -0.008 and r1 < 0:
         return "trend_invalidation"
-    if deadline_reached and r1 <= 0:
-        return "maturity_signal_faded"
+    if deadline_reached:
+        return "planned_maturity_exit"
     return None
