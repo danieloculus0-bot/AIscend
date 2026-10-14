@@ -21,7 +21,7 @@ class FakeLearner:
         self.calls.append(product)
         return {"status": "READY", "trade_effect": "ADOPTED_LONG_CASH",
                 "target_exposure": self.exposure, "learned_strategy": "momentum",
-                "chosen_action_scores_bps": {"momentum": 50.0}}
+                "chosen_action_scores_bps": {"momentum": 400.0}}
 
 
 class HoldDecider:
