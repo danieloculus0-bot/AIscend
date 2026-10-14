@@ -186,7 +186,7 @@ class AdvancedLiveTests(unittest.TestCase):
             after = engine.step()
             row = store.latest_decisions(1)[0]
             self.assertEqual(row["action"], "BUY")
-            self.assertEqual(row["status"], "LIVE_EXECUTED")
+            self.assertEqual(row["status"], "ORDER_ACCEPTED_UNVERIFIED")
             self.assertEqual(after["cash"], 0.0)
             self.assertTrue(rail.buys)
             self.assertEqual(rail.buys[0][1], Decimal("25.00"))
@@ -240,7 +240,7 @@ class AdvancedLiveTests(unittest.TestCase):
             )
             engine.step()
             self.assertTrue(rail.buys)
-            self.assertEqual(store.latest_decisions(1)[0]["status"], "LIVE_EXECUTED")
+            self.assertEqual(store.latest_decisions(1)[0]["status"], "ORDER_ACCEPTED_UNVERIFIED")
             store.close()
 
     def test_engine_selects_best_tradable_coinbase_spot_candidate(self):
@@ -258,7 +258,7 @@ class AdvancedLiveTests(unittest.TestCase):
             rows = store.latest_decisions(1)
             self.assertEqual(rows[0]["action"], "BUY")
             self.assertEqual(rows[0]["symbol"], "ALEO-USDC")
-            self.assertEqual(rows[0]["status"], "LIVE_EXECUTED")
+            self.assertEqual(rows[0]["status"], "ORDER_ACCEPTED_UNVERIFIED")
             self.assertTrue(rail.buys)
             self.assertLess(snap["cash"], 25.0)
             store.close()
@@ -331,7 +331,7 @@ class AdvancedLiveTests(unittest.TestCase):
             row = store.latest_decisions(1)[0]
             self.assertEqual(row["action"], "BUY")
             self.assertEqual(row["symbol"], "MEME-EUR")
-            self.assertEqual(row["status"], "LIVE_EXECUTED")
+            self.assertEqual(row["status"], "ORDER_ACCEPTED_UNVERIFIED")
             self.assertTrue(rail.buys)
             self.assertGreater(snap["net_liquidation"], 20.0)
             self.assertEqual(snap["balance_values_usd"].get("EUR", 0.0), 0.0)
@@ -451,7 +451,7 @@ class AdvancedLiveTests(unittest.TestCase):
             row = store.latest_decisions(1)[0]
             self.assertEqual(row["action"], "BUY")
             self.assertEqual(row["symbol"], "SHIT-USDC")
-            self.assertEqual(row["status"], "LIVE_EXECUTED")
+            self.assertEqual(row["status"], "ORDER_ACCEPTED_UNVERIFIED")
             self.assertIn("breakout BUY", row["rationale"])
             store.close()
 
