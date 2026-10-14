@@ -364,15 +364,19 @@ class AdvancedSpotEngine:
             start = 0.0
 
         if time.time() - float(self.store.get_meta("bean_advanced_last_observation") or "0") >= 55.0:
-            self.bean.record_universe(universe)
-            bean_prices = {}
-            for item in scored_rows:
-                base = str(item.get("base") or "")
-                price = float(item.get("price") or 0.0)
-                if base and price > 0:
-                    bean_prices[base] = price
-            self.bean.resolve_due(bean_prices)
-            self.store.set_meta("bean_advanced_last_observation", str(time.time()))
+            try:
+                self.bean.record_universe(universe)
+                bean_prices = {}
+                for item in scored_rows:
+                    base = str(item.get("base") or "")
+                    price = float(item.get("price") or 0.0)
+                    if base and price > 0:
+                        bean_prices[base] = price
+                self.bean.resolve_due(bean_prices)
+                self.store.set_meta("bean_advanced_last_observation", str(time.time()))
+            except Exception as exc:
+                # Advisory memory must never make the trading engine crash.
+                self.store.set_meta("bean_sync_warning", str(exc)[:180])
 
         game = score_game(self.store, net, start) if start > 0 else {
             "points": 0,
