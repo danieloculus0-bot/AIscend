@@ -68,6 +68,14 @@ class OrderEvidenceTests(unittest.TestCase):
                          "filled_size":"0"}}
         self.assertEqual(verified_order(detail,"123")["state"],"VENUE_NOT_FILLED")
 
+    def test_cancelled_partial_fill_must_not_be_misreported_as_zero_fill(self):
+        detail={"order":{"order_id":"123","status":"CANCELLED",
+                         "filled_size":"0.003"}}
+        self.assertEqual(
+            verified_order(detail,"123")["state"],
+            "PARTIAL_FILL_REQUIRES_RECONCILIATION")
+
+
 
 if __name__=="__main__":
     unittest.main()
