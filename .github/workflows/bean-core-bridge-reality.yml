@@ -1,0 +1,26 @@
+name: AIscend BEAN Core Bridge Reality Check
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-core-offline-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Checkout real BEAN Core separately
+        run: git clone --depth 1 https://github.com/danieloculus0-bot/BEAN.git "$RUNNER_TEMP/bean-core"
+      - name: Exercise the actual BEAN reasoning layer in advisory mode
+        run: |
+          python -m scripts.bean_portfolio_review --core "$RUNNER_TEMP/bean-core" --snapshot tests/fixtures/bean-bridge-offline-sample.json --db "$RUNNER_TEMP/bean-review.db" --output "$RUNNER_TEMP/bean-review.json"
+      - name: Fail if a mock bridge or trade permission is misreported
+        run: |
+          python -c "import json,os,pathlib; p=json.loads((pathlib.Path(os.environ['RUNNER_TEMP'])/'bean-review.json').read_text()); assert len(p['core']['sha'])==40; assert p['core']['mode']=='advisory_only'; assert p['trade_authorized'] is False; assert 'result' in p; print('BEAN real core invoked; no trading authority; no home PC connected')"

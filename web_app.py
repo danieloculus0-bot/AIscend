@@ -15,6 +15,7 @@ from flask import Flask, jsonify, render_template, request
 from src.advanced_live import AdvancedSpotEngine
 from src.audit import AuditTrail
 from src.bean import BeanMemory
+from src.bean_core_bridge import core_identity
 from src.bean_policy import BeanPolicyGate
 from src.bean_research_supervisor import BeanResearchSupervisor
 from src.bean_five_minute import FastPaperBook, collect_5m
@@ -444,16 +445,34 @@ def trading_diagnostics():
     try:
         plan = json.loads(store.get_meta("primary_trade_plan_latest") or "{}")
         decisions = [dict(row) for row in store.latest_decisions(10)]
+        order_evidence = json.loads(
+            store.get_meta("last_coinbase_submission_evidence") or "{}")
+        pending = json.loads(
+            store.get_meta("pending_coinbase_order") or "{}")
     finally:
         store.close()
+    bean_dir = os.getenv("BEAN_CORE_DIR", "").strip()
+    bridge = {"installed_verified": False, "runtime_invoked": False,
+              "role": "optional_manual_research", "status": "NOT_CONFIGURED"}
+    if bean_dir:
+        try:
+            identity = core_identity(bean_dir)
+            bridge.update({"installed_verified": True, "status": "CORE_CHECKOUT_VERIFIED",
+                           "core_sha": identity["sha"]})
+        except Exception as exc:
+            bridge["status"] = f"UNAVAILABLE: {type(exc).__name__}"
     return jsonify({
         "ok": True,
         "primary_engine": "aiscend_price_action_v1",
         "bean_role": "research_advisory_only",
+        "version": (Path(__file__).parent / "VERSION").read_text(encoding="utf-8").strip(),
+        "bean_bridge": bridge,
+        "order_evidence": order_evidence,
+        "pending_coinbase_order": bool(pending),
         "runner": dict(_loop_state),
         "last_plan": plan,
         "recent_decisions": decisions,
-        "note": "LIVE_EXECUTED means Coinbase accepted an order; consult order fills for confirmed net P/L.",
+        "note": "Order acceptance is NOT a confirmed fill. Filled quantity, fees and realized net P/L require authenticated Coinbase order/fill evidence.",
     })
 
 

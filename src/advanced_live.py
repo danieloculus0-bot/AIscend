@@ -18,6 +18,7 @@ from .primary_strategy import (
     select_plan, proposals, exit_reason, incumbent_hold_net_bps,
     ROTATION_MARGIN_BPS,
 )
+from .coinbase_order_evidence import accepted_order_id, verified_order
 from .core import Decision, StateStore
 from .game import score_game
 from .listing_sentinel import CoinbaseListingSentinel
@@ -360,8 +361,6 @@ class AdvancedSpotEngine:
             positions[product_id] = {
                 "qty": qty,
                 "available_qty": spendable_balances.get(currency, 0.0),
-                # Balances expose quantity, not verified acquisition fills.
-                # A current mark is not the historical acquisition cost.
                 "avg_cost": None,
                 "mark_price": usd_rate,
                 "cost_basis_status": "unverified_without_fills",
@@ -796,7 +795,8 @@ class AdvancedSpotEngine:
                 decision = Decision("SELL", held_product, 1.0, rationale)
                 try:
                     self._execute_sell(decision, snapshot)
-                    status = "LIVE_EXECUTED"
+                    status = (self.store.get_meta("last_coinbase_submission_state")
+                              or "ORDER_ACCEPTED_UNVERIFIED")
                     self.store.set_meta(key, "0")
                 except Exception as exc:
                     status = "EXECUTION_ERROR"
@@ -840,7 +840,8 @@ class AdvancedSpotEngine:
             try:
                 decision = self._execute_quote_bridge(
                     source_quote, target_quote, snapshot, rationale)
-                status = "LIVE_EXECUTED"
+                status = (self.store.get_meta("last_coinbase_submission_state")
+                              or "ORDER_ACCEPTED_UNVERIFIED")
             except Exception as exc:
                 status = "EXECUTION_ERROR"
                 decision = Decision("HOLD", None, 0.0,
@@ -858,7 +859,8 @@ class AdvancedSpotEngine:
             self._execute_buy(decision, snapshot)
             self.store.set_meta("bean_maturity_at:" + product,
                                 str(now + 60 * winner["maturity_minutes"]))
-            status = "LIVE_EXECUTED"
+            status = (self.store.get_meta("last_coinbase_submission_state")
+                              or "ORDER_ACCEPTED_UNVERIFIED")
         except Exception as exc:
             status = "EXECUTION_ERROR"
             decision = Decision("BUY", product, 1.0,
@@ -866,19 +868,151 @@ class AdvancedSpotEngine:
         self.store.add_decision(decision, status)
         return self.sync()
 
+    def _record_order_intent(self, *, product: str, side: str,
+                             client_id: str) -> None:
+        """Persist the idempotency key BEFORE a potentially irreversible order.
+
+        A network timeout after Coinbase accepts a trade is ambiguous.
+        We never automatically repeat it with a newly generated client ID.
+        """
+        if not callable(getattr(self.rail, "order_detail", None)):
+            # Mock rails are not authenticated Coinbase and have no reconciliation.
+            return
+        self.store.set_meta("pending_coinbase_order", json.dumps({
+            "order_id": None, "client_order_id": client_id,
+            "product": product, "side": side,
+            "submitted_at": time.time(), "state": "SUBMISSION_OUTCOME_UNKNOWN"}))
+
+    def _check_or_track_submission(self, order: dict[str, Any],
+                                   *, product: str, side: str,
+                                   client_id: str) -> tuple[str, dict[str, Any]]:
+        """A Coinbase submit ACK is NOT evidence of a filled trade."""
+        order_id = accepted_order_id(order)
+        getter = getattr(self.rail, "order_detail", None)
+        if not order_id:
+            observation = {"state": "ORDER_ACCEPTED_UNVERIFIED",
+                           "reason": "Provider ACK contained no order_id"}
+        elif not callable(getter):
+            observation = {"state": "ORDER_ACCEPTED_UNVERIFIED",
+                           "order_id": order_id,
+                           "reason": "No order-detail lookup on this rail"}
+        else:
+            try:
+                observation = verified_order(getter(order_id), order_id)
+            except Exception as exc:
+                observation = {"state": "ORDER_ACCEPTED_UNVERIFIED",
+                               "order_id": order_id,
+                               "reason": f"Order verification unavailable: {type(exc).__name__}: {exc}"}
+        state = str(observation["state"])
+        if state == "FILLED_VERIFIED" and order_id:
+            filler = getattr(self.rail, "order_fills", None)
+            if callable(filler):
+                try:
+                    details = filler(order_id)
+                    fills = details.get("fills") or []
+                    observation["fill_records_count"] = len(fills)
+                    observation["fill_commissions"] = [
+                        {"trade_id": str(fill.get("trade_id") or ""),
+                         "commission": fill.get("commission"),
+                         "size": fill.get("size"),
+                         "price": fill.get("price")}
+                        for fill in fills if isinstance(fill, dict)
+                    ]
+                except Exception as exc:
+                    observation["fill_lookup_warning"] = type(exc).__name__
+        self.store.set_meta("last_coinbase_submission_state", state)
+        self.store.set_meta("last_coinbase_submission_evidence",
+                            json.dumps(observation))
+        if state in {"FILLED_VERIFIED", "VENUE_NOT_FILLED"}:
+            self.store.set_meta("pending_coinbase_order", "")
+        if state not in {"FILLED_VERIFIED", "VENUE_NOT_FILLED"}:
+            # Block subsequent dependent orders until Coinbase confirms the
+            # fill or rejection. Never resubmit a possibly accepted order.
+            self.store.set_meta("pending_coinbase_order", json.dumps({
+                "order_id": order_id, "client_order_id": client_id,
+                "product": product, "side": side,
+                "submitted_at": time.time()}))
+        return state, observation
+
+    def _pending_order_decision(self):
+        """Reconcile accepted but unverified orders before placing another."""
+        raw = self.store.get_meta("pending_coinbase_order")
+        if not raw:
+            return None
+        pending = json.loads(raw)
+        order_id = str(pending.get("order_id") or "")
+        product = str(pending.get("product") or "")
+        if not order_id:
+            return Decision("HOLD", None, 0.0,
+                "A prior Coinbase submission was accepted without an order ID. "
+                "Manual Coinbase order-history reconciliation is required."), "ORDER_AWAITING_VERIFICATION"
+        getter = getattr(self.rail, "order_detail", None)
+        if not callable(getter):
+            return Decision("HOLD", None, 0.0,
+                "Coinbase order-detail lookup unavailable; order may still be pending."), "ORDER_AWAITING_VERIFICATION"
+        try:
+            observed = verified_order(getter(order_id), order_id)
+        except Exception as exc:
+            observed = {"state": "ORDER_ACCEPTED_UNVERIFIED",
+                        "reason": f"{type(exc).__name__}: {exc}"}
+        self.store.set_meta("last_coinbase_submission_evidence", json.dumps(observed))
+        state = observed["state"]
+        if state in {"FILLED_VERIFIED", "VENUE_NOT_FILLED"}:
+            self.store.set_meta("pending_coinbase_order", "")
+            self.store.set_meta("last_coinbase_submission_state", state)
+            if state == "FILLED_VERIFIED":
+                # Final receipt is appended separately from the original
+                # submitted-order audit; never retroactively rewrite history.
+                try:
+                    base, quote = self._split_product(product)
+                    self.audit.record_event(
+                        event_type="coinbase_fill_reconciliation",
+                        venue="coinbase", rail="coinbase-advanced",
+                        network="coinbase", side=str(pending.get("side") or ""),
+                        product_id=product, base_asset=base, quote_asset=quote,
+                        base_quantity=observed.get("filled_size"),
+                        quote_quantity=observed.get("filled_value"),
+                        unit_price_quote=observed.get("average_filled_price"),
+                        fee_quantity=observed.get("total_fees"),
+                        order_id=order_id,
+                        client_order_id=str(pending.get("client_order_id") or ""),
+                        status="filled_verified",
+                        source="coinbase_authenticated_order_detail",
+                        raw_provider_response=observed)
+                except Exception as exc:
+                    self.store.add_ledger("AUDIT_ERROR", product, 0.0, 0.0, 0.0,
+                        f"Coinbase filled; final audit receipt failed: {exc}")
+                rationale = (f"Coinbase verified order {order_id} FILLED for {product}; "
+                             f"base quantity {observed.get('filled_size')}, "
+                             f"fees {observed.get('total_fees') or 'not yet reconciled'}. "
+                             "Rescan balances before another order.")
+            else:
+                rationale = f"Coinbase order {order_id} did not fill: {observed.get('venue_status')}"
+            return Decision("HOLD", None, 0.0, rationale), state
+        return Decision("HOLD", None, 0.0,
+            f"Awaiting authenticated Coinbase reconciliation for {product} order {order_id}. "
+            f"Last check: {observed.get('reason','not filled yet')}."), "ORDER_AWAITING_VERIFICATION"
+
     def _primary_trade_step(self, snapshot: dict[str, Any]) -> dict[str, Any]:
         """AIscend, not BEAN, owns Coinbase Advanced live trading decisions.
 
         BEAN's hypothesis/reward research is separate and may be compared with
         this durable plan after execution. One confirmed order leg per cycle.
         """
+        pending = self._pending_order_decision()
+        if pending is not None:
+            decision, status = pending
+            self.store.add_decision(decision, status)
+            self.store.set_meta("primary_trade_plan_latest", json.dumps({
+                "evaluated_at": time.time(), "primary_engine": "aiscend_price_action_v1",
+                "decision": decision.action, "decision_reason": decision.rationale,
+                "execution_status": status, "order_attempted": False,
+                "blocker": "coinbase_fill_reconciliation"}))
+            return self.sync()
         fee_bps, fee_source = self._taker_cost_bps()
         plan = select_plan(snapshot, taker_bps=fee_bps)
         positions = snapshot.get("positions") or {}
         rows = (snapshot.get("asset_universe") or {}).get("scored") or []
-        # A new route must beat keeping the incumbent over the SAME time
-        # window, with all future liquidation/entry/exit fees considered.
-        # Do not let a rejected top route hide a viable cash-funded route.
         eligible_routes = []
         for route in plan["routes"]:
             source = route.get("source_asset")
@@ -931,8 +1065,7 @@ class AdvancedSpotEngine:
                 self.store.set_meta(key, str(deadline))
             issue = exit_reason(product, snapshot, deadline_reached=now >= deadline)
             candidate = bool(winner and winner["source_asset"] == product)
-            # Candidate rotations have already been compared with the
-            # fee-adjusted incumbent on a matching time horizon.
+            # Incumbent fee-adjusted horizon comparison occurs before winner selection.
             if issue or candidate:
                 reason = issue or "better_net_route"
                 target = winner["product"] if candidate else "cash"
@@ -943,9 +1076,9 @@ class AdvancedSpotEngine:
                 decision = Decision("SELL", product, 1.0, rationale)
                 plan["order_attempted"] = True
                 try:
-                    self._execute_sell(decision, snapshot)
-                    self.store.set_meta(key, "0")
-                    status = "LIVE_EXECUTED"
+                    status = self._execute_sell(decision, snapshot) or "ORDER_ACCEPTED_UNVERIFIED"
+                    if status == "FILLED_VERIFIED":
+                        self.store.set_meta(key, "0")
                 except Exception as exc:
                     status = "EXECUTION_ERROR"
                     decision = Decision("SELL", product, 1.0,
@@ -983,7 +1116,8 @@ class AdvancedSpotEngine:
             try:
                 decision = self._execute_quote_bridge(
                     source_quote, target_quote, snapshot, rationale)
-                status = "LIVE_EXECUTED"
+                status = (self.store.get_meta("last_coinbase_submission_state")
+                          or "ORDER_ACCEPTED_UNVERIFIED")
             except Exception as exc:
                 status = "EXECUTION_ERROR"
                 decision = Decision("HOLD", None, 0.0,
@@ -998,10 +1132,10 @@ class AdvancedSpotEngine:
             f"maturity {winner['maturity_minutes']}m.")
         plan["order_attempted"] = True
         try:
-            self._execute_buy(decision, snapshot)
-            self.store.set_meta("primary_maturity_at:" + product,
-                                str(now + 60 * winner["maturity_minutes"]))
-            status = "LIVE_EXECUTED"
+            status = self._execute_buy(decision, snapshot) or "ORDER_ACCEPTED_UNVERIFIED"
+            if status in {"FILLED_VERIFIED", "ORDER_ACCEPTED_UNVERIFIED"}:
+                self.store.set_meta("primary_maturity_at:" + product,
+                                    str(now + 60 * winner["maturity_minutes"]))
         except Exception as exc:
             status = "EXECUTION_ERROR"
             decision = Decision("BUY", product, 1.0,
@@ -1018,10 +1152,7 @@ class AdvancedSpotEngine:
         _, quote = self._split_product(product_id)
         available = Decimal(str((snapshot.get("cash_by_quote") or {}).get(quote, 0.0)))
         spend = available * Decimal(str(decision.fraction))
-        # Small account or not, do not concentrate 100% of spendable USD/USDC
-        # in a single new coin. The rest stays cash for future opportunities.
-        # Non-dollar quote balances need a conversion rate before applying a
-        # USD-based portfolio cap; never mix incompatible units.
+        # Preserve the latest main branch's position concentration constraint.
         nav = float(snapshot.get("net_liquidation") or 0.0)
         if nav > 0.0 and quote in DOLLAR_ASSETS:
             base, _ = self._split_product(product_id)
@@ -1042,14 +1173,20 @@ class AdvancedSpotEngine:
 
         preview = self.rail.preview_market_buy(product_id, spend)
         client_order_id = f"aiscend-{uuid.uuid4()}"
-        order = self.rail.market_buy(
-            product_id,
-            spend,
-            client_order_id=client_order_id,
-        )
+        self._record_order_intent(product=product_id, side="BUY",
+                                  client_id=client_order_id)
+        try:
+            order = self.rail.market_buy(
+                product_id, spend, client_order_id=client_order_id)
+        except RuntimeError as exc:
+            if str(exc).startswith("Coinbase order not confirmed accepted:"):
+                self.store.set_meta("pending_coinbase_order", "")
+            raise
         require_accepted_order(order)
+        result_state, evidence = self._check_or_track_submission(
+            order, product=product_id, side="BUY", client_id=client_order_id)
         self.store.add_ledger(
-            "ADVANCED_BUY",
+            "ADVANCED_ORDER_SUBMITTED_BUY",
             product_id,
             0.0,
             0.0,
@@ -1059,18 +1196,9 @@ class AdvancedSpotEngine:
 
         try:
             base, quote = self._split_product(product_id)
-            estimated_base = self.audit.provider_id(
-                preview,
-                "base_size",
-                "estimated_base_size",
-                "base_size_total",
-            )
-            unit_price = None
-            if estimated_base:
-                try:
-                    unit_price = spend / Decimal(estimated_base)
-                except Exception:
-                    unit_price = None
+            actual_base = evidence.get("filled_size") if result_state == "FILLED_VERIFIED" else None
+            actual_quote = evidence.get("filled_value") if result_state == "FILLED_VERIFIED" else None
+            actual_price = evidence.get("average_filled_price") if result_state == "FILLED_VERIFIED" else None
             self.audit.record_trade(
                 venue="coinbase",
                 rail="coinbase-advanced",
@@ -1079,15 +1207,16 @@ class AdvancedSpotEngine:
                 product_id=product_id,
                 base_asset=base,
                 quote_asset=quote,
-                base_quantity=estimated_base or None,
-                quote_quantity=spend,
-                unit_price_quote=unit_price,
+                base_quantity=actual_base,
+                quote_quantity=actual_quote,
+                unit_price_quote=actual_price,
+                fee_quantity=evidence.get("total_fees") if result_state == "FILLED_VERIFIED" else None,
                 order_id=self.audit.provider_id(order, "order_id", "orderId"),
                 client_order_id=client_order_id,
-                status="provider_response",
+                status=result_state.lower(),
                 rationale=decision.rationale,
                 source="coinbase_advanced_order_response",
-                raw_provider_response={"preview": preview, "order": order},
+                raw_provider_response={"preview": preview, "order": order, "verification": evidence},
             )
         except Exception as exc:
             self.store.add_ledger(
@@ -1096,9 +1225,11 @@ class AdvancedSpotEngine:
                 0.0,
                 0.0,
                 0.0,
-                f"Advanced BUY executed but audit write failed: {exc}",
+                f"Coinbase BUY submission accepted but audit write failed: {exc}",
             )
 
+
+        return result_state
     def _execute_sell(self, decision: Decision, snapshot: dict[str, Any]) -> None:
         product_id = str(decision.symbol)
         position = (snapshot.get("positions") or {}).get(product_id) or {}
@@ -1118,14 +1249,20 @@ class AdvancedSpotEngine:
         preview = previewer(product_id, qty) if callable(previewer) else None
 
         client_order_id = f"aiscend-{uuid.uuid4()}"
-        order = self.rail.market_sell(
-            product_id,
-            qty,
-            client_order_id=client_order_id,
-        )
+        self._record_order_intent(product=product_id, side="SELL",
+                                  client_id=client_order_id)
+        try:
+            order = self.rail.market_sell(
+                product_id, qty, client_order_id=client_order_id)
+        except RuntimeError as exc:
+            if str(exc).startswith("Coinbase order not confirmed accepted:"):
+                self.store.set_meta("pending_coinbase_order", "")
+            raise
         require_accepted_order(order)
+        result_state, evidence = self._check_or_track_submission(
+            order, product=product_id, side="SELL", client_id=client_order_id)
         self.store.add_ledger(
-            "ADVANCED_SELL",
+            "ADVANCED_ORDER_SUBMITTED_SELL",
             product_id,
             float(qty),
             0.0,
@@ -1143,13 +1280,15 @@ class AdvancedSpotEngine:
                 product_id=product_id,
                 base_asset=base,
                 quote_asset=quote,
-                base_quantity=qty,
+                base_quantity=evidence.get("filled_size") if result_state == "FILLED_VERIFIED" else None,
+                quote_quantity=evidence.get("filled_value") if result_state == "FILLED_VERIFIED" else None,
+                fee_quantity=evidence.get("total_fees") if result_state == "FILLED_VERIFIED" else None,
                 order_id=self.audit.provider_id(order, "order_id", "orderId"),
                 client_order_id=client_order_id,
-                status="provider_response",
+                status=result_state.lower(),
                 rationale=decision.rationale,
                 source="coinbase_advanced_order_response",
-                raw_provider_response={"preview": preview, "order": order},
+                raw_provider_response={"preview": preview, "order": order, "verification": evidence},
             )
         except Exception as exc:
             self.store.add_ledger(
@@ -1158,6 +1297,8 @@ class AdvancedSpotEngine:
                 0.0,
                 0.0,
                 0.0,
-                f"Advanced SELL executed but audit write failed: {exc}",
+                f"Coinbase SELL submission accepted but audit write failed: {exc}",
             )
 
+
+        return result_state
