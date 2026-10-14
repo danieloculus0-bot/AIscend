@@ -12,6 +12,8 @@ from .audit import AuditTrail
 from .bean import BeanMemory
 from .bean_policy import BeanPolicyGate
 from .bean_growth_rotation import evaluate_candidates
+from .bean_rotation_economics import (score_route, bridge_order,
+                                      maturity_minutes, trade_cost_bps)
 from .core import Decision, StateStore
 from .game import score_game
 from .listing_sentinel import CoinbaseListingSentinel
@@ -591,133 +593,234 @@ class AdvancedSpotEngine:
             ),
         }
 
+    def _taker_cost_bps(self) -> tuple[float, str]:
+        """Use authenticated Coinbase fee tier; cache its source for 15 min."""
+        now = time.time()
+        try:
+            saved = json.loads(self.store.get_meta("bean_fee_tier") or "{}")
+        except (ValueError, TypeError):
+            saved = {}
+        if now - float(saved.get("checked_at") or 0.0) < 900:
+            return float(saved.get("bps", 60.0)), str(saved.get("source", "estimate"))
+        rate = None
+        try:
+            getter = getattr(getattr(self, "rail", None), "taker_fee_bps", None)
+            rate = getter() if callable(getter) else None
+        except Exception:
+            pass
+        bps = float(rate) if rate is not None else 60.0
+        source = "coinbase_account_fee_tier" if rate is not None else "conservative_estimate"
+        self.store.set_meta("bean_fee_tier", json.dumps({
+            "bps": bps, "source": source, "checked_at": now}))
+        return bps, source
+
+    def _execute_quote_bridge(self, source_quote, target_quote, snapshot, rationale):
+        bridge = bridge_order(source_quote, target_quote,
+                              snapshot.get("tradable_products"))
+        if bridge is None:
+            raise RuntimeError("No supported Coinbase USD/USDC conversion pair")
+        product = bridge["product"]
+        cash = float((snapshot.get("cash_by_quote") or {}).get(source_quote) or 0.0)
+        if cash <= 0:
+            raise RuntimeError(f"No spendable {source_quote} for quote conversion")
+        if bridge["side"] == "SELL":
+            # USDC-USD is a real spot SELL; the proceeds become USD.
+            synthetic = dict(snapshot)
+            synthetic["positions"] = dict(snapshot.get("positions") or {})
+            synthetic["positions"][product] = {"qty": cash, "available_qty": cash}
+            decision = Decision("SELL", product, 1.0, rationale)
+            self._execute_sell(decision, synthetic)
+        else:
+            decision = Decision("BUY", product, 1.0, rationale)
+            self._execute_buy(decision, snapshot)
+        return decision
+
     def _adopt_growth(self, snapshot, radar):
-        """Use the learned policy to execute a BUY, SELL or HOLD, when ready."""
+        """Compare fee-inclusive routes, then execute at most one leg per cycle.
+
+        BEAN's Q rewards are simulated five-minute observations. A predicted
+        growth window is a testable hypothesis, not a calibrated profit promise.
+        """
         if self.growth_gate is None:
             return None
         selection_snapshot = snapshot
         if not (snapshot.get("asset_universe") or {}).get("scored"):
-            # Keep the direct engine's own market radar usable with callers
-            # that provide a minimized snapshot in integration tests.
             seeds = [x for x in (radar.get("best_long"),
                                   radar.get("weakest_held")) if x]
             selection_snapshot = dict(snapshot)
             selection_snapshot["asset_universe"] = {"scored": seeds}
         cursor = int(self.store.get_meta("bean_rotation_cursor") or "0")
-        plan = evaluate_candidates(self.growth_gate, selection_snapshot,
-                                   cursor=cursor)
+        plan = evaluate_candidates(self.growth_gate, selection_snapshot, cursor=cursor)
         self.store.set_meta("bean_rotation_cursor", str(plan["next_cursor"]))
-        winner = plan["best_long"]
-        # Prefer markets funded by spendable cash or a held asset that can
-        # actually be liquidated into the market's quote currency. Otherwise
-        # a nominally better but unreachable USD market can strand USDC.
-        accessible_quotes = {
-            quote for quote, value in (snapshot.get("cash_by_quote") or {}).items()
-            if float(value) > 0
+
+        fee_bps, fee_source = self._taker_cost_bps()
+        cash = snapshot.get("cash_by_quote") or {}
+        held = snapshot.get("positions") or {}
+        tradable = snapshot.get("tradable_products") or []
+        rows = (snapshot.get("asset_universe") or {}).get("scored") or []
+        known_spreads = {
+            str(row.get("product") or ""): float(row.get("spread_bps") or 0.0)
+            for row in rows
         }
-        accessible_quotes.update(
-            self._split_product(product)[1]
-            for product in (snapshot.get("positions") or {})
-        )
-        if winner and self._split_product(winner["product"])[1] not in accessible_quotes:
-            alternatives = sorted(
-                (item for item in plan["evaluated"]
-                 if item["target_exposure"]
-                 and self._split_product(item["product"])[1] in accessible_quotes),
-                key=lambda item: item["edge_bps"], reverse=True)
-            winner = alternatives[0] if alternatives else None
-        evaluated = {x["product"]: x for x in plan["evaluated"]}
+        bridge_spread = known_spreads.get("USDC-USD", 0.0)
+        source_quotes = {
+            quote for quote, amount in cash.items() if float(amount) > 0
+        }
+        source_quotes.update(self._split_product(p)[1] for p in held)
+
+        ranked = []
+        for item in plan["evaluated"]:
+            if not item["target_exposure"]:
+                ranked.append({**item, "reason_skipped": "learned_cash"})
+                continue
+            product = item["product"]
+            quote = self._split_product(product)[1]
+            choices = []
+            for source_quote in sorted(source_quotes):
+                bridge = source_quote != quote
+                if bridge and bridge_order(source_quote, quote, tradable) is None:
+                    continue
+                for held_product in (list(held) or [None]):
+                    selling = held_product is not None and held_product != product
+                    if selling and self._split_product(held_product)[1] != source_quote:
+                        continue
+                    if not selling and float(cash.get(source_quote, 0.0)) <= 0:
+                        continue
+                    options = score_route(
+                        item, taker_fee_bps=fee_bps, bridge=bridge,
+                        bridge_spread_bps=bridge_spread,
+                        incumbent_spread_bps=known_spreads.get(held_product, 0.0),
+                        selling_incumbent=selling)
+                    options["source_quote"] = source_quote
+                    options["source_asset"] = held_product if selling else None
+                    choices.append(options)
+            if choices:
+                best_route = max(choices, key=lambda x: x["net_projected_bps"])
+                # Older mock learners lack scored rewards. Retain support for
+                # testing their adoption path; real policy has explicit scores.
+                if item.get("reward_available") and best_route["net_projected_bps"] <= 0:
+                    best_route["reason_skipped"] = "projected_gain_below_route_cost"
+                ranked.append(best_route)
+            else:
+                ranked.append({**item, "reason_skipped": "no_compatible_quote_route"})
+
+        candidates = [
+            item for item in ranked if item["target_exposure"]
+            and not item.get("reason_skipped")
+        ]
+        winner = (max(candidates, key=lambda x: x["net_projected_bps"])
+                  if candidates else None)
         self.store.set_meta("bean_growth_latest", json.dumps({
-            "trade_effect": "ADOPTED_PORTFOLIO_STRATEGY",
+            "trade_effect": "ADOPTED_COST_AWARE_PORTFOLIO_STRATEGY",
             "winner": winner, "assessed_count": plan["assessed_count"],
             "eligible_count": plan["eligible_count"],
             "universe_count": plan["universe_count"],
-            "next_cursor": plan["next_cursor"],
-            "ranked": sorted(plan["evaluated"],
-                             key=lambda x: x["edge_bps"], reverse=True),
+            "next_cursor": plan["next_cursor"], "taker_fee_bps": fee_bps,
+            "fee_source": fee_source, "ranked": sorted(
+                ranked, key=lambda x: x.get("net_projected_bps", -1e9), reverse=True),
         }))
 
-        for held_product, holding in (snapshot.get("positions") or {}).items():
-            available = float(holding.get("available_qty",
-                                          holding.get("qty", 0)) or 0)
+        now = time.time()
+        for held_product, holding in held.items():
+            available = float(holding.get("available_qty", holding.get("qty", 0)) or 0)
             if available <= 0:
                 continue
-            current = evaluated.get(held_product)
-            if current is None:
-                continue
-            target = winner["product"] if winner else None
-            old_edge = current["edge_bps"] if current["target_exposure"] else 0
-            new_edge = winner["edge_bps"] if winner else 0
-            # Rank on modeled net rewards rather than an extra fixed 18-bps
-            # veto. Exit learned cash/negative-edge holds to free capital.
-            rotate = bool(winner and target != held_product
-                          and new_edge > old_edge)
-            if (not current["target_exposure"]) or rotate:
-                decision = Decision("SELL", held_product, 1.0,
-                    "BEAN learned rotation " + held_product + " to "
-                    + (target or "cash") + "; learned net edge "
-                    + f"{new_edge-old_edge:+.2f} bps.")
+            current = next((r for r in plan["evaluated"]
+                            if r["product"] == held_product), None)
+            key = "bean_maturity_at:" + held_product
+            expires = float(self.store.get_meta(key) or "0")
+            if not expires:
+                expires = now + 60 * maturity_minutes(current or {})
+                self.store.set_meta(key, str(expires))
+            matured = now >= expires
+            # Incumbent economics count only its future exit, not a BUY fee
+            # already paid. An unknown incumbent is not assumed profitable.
+            old_growth = 0.0
+            if current and current.get("target_exposure"):
+                hypothesis = score_route(current, taker_fee_bps=fee_bps)
+                old_growth = hypothesis["estimated_growth_bps"] - trade_cost_bps(
+                    current.get("spread_bps", 0), fee_bps)
+            to_new = winner and winner["product"] != held_product
+            competing = bool(to_new and winner["source_asset"] == held_product
+                             and winner["net_projected_bps"] > old_growth)
+            learned_exit = bool(current and not current["target_exposure"])
+            if matured or competing or learned_exit:
+                target = winner["product"] if competing else "cash"
+                rationale = (
+                    f"BEAN learned {('maturity' if matured else 'rotation')} "
+                    f"{held_product} to {target}; horizon deadline {expires:.0f}; "
+                    f"incumbent forecast {old_growth:+.2f}bps, "
+                    f"replacement net {winner['net_projected_bps'] if winner else 0:+.2f}bps.")
+                decision = Decision("SELL", held_product, 1.0, rationale)
                 try:
                     self._execute_sell(decision, snapshot)
                     status = "LIVE_EXECUTED"
+                    self.store.set_meta(key, "0")
                 except Exception as exc:
                     status = "EXECUTION_ERROR"
-                    decision = Decision(decision.action, decision.symbol,
-                                        decision.fraction,
-                                        f"{decision.rationale} Execution failed: {exc}")
+                    decision = Decision("SELL", held_product, 1.0,
+                                        rationale + f" Execution failed: {exc}")
                 self.store.add_decision(decision, status)
                 return self.sync()
 
         if winner is None:
-            if plan["evaluated"]:
-                decision = Decision("HOLD", None, 0.0,
-                                    "BEAN learned policy favors cash; no positive long strategy.")
-                self.store.add_decision(decision, "HELD")
-                return self.sync()
-            return None
-        best = {"product": winner["product"],
-                "decision_score": winner["edge_bps"] / 100.0,
-                "spread_bps": winner["spread_bps"],
-                "volume_ratio": winner["volume_ratio"]}
+            reasons = {
+                r.get("reason_skipped") for r in ranked if r.get("reason_skipped")
+            }
+            rationale = ("BEAN reviewed " + str(plan["assessed_count"]) +
+                         " assets: no forecast exceeds estimated full route costs. " +
+                         "Reasons: " + ", ".join(sorted(reasons)) + ".")
+            decision = Decision("HOLD", None, 0.0, rationale)
+            self.store.add_decision(decision, "HELD")
+            return self.sync()
+
         product = winner["product"]
-        growth = {"trade_effect": "ADOPTED_LONG_CASH",
-                  "learned_strategy": winner["action"],
-                  "target_exposure": winner["target_exposure"]}
-        action = "HOLD"
-        fraction = 0.0
-        symbol = None
-        rationale = ("BEAN learned " + str(growth["learned_strategy"])
-                     + " selected " + ("long" if growth["target_exposure"] else "cash") + ".")
-        if growth["target_exposure"]:
-            score = float(best.get("decision_score") if best.get("decision_score") is not None
-                          else best.get("score") or 0.0)
-            spread = float(best.get("spread_bps") or 0.0)
-            volume = float(best.get("volume_ratio") or 0.0)
-            _, quote = self._split_product(product)
-            cash = float((snapshot.get("cash_by_quote") or {}).get(quote, 0.0))
-            # A learned long target is a position, not permission to
-            # repeatedly buy the same already-held asset every minute.
-            if cash > 0.0 and product not in snapshot.get("positions", {}):
-                action, symbol = "BUY", product
-                fraction = 1.0
-        if action == "HOLD" and growth["target_exposure"]:
-            _, quote = self._split_product(product)
-            available_cash = float((snapshot.get("cash_by_quote") or {}).get(quote, 0))
-            if available_cash <= 0:
-                rationale += f" No spendable {quote} for {product}."
-            elif product in snapshot.get("positions", {}):
-                rationale += " Position already held."
-        decision = Decision(action, symbol, fraction, rationale)
-        status = "HELD"
-        if action == "BUY":
+        _, target_quote = self._split_product(product)
+        if product in held:
+            decision = Decision("HOLD", None, 0.0,
+                f"BEAN learned {product} held until its maturity; "
+                f"projected net {winner['net_projected_bps']:+.2f}bps.")
+            self.store.add_decision(decision, "HELD")
+            return self.sync()
+
+        # A funded source position must be sold in a distinct confirmed cycle.
+        if winner["source_asset"] is not None:
+            decision = Decision("HOLD", None, 0.0,
+                f"BEAN selected {product}, but release of {winner['source_asset']} "
+                "must clear the cost-aware incumbent comparison first.")
+            self.store.add_decision(decision, "HELD")
+            return self.sync()
+
+        source_quote = winner["source_quote"]
+        if source_quote != target_quote:
+            rationale = (f"BEAN costed USD/USDC conversion for {product}; "
+                         f"projected net {winner['net_projected_bps']:+.2f}bps.")
             try:
-                self._execute_buy(decision, snapshot)
+                decision = self._execute_quote_bridge(
+                    source_quote, target_quote, snapshot, rationale)
                 status = "LIVE_EXECUTED"
             except Exception as exc:
                 status = "EXECUTION_ERROR"
-                decision = Decision(decision.action, decision.symbol,
-                                    decision.fraction,
-                                    f"{decision.rationale} Execution failed: {exc}")
+                decision = Decision("HOLD", None, 0.0,
+                                    rationale + f" Conversion failed: {exc}")
+            self.store.add_decision(decision, status)
+            return self.sync()
+
+        rationale = (f"BEAN learned {winner['action']} BUY {product}; "
+                     f"provisional maturity {winner['maturity_minutes']} min, "
+                     f"modeled gross {winner['estimated_growth_bps']:+.2f}bps, "
+                     f"route costs {winner['total_route_cost_bps']:.2f}bps, "
+                     f"net {winner['net_projected_bps']:+.2f}bps.")
+        decision = Decision("BUY", product, 1.0, rationale)
+        try:
+            self._execute_buy(decision, snapshot)
+            self.store.set_meta("bean_maturity_at:" + product,
+                                str(now + 60 * winner["maturity_minutes"]))
+            status = "LIVE_EXECUTED"
+        except Exception as exc:
+            status = "EXECUTION_ERROR"
+            decision = Decision("BUY", product, 1.0,
+                                rationale + f" Execution failed: {exc}")
         self.store.add_decision(decision, status)
         return self.sync()
 
