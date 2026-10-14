@@ -1,5 +1,5 @@
 # AIscend 🌱
-### Autonomous Capital Lab, powered by BEAN learning
+### Autonomous Crypto Trading, with BEAN research assistance
 
 **An open-source, small-bankroll autonomous trading experiment with real execution adapters, persistent feedback learning, and an evidence-first research lab.**
 
@@ -20,8 +20,8 @@ AIscend is the product name. `AutonomousCapitalLab` remains the default desktop 
 | **Browser** | Flask dashboard, local or in GitHub Codespaces |
 | **Funded execution rails** | Coinbase CDP smart account on Base; Coinbase Advanced spot via separate credentials |
 | **Portfolio** | Linked Base + Advanced net value, decisions, optional explicit USDC bridge |
-| **Live learning** | BEAN's persistent five-minute price-bar reward learner can change the next live BUY/SELL/HOLD decision |
-| **Cross-market rotation** | Advanced spot can rank learned candidates, sell a weaker holding, and buy a stronger one on a later cycle |
+| **Live trading** | AIscend primary policy owns live BUY/SELL/HOLD; BEAN remains non-voting research |
+| **Cost-aware rotation** | Advanced spot scores independent price-action strategies and routes funds across supported quote currencies |
 | **Independent research** | Historical Strategy School, forward paper validation, universe scans, listing research, separate BEAN Core advisory bridge |
 | **Release pipeline** | Windows Python 3.12 tests, PyInstaller EXE, ZIP and SHA-256 verification |
 | **Verified CI** | [Main build at `d7fc8e6`](https://github.com/danieloculus0-bot/AIscend/actions/runs/38232312735) completed successfully on October 12, 2026. This verifies source/build checks, **not** live profitability, real fills, or a locally installed version. |
@@ -104,24 +104,28 @@ BEAN reads *completed* public Coinbase candles and tracks distinct per-market st
 
 A negative reward can change the preferred next action. Regression tests verify this behavioral effect separately from simply incrementing a learning counter. This is a **small contextual reward learner**, not a neural DeepMind Atari system, not BEAN Core's separate neuroevolution research, and not proof of profitable generalization.
 
-### 2. Adopt the learned policy in the trading engines
+### 2. AIscend trades; BEAN assists
 
-When the learner has enough valid data, its long/cash target can become a **real decision input**, not merely a shadow recommendation:
+BEAN's five-minute public-data learner is **research only**. Its hypothetical
+long/cash selections cannot force or veto orders. AIscend's primary trading
+policy in src/primary_strategy.py compares trend, breakout and reversal
+opportunities using spread, fee, quote-conversion and liquidation costs.
+Coinbase Advanced uses that policy, while Base uses its native research decider.
 
-- **Base** can convert the learned ETH exposure into a USDC/WETH BUY, SELL or HOLD through its existing CDP wallet path.
-- **Coinbase Advanced** can assess eligible products and use the learned outcome for its real spot execution decision.
-- Existing account and venue constraints still apply. Missing candles, unavailable products, rejected orders and missing spendable quote balances must not be fabricated into fills or positive rewards.
-- The [hourly Strategy School](src/bean_policy.py) is a **separate advisory research track**. Its historical selection does not veto an otherwise executable market BUY.
+### 3. Verify conventional strategies and blocked capital
 
-**Crucial distinction:** tests using fake wallets demonstrate that a changed learned preference reaches the proper order methods. They do **not** prove that the user's connected exchange filled those orders, or that future returns improved.
-
-### 3. Rank, exit and rotate capital on Advanced spot
-
-The [cross-market rotation module](src/bean_growth_rotation.py) examines eligible scanner candidates and already-held positions, even when a held asset is missing from the current top scanner results. It ranks adopted long strategies by learned reward adjusted for modeled spread and cost.
-
-The [Advanced live engine](src/advanced_live.py) can sell a held asset when its learned policy favors cash or another opportunity clears the coded improvement threshold. Proceeds can support a different BUY on a **subsequent** cycle. The sell and subsequent buy are **not one atomic exchange transaction**.
-
-The existing [rotation tests](tests/test_bean_growth_rotation.py) verify mocked SELL then BUY execution calls and durable decision records. The ranking formula and threshold are research heuristics, **not** independently validated trading edge or a prediction of actual net returns.
+- src/strategy_research.py evaluates actual completed Coinbase 5-minute candles,
+  forward-only simulated fills at next-bar opens, a chronological training
+  period, and an untouched holdout benchmarked against buy-and-hold.
+- The scheduled research workflow preserves research reports as GitHub Actions
+  artifacts. There is no unvalidated automatic live policy promotion.
+- The Python dashboard now includes an AIscend Trading Policy LIVE panel.
+  The local /api/trading-diagnostics endpoint distinguishes runner stopped,
+  no trade signal, fees exceeding expected gain, unavailable quote path,
+  venue execution rejection and accepted order.
+- BEAN independently reviews research and can suggest new hypotheses; it
+  cannot override trading decisions. Neither backtests nor exchange-accepted
+  orders establish confirmed real-world profitability.
 
 ### 4. Keep research, advisory reasoning and live execution separate
 
