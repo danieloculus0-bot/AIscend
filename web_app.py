@@ -429,6 +429,26 @@ def bean_growth_status():
     return jsonify({"ok": True, **_bean_growth.status(), "execution_evidence": evidence})
 
 
+@app.get("/api/trading-diagnostics")
+def trading_diagnostics():
+    """Inspectable, read-only proof of why funded capital did or didn't move."""
+    store = StateStore(_db_path("base", "advanced"))
+    try:
+        plan = json.loads(store.get_meta("primary_trade_plan_latest") or "{}")
+        decisions = [dict(row) for row in store.latest_decisions(10)]
+    finally:
+        store.close()
+    return jsonify({
+        "ok": True,
+        "primary_engine": "aiscend_price_action_v1",
+        "bean_role": "research_advisory_only",
+        "runner": dict(_loop_state),
+        "last_plan": plan,
+        "recent_decisions": decisions,
+        "note": "LIVE_EXECUTED means Coinbase accepted an order; consult order fills for confirmed net P/L.",
+    })
+
+
 @app.get("/api/runner")
 def runner_status():
     return jsonify({"ok": True, "runner": dict(_loop_state)})
