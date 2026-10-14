@@ -863,6 +863,21 @@ class AdvancedSpotEngine:
         self.store.add_decision(decision, status)
         return self.sync()
 
+    def _record_order_intent(self, *, product: str, side: str,
+                             client_id: str) -> None:
+        """Persist the idempotency key BEFORE a potentially irreversible order.
+
+        A network timeout after Coinbase accepts a trade is ambiguous.
+        We never automatically repeat it with a newly generated client ID.
+        """
+        if not callable(getattr(self.rail, "order_detail", None)):
+            # Mock rails are not authenticated Coinbase and have no reconciliation.
+            return
+        self.store.set_meta("pending_coinbase_order", json.dumps({
+            "order_id": None, "client_order_id": client_id,
+            "product": product, "side": side,
+            "submitted_at": time.time(), "state": "SUBMISSION_OUTCOME_UNKNOWN"}))
+
     def _check_or_track_submission(self, order: dict[str, Any],
                                    *, product: str, side: str,
                                    client_id: str) -> tuple[str, dict[str, Any]]:
@@ -903,6 +918,8 @@ class AdvancedSpotEngine:
         self.store.set_meta("last_coinbase_submission_state", state)
         self.store.set_meta("last_coinbase_submission_evidence",
                             json.dumps(observation))
+        if state in {"FILLED_VERIFIED", "VENUE_NOT_FILLED"}:
+            self.store.set_meta("pending_coinbase_order", "")
         if state not in {"FILLED_VERIFIED", "VENUE_NOT_FILLED"}:
             # Block subsequent dependent orders until Coinbase confirms the
             # fill or rejection. Never resubmit a possibly accepted order.
@@ -1140,11 +1157,15 @@ class AdvancedSpotEngine:
 
         preview = self.rail.preview_market_buy(product_id, spend)
         client_order_id = f"aiscend-{uuid.uuid4()}"
-        order = self.rail.market_buy(
-            product_id,
-            spend,
-            client_order_id=client_order_id,
-        )
+        self._record_order_intent(product=product_id, side="BUY",
+                                  client_id=client_order_id)
+        try:
+            order = self.rail.market_buy(
+                product_id, spend, client_order_id=client_order_id)
+        except RuntimeError as exc:
+            if str(exc).startswith("Coinbase order not confirmed accepted:"):
+                self.store.set_meta("pending_coinbase_order", "")
+            raise
         require_accepted_order(order)
         result_state, evidence = self._check_or_track_submission(
             order, product=product_id, side="BUY", client_id=client_order_id)
@@ -1212,11 +1233,15 @@ class AdvancedSpotEngine:
         preview = previewer(product_id, qty) if callable(previewer) else None
 
         client_order_id = f"aiscend-{uuid.uuid4()}"
-        order = self.rail.market_sell(
-            product_id,
-            qty,
-            client_order_id=client_order_id,
-        )
+        self._record_order_intent(product=product_id, side="SELL",
+                                  client_id=client_order_id)
+        try:
+            order = self.rail.market_sell(
+                product_id, qty, client_order_id=client_order_id)
+        except RuntimeError as exc:
+            if str(exc).startswith("Coinbase order not confirmed accepted:"):
+                self.store.set_meta("pending_coinbase_order", "")
+            raise
         require_accepted_order(order)
         result_state, evidence = self._check_or_track_submission(
             order, product=product_id, side="SELL", client_id=client_order_id)
