@@ -300,10 +300,14 @@
     <div id="runnerPill" class="pill">STOPPED</div>
   </div>
 
+  <div id="traderRealityBanner" class="panel" role="status" style="margin-bottom:14px;border-color:#a86b39">
+    LIVE TRADER STOPPED · BEAN research may still update without a single Coinbase order.
+    Open <a href="#live-engine">LIVE ENGINE</a>, choose Coinbase Advanced spot, and press START.
+  </div>
   <div class="grid">
     <div class="card"><div class="label">Net liquidation</div><div id="net" class="value">--</div></div>
     <div class="card"><div class="label">Cash / USDC</div><div id="cash" class="value">--</div></div>
-    <div class="card"><div class="label">P/L</div><div id="pnl" class="value">--</div></div>
+    <div class="card"><div class="label">Value change since baseline (not realized P/L)</div><div id="pnl" class="value">--</div></div>
     <div class="card"><div class="label">Wealth multiple</div><div id="multiple" class="value">--</div></div>
   </div>
 
@@ -332,7 +336,8 @@
       </div>
 
       <div class="panel" id="live-engine" style="margin-top:14px">
-        <h2>LIVE ENGINE</h2>
+        <h2>LIVE ENGINE · COINBASE ORDERS</h2>
+        <div class="small">This is the only control that runs the live trader. BEAN experiments do not trade.</div>
         <label>Execution rail</label>
         <select id="executionRail" onchange="refreshStatus()">
           <option value="auto" selected>Linked portfolio - auto choose rail</option>
@@ -444,7 +449,7 @@
       <section class="panel bean-school" id="strategy-school" style="margin-top:14px" aria-label="BEAN Strategy School">
         <div class="bean-head">
           <div>
-            <h2>BEAN STRATEGY SCHOOL</h2>
+            <h2>BEAN STRATEGY SCHOOL · RESEARCH ONLY</h2>
             <div class="small">A tiny, ruthless research laboratory. Real Coinbase candle tests, persistent lessons, no wallet orders.</div>
           </div>
           <span class="bean-tag" id="beanLabState">READY TO LEARN</span>
@@ -455,7 +460,7 @@
           <div><div class="label">Historical holdout</div><strong id="beanLabReturn">—</strong></div>
         </div>
         <div class="bean-actions">
-          <button id="beanLabRun" class="primary" onclick="startBeanLab()">🌱 RUN BEAN EXPERIMENT</button>
+          <button id="beanLabRun" class="primary" onclick="startBeanLab()">🌱 RUN RESEARCH (NO ORDERS)</button>
           <button id="beanLabRetry" onclick="startBeanLab()" disabled>↻ TRY AGAIN</button>
         </div>
         <div id="beanLabResult" class="bean-result small" role="status" aria-live="polite">BEAN's first exam is ready. Each retry preserves previous findings and explores another Coinbase cohort.</div>
@@ -593,7 +598,7 @@ function renderBeanLab(payload){
   else if(report){
     $('beanLabResult').textContent='Exam '+latest.ordinal+' · '+report.pairs.join(', ')+' · '+report.unique_candidates+
       ' candidates · Holdout '+beanPct(report.holdout?.net_return)+' vs BTC '+beanPct(report.btc_return)+
-      ' · '+(report.beats_cash_and_btc?'Research selected; eligible for live buy confirmation.':'Rejected by historical evidence; keep evolving.');
+      ' · '+(report.beats_cash_and_btc?'Research-selected backtest only; no Coinbase fill or live authorization.':'Rejected by historical evidence; no live action.');
   } else { $('beanLabResult').textContent='Experiment interrupted. Previous results are retained.'; }
   const recent=(payload.history||[]).slice(0,8);
   $('beanLabHistory').innerHTML=recent.length?recent.map(entry=>{
@@ -907,6 +912,8 @@ async function refreshTradingDiagnostics(){
       Number(skip.negative_net_edge||0)+' · quote path unavailable '+
       Number(skip.no_quote_path||0)+' · order attempted '+
       (!!p.order_attempted?'YES':'NO')+
+      (j.order_evidence?.state?' · Coinbase evidence '+j.order_evidence.state:'')+
+      (j.bean_bridge?.connected?' · BEAN local core connected':' · BEAN local core NOT VERIFIED')+
       (run.last_error?' · runner error '+run.last_error:'');
   } catch(err) {
     $('primaryPolicyStatus').textContent='Diagnostics unavailable: '+err.message;
@@ -1076,6 +1083,21 @@ function renderRunner(r){
           : (r.rail==='advanced'?'advanced':r.network)
       )
     : 'STOPPED';
+  const proof=$('traderRealityBanner');
+  if(proof){
+    if(r.running){
+      const last=r.last_cycle_at ? new Date(Number(r.last_cycle_at)*1000).toLocaleTimeString() : 'first cycle pending';
+      proof.textContent='LIVE TRADER RUNNING · requested rail '+(r.rail||'unknown')+
+        ' · actual rail '+(r.active_rail||'pending')+
+        ' · last cycle '+last+
+        (r.last_error?' · ERROR '+r.last_error:'')+
+        '. Accepted orders are not confirmed fills.';
+      proof.style.borderColor=r.last_error?'#a86b39':'#587c57';
+    }else{
+      proof.textContent='LIVE TRADER STOPPED · BEAN may research in the background, but no live order cycles run. Open LIVE ENGINE, choose Coinbase Advanced spot, then START.';
+      proof.style.borderColor='#a86b39';
+    }
+  }
   if(r.last_error){ msg(r.last_error); petState='dead'; drawPet(); }
 }
 
