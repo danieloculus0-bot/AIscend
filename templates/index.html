@@ -51,6 +51,10 @@
     details.panel > summary::after { content:'+'; float:right; color:#697586; }
     details.panel[open] > summary::after { content:'-'; }
     details.panel[open] > summary { margin-bottom:12px; }
+    .info-tip { display:inline-block; position:relative; font-weight:normal; letter-spacing:normal; text-transform:none; vertical-align:middle; }
+    .info-tip > summary { display:inline-block; list-style:none; cursor:help; padding:0 4px; }
+    .info-tip > summary::-webkit-details-marker { display:none; }
+    .info-tip .info-bubble { position:absolute; right:0; top:100%; z-index:20; width:min(320px,80vw); padding:12px; border:1px solid var(--line); border-radius:8px; background:var(--panel); box-shadow:var(--shadow); color:var(--text); font-size:12px; line-height:1.5; }
     .decision-current { padding:10px 8px; border-top:1px solid #262c34; border-bottom:1px solid #262c34; background:#10141a; }
     .decision-current .label { margin-bottom:4px; }
     .decision-scroll { max-height:300px; overflow-y:auto; }
@@ -300,10 +304,10 @@
     <div id="runnerPill" class="pill">STOPPED</div>
   </div>
 
-  <div class="grid">
+<div class="grid">
     <div class="card"><div class="label">Net liquidation</div><div id="net" class="value">--</div></div>
     <div class="card"><div class="label">Cash / USDC</div><div id="cash" class="value">--</div></div>
-    <div class="card"><div class="label">P/L</div><div id="pnl" class="value">--</div></div>
+    <div class="card"><div class="label">P/L <span title="Change in portfolio value from first observed account baseline; not realized trading profit." aria-label="P/L explanation">ⓘ</span></div><div id="pnl" class="value">--</div></div>
     <div class="card"><div class="label">Wealth multiple</div><div id="multiple" class="value">--</div></div>
   </div>
 
@@ -332,7 +336,7 @@
       </div>
 
       <div class="panel" id="live-engine" style="margin-top:14px">
-        <h2>LIVE ENGINE</h2>
+        <h2>LIVE ENGINE <span title="START runs AIscend's live Coinbase trading loop. BEAN experiments are research-only and cannot place orders." aria-label="Live trading help">ⓘ</span></h2>
         <label>Execution rail</label>
         <select id="executionRail" onchange="refreshStatus()">
           <option value="auto" selected>Linked portfolio - auto choose rail</option>
@@ -444,7 +448,7 @@
       <section class="panel bean-school" id="strategy-school" style="margin-top:14px" aria-label="BEAN Strategy School">
         <div class="bean-head">
           <div>
-            <h2>BEAN STRATEGY SCHOOL</h2>
+            <h2>BEAN STRATEGY SCHOOL · RESEARCH ONLY</h2>
             <div class="small">A tiny, ruthless research laboratory. Real Coinbase candle tests, persistent lessons, no wallet orders.</div>
           </div>
           <span class="bean-tag" id="beanLabState">READY TO LEARN</span>
@@ -455,7 +459,7 @@
           <div><div class="label">Historical holdout</div><strong id="beanLabReturn">—</strong></div>
         </div>
         <div class="bean-actions">
-          <button id="beanLabRun" class="primary" onclick="startBeanLab()">🌱 RUN BEAN EXPERIMENT</button>
+          <button id="beanLabRun" class="primary" onclick="startBeanLab()">🌱 RUN RESEARCH (NO ORDERS)</button>
           <button id="beanLabRetry" onclick="startBeanLab()" disabled>↻ TRY AGAIN</button>
         </div>
         <div id="beanLabResult" class="bean-result small" role="status" aria-live="polite">BEAN's first exam is ready. Each retry preserves previous findings and explores another Coinbase cohort.</div>
@@ -496,15 +500,16 @@
       </div>
 
       <div class="panel" id="primary-policy" style="margin-top:14px">
-        <h2>AIscend Trading Policy · LIVE</h2>
-        <div id="primaryPolicyStatus" class="decision-current small">
-          Checking actual Python strategy, runner and order status...
-        </div>
-        <div id="primaryPolicyReason" class="small">
-          HOLD reasons and route costs will appear after the first live cycle.
-        </div>
-        <div id="primaryPolicyEvidence" class="small"></div>
-        <div class="small">BEAN is a research assistant. It cannot override live orders.</div>
+        <h2>AIscend Trading Policy · LIVE
+          <details class="info-tip">
+            <summary title="Trading decision details" aria-label="Show trading decision details">ⓘ</summary>
+            <div class="info-bubble">
+              <div id="primaryPolicyReason">Awaiting first trading cycle.</div>
+              <div id="primaryPolicyEvidence" class="small"></div>
+            </div>
+          </details>
+        </h2>
+        <div id="primaryPolicyStatus" class="decision-current small">Checking trading status...</div>
       </div>
 
       <div class="panel" id="decision-journal" style="margin-top:14px">
@@ -593,7 +598,7 @@ function renderBeanLab(payload){
   else if(report){
     $('beanLabResult').textContent='Exam '+latest.ordinal+' · '+report.pairs.join(', ')+' · '+report.unique_candidates+
       ' candidates · Holdout '+beanPct(report.holdout?.net_return)+' vs BTC '+beanPct(report.btc_return)+
-      ' · '+(report.beats_cash_and_btc?'Research selected; eligible for live buy confirmation.':'Rejected by historical evidence; keep evolving.');
+      ' · '+(report.beats_cash_and_btc?'Research-selected backtest only; no Coinbase fill or live authorization.':'Rejected by historical evidence; no live action.');
   } else { $('beanLabResult').textContent='Experiment interrupted. Previous results are retained.'; }
   const recent=(payload.history||[]).slice(0,8);
   $('beanLabHistory').innerHTML=recent.length?recent.map(entry=>{
@@ -907,6 +912,8 @@ async function refreshTradingDiagnostics(){
       Number(skip.negative_net_edge||0)+' · quote path unavailable '+
       Number(skip.no_quote_path||0)+' · order attempted '+
       (!!p.order_attempted?'YES':'NO')+
+      (j.order_evidence?.state?' · Coinbase evidence '+j.order_evidence.state:'')+
+      (j.bean_bridge?.installed_verified?' · BEAN core checkout verified (manual research only)':' · BEAN local core NOT CONNECTED')+
       (run.last_error?' · runner error '+run.last_error:'');
   } catch(err) {
     $('primaryPolicyStatus').textContent='Diagnostics unavailable: '+err.message;

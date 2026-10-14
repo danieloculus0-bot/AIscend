@@ -340,6 +340,18 @@ class AdvancedTradeSpot:
             return None
         return float(value * Decimal("10000"))
 
+    def order_detail(self, order_id: str) -> dict[str, Any]:
+        """Read an authenticated Coinbase order (not the submit ACK)."""
+        if not order_id or not order_id.strip():
+            raise ValueError("Coinbase order ID is required")
+        return self._dict(self.vault.client().get_order(order_id=order_id))
+
+    def order_fills(self, order_id: str) -> dict[str, Any]:
+        """Read actual execution fills/commissions, never a preview estimate."""
+        if not order_id or not order_id.strip():
+            raise ValueError("Coinbase order ID is required")
+        return self._dict(self.vault.client().get_fills(order_ids=[order_id]))
+
     def preview_market_sell(self, product_id: str,
                             base_size: Decimal) -> dict[str, Any]:
         if base_size <= 0:
