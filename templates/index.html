@@ -875,7 +875,7 @@ async function refreshStatus(){
   if(!j.ok){ msg(j.error || 'Status unavailable'); renderRunner(j.runner); petState='dead'; drawPet(); return; }
 
   // An explicit Coinbase execution-rail selection must never be silently
-  // overwritten by the portfolio coordinator. Only 'auto' may choose a rail.
+  // overwritten by j.suggested_rail. Only 'auto' may choose a rail.
   msg('');
   renderDecisions(j.decisions || []);
   renderSnapshot(j.snapshot);
