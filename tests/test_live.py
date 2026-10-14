@@ -101,7 +101,7 @@ class LiveEngineTests(unittest.TestCase):
         engine.step()
         row = store.latest_decisions(1)[0]
         self.assertEqual(row["status"], "LIVE_EXECUTED")
-        self.assertIn("BEAN exam #66 advisory: ETH-USD", row["rationale"])
+        self.assertIn("BEAN exam #66 advisory (ETH-USD)", row["rationale"])
 
     def test_live_buy_executes_against_wallet_and_updates_snapshot(self):
         store = self.make_store()
