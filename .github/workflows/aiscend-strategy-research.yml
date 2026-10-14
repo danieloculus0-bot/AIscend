@@ -1,5 +1,7 @@
 name: AIscend Strategy Research Evidence
 on:
+  pull_request:
+    branches: [main]
   schedule:
     - cron: '19 2 * * *'
   workflow_dispatch:
