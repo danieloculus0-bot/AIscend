@@ -1,0 +1,9 @@
+{
+  "positions": {},
+  "rotation_reviews": [],
+  "net_liquidation": null,
+  "market_radar": {
+    "prediction": "UNKNOWN",
+    "thesis": "Offline BEAN Core connector smoke fixture; no wallet credentials, price feed or trading orders"
+  }
+}
