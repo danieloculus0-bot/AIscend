@@ -66,7 +66,7 @@ def _fresh_state():
     return {"schema": "aiscend.bean.growth.v1", "last_bar": None,
             "last_close": None, "recent_returns": [], "pending": None,
             "held": 0, "equity": 100.0, "peak": 100.0, "drawdown": 0.0,
-            "q": {}, "visits": {}, "paper_bars": 0, "forward_bars": 0,
+            "q": {}, "visits": {}, "wins": {}, "paper_bars": 0, "forward_bars": 0,
             "mock_trades": 0, "history_gaps": 0, "bootstrapped": False,
             "strategy_changes": 0, "last_action": None,
             "behavior_revisions": 0, "forward_behavior_revisions": 0,
@@ -153,6 +153,9 @@ class BeanAdaptiveGrowthGate:
             q[action] = old + LEARNING_RATE * (realized * 10000.0 - old)
             counts = state["visits"].setdefault(context, {})
             counts[action] = counts.get(action, 0) + 1
+            if realized > 0:
+                wins = state.setdefault("wins", {}).setdefault(context, {})
+                wins[action] = wins.get(action, 0) + 1
             preferred_after = _choose(state, context, explore=False, seed=0)
             if preferred_before != preferred_after:
                 state["behavior_revisions"] = state.get("behavior_revisions", 0) + 1
@@ -210,12 +213,17 @@ class BeanAdaptiveGrowthGate:
                 adopted = _choose(state, ctxt, explore=False, seed=0)
                 target = _position(adopted, state["recent_returns"])
                 enough = state["paper_bars"] >= MIN_HISTORY
+                samples = int(state["visits"].get(ctxt, {}).get(adopted, 0))
+                won = int(state.get("wins", {}).get(ctxt, {}).get(adopted, 0))
                 result = {"status": "READY" if enough else "WARMING_UP",
                           "mode": mode, "product": market,
                           "trade_effect": "ADOPTED_LONG_CASH" if enough else "NONE",
                           "learning_source": "completed_public_coinbase_5m_candles",
                           "learned_strategy": adopted, "target_exposure": target,
                           "allow_buy": bool(target),
+                          "observed_samples": samples,
+                          "observed_win_rate": (won / samples) if samples else None,
+                          "probability_note": "observed simulated bar win frequency, not calibrated future odds",
                           "observed_through": state["last_bar"],
                           "reward_updates": sum(sum(v.values()) for v in state["visits"].values()),
                           "forward_bars": state["forward_bars"],
