@@ -894,10 +894,12 @@ async function refreshTradingDiagnostics(){
     const p=j.last_plan||{},run=j.runner||{};
     const active=!!run.running;
     const status=p.execution_status || 'NO_EXECUTION_YET';
+    const activeRail=run.active_rail||run.rail||'unknown';
+    const age=p.evaluated_at ? Math.round(Date.now()/1000 - Number(p.evaluated_at)) : null;
     $('primaryPolicyStatus').textContent=
-      (active?'RUNNING':'NOT RUNNING')+' · Coinbase Advanced Spot · '+
+      (active?'RUNNING':'NOT RUNNING')+' · actual rail '+activeRail+' · '+
       (p.primary_engine || 'AIscend policy not executed yet')+
-      ' · '+status;
+      ' · '+status+(age!==null?' · last evaluated '+age+' seconds ago':'');
     $('primaryPolicyReason').textContent=p.decision_reason ||
       (active?'Awaiting first decision cycle.':'Live trading runner is stopped; dashboard alone never places orders.');
     const skip=p.skipped||{};
