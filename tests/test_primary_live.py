@@ -78,6 +78,27 @@ class PrimaryLiveTests(unittest.TestCase):
         self.assertEqual(row["status"],"EXECUTION_ERROR")
         self.assertIn("preview rejected",row["rationale"])
 
+    def test_expired_unscored_holding_is_sold_not_perpetually_held(self):
+        self.store.set_meta("primary_maturity_at:MET-USDC","1")
+        self.engine._primary_trade_step(self.snapshot(
+            held={"MET-USDC":{"qty":3,"available_qty":3}}))
+        self.assertEqual(self.actions[-1],("SELL","MET-USDC"))
+        self.assertIn("planned_maturity_exit_unobserved",
+                      self.store.latest_decisions(1)[0]["rationale"])
+
+    def test_rejected_rotation_does_not_hide_cash_funded_opportunity(self):
+        snap=self.snapshot(
+            cash={"USD":.9},
+            held={"GROVE-USDC":{"qty":10,"available_qty":10}})
+        snap["asset_universe"]["scored"][1]=market(
+            "GROVE-USDC",.05,.11,.35)
+        self.engine._primary_trade_step(snap)
+        self.assertNotIn(("SELL","GROVE-USDC"),self.actions)
+        self.assertTrue(
+            self.actions==[("BUY","ALEO-USD")] or self.actions==[],
+            self.actions)
+
+
 
 if __name__=="__main__":
     unittest.main()

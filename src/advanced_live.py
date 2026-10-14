@@ -14,7 +14,10 @@ from .bean_policy import BeanPolicyGate
 from .bean_growth_rotation import evaluate_candidates
 from .bean_rotation_economics import (score_route, bridge_order,
                                       maturity_minutes, trade_cost_bps)
-from .primary_strategy import select_plan, proposals, exit_reason
+from .primary_strategy import (
+    select_plan, proposals, exit_reason, incumbent_hold_net_bps,
+    ROTATION_MARGIN_BPS,
+)
 from .coinbase_order_evidence import accepted_order_id, verified_order
 from .core import Decision, StateStore
 from .game import score_game
@@ -335,7 +338,7 @@ class AdvancedSpotEngine:
             if item.get("product")
         }
 
-        positions: dict[str, dict[str, float | str]] = {}
+        positions: dict[str, dict[str, float | str | None]] = {}
         prices: dict[str, float] = {}
         balance_values_usd: dict[str, float] = {}
 
@@ -358,7 +361,9 @@ class AdvancedSpotEngine:
             positions[product_id] = {
                 "qty": qty,
                 "available_qty": spendable_balances.get(currency, 0.0),
-                "avg_cost": usd_rate,
+                "avg_cost": None,
+                "mark_price": usd_rate,
+                "cost_basis_status": "unverified_without_fills",
                 "base": currency,
             }
             prices[product_id] = usd_rate
@@ -1007,7 +1012,23 @@ class AdvancedSpotEngine:
         fee_bps, fee_source = self._taker_cost_bps()
         plan = select_plan(snapshot, taker_bps=fee_bps)
         positions = snapshot.get("positions") or {}
-        winner = plan["winner"]
+        rows = (snapshot.get("asset_universe") or {}).get("scored") or []
+        eligible_routes = []
+        for route in plan["routes"]:
+            source = route.get("source_asset")
+            if source:
+                current_row = next(
+                    (r for r in rows if str(r.get("product") or "") == source),
+                    None,
+                )
+                hold_net = incumbent_hold_net_bps(
+                    current_row, route["maturity_minutes"], taker_bps=fee_bps)
+                if route["net_projected_bps"] <= max(0.0, hold_net) + ROTATION_MARGIN_BPS:
+                    continue
+            eligible_routes.append(route)
+        winner = eligible_routes[0] if eligible_routes else None
+        plan["rejected_rotation_routes"] = len(plan["routes"]) - len(eligible_routes)
+        plan["winner"] = winner
         plan["evaluated_at"] = time.time()
         plan["primary_engine"] = "aiscend_price_action_v1"
         plan["fee_source"] = fee_source
@@ -1044,19 +1065,7 @@ class AdvancedSpotEngine:
                 self.store.set_meta(key, str(deadline))
             issue = exit_reason(product, snapshot, deadline_reached=now >= deadline)
             candidate = bool(winner and winner["source_asset"] == product)
-            if candidate:
-                # Opportunity cost is NOT just the replacement's expected
-                # return. Compare against the current asset's future
-                # signal, rather than churning out of another strong trend.
-                rows = (snapshot.get("asset_universe") or {}).get("scored") or []
-                current_row = next((x for x in rows
-                                    if str(x.get("product") or "") == product), {})
-                signal = proposals(current_row)
-                existing_gross = max((x["gross_projection_bps"]
-                                      for x in signal), default=0.0)
-                if winner["net_projected_bps"] <= existing_gross:
-                    candidate = False
-                    plan["incumbent_advantage_bps"] = round(existing_gross, 3)
+            # Incumbent fee-adjusted horizon comparison occurs before winner selection.
             if issue or candidate:
                 reason = issue or "better_net_route"
                 target = winner["product"] if candidate else "cash"
@@ -1143,6 +1152,13 @@ class AdvancedSpotEngine:
         _, quote = self._split_product(product_id)
         available = Decimal(str((snapshot.get("cash_by_quote") or {}).get(quote, 0.0)))
         spend = available * Decimal(str(decision.fraction))
+        # Preserve the latest main branch's position concentration constraint.
+        nav = float(snapshot.get("net_liquidation") or 0.0)
+        if nav > 0.0 and quote in DOLLAR_ASSETS:
+            base, _ = self._split_product(product_id)
+            held_value = float((snapshot.get("balance_values_usd") or {}).get(base) or 0.0)
+            limit = Decimal(str(max(0.0, 0.60 * nav - held_value)))
+            spend = min(spend, limit)
         # Coinbase requires each market's quote increment, including when
         # spending the full quote balance. Rounding down is exchange sizing,
         # not a policy cash reserve.
