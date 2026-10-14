@@ -14,12 +14,18 @@ from pathlib import Path
 from .bean_five_minute import BAR, fetch_5m
 from .primary_strategy import POLICIES, proposals
 
+RESEARCH_POLICIES = (*POLICIES, "trend_4h_hold", "trend_1d_hold", "cash")
+
 
 def simulate(bars: dict, policy: str, *, fee_bps=60.0, spread_bps=10.0,
              start=0, end=None) -> dict:
     times=sorted(bars)
     n=len(times)
     end=n if end is None else min(n,int(end))
+    if policy == "cash":
+        return {"policy":policy,"trades":0,"wins":0,"win_rate":None,
+                "net_return":0.0,"max_drawdown":0.0,"trade_examples":[],
+                "method":"no_position_no_fees"}
     last=max(73,int(start))
     trades=[]
     equity=1.0
@@ -27,7 +33,9 @@ def simulate(bars: dict, policy: str, *, fee_bps=60.0, spread_bps=10.0,
     worst_dd=0.0
     while last < end-2:
         i=last
-        if any(times[k+1]-times[k]!=BAR for k in range(i-72,i+1)):
+        lookback=145 if policy in ("trend_4h_hold","trend_1d_hold") else 72
+        if i < lookback or any(times[k+1]-times[k]!=BAR
+                               for k in range(i-lookback,i+1)):
             last+=1
             continue
         closes=[float(bars[times[k]]["close"]) for k in (i,i-1,i-12,i-72)]
@@ -39,11 +47,23 @@ def simulate(bars: dict, policy: str, *, fee_bps=60.0, spread_bps=10.0,
              "return_1h":price/p1-1,
              "return_6h":price/p6-1,
              "volume_ratio":1.5,"spread_bps":spread_bps}
-        signal=next((s for s in proposals(row,enabled=(policy,))),None)
-        if not signal:
+        if policy in ("trend_4h_hold","trend_1d_hold"):
+            fast_1h=sum(float(bars[times[k]]["close"])
+                         for k in range(i-11,i+1))/12
+            fast_4h=sum(float(bars[times[k]]["close"])
+                         for k in range(i-47,i+1))/48
+            slow_12h=sum(float(bars[times[k]]["close"])
+                         for k in range(i-143,i+1))/144
+            eligible=(fast_1h>fast_4h and price>fast_1h) if policy=="trend_4h_hold" else (
+                fast_4h>slow_12h and price>fast_4h)
+            h=48 if policy=="trend_4h_hold" else 288
+        else:
+            signal=next((s for s in proposals(row,enabled=(policy,))),None)
+            eligible=signal is not None
+            h=int(signal["maturity_minutes"]//5) if signal else 0
+        if not eligible:
             last+=1
             continue
-        h=int(signal["maturity_minutes"]//5)
         exit_i=i+1+h
         if exit_i>=end:
             last+=1
@@ -82,18 +102,18 @@ def validate(bars: dict, *, fee_bps=60.0, spread_bps=10.0,
     split=int(n*training_fraction)
     train={p: simulate(bars,p,fee_bps=fee_bps,
                        spread_bps=spread_bps,start=0,end=split)
-           for p in POLICIES}
+           for p in RESEARCH_POLICIES}
     # Select ONLY using chronological training. No holdout lookahead.
-    champion=max(POLICIES,key=lambda p: (
-        train[p]["net_return"] if train[p]["trades"]>=3 else -math.inf))
+    champion=max(RESEARCH_POLICIES,key=lambda p: (
+        train[p]["net_return"] if p=="cash" or train[p]["trades"]>=3 else -math.inf))
     test={p: simulate(bars,p,fee_bps=fee_bps,
                       spread_bps=spread_bps,start=split,end=n)
-          for p in POLICIES}
+          for p in RESEARCH_POLICIES}
     first=float(bars[times[split]]["open"])
     last=float(bars[times[-1]]["close"])
     passive=(last/first)*(1-(fee_bps+spread_bps/2)/10000)**2-1
     winner=test[champion]
-    qualified=(train[champion]["trades"]>=3 and winner["trades"]>=3
+    qualified=(champion!="cash" and train[champion]["trades"]>=3 and winner["trades"]>=3
                and winner["net_return"]>0 and winner["net_return"]>passive)
     return {"status":"OOS_PASS" if qualified else "OOS_NOT_PROVEN",
             "bars":n,"split_timestamp":times[split],
