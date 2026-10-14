@@ -127,7 +127,9 @@ class CoinbaseAssetUniverse:
             if not product_id:
                 continue
             cached = self._cache.get(product_id)
-            if cached and time.time() - cached.scanned_at < self.asset_cache_seconds:
+            refresh_age = (self.scan_interval_seconds if product_id.upper() in priority
+                           else self.asset_cache_seconds)
+            if cached and time.time() - cached.scanned_at < refresh_age:
                 continue
             pending.append(product)
         if pending:
