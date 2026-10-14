@@ -495,6 +495,18 @@
         </table>
       </div>
 
+      <div class="panel" id="primary-policy" style="margin-top:14px">
+        <h2>AIscend Trading Policy · LIVE</h2>
+        <div id="primaryPolicyStatus" class="decision-current small">
+          Checking actual Python strategy, runner and order status...
+        </div>
+        <div id="primaryPolicyReason" class="small">
+          HOLD reasons and route costs will appear after the first live cycle.
+        </div>
+        <div id="primaryPolicyEvidence" class="small"></div>
+        <div class="small">BEAN is a research assistant. It cannot override live orders.</div>
+      </div>
+
       <div class="panel" id="decision-journal" style="margin-top:14px">
         <h2>DECISION JOURNAL</h2>
         <div id="currentDecision" class="decision-current small">Current decision: --</div>
@@ -871,6 +883,35 @@ async function refreshStatus(){
   renderDecisions(j.decisions || []);
   renderSnapshot(j.snapshot);
   renderRunner(j.runner);
+  refreshTradingDiagnostics();
+}
+
+async function refreshTradingDiagnostics(){
+  try {
+    const r=await fetch('/api/trading-diagnostics');
+    const j=await r.json();
+    if(!j.ok) throw new Error(j.error || 'Diagnostic endpoint unavailable');
+    const p=j.last_plan||{},run=j.runner||{};
+    const active=!!run.running;
+    const status=p.execution_status || 'NO_EXECUTION_YET';
+    $('primaryPolicyStatus').textContent=
+      (active?'RUNNING':'NOT RUNNING')+' · Coinbase Advanced Spot · '+
+      (p.primary_engine || 'AIscend policy not executed yet')+
+      ' · '+status;
+    $('primaryPolicyReason').textContent=p.decision_reason ||
+      (active?'Awaiting first decision cycle.':'Live trading runner is stopped; dashboard alone never places orders.');
+    const skip=p.skipped||{};
+    $('primaryPolicyEvidence').textContent=
+      'Scanned '+Number(p.examined||0)+' · candidate signals '+
+      Number(p.candidate_signals||0)+' · costed routes '+
+      Number(p.costed_routes||0)+' · below total fees/spread '+
+      Number(skip.negative_net_edge||0)+' · quote path unavailable '+
+      Number(skip.no_quote_path||0)+' · order attempted '+
+      (!!p.order_attempted?'YES':'NO')+
+      (run.last_error?' · runner error '+run.last_error:'');
+  } catch(err) {
+    $('primaryPolicyStatus').textContent='Diagnostics unavailable: '+err.message;
+  }
 }
 
 function renderSnapshot(s){
@@ -883,9 +924,9 @@ function renderSnapshot(s){
   const beanPolicy=(beanGateEvidence && beanGateEvidence.status!=='NOT_EVALUATED')
     ? beanGateEvidence : (s.bean_policy || {});
   $('beanLivePolicy').textContent=beanPolicy.status==='READY'
-    ? 'BEAN live gate READY · exam #'+beanPolicy.experiment+' · target '+(beanPolicy.target||'CASH')+
-      ' · '+Number(beanPolicy.bars||0)+' completed hourly candles · buy confirmation active'
-    : 'BEAN live gate: '+(beanPolicy.status||'NOT EVALUATED')+
+    ? 'BEAN research READY · exam #'+beanPolicy.experiment+' · target '+(beanPolicy.target||'CASH')+
+      ' · '+Number(beanPolicy.bars||0)+' completed hourly candles · advisory only'
+    : 'BEAN research: '+(beanPolicy.status||'NOT EVALUATED')+
       (beanPolicy.reason?' · '+beanPolicy.reason:'')+'. Unavailable policy never manufactures an order.';
   const r=s.research || {};
   $('researchPrediction').textContent = r.prediction || 'UNKNOWN';
