@@ -15,7 +15,7 @@ AIscend is the product name. `AutonomousCapitalLab` remains the default desktop 
 
 | | Current implementation |
 |---|---|
-| **Source version** | `0.17.3` (from [VERSION](VERSION)) |
+| **Source version** | `0.17.4` (from [VERSION](VERSION)) |
 | **Desktop** | Windows, PySide6; persistent offline-capable synthetic market |
 | **Browser** | Flask dashboard, local or in GitHub Codespaces |
 | **Funded execution rails** | Coinbase CDP smart account on Base; Coinbase Advanced spot via separate credentials |
@@ -47,9 +47,38 @@ AIscend is the product name. `AutonomousCapitalLab` remains the default desktop 
 
 The Market Arsenal also shows **Predictions, Stocks & ETFs, Futures, Perpetuals, and Options** as research/product lanes. These are **not** six live trading connectors. Prediction-market discovery is implemented using public data, but authenticated prediction order execution is not connected. The remaining non-crypto lanes do not have live execution adapters.
 
+## Version 0.17.4: cost-aware rotation and maturity research
+
+AIscend's Coinbase Advanced Spot path now evaluates whether freeing capital
+from a held asset and entering another has a positive **modeled net outcome**
+after estimated current-asset selling costs, new position entry and exit fees,
+spread, and any required USD/USDC spot conversion. Coinbase account taker-fee
+data is used when available; an explicit 60-basis-point per-leg estimate is
+used when the rate cannot be retrieved. The actual order preview and exchange
+minimums are still validated before order submission.
+
+The candidate's estimated growth is extrapolated from hypothetical BEAN
+five-minute-bar rewards into a provisional 5-, 15-, 60-, or 360-minute
+maturity period, using observed momentum persistence. **This extrapolation is
+not a validated probability or guaranteed forecast.** BEAN also records the
+empirical frequency of positive simulated rewards after this release, marking
+outcomes from older untracked history as unavailable.
+
+When estimated returns exceed every required route cost, the live loop can
+SELL a weaker held coin, then perform a supported USD/USDC spot conversion,
+then BUY the replacement, on separate confirmed cycles. It journals the
+route and any failures. A stored maturity deadline supports re-evaluation and
+exit rather than indefinite HOLD. Coinbase product tradability, account
+balances, increments, minimums, and authenticated order previews remain
+required. This does not create leveraged shorts or manipulate market prices.
+
+If no candidate clears estimated route costs, HOLD remains possible and the
+journal explains why; it is not evidence that better opportunities do not
+exist.
+
 ## October 2026 trading and market-coverage correction
 
-- v0.17.3 also removes the stale entry and exit thresholds in the browser dashboard's `auto` execution-rail selector. Selecting `auto` no longer imposes a stricter gate than the actual trading engine.
+- v0.17.4 also removes the stale entry and exit thresholds in the browser dashboard's `auto` execution-rail selector. Selecting `auto` no longer imposes a stricter gate than the actual trading engine.
 
 
 - The public Coinbase scanner now samples 24 products in a concurrent batch per scan, retaining previously sampled rows long enough to grow coverage across the catalog. It does not refresh every product at once.
@@ -195,8 +224,8 @@ The default local synthetic experience needs **no exchange account, paid API or 
 
 ```text
 dist\AutonomousCapitalLab.exe
-dist\AutonomousCapitalLab-v0.17.3-windows-x64.zip
-dist\AutonomousCapitalLab-v0.17.3-windows-x64.zip.sha256
+dist\AutonomousCapitalLab-v0.17.4-windows-x64.zip
+dist\AutonomousCapitalLab-v0.17.4-windows-x64.zip.sha256
 ```
 
 The [Windows Build workflow](.github/workflows/windows-build.yml) runs on pushes and pull requests to `main`, relevant version tags, and manual dispatch. The [Adaptive Growth mock integration workflow](.github/workflows/bean-adaptive-growth-smoke.yml) exercises focused learned-action and rotation behavior on **Windows and Ubuntu**.
