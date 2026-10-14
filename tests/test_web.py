@@ -130,7 +130,7 @@ class WebAppTests(unittest.TestCase):
             watch.set_enabled.return_value = {**sample, "enabled": False}
             result = client.get("/api/bean-lab").get_json()
             self.assertEqual(result["research_watch"], sample)
-            self.assertEqual(result["live_strategy_activation"], "BUY_CONFIRMATION_GATE")
+            self.assertEqual(result["live_strategy_activation"], "RESEARCH_ONLY")
             self.assertEqual(client.post("/api/bean-research/enable",
                                          json={"enabled": "false"}).status_code, 400)
             pause = client.post("/api/bean-research/enable",
