@@ -52,6 +52,11 @@ class PrimaryPolicyTests(unittest.TestCase):
               "positions":{"GROVE-USDC":{"qty":1}}}
         self.assertIsNone(select_plan(snap)["winner"])
 
+    def test_maturity_deadline_exits_even_when_trend_still_positive(self):
+        snap={"asset_universe":{"scored":[row("ALEO-USD",r5=.01,r1=.03,r6=.08)]}}
+        self.assertEqual(exit_reason("ALEO-USD",snap,deadline_reached=True),
+                         "planned_maturity_exit")
+
     def test_negative_trend_invalidates_existing_holding(self):
         snap={"asset_universe":{"scored":[row("GROVE-USDC",r5=-.02,r1=-.05,r6=-.1)]}}
         self.assertEqual(exit_reason("GROVE-USDC",snap),"trend_invalidation")
