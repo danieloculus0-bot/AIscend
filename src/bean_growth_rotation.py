@@ -94,6 +94,12 @@ def evaluate_candidates(growth_gate, snapshot, *, limit=EVALUATION_BATCH, cursor
             "reward_updates": evidence.get("reward_updates", 0),
             "behavior_revisions": evidence.get("behavior_revisions", 0),
             "already_held": product in positions,
+            "return_5m": float(item.get("return_5m") or 0.0),
+            "return_1h": float(item.get("return_1h") or 0.0),
+            "return_6h": float(item.get("return_6h") or 0.0),
+            "reward_available": action in scores,
+            "observed_win_rate": evidence.get("observed_win_rate"),
+            "observed_samples": evidence.get("observed_samples", 0),
         })
     # Scores are already net of modeled spread/fees. Do not apply another
     # arbitrary spread or volume veto after scoring the opportunity.
