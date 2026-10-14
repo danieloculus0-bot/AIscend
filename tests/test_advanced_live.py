@@ -390,10 +390,10 @@ class AdvancedLiveTests(unittest.TestCase):
                         "base": "SHIT",
                         "quote": "USDC",
                         "price": 0.01,
-                        "return_5m": 0.0,
-                        "return_1h": 0.0,
+                        "return_5m": 0.06,
+                        "return_1h": 0.09,
                         "return_6h": 0.0,
-                        "volume_ratio": 1.0,
+                        "volume_ratio": 4.0,
                         "spread_bps": 12.0,
                         "score": 0.0,
                     }],
@@ -423,7 +423,7 @@ class AdvancedLiveTests(unittest.TestCase):
             self.assertEqual(row["action"], "BUY")
             self.assertEqual(row["symbol"], "SHIT-USDC")
             self.assertEqual(row["status"], "LIVE_EXECUTED")
-            self.assertIn("Public listing signal", row["rationale"])
+            self.assertIn("breakout BUY", row["rationale"])
             store.close()
 
     def test_human_weather_populates_and_fuses_advanced_score(self):
