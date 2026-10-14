@@ -1060,6 +1060,11 @@ class AdvancedSpotEngine:
         if qty <= 0 or qty < minimum:
             raise RuntimeError(f"No executable {product_id} position available to sell.")
 
+        # Coinbase previews expose provider-side fees and reject unavailable
+        # sizes before any live liquidation, including USDC/USD bridges.
+        previewer = getattr(self.rail, "preview_market_sell", None)
+        preview = previewer(product_id, qty) if callable(previewer) else None
+
         client_order_id = f"aiscend-{uuid.uuid4()}"
         order = self.rail.market_sell(
             product_id,
@@ -1073,7 +1078,7 @@ class AdvancedSpotEngine:
             float(qty),
             0.0,
             0.0,
-            f"{decision.rationale} | order={str(order)[:220]}",
+            f"{decision.rationale} | preview={str(preview)[:220]} | order={str(order)[:220]}",
         )
 
         try:
@@ -1092,7 +1097,7 @@ class AdvancedSpotEngine:
                 status="provider_response",
                 rationale=decision.rationale,
                 source="coinbase_advanced_order_response",
-                raw_provider_response=order,
+                raw_provider_response={"preview": preview, "order": order},
             )
         except Exception as exc:
             self.store.add_ledger(
