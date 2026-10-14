@@ -790,7 +790,8 @@ class AdvancedSpotEngine:
                 decision = Decision("SELL", held_product, 1.0, rationale)
                 try:
                     self._execute_sell(decision, snapshot)
-                    status = "LIVE_EXECUTED"
+                    status = (self.store.get_meta("last_coinbase_submission_state")
+                              or "ORDER_ACCEPTED_UNVERIFIED")
                     self.store.set_meta(key, "0")
                 except Exception as exc:
                     status = "EXECUTION_ERROR"
@@ -834,7 +835,8 @@ class AdvancedSpotEngine:
             try:
                 decision = self._execute_quote_bridge(
                     source_quote, target_quote, snapshot, rationale)
-                status = "LIVE_EXECUTED"
+                status = (self.store.get_meta("last_coinbase_submission_state")
+                              or "ORDER_ACCEPTED_UNVERIFIED")
             except Exception as exc:
                 status = "EXECUTION_ERROR"
                 decision = Decision("HOLD", None, 0.0,
@@ -852,7 +854,8 @@ class AdvancedSpotEngine:
             self._execute_buy(decision, snapshot)
             self.store.set_meta("bean_maturity_at:" + product,
                                 str(now + 60 * winner["maturity_minutes"]))
-            status = "LIVE_EXECUTED"
+            status = (self.store.get_meta("last_coinbase_submission_state")
+                              or "ORDER_ACCEPTED_UNVERIFIED")
         except Exception as exc:
             status = "EXECUTION_ERROR"
             decision = Decision("BUY", product, 1.0,
