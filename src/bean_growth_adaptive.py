@@ -66,7 +66,7 @@ def _fresh_state():
     return {"schema": "aiscend.bean.growth.v1", "last_bar": None,
             "last_close": None, "recent_returns": [], "pending": None,
             "held": 0, "equity": 100.0, "peak": 100.0, "drawdown": 0.0,
-            "q": {}, "visits": {}, "wins": {}, "paper_bars": 0, "forward_bars": 0,
+            "q": {}, "visits": {}, "wins": {}, "win_trials": {}, "paper_bars": 0, "forward_bars": 0,
             "mock_trades": 0, "history_gaps": 0, "bootstrapped": False,
             "strategy_changes": 0, "last_action": None,
             "behavior_revisions": 0, "forward_behavior_revisions": 0,
@@ -153,6 +153,8 @@ class BeanAdaptiveGrowthGate:
             q[action] = old + LEARNING_RATE * (realized * 10000.0 - old)
             counts = state["visits"].setdefault(context, {})
             counts[action] = counts.get(action, 0) + 1
+            trials = state.setdefault("win_trials", {}).setdefault(context, {})
+            trials[action] = trials.get(action, 0) + 1
             if realized > 0:
                 wins = state.setdefault("wins", {}).setdefault(context, {})
                 wins[action] = wins.get(action, 0) + 1
@@ -213,7 +215,7 @@ class BeanAdaptiveGrowthGate:
                 adopted = _choose(state, ctxt, explore=False, seed=0)
                 target = _position(adopted, state["recent_returns"])
                 enough = state["paper_bars"] >= MIN_HISTORY
-                samples = int(state["visits"].get(ctxt, {}).get(adopted, 0))
+                samples = int(state.get("win_trials", {}).get(ctxt, {}).get(adopted, 0))
                 won = int(state.get("wins", {}).get(ctxt, {}).get(adopted, 0))
                 result = {"status": "READY" if enough else "WARMING_UP",
                           "mode": mode, "product": market,
