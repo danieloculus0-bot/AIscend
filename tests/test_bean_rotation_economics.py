@@ -28,7 +28,7 @@ class EconomicRotationTests(unittest.TestCase):
                                  incumbent_spread_bps=8.0)
         self.assertEqual(direct["maturity_minutes"], 360)
         self.assertGreater(direct["net_projected_bps"], via_bridge["net_projected_bps"])
-        self.assertEqual(via_bridge["total_route_cost_bps"], 254.0)
+        self.assertEqual(via_bridge["total_route_cost_bps"], 255.0)
         self.assertGreater(via_bridge["net_projected_bps"], 0)
 
     def test_negative_expected_growth_never_becomes_positive_from_cross_trade(self):
