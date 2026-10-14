@@ -102,24 +102,23 @@ class AssetUniverseTests(unittest.TestCase):
     def test_priority_holding_refreshes_before_general_cache_expires(self):
         from dataclasses import replace
         universe=FakeUniverse()
-        first=universe.collect()
+        universe.collect()
         item=universe._cache["AAA-USD"]
-        stale = replace(item,score=-0.99,scanned_at=time.time()-90)
-        universe._cache["AAA-USD"] = stale
-        refreshed_products = []
-        original_scan = universe._scan_product
+        stale=replace(item,score=-0.99,scanned_at=time.time()-90)
+        universe._cache["AAA-USD"]=stale
+        seen=[]
+        original_scan=universe._scan_product
 
-        def recorded_scan(product):
-            refreshed_products.append(product["id"])
+        def observe(product):
+            seen.append(product["id"])
             return original_scan(product)
 
-        universe._scan_product = recorded_scan
+        universe._scan_product=observe
         universe.collect(priority_products=["AAA-USD"])
-        current = universe._cache["AAA-USD"]
-        self.assertIn("AAA-USD", refreshed_products,
-                      "Held assets must trigger a fresh Coinbase request")
-        self.assertGreater(current.scanned_at, stale.scanned_at)
-        self.assertNotEqual(current.score, -0.99)
+        current=universe._cache["AAA-USD"]
+        self.assertIn("AAA-USD",seen)
+        self.assertGreater(current.scanned_at,stale.scanned_at)
+        self.assertNotEqual(current.score,-0.99)
 
     def test_invalid_or_crossed_books_are_not_tradable_signals(self):
         universe = FakeUniverse()
@@ -163,6 +162,21 @@ class AssetUniverseTests(unittest.TestCase):
         self.assertIsNotNone(asset)
         self.assertEqual(asset.product,"SHIT-EUR")
         self.assertEqual(asset.return_6h,0.0)
+
+    def test_old_cached_asset_never_reenters_live_candidates(self):
+        from dataclasses import replace
+        universe=FakeUniverse()
+        universe.collect()
+        asset=universe._cache["AAA-USD"]
+        universe._cache["AAA-USD"]=replace(
+            asset, scanned_at=time.time()-700)
+        scan=universe._scan_product
+        universe._scan_product=lambda product: (
+            None if product["id"]=="AAA-USD" else scan(product))
+        result=universe.collect(priority_products=["AAA-USD"])
+        self.assertNotIn("AAA-USD", {x["product"] for x in result["scored"]})
+        self.assertGreaterEqual(result["stale_excluded"],1)
+
 
 
 if __name__ == "__main__":
