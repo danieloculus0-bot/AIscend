@@ -154,6 +154,21 @@ class AssetUniverseTests(unittest.TestCase):
         self.assertEqual(asset.product,"SHIT-EUR")
         self.assertEqual(asset.return_6h,0.0)
 
+    def test_old_cached_asset_never_reenters_live_candidates(self):
+        from dataclasses import replace
+        universe=FakeUniverse()
+        universe.collect()
+        asset=universe._cache["AAA-USD"]
+        universe._cache["AAA-USD"]=replace(
+            asset, scanned_at=time.time()-700)
+        scan=universe._scan_product
+        universe._scan_product=lambda product: (
+            None if product["id"]=="AAA-USD" else scan(product))
+        result=universe.collect(priority_products=["AAA-USD"])
+        self.assertNotIn("AAA-USD", {x["product"] for x in result["scored"]})
+        self.assertGreaterEqual(result["stale_excluded"],1)
+
+
 
 if __name__ == "__main__":
     unittest.main()
