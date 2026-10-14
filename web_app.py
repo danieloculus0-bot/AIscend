@@ -390,7 +390,7 @@ def monitor_status():
 @app.get("/api/bean-lab")
 def bean_lab_status():
     status = _bean_lab.status()
-    status["live_strategy_activation"] = "BUY_CONFIRMATION_GATE"
+    status["live_strategy_activation"] = "RESEARCH_ONLY"
     status["research_watch"] = _bean_supervisor.status()
     status["adaptive_growth"] = _bean_growth.status()
     return jsonify({"ok": True, **status})
