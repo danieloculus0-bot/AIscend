@@ -881,6 +881,22 @@ class AdvancedSpotEngine:
                                "order_id": order_id,
                                "reason": f"Order verification unavailable: {type(exc).__name__}: {exc}"}
         state = str(observation["state"])
+        if state == "FILLED_VERIFIED" and order_id:
+            filler = getattr(self.rail, "order_fills", None)
+            if callable(filler):
+                try:
+                    details = filler(order_id)
+                    fills = details.get("fills") or []
+                    observation["fill_records_count"] = len(fills)
+                    observation["fill_commissions"] = [
+                        {"trade_id": str(fill.get("trade_id") or ""),
+                         "commission": fill.get("commission"),
+                         "size": fill.get("size"),
+                         "price": fill.get("price")}
+                        for fill in fills if isinstance(fill, dict)
+                    ]
+                except Exception as exc:
+                    observation["fill_lookup_warning"] = type(exc).__name__
         self.store.set_meta("last_coinbase_submission_state", state)
         self.store.set_meta("last_coinbase_submission_evidence",
                             json.dumps(observation))
