@@ -277,3 +277,9 @@ The repository has **real executable trading integrations and real causal reward
 | Repository tests | [`tests/`](tests/) |
 
 **Source snapshot:** README revised October 12, 2026 against `d7fc8e65c4fe9db5a1038459a0d82738fda92f7b`. Future commits, exchange availability and local installations may differ. Git history retains the original extended version-by-version notes.
+
+## Repository audit note (2026-10-20)
+
+**Status: executable trading experiment, not a verified money-making product.** Coinbase Advanced and Base adapters, persistent strategy-learning state, separate historical/forward-research tooling and Windows packaging are represented in source. Several research workflows succeeded on October 20, 2026, but research results and mocked/synthetic success are **not evidence of realized returns, exchange fills, or live installed operation**. AIscend remains separate from the BEAN Core runtime and from the Axiom ERP. Preserve that distinction in demos, marketing and release claims.
+
+[Portfolio-wide repository audit](https://github.com/danieloculus0-bot/Axiom_Beta/blob/main/docs/PORTFOLIO_AUDIT_2026-10-20.md).
