@@ -55,3 +55,63 @@ json.dump({"proposal": response}, sys.stdout, default=str)
     result = json.loads(completed.stdout)
     return {"core": identity, "result": result,
             "trade_authorized": False}
+
+
+def _portfolio_cli(core_dir: str | Path, db_path: str | Path,
+                   command: str, *, args=(), payload=None) -> dict:
+    """Research-only BEAN CLI; never passes exchange keys or an order executor."""
+    core = core_identity(core_dir)
+    if not (Path(core_dir) / "bean/optimization/portfolio_cli.py").is_file():
+        raise ValueError("BEAN portfolio learning research module missing")
+    env = {"PYTHONPATH": str(Path(core_dir).resolve()),
+           "PATH": os.environ.get("PATH", ""),
+           "PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "utf-8"}
+    if os.name == "nt":
+        env["SYSTEMROOT"] = os.environ.get("SYSTEMROOT", "")
+        env["TEMP"] = os.environ.get("TEMP", "")
+    proc = subprocess.run(
+        [sys.executable, "-m", "bean.optimization.portfolio_cli", command,
+         "--db", str(Path(db_path).resolve()), *args],
+        input=json.dumps(payload) if payload is not None else None,
+        text=True, capture_output=True, check=True, timeout=20,
+        cwd=Path(core_dir).resolve(), env=env)
+    return {"core": core, "result": json.loads(proc.stdout),
+            "trade_authorized": False}
+
+
+def record_strategy_research_outcome(core_dir: str | Path, db_path: str | Path,
+                                     *, strategy: str, event_id: str, state: str,
+                                     action: str, reward: float, next_state: str,
+                                     evaluation_ref: str, kind: str = "synthetic",
+                                     revision: str = "research") -> dict:
+    """Only a measured/synthetic *external evaluation*, never a live buy signal.
+
+    Positive and negative rewards update an isolated strategy research policy.
+    The application trading/execution layer does not consume this method's result.
+    """
+    import re
+    token = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,159}\\Z")
+    if any(not isinstance(s, str) or not token.fullmatch(s)
+           for s in (strategy, event_id, state, action, next_state,
+                     evaluation_ref, revision)):
+        raise ValueError("invalid experimental learning identity")
+    if kind not in ("synthetic", "measured"):
+        raise ValueError("unverified results cannot generate learning rewards")
+    return _portfolio_cli(core_dir, db_path, "record", payload={
+        "app": "AIscend/" + strategy, "event_id": event_id,
+        "state": state, "action": action, "reward": reward,
+        "next_state": next_state, "done": False,
+        "evidence_ref": evaluation_ref, "kind": kind, "revision": revision})
+
+
+def strategy_research_context(core_dir: str | Path, db_path: str | Path,
+                              *, strategy: str, query: str = "",
+                              max_bytes: int = 2048) -> dict:
+    """Retrieve a small state summary; this NEVER authorizes a trade."""
+    import re
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,159}", strategy):
+        raise ValueError("invalid strategy")
+    return _portfolio_cli(
+        core_dir, db_path, "context",
+        args=("--app", "AIscend/" + strategy, "--query", query,
+              "--max-bytes", str(max_bytes)))
