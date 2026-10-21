@@ -1,0 +1,32 @@
+name: AIscend BEAN portfolio Q-state research
+on:
+  push:
+    branches: ['experiment/aiscend-bean-portfolio-memory-*']
+  pull_request:
+    paths:
+      - 'src/bean_core_bridge.py'
+      - 'tests/test_bean_portfolio_research.py'
+      - '.github/workflows/bean-portfolio-research.yml'
+  workflow_dispatch:
+jobs:
+  research-adapter:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: danieloculus0-bot/BEAN
+          ref: 5688158ce0b69699941f1dc8d40937f4f3c3cdfa
+          path: bean-core
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Match strategy evidence to real BEAN research ledger
+        env:
+          BEAN_CORE_DIR: bean-core
+        run: python -m unittest discover -s tests -p test_bean_portfolio_research.py -v
