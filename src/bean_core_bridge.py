@@ -90,7 +90,7 @@ def record_strategy_research_outcome(core_dir: str | Path, db_path: str | Path,
     The application trading/execution layer does not consume this method's result.
     """
     import re
-    token = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,159}\\Z")
+    token = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,159}\Z")
     if any(not isinstance(s, str) or not token.fullmatch(s)
            for s in (strategy, event_id, state, action, next_state,
                      evaluation_ref, revision)):
