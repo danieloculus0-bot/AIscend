@@ -1335,7 +1335,7 @@ class AdvancedSpotEngine:
                 if status == "FILLED_VERIFIED":
                     for prefix in ("primary_peak:", "primary_fill_basis:",
                                    "primary_fill_basis_checked_at:"):
-                        self.store.set_meta(prefix + product, "")
+                        self.store.set_meta(_position_meta_key(prefix, product, scope), "")
         except Exception as exc:
             # Transport failures and ambiguous provider responses may have
             # placed an order. Make unresolved state visible, never "failed".
