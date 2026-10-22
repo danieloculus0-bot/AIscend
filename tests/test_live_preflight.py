@@ -1,5 +1,6 @@
 """No-trade Coinbase release preflight regressions."""
 import json
+from contextlib import closing
 import sqlite3
 import tempfile
 import unittest
@@ -48,6 +49,16 @@ class ReleasePreflightTests(unittest.TestCase):
         self.assertFalse(report["placed_orders"])
         self.assertEqual(self.spot.calls, 1)
 
+    def test_read_only_preflight_releases_existing_database_file(self):
+        # SQLite's connection context alone does NOT close the handle.
+        # Windows must be able to unlink the DB as soon as inspect returns.
+        with closing(sqlite3.connect(self.path)) as db, db:
+            db.execute("CREATE TABLE meta(key TEXT PRIMARY KEY,value TEXT)")
+        report = inspect_advanced(vault=Key(), rail=self.spot, db_path=self.path)
+        self.assertTrue(report["execution_ready"], report["blockers"])
+        self.path.unlink()
+        self.assertFalse(self.path.exists())
+
     def test_unconfigured_key_blocks_without_contacting_exchange(self):
         report = inspect_advanced(
             vault=Key(False), rail=self.spot, db_path=self.path)
@@ -55,7 +66,7 @@ class ReleasePreflightTests(unittest.TestCase):
         self.assertEqual(self.spot.calls, 0)
 
     def test_unresolved_coinbase_order_is_explicit_release_blocker(self):
-        with sqlite3.connect(self.path) as db:
+        with closing(sqlite3.connect(self.path)) as db, db:
             db.execute("CREATE TABLE meta(key TEXT PRIMARY KEY,value TEXT)")
             db.execute("INSERT INTO meta VALUES(?,?)", (
                 "pending_coinbase_order", json.dumps({
