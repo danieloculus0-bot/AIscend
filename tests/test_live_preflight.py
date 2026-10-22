@@ -49,6 +49,57 @@ class ReleasePreflightTests(unittest.TestCase):
         self.assertFalse(report["placed_orders"])
         self.assertEqual(self.spot.calls, 1)
 
+    def set_funds_and_markets(self, asset, product_ids):
+        self.spot.value.balances = (
+            SimpleNamespace(currency=asset, available=Decimal("50"), hold=Decimal("0")),
+        )
+        self.spot.value.product_ids = tuple(product_ids)
+        self.spot.value.tradable_spot_products = len(product_ids)
+
+    def test_usdc_stranded_without_usd_conversion_pair(self):
+        self.set_funds_and_markets("USDC", ("BTC-USD",))
+        report = inspect_advanced(vault=Key(), rail=self.spot, db_path=self.path)
+        self.assertFalse(report["execution_ready"])
+        self.assertIn("NO_FUNDED_EXECUTABLE_SPOT_ROUTE", report["blockers"])
+        self.assertEqual(report["funded_executable_pairs"], [])
+        self.assertFalse(report["placed_orders"])
+
+    def test_usd_stranded_without_usdc_conversion_pair(self):
+        self.set_funds_and_markets("USD", ("GROVE-USDC",))
+        report = inspect_advanced(vault=Key(), rail=self.spot, db_path=self.path)
+        self.assertFalse(report["execution_ready"])
+        self.assertIn("NO_FUNDED_EXECUTABLE_SPOT_ROUTE", report["blockers"])
+
+    def test_usdc_bridge_reaches_usd_market(self):
+        self.set_funds_and_markets("USDC", ("BTC-USD", "USDC-USD"))
+        report = inspect_advanced(vault=Key(), rail=self.spot, db_path=self.path)
+        self.assertTrue(report["execution_ready"], report["blockers"])
+        self.assertEqual(report["funded_executable_pairs"], ["BTC-USD"])
+
+    def test_usd_bridge_reaches_usdc_market(self):
+        self.set_funds_and_markets("USD", ("GROVE-USDC", "USDC-USD"))
+        report = inspect_advanced(vault=Key(), rail=self.spot, db_path=self.path)
+        self.assertTrue(report["execution_ready"], report["blockers"])
+        self.assertEqual(report["funded_executable_pairs"], ["GROVE-USDC"])
+
+    def test_direct_quote_funding_is_executable_without_bridge(self):
+        self.set_funds_and_markets("USD", ("BTC-USD",))
+        report = inspect_advanced(vault=Key(), rail=self.spot, db_path=self.path)
+        self.assertTrue(report["execution_ready"], report["blockers"])
+        self.assertEqual(report["funded_executable_pairs"], ["BTC-USD"])
+
+    def test_conversion_pair_alone_is_not_an_investable_spot_route(self):
+        self.set_funds_and_markets("USD", ("USDC-USD",))
+        report = inspect_advanced(vault=Key(), rail=self.spot, db_path=self.path)
+        self.assertFalse(report["execution_ready"])
+        self.assertIn("NO_FUNDED_EXECUTABLE_SPOT_ROUTE", report["blockers"])
+
+    def test_unrelated_held_asset_cannot_satisfy_funding_check(self):
+        self.set_funds_and_markets("GROVE", ("BTC-USD",))
+        report = inspect_advanced(vault=Key(), rail=self.spot, db_path=self.path)
+        self.assertFalse(report["execution_ready"])
+        self.assertIn("NO_FUNDED_EXECUTABLE_SPOT_ROUTE", report["blockers"])
+
     def test_read_only_preflight_releases_existing_database_file(self):
         # SQLite's connection context alone does NOT close the handle.
         # Windows must be able to unlink the DB as soon as inspect returns.
