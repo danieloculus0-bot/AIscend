@@ -73,6 +73,21 @@ class CostAwareLiveTests(unittest.TestCase):
         self.assertEqual(self.actions[-1][:2], ("SELL", "ALEO-USD"))
         self.assertIn("maturity", self.actions[-1][2])
 
+    def test_adoption_bridge_timeout_retains_unknown_submission_status(self):
+        from src.wallets.advanced_trade import CoinbaseSubmissionUnconfirmed
+
+        def bridge_timeout(source, target, snapshot, rationale):
+            self.store.set_meta(
+                "pending_coinbase_order",
+                '{"client_order_id":"bridge-legacy","product":"USDC-USD","side":"SELL"}')
+            raise CoinbaseSubmissionUnconfirmed("bridge submission unconfirmed")
+
+        self.engine._execute_quote_bridge = bridge_timeout
+        self.engine._adopt_growth(self.snap(cash={"USDC": 20}), {})
+        decision = self.store.latest_decisions(1)[0]
+        self.assertEqual(decision["status"], "ORDER_SUBMISSION_UNKNOWN")
+        self.assertIn("bridge-legacy", self.store.get_meta("pending_coinbase_order"))
+
     def test_negative_paper_edge_does_not_trigger_costly_switch(self):
         class WeakLearner(PredictiveLearner):
             def assess(self, product):
