@@ -59,7 +59,7 @@ def policy_identity(product, policy):
             or policy not in POLICIES):
         raise ValueError("Expected frozen USD/USDC spot product and known policy")
     return hashlib.sha256(
-        ("aiscend.paper.policy.v1:" + product + ":" + policy).encode()).hexdigest()
+        ("aiscend.paper.policy.v2.delayed-entry:" + product + ":" + policy).encode()).hexdigest()
 
 
 def _signals(product, policy, bars, signal_ts):
@@ -100,10 +100,14 @@ def _db(conn):
     conn.execute("""CREATE TABLE IF NOT EXISTS paper_decisions (
         product TEXT NOT NULL, policy_sha TEXT NOT NULL,
         signal_ts INTEGER NOT NULL, observed_at REAL NOT NULL,
-        exit_ts INTEGER NOT NULL, state TEXT NOT NULL,
+        entry_ts INTEGER NOT NULL, exit_ts INTEGER NOT NULL, state TEXT NOT NULL,
         entry_price REAL, exit_price REAL, net_return REAL,
         reason TEXT NOT NULL DEFAULT '',
         PRIMARY KEY(product, policy_sha, signal_ts))""")
+    columns = [r[1] for r in conn.execute("PRAGMA table_info(paper_decisions)")]
+    if "entry_ts" not in columns:
+        raise ValueError("Legacy paper fills used an already-open entry bar; "
+                         "create a NEW paper ledger, do not promote old results")
 
 
 def freeze(conn, *, product, policy, now, fee_bps, spread_bps):
@@ -150,12 +154,12 @@ def observe_and_score(*, manifest, db_path=None, fetcher=fetch_5m,
                               fee_bps=fee_bps,spread_bps=spread_bps)
             con.commit()
             pending = con.execute(
-                "SELECT signal_ts,exit_ts,observed_at FROM paper_decisions "
+                "SELECT signal_ts,entry_ts,exit_ts,observed_at FROM paper_decisions "
                 "WHERE product=? AND policy_sha=? AND state='PENDING' "
                 "ORDER BY signal_ts LIMIT 1", (product,identity)).fetchone()
             output = {"policy":policy, "status":"NO_SIGNAL"}
             if pending is not None:
-                signal_ts,exit_ts,observed_at = pending
+                signal_ts,entry_ts,exit_ts,observed_at = pending
                 if last_completed >= exit_ts:
                     # Need entry/exit OPEN candles. Exit bar must be completed
                     # when scoring to ensure no future access at observation.
@@ -164,7 +168,9 @@ def observe_and_score(*, manifest, db_path=None, fetcher=fetch_5m,
                     try:
                         if any(t not in history for t in required):
                             raise ValueError("Missing candles during observed position")
-                        buy=float(history[signal_ts+BAR]["open"])
+                        if not observed_at < entry_ts:
+                            raise ValueError("Entry open predates recorded observation")
+                        buy=float(history[entry_ts]["open"])
                         sell=float(history[exit_ts]["open"])
                         if not all(math.isfinite(x) and x>0 for x in (buy,sell)):
                             raise ValueError("Invalid Coinbase paper fill price")
@@ -201,15 +207,22 @@ def observe_and_score(*, manifest, db_path=None, fetcher=fetch_5m,
                     # Freeze was observed before the entry candle exists.
                     if frozen_at > complete_at + BAR:
                         raise RuntimeError("Frozen policy timestamp is in the future")
-                    exit_ts=last_completed+(1+HORIZONS[policy])*BAR
+                    # At observation time the immediately following bar
+                    # has already opened. Its opening quote cannot be filled
+                    # retrospectively. Wait for the NEXT future bar open.
+                    entry_ts=last_completed+2*BAR
+                    if entry_ts <= now:
+                        raise ValueError("Paper entry must begin after observation")
+                    exit_ts=entry_ts+HORIZONS[policy]*BAR
                     con.execute(
                         "INSERT OR IGNORE INTO paper_decisions "
-                        "(product,policy_sha,signal_ts,observed_at,exit_ts,state) "
-                        "VALUES(?,?,?,?,?,'PENDING')",
-                        (product,identity,last_completed,now,exit_ts))
+                        "(product,policy_sha,signal_ts,observed_at,entry_ts,exit_ts,state) "
+                        "VALUES(?,?,?,?,?,?,'PENDING')",
+                        (product,identity,last_completed,now,entry_ts,exit_ts))
                     con.commit()
                     output={"policy":policy,"status":"PENDING",
-                            "signal_ts":last_completed,"exit_ts":exit_ts}
+                            "signal_ts":last_completed,
+                            "entry_ts":entry_ts,"exit_ts":exit_ts}
             out["products"][product]=output
 
         summary = {}
