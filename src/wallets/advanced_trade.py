@@ -457,6 +457,35 @@ class AdvancedTradeSpot:
         return {"fills": fills, "complete": False, "pages": max_pages}
 
 
+    def account_fills(self, *, max_pages: int = 30) -> dict[str, Any]:
+        """Read all accessible authenticated account fills, not only holdings.
+
+        A configured Coinbase account can have historical SOLD products that no
+        longer appear in balances. Pagination must finish before anyone calls
+        the account history complete. This makes no orders or transfers.
+        """
+        client = self.vault.client()
+        cursor = None
+        seen = set()
+        fills = []
+        for page in range(max_pages):
+            kwargs = {"limit": 100}
+            if cursor:
+                kwargs["cursor"] = cursor
+            payload = self._dict(client.get_fills(**kwargs))
+            rows = payload.get("fills")
+            if not isinstance(rows, list):
+                raise RuntimeError("Coinbase account fill history is malformed")
+            fills.extend(rows)
+            next_cursor = str(payload.get("cursor") or "")
+            if not next_cursor:
+                return {"fills": fills, "complete": True, "pages": page + 1}
+            if next_cursor in seen:
+                raise RuntimeError("Coinbase account fill pagination repeated a cursor")
+            seen.add(next_cursor)
+            cursor = next_cursor
+        return {"fills": fills, "complete": False, "pages": max_pages}
+
     def order_fills(self, order_id: str) -> dict[str, Any]:
         """Read actual execution fills/commissions, never a preview estimate."""
         if not order_id or not order_id.strip():
