@@ -32,6 +32,10 @@ class Spot:
     def status(self):
         self.calls += 1
         return self.value
+    def product(self, product_id):
+        return {"product_id": product_id,
+                "quote_min_size": "1.00", "quote_increment": "0.01",
+                "base_min_size": "0.01", "base_increment": "0.00000001"}
 
 
 class ReleasePreflightTests(unittest.TestCase):
@@ -99,6 +103,55 @@ class ReleasePreflightTests(unittest.TestCase):
         report = inspect_advanced(vault=Key(), rail=self.spot, db_path=self.path)
         self.assertFalse(report["execution_ready"])
         self.assertIn("NO_FUNDED_EXECUTABLE_SPOT_ROUTE", report["blockers"])
+
+    def test_dust_balance_below_quote_minimum_is_not_execution_ready(self):
+        self.spot.value.balances = (
+            SimpleNamespace(currency="USD", available=Decimal("0.09"),
+                            hold=Decimal("0")),)
+        self.spot.value.product_ids = ("BTC-USD",)
+        report = inspect_advanced(vault=Key(), rail=self.spot, db_path=self.path)
+        self.assertEqual(report["funded_executable_pairs"], ["BTC-USD"])
+        self.assertFalse(report["execution_ready"])
+        self.assertIn("NO_ORDER_SIZE_ELIGIBLE_FUNDED_ROUTE", report["blockers"])
+
+    def test_dust_holding_below_sell_minimum_is_not_execution_ready(self):
+        self.spot.value.balances = (
+            SimpleNamespace(currency="GROVE", available=Decimal("0.0001"),
+                            hold=Decimal("0")),)
+        report = inspect_advanced(vault=Key(), rail=self.spot, db_path=self.path)
+        self.assertFalse(report["execution_ready"])
+        self.assertIn("NO_ORDER_SIZE_ELIGIBLE_FUNDED_ROUTE", report["blockers"])
+
+    def test_funded_quote_with_sufficient_minimum_is_sized(self):
+        self.set_funds_and_markets("USD", ("BTC-USD",))
+        report = inspect_advanced(vault=Key(), rail=self.spot, db_path=self.path)
+        self.assertTrue(report["execution_ready"], report["blockers"])
+        self.assertEqual(report["sized_funded_pairs"], ["BTC-USD"])
+
+    def test_usdc_bridge_must_clear_bridge_and_destination_minimums(self):
+        self.set_funds_and_markets("USDC", ("BTC-USD", "USDC-USD"))
+        self.spot.value.balances = (
+            SimpleNamespace(currency="USDC", available=Decimal("0.09"),
+                            hold=Decimal("0")),)
+        report = inspect_advanced(vault=Key(), rail=self.spot, db_path=self.path)
+        self.assertFalse(report["execution_ready"])
+        self.assertIn("NO_ORDER_SIZE_ELIGIBLE_FUNDED_ROUTE", report["blockers"])
+        self.spot.value.balances = (
+            SimpleNamespace(currency="USDC", available=Decimal("50"),
+                            hold=Decimal("0")),)
+        report = inspect_advanced(vault=Key(), rail=self.spot, db_path=self.path)
+        self.assertTrue(report["execution_ready"], report["blockers"])
+        self.assertEqual(report["sized_funded_pairs"], ["BTC-USD"])
+
+    def test_unknown_product_rules_cannot_claim_size_verified(self):
+        self.set_funds_and_markets("USD", ("BTC-USD",))
+        def unavailable(_product_id):
+            raise TimeoutError("product rules unavailable")
+        self.spot.product = unavailable
+        report = inspect_advanced(vault=Key(), rail=self.spot, db_path=self.path)
+        self.assertFalse(report["execution_ready"])
+        self.assertIn("NO_ORDER_SIZE_ELIGIBLE_FUNDED_ROUTE", report["blockers"])
+        self.assertIn("PRODUCT_RULES_UNAVAILABLE", report["warnings"])
 
     def test_read_only_preflight_releases_existing_database_file(self):
         # SQLite's connection context alone does NOT close the handle.
