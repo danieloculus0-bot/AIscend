@@ -72,8 +72,12 @@ def _normalize_fill(raw):
         raise ValueError("Coinbase fill timestamp missing")
     # A provider fee can only be subtracted from quote-denominated P&L when
     # its denomination is explicitly confirmed.
+    # Coinbase Markets trading rule 1.91 charges Advanced spot fees in
+    # the quote asset. The fill API may omit a fee currency field.
+    # An explicit conflicting currency is never silently converted.
     fee_currency = str(raw.get("commission_currency") or
-                       raw.get("fee_currency") or "").upper()
+                       raw.get("fee_currency") or
+                       product.rsplit("-", 1)[1]).upper()
     return {
         "fill_id": identity, "product": product, "side": side,
         "size": str(Decimal(str(size))), "price": str(Decimal(str(price))),
@@ -106,6 +110,8 @@ def preserve_fills(store, response, *, clock=time.time):
                     "VALUES(?,?,?)", (fill["fill_id"], payload, float(clock())))
     if response.get("complete") is True:
         store.set_meta("bean_fills_last_complete_at", str(float(clock())))
+    else:
+        store.set_meta("bean_fills_last_complete_at", "")
     store.set_meta("bean_fills_last_attempt_at", str(float(clock())))
     return len(normalized)
 
@@ -198,6 +204,7 @@ def evaluate_account(store, snapshot, rail, *, clock=time.time,
             preserve_fills(store, response, clock=clock)
             status = "PROVIDER_HISTORY_COMPLETE" if response.get("complete") else "PROVIDER_HISTORY_PARTIAL"
         except Exception as exc:
+            store.set_meta("bean_fills_last_complete_at", "")
             status = "HISTORY_READ_FAILED:" + type(exc).__name__
     else:
         status = "CACHED_HISTORY"
