@@ -1,0 +1,70 @@
+name: Full Coinbase Spot Universe Research
+on:
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '11 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  universe-shard:
+    name: Coinbase public spot research shard ${{ matrix.shard }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - name: Test catalog completeness and causal research
+        run: |
+          python -m unittest discover -s tests -p 'test_universe_research.py' -v
+          python -m unittest discover -s tests -p 'test_strategy_research.py' -v
+      - name: Research every eligible listed Coinbase USD/USDC spot pair in this shard
+        run: |
+          python -m src.universe_research --shards 8 --shard-index ${{ matrix.shard }} --days 21 --fee-bps 60 --workers 3 --output universe-shard-${{ matrix.shard }}.json
+      - name: Upload exact catalog and every simulated market status
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aiscend-universe-shard-${{ matrix.shard }}
+          path: universe-shard-${{ matrix.shard }}.json
+          if-no-files-found: warn
+          retention-days: 30
+
+  aggregate:
+    name: Assert complete unaltered catalog coverage
+    if: always()
+    needs: [universe-shard]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download all eight shard reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: aiscend-universe-shard-*
+          path: universe-shards
+          merge-multiple: true
+      - name: Verify full coverage and preserve training-only ranking
+        run: |
+          python -m src.universe_research --aggregate universe-shards/universe-shard-*.json --output universe-aggregate.json
+      - name: Preserve full-universe audited summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aiscend-coinbase-universe-aggregate
+          path: universe-aggregate.json
+          if-no-files-found: warn
+          retention-days: 30
