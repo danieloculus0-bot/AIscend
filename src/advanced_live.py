@@ -649,8 +649,20 @@ class AdvancedSpotEngine:
     def _taker_cost_bps(self) -> tuple[float, str]:
         """Use authenticated Coinbase fee tier; cache its source for 15 min."""
         now = time.time()
+        # Exchange fee rates belong to the authenticated key/portfolio.
+        # Never reuse a different Coinbase key's cheaper historical fee tier.
+        scope_reader = getattr(getattr(self, "rail", None), "account_scope_id", None)
         try:
-            saved = json.loads(self.store.get_meta("bean_fee_tier") or "{}")
+            scope = scope_reader() if callable(scope_reader) else None
+        except Exception:
+            scope = None
+        usable = (isinstance(scope, str) and len(scope) == 64
+                  and all(c in "0123456789abcdef" for c in scope))
+        if not usable:
+            return 60.0, "unverified_account_fee_fallback"
+        meta_key = "bean_fee_tier:" + scope
+        try:
+            saved = json.loads(self.store.get_meta(meta_key) or "{}")
         except (ValueError, TypeError):
             saved = {}
         if now - float(saved.get("checked_at") or 0.0) < 900:
@@ -663,7 +675,7 @@ class AdvancedSpotEngine:
             pass
         bps = float(rate) if rate is not None else 60.0
         source = "coinbase_account_fee_tier" if rate is not None else "conservative_estimate"
-        self.store.set_meta("bean_fee_tier", json.dumps({
+        self.store.set_meta(meta_key, json.dumps({
             "bps": bps, "source": source, "checked_at": now}))
         return bps, source
 
