@@ -87,6 +87,11 @@ def simulate(bars: dict, policy: str, *, fee_bps=60.0, spread_bps=10.0,
         if exit_i>=end:
             last+=1
             continue
+        # Never credit a hypothetical fill across a candle outage. Entry,
+        # every held interval and exit must be consecutively observed.
+        if any(times[k+1]-times[k]!=BAR for k in range(i,exit_i)):
+            last+=1
+            continue
         # The completed bar i is the LAST input. Orders fill hypothetically
         # at future i+1 and exit_i OPENs, never at signal-bar closes.
         buy=float(bars[times[i+1]]["open"])
