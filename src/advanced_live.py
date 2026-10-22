@@ -12,6 +12,7 @@ from .audit import AuditTrail
 from .bean import BeanMemory
 from .bean_policy import BeanPolicyGate
 from .bean_growth_rotation import evaluate_candidates
+from .bean_capital_evidence import evaluate_account, capital_snapshot
 from .bean_rotation_economics import (score_route, bridge_order,
                                       maturity_minutes, trade_cost_bps)
 from .position_cost_basis import rebuild_position_basis
@@ -471,6 +472,7 @@ class AdvancedSpotEngine:
             "bean": self.bean.snapshot(),
             "bean_policy": json.loads(self.store.get_meta("bean_policy_latest") or "{}"),
             "bean_growth": json.loads(self.store.get_meta("bean_growth_latest") or "{}"),
+            "bean_account": json.loads(self.store.get_meta("bean_account_latest") or "{}"),
             "market_radar": radar,
             "execution_rail": "coinbase-advanced",
         }
@@ -1054,6 +1056,21 @@ class AdvancedSpotEngine:
                 "execution_status": status, "order_attempted": False,
                 "blocker": "coinbase_fill_reconciliation"}))
             return self.sync()
+        # The REAL account and completed authenticated trade ledger are
+        # consulted before learned BUY candidates are ranked. The first
+        # observed bankroll is not confused with original deposited capital.
+        try:
+            account_evidence = evaluate_account(
+                self.store, snapshot, getattr(self, "rail", None))
+        except Exception as exc:
+            account_evidence = {
+                "capital": capital_snapshot(snapshot),
+                "execution": {"status": "UNAVAILABLE", "products": {}},
+                "read_status": "ACCOUNT_EVIDENCE_ERROR:" + type(exc).__name__,
+                "realized_account_profit_verified": False,
+            }
+        self.store.set_meta("bean_account_latest",
+                            json.dumps(account_evidence, sort_keys=True))
         fee_bps, fee_source = self._taker_cost_bps()
         # Actual BEAN Q feedback now competes for live funded allocation.
         # Its selected long/cash signals are not merely advisory telemetry.
@@ -1063,7 +1080,8 @@ class AdvancedSpotEngine:
             try:
                 cursor = int(self.store.get_meta("bean_rotation_cursor") or "0")
                 learned_plan = evaluate_candidates(
-                    self.growth_gate, snapshot, cursor=cursor)
+                    self.growth_gate, snapshot, cursor=cursor,
+                    account_history=account_evidence)
                 self.store.set_meta(
                     "bean_rotation_cursor", str(learned_plan["next_cursor"]))
             except Exception as exc:
@@ -1098,6 +1116,14 @@ class AdvancedSpotEngine:
         plan["bean_role"] = "q_policy_live_candidate_and_cash_exit"
         plan["bean_assessed_count"] = (learned_plan or {}).get("assessed_count", 0)
         plan["bean_live_signals"] = len(learned_rows)
+        plan["account_capital_evidence"] = account_evidence["capital"]
+        plan["authenticated_trade_history"] = {
+            "status": account_evidence["execution"].get("status"),
+            "read_status": account_evidence["read_status"],
+            "fill_count_retained": account_evidence["execution"].get("fill_count_retained", 0),
+            "products": account_evidence["execution"].get("products", {}),
+            "realized_account_profit_verified": False,
+        }
         plan["bean_error"] = learned_error
         plan["order_attempted"] = False
         plan["holding_reviews"] = {}
