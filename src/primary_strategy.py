@@ -58,7 +58,9 @@ def proposals(row: dict, *, enabled=POLICIES) -> list[dict]:
         r5 = float(row.get("return_5m") or 0.0)
         r1 = float(row.get("return_1h") or 0.0)
         r6 = float(row.get("return_6h") or 0.0)
-        vol = float(row.get("volume_ratio") or 1.0)
+        # Absent or zero volume must not manufacture breakout/reversal confirmation.
+        observed_volume = row.get("volume_ratio")
+        vol = float(observed_volume) if observed_volume is not None else 0.0
         spread = float(row.get("spread_bps") or 0.0)
     except (TypeError, ValueError):
         return []
