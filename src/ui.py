@@ -469,6 +469,11 @@ class MainWindow(QMainWindow):
             f"{snap['wallet_address'][:24]}…"
         )
         self.reset_button.setEnabled(False)
+        if network == "advanced" and self.interval.value() == 3.0:
+            # Advanced evaluates real Coinbase markets / learned five-minute
+            # candles. Do not hammer the exchange every 3 seconds by default.
+            # The operator can still select a different trading cadence.
+            self.interval.setValue(300.0)
         if network == "advanced":
             # An OpenAI-compatible model is not wired into Advanced trading.
             # Never show inert controls as though they make trade decisions.
