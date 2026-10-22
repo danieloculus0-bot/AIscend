@@ -190,7 +190,7 @@ class AccountEvidenceTests(unittest.TestCase):
                 self.calls = []
             def get_fills(self, **kwargs):
                 self.calls.append(kwargs)
-                if len(self.calls) == 1:
+                if not kwargs.get("cursor"):
                     return {"fills": [fill(1, "BUY", 1, 10, ".1")],
                             "cursor": "next"}
                 return {"fills": [fill(2, "SELL", 1, 11, ".1")], "cursor": ""}
