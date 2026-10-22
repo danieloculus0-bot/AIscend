@@ -185,6 +185,17 @@ class AccountEvidenceTests(unittest.TestCase):
         self.assertEqual(row["real_trade_feedback_status"],
                          "UNVERIFIED_OR_INCOMPLETE")
 
+    def test_new_account_or_missing_provider_fills_invalidates_old_history(self):
+        preserve_fills(self.store, {"fills": self.fills, "complete": True},
+                       clock=lambda: 1000)
+        with self.assertRaisesRegex(ValueError, "excludes prior recorded fills"):
+            preserve_fills(self.store, {
+                "fills": self.fills[:-1], "complete": True},
+                clock=lambda: 1001)
+        self.assertEqual(
+            execution_history(self.store, clock=lambda: 1002)["status"],
+            "UNVERIFIED_OR_STALE")
+
     def test_broken_fill_reader_reports_problem_without_inventing_fills(self):
         class Broken:
             def account_fills(self):
