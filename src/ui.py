@@ -522,7 +522,8 @@ class MainWindow(QMainWindow):
                 report = inspect_advanced(
                     vault=self.engine.rail.vault,
                     rail=self.engine.rail,
-                    db_path=self.store.path)
+                    db_path=self.store.path,
+                    require_history=True)
             except Exception as exc:
                 QMessageBox.critical(
                     self, "Coinbase preflight blocked",
