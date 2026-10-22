@@ -5,7 +5,7 @@ Usage:
 
 This validates the *installed* program's credentials, tradability, stored
 order-reconciliation state and recent decision. A green result means the
-account is readable and operable; it does not prove fills or profitability.
+account has a funded USD/USDC spot route; it does not prove order sizing,\nactual fills, or profitability.
 """
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from src.core import app_data_dir
+from src.bean_rotation_economics import bridge_order
 from src.wallets.advanced_trade import AdvancedTradeSpot, AdvancedTradeVault
 
 
@@ -35,6 +36,29 @@ def _read_metadata(db: Path) -> dict[str, str]:
             }
     except sqlite3.Error as exc:
         raise RuntimeError(f"Cannot inspect existing execution journal: {exc}") from exc
+
+
+def _funded_executable_pairs(funded_assets: set[str], product_ids: tuple[str, ...]) -> list[str]:
+    """Find reachable Coinbase spot markets using the live engine's bridge rule.
+
+    A USD/USDC balance is useful only when the account has a market quoted in
+    that currency, or the actual tradable USDC-USD conversion pair exists.
+    A non-dollar holding can be liquidated only through its own tradable pair.
+    The conversion-only pair is not itself an investable target market.
+    """
+    tradable = {str(product).upper() for product in product_ids}
+    funded_quotes = funded_assets & {"USD", "USDC"}
+    reachable = []
+    for product in sorted(tradable):
+        base, separator, quote = product.rpartition("-")
+        if (not separator or not base or quote not in {"USD", "USDC"}
+                or product == "USDC-USD"):
+            continue
+        if (base in funded_assets or quote in funded_assets
+                or any(bridge_order(source, quote, tradable)
+                       for source in funded_quotes)):
+            reachable.append(product)
+    return reachable
 
 
 def inspect_advanced(*, vault=None, rail=None, db_path: Path | None = None) -> dict[str, Any]:
@@ -66,13 +90,11 @@ def inspect_advanced(*, vault=None, rail=None, db_path: Path | None = None) -> d
         state["blockers"].append("COINBASE_KEY_MISSING_VIEW_OR_TRADE")
     if not status.product_ids:
         state["blockers"].append("NO_MARKET_ORDER_ELIGIBLE_PRODUCTS")
-    tradable_bases = {
-        p.rpartition("-")[0] for p in status.product_ids
-        if p.endswith(("-USD", "-USDC"))
-    }
-    if not ("USD" in assets or "USDC" in assets
-            or any(asset in tradable_bases for asset in assets)):
-        state["blockers"].append("NO_SPENDABLE_FUNDS_ON_SUPPORTED_SPOT_PAIR")
+    funded_pairs = _funded_executable_pairs(
+        set(assets), tuple(status.product_ids))
+    state["funded_executable_pairs"] = funded_pairs
+    if not funded_pairs:
+        state["blockers"].append("NO_FUNDED_EXECUTABLE_SPOT_ROUTE")
     meta = _read_metadata(db_path or app_data_dir() / "live-advanced.db")
     pending_raw = meta.get("pending_coinbase_order")
     if pending_raw:
@@ -99,8 +121,8 @@ def inspect_advanced(*, vault=None, rail=None, db_path: Path | None = None) -> d
         state["warnings"].append("NO_PRIOR_ADVANCED_DECISION_FOUND")
     state["execution_ready"] = not state["blockers"]
     state["note"] = ("Read-only account and journal preflight only; "
-                     "no Coinbase order submission, fill verification or "
-                     "profitability demonstration performed.")
+                     "no Coinbase order submission, order minimum-size check, "
+                     "fill verification or profitability demonstration performed.")
     return state
 
 
