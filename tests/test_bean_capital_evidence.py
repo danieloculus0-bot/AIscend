@@ -49,6 +49,12 @@ class Learner:
 
 
 class AccountEvidenceTests(unittest.TestCase):
+    def preserve(self, store, response, **kwargs):
+        return preserve_fills(store, response, account_scope=SCOPE_A, **kwargs)
+
+    def history(self, store, **kwargs):
+        return execution_history(store, account_scope=SCOPE_A, **kwargs)
+
     def setUp(self):
         self.folder = tempfile.TemporaryDirectory()
         self.addCleanup(self.folder.cleanup)
@@ -86,9 +92,9 @@ class AccountEvidenceTests(unittest.TestCase):
 
     def test_persist_and_replay_reconciled_net_losses_from_real_fills(self):
         payload = {"fills": self.fills, "complete": True}
-        self.store, payload, account_scope=SCOPE_A, clock=lambda: 1000)
-        self.store, payload, account_scope=SCOPE_A, clock=lambda: 1000)
-        h = execution_history(self.store, account_scope=SCOPE_A, clock=lambda: 1001)
+        self.preserve(self.store, payload, clock=lambda: 1000)
+        self.preserve(self.store, payload, clock=lambda: 1000)
+        h = self.history(self.store, clock=lambda: 1001)
         self.assertEqual(h["status"], "COMPLETE")
         self.assertEqual(h["fill_count_retained"], 4)
         p = h["products"]["GROVE-USDC"]
@@ -99,53 +105,53 @@ class AccountEvidenceTests(unittest.TestCase):
         self.assertAlmostEqual(p["matched_sold_cost_quote"], 30.3)
 
     def test_missing_initial_buy_cannot_fake_realized_profit(self):
-        self.store, {
+        self.preserve(self.store, {
             "fills": [fill(2, "SELL", 3, 20, ".1")], "complete": True,
-        }, account_scope=SCOPE_A, clock=lambda: 1000)
-        p = execution_history(self.store, account_scope=SCOPE_A, clock=lambda: 1001)["products"]["GROVE-USDC"]
+        }, clock=lambda: 1000)
+        p = self.history(self.store, clock=lambda: 1001)["products"]["GROVE-USDC"]
         self.assertEqual(p["status"], "UNVERIFIED")
         self.assertIsNone(p["realized_net_quote"])
 
     def test_unknown_or_other_fee_currency_is_unverified(self):
-        self.store, {"fills": [
+        self.preserve(self.store, {"fills": [
             fill(1, "BUY", 1, 10, ".1", currency="BTC"),
-            fill(2, "SELL", 1, 20, ".1")], "complete": True}, account_scope=SCOPE_A,
+            fill(2, "SELL", 1, 20, ".1")], "complete": True},
             clock=lambda: 1000)
-        p = execution_history(self.store, account_scope=SCOPE_A, clock=lambda: 1001)["products"]["GROVE-USDC"]
+        p = self.history(self.store, clock=lambda: 1001)["products"]["GROVE-USDC"]
         self.assertEqual(p["status"], "UNVERIFIED")
         self.assertIsNone(p["realized_net_quote"])
 
     def test_partial_and_stale_provider_history_cannot_count_as_complete(self):
-        self.store, {"fills": self.fills, "complete": True}, account_scope=SCOPE_A,
+        self.preserve(self.store, {"fills": self.fills, "complete": True},
                        clock=lambda: 1000)
-        self.assertEqual(execution_history(self.store, account_scope=SCOPE_A, clock=lambda: 1001)["status"],
+        self.assertEqual(self.history(self.store, clock=lambda: 1001)["status"],
                          "COMPLETE")
-        self.store, {"fills": self.fills, "complete": False}, account_scope=SCOPE_A,
+        self.preserve(self.store, {"fills": self.fills, "complete": False},
                        clock=lambda: 1002)
-        self.assertEqual(execution_history(self.store, account_scope=SCOPE_A, clock=lambda: 1003)["status"],
+        self.assertEqual(self.history(self.store, clock=lambda: 1003)["status"],
                          "UNVERIFIED_OR_STALE")
-        self.store, {"fills": self.fills, "complete": True}, account_scope=SCOPE_A,
+        self.preserve(self.store, {"fills": self.fills, "complete": True},
                        clock=lambda: 1004)
-        self.assertEqual(execution_history(self.store, account_scope=SCOPE_A, clock=lambda: 3000)["status"],
+        self.assertEqual(self.history(self.store, clock=lambda: 3000)["status"],
                          "UNVERIFIED_OR_STALE")
 
     def test_coinbase_micro_quantities_preserve_exact_decimal_bytes(self):
         tiny = fill(1, "BUY", "0.00000000000000012345",
                     "12345.12345678987654321", "0.00000000000000000001")
-        self.store, {"fills": [tiny], "complete": True}, account_scope=SCOPE_A,
+        self.preserve(self.store, {"fills": [tiny], "complete": True},
                        clock=lambda: 1000)
-        item = execution_history(self.store, account_scope=SCOPE_A, clock=lambda: 1001)["recent_trades"][0]
+        item = self.history(self.store, clock=lambda: 1001)["recent_trades"][0]
         self.assertEqual(item["size"], "1.2345E-16")
         self.assertEqual(item["price"], "12345.12345678987654321")
         self.assertEqual(item["fee"], "1E-20")
 
     def test_conflicting_duplicate_fill_is_rejected_not_replaced(self):
-        self.store, {"fills": self.fills, "complete": True}, account_scope=SCOPE_A,
+        self.preserve(self.store, {"fills": self.fills, "complete": True},
                        clock=lambda: 1000)
         changed = copy.deepcopy(self.fills)
         changed[0]["price"] = "999"
         with self.assertRaises(ValueError):
-            self.store, {"fills": changed, "complete": True}, account_scope=SCOPE_A,
+            self.preserve(self.store, {"fills": changed, "complete": True},
                            clock=lambda: 1001)
 
     def test_live_account_reader_is_throttled_and_learner_sees_history(self):
@@ -193,14 +199,14 @@ class AccountEvidenceTests(unittest.TestCase):
                          "UNVERIFIED_OR_INCOMPLETE")
 
     def test_new_account_or_missing_provider_fills_invalidates_old_history(self):
-        self.store, {"fills": self.fills, "complete": True}, account_scope=SCOPE_A,
+        self.preserve(self.store, {"fills": self.fills, "complete": True},
                        clock=lambda: 1000)
         with self.assertRaisesRegex(ValueError, "excludes prior recorded fills"):
-            self.store, {
-                "fills": self.fills[:-1], "complete": True}, account_scope=SCOPE_A,
+            self.preserve(self.store, {
+                "fills": self.fills[:-1], "complete": True},
                 clock=lambda: 1001)
         self.assertEqual(
-            execution_history(self.store, account_scope=SCOPE_A, clock=lambda: 1002)["status"],
+            self.history(self.store, clock=lambda: 1002)["status"],
             "UNVERIFIED_OR_STALE")
 
     def test_broken_fill_reader_reports_problem_without_inventing_fills(self):
