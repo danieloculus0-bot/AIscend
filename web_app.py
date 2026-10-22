@@ -519,9 +519,11 @@ def configure_advanced():
         if not api_key_id or not api_key_secret:
             raise ValueError("Advanced Trade key JSON is missing id/name or privateKey.")
 
+        # Validate a candidate key without putting it into process-wide env.
+        # Only authenticated, trade-capable keys are persisted.
+        status = AdvancedTradeSpot.validate_credentials(
+            api_key_id, api_key_secret)
         vault = AdvancedTradeVault()
-        vault.configure(api_key_id, api_key_secret)
-        status = AdvancedTradeSpot(vault).status()
         vault.save(api_key_id, api_key_secret)
         return jsonify({"ok": True, "persisted": True, **status.as_dict()})
     except Exception as exc:
