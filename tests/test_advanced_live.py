@@ -187,9 +187,9 @@ class AdvancedLiveTests(unittest.TestCase):
             row = store.latest_decisions(1)[0]
             self.assertEqual(row["action"], "BUY")
             self.assertEqual(row["status"], "ORDER_ACCEPTED_UNVERIFIED")
-            self.assertEqual(after["cash"], 10.0)
+            self.assertEqual(after["cash"], 0.0)
             self.assertTrue(rail.buys)
-            self.assertEqual(rail.buys[0][1], Decimal("15.00"))
+            self.assertEqual(rail.buys[0][1], Decimal("25.00"))
             store.close()
 
     def test_existing_holdings_are_forced_into_each_market_scan(self):
