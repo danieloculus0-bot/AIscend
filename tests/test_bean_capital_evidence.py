@@ -122,6 +122,16 @@ class AccountEvidenceTests(unittest.TestCase):
         self.assertEqual(execution_history(self.store, clock=lambda: 3000)["status"],
                          "UNVERIFIED_OR_STALE")
 
+    def test_coinbase_micro_quantities_preserve_exact_decimal_bytes(self):
+        tiny = fill(1, "BUY", "0.00000000000000012345",
+                    "12345.12345678987654321", "0.00000000000000000001")
+        preserve_fills(self.store, {"fills": [tiny], "complete": True},
+                       clock=lambda: 1000)
+        item = execution_history(self.store, clock=lambda: 1001)["recent_trades"][0]
+        self.assertEqual(item["size"], "1.2345E-16")
+        self.assertEqual(item["price"], "12345.12345678987654321")
+        self.assertEqual(item["fee"], "1E-20")
+
     def test_conflicting_duplicate_fill_is_rejected_not_replaced(self):
         preserve_fills(self.store, {"fills": self.fills, "complete": True},
                        clock=lambda: 1000)
