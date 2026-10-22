@@ -1,0 +1,31 @@
+name: Real BEAN Core Paper Learning
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sponge-bridge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Fetch actual BEAN Core source
+        run: git clone --depth 1 https://github.com/danieloculus0-bot/BEAN.git "$RUNNER_TEMP/bean-core"
+      - name: Test delayed-entry paper timestamp and damaged prior ledger rejection
+        run: python -m unittest discover -s tests -p 'test_forward_paper.py' -v
+      - name: Train true BEAN Core SpongeTD using disposable offline fixture outcomes
+        run: python -m scripts.bean_core_paper_smoke --core "$RUNNER_TEMP/bean-core"
+      - name: Verify no live trading claims
+        run: |
+          echo "BEAN_CORE_REAL=true"
+          echo "LIVE_TRADES_PLACED=false"
+          echo "FORWARD_PROFITABILITY_PROVEN=false"
+          echo "AUTHENTICATED_COINBASE_VERIFIED=false"
