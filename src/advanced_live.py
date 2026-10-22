@@ -1274,7 +1274,17 @@ class AdvancedSpotEngine:
             if str(exc).startswith("Coinbase order not confirmed accepted:"):
                 self.store.set_meta("pending_coinbase_order", "")
             raise
-        require_accepted_order(order)
+        try:
+            require_accepted_order(order)
+        except RuntimeError:
+            # Explicit venue rejection is final. Leaving its pre-submission
+            # intent pending freezes trading despite having no accepted order.
+            # Ambiguous/noncommittal responses remain pending for investigation.
+            if isinstance(order, dict) and order.get("success") is False:
+                self.store.set_meta("pending_coinbase_order", "")
+                self.store.set_meta(
+                    "last_coinbase_submission_state", "VENUE_REJECTED")
+            raise
         result_state, evidence = self._check_or_track_submission(
             order, product=product_id, side="BUY", client_id=client_order_id)
         self.store.add_ledger(
@@ -1350,7 +1360,17 @@ class AdvancedSpotEngine:
             if str(exc).startswith("Coinbase order not confirmed accepted:"):
                 self.store.set_meta("pending_coinbase_order", "")
             raise
-        require_accepted_order(order)
+        try:
+            require_accepted_order(order)
+        except RuntimeError:
+            # Explicit venue rejection is final. Leaving its pre-submission
+            # intent pending freezes trading despite having no accepted order.
+            # Ambiguous/noncommittal responses remain pending for investigation.
+            if isinstance(order, dict) and order.get("success") is False:
+                self.store.set_meta("pending_coinbase_order", "")
+                self.store.set_meta(
+                    "last_coinbase_submission_state", "VENUE_REJECTED")
+            raise
         result_state, evidence = self._check_or_track_submission(
             order, product=product_id, side="SELL", client_id=client_order_id)
         self.store.add_ledger(
