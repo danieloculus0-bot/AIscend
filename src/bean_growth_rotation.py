@@ -8,6 +8,8 @@ from __future__ import annotations
 from math import isfinite
 from concurrent.futures import ThreadPoolExecutor
 
+from .primary_strategy import DEFAULT_TAKER_BPS
+
 # A cycle processes a bounded chunk of candles/API calls. The cursor rotates
 # through the entire observed universe instead of permanently ignoring rank 9+.
 # This is a throughput budget, not a restriction on which assets BEAN may trade.
@@ -80,7 +82,10 @@ def evaluate_candidates(growth_gate, snapshot, *, limit=EVALUATION_BATCH, cursor
         exposure = bool(evidence.get("target_exposure"))
         # Learned reward is measured per synthetic paper bar and is NOT a
         # future-profit forecast. Use it only to rank competing policies.
-        cost_bps = max(0.0, spread) * .5 + 7
+        # Q rewards reflect past paper execution costs; a NEW funded order
+        # must also clear a prospective taker fee and half the live spread.
+        # Keep the 60-bps fallback consistent with AdvancedSpotEngine.
+        cost_bps = max(0.0, spread) * .5 + DEFAULT_TAKER_BPS
         edge = reward - cost_bps if exposure else 0.0
         results.append({
             "product": product,
