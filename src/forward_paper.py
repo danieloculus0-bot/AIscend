@@ -24,6 +24,36 @@ HORIZONS = {"trend": 72, "breakout": 12, "reversal": 3,
             "trend_4h_hold": 48, "trend_1d_hold": 288}
 
 
+def freeze_training_candidates(aggregate, *, limit=10):
+    """Create explicit candidate manifests using the report's TRAINING ranks.
+
+    This is provenance of the input report, not authentication of its origin.
+    A result is never promoted merely because it appears in the report.
+    """
+    if (not isinstance(aggregate, dict)
+            or aggregate.get("schema") != "aiscend.universe_research_aggregate.v1"
+            or aggregate.get("promotion_authorized") is not False):
+        raise ValueError("Expected unpromoted, verified-shard research aggregate")
+    rows = aggregate.get("training_preselected")
+    if not isinstance(rows, list) or not 1 <= limit <= 20:
+        raise ValueError("No valid training-only candidates or invalid limit")
+    chosen = []
+    seen = set()
+    for row in rows:
+        product = str(row.get("product") or "").upper()
+        policy = row.get("policy")
+        policy_identity(product, policy)
+        if product not in seen:
+            chosen.append({"product": product, "policy": policy,
+                           "training_only_frozen": True})
+            seen.add(product)
+        if len(chosen) >= limit:
+            break
+    if not chosen:
+        raise ValueError("No training-ranked candidate exists to freeze")
+    return chosen
+
+
 def policy_identity(product, policy):
     if (not isinstance(product, str) or not product.endswith(("-USD", "-USDC"))
             or policy not in POLICIES):
