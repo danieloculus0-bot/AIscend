@@ -32,6 +32,14 @@ from .wallets.advanced_trade import (AdvancedTradeSpot, require_accepted_order,
 
 DOLLAR_ASSETS = {"USD", "USDC"}
 
+def _position_meta_key(prefix: str, product: str, scope: str | None) -> str:
+    """Keep cost, stop and maturity state within one Coinbase credential scope."""
+    if (not isinstance(scope, str) or len(scope) != 64
+            or any(c not in "0123456789abcdef" for c in scope)):
+        scope = "unverified"
+    return f"{prefix}{scope}:{product}"
+
+
 
 class AdvancedSpotEngine:
     """
@@ -984,7 +992,7 @@ class AdvancedSpotEngine:
                 "submitted_at": time.time()}))
         return state, observation
 
-    def _pending_order_decision(self):
+    def _pending_order_decision(self, scope=None):
         """Reconcile accepted but unverified orders before placing another."""
         raw = self.store.get_meta("pending_coinbase_order")
         if not raw:
@@ -1035,9 +1043,11 @@ class AdvancedSpotEngine:
                 if str(pending.get("side") or "").upper() in {"BUY", "SELL"}:
                     for prefix in ("primary_peak:", "primary_fill_basis:",
                                    "primary_fill_basis_checked_at:"):
-                        self.store.set_meta(prefix + product, "")
+                        self.store.set_meta(
+                            _position_meta_key(prefix, product, scope), "")
                 if str(pending.get("side") or "").upper() == "SELL":
-                    self.store.set_meta("primary_maturity_at:" + product, "0")
+                    self.store.set_meta(
+                        _position_meta_key("primary_maturity_at:", product, scope), "0")
                 # Final receipt is appended separately from the original
                 # submitted-order audit; never retroactively rewrite history.
                 try:
@@ -1076,7 +1086,18 @@ class AdvancedSpotEngine:
         BEAN's hypothesis/reward research is separate and may be compared with
         this durable plan after execution. One confirmed order leg per cycle.
         """
-        pending = self._pending_order_decision()
+        scope = snapshot.get("authenticated_scope")
+        if callable(getattr(getattr(self, "rail", None), "account_scope_id", None)) and not scope:
+            decision = Decision(
+                "HOLD", None, 0.0,
+                "Coinbase account identity unverified; live trading paused.")
+            self.store.add_decision(decision, "ACCOUNT_SCOPE_UNVERIFIED")
+            self.store.set_meta("primary_trade_plan_latest", json.dumps({
+                "decision": "HOLD", "execution_status": "ACCOUNT_SCOPE_UNVERIFIED",
+                "order_attempted": False, "decision_reason": decision.rationale,
+                "evaluated_at": time.time()}))
+            return self.sync()
+        pending = self._pending_order_decision(scope=scope)
         if pending is not None:
             decision, status = pending
             self.store.add_decision(decision, status)
@@ -1177,7 +1198,7 @@ class AdvancedSpotEngine:
                               holding.get("qty", 0)) or 0)
             if available <= 0:
                 continue
-            key = "primary_maturity_at:" + product
+            key = _position_meta_key("primary_maturity_at:", product, scope)
             deadline = float(self.store.get_meta(key) or "0")
             if not deadline:
                 rows = (snapshot.get("asset_universe") or {}).get("scored") or []
@@ -1190,7 +1211,7 @@ class AdvancedSpotEngine:
             # Observe a real high-water mark on every trading cycle.
             mark = float(holding.get("mark_price") or
                          (snapshot.get("prices") or {}).get(product) or 0)
-            peak_key = "primary_peak:" + product
+            peak_key = _position_meta_key("primary_peak:", product, scope)
             prior_peak = float(self.store.get_meta(peak_key) or "0")
             peak = max(prior_peak, mark) if math.isfinite(mark) and mark > 0 else prior_peak
             if peak > prior_peak:
@@ -1199,8 +1220,8 @@ class AdvancedSpotEngine:
             # Reconstruct cost using authenticated Coinbase execution fills.
             # If transfers, missing history or incomplete pages prevent matching
             # the current balance, the basis is marked unknown, not invented.
-            basis_key = "primary_fill_basis:" + product
-            check_key = "primary_fill_basis_checked_at:" + product
+            basis_key = _position_meta_key("primary_fill_basis:", product, scope)
+            check_key = _position_meta_key("primary_fill_basis_checked_at:", product, scope)
             basis = json.loads(self.store.get_meta(basis_key) or "{}")
             last_checked = float(self.store.get_meta(check_key) or "0")
             fill_reader = getattr(getattr(self, "rail", None), "position_fills", None)
@@ -1319,12 +1340,12 @@ class AdvancedSpotEngine:
         try:
             status = self._execute_buy(decision, snapshot) or "ORDER_ACCEPTED_UNVERIFIED"
             if status in {"FILLED_VERIFIED", "ORDER_ACCEPTED_UNVERIFIED"}:
-                self.store.set_meta("primary_maturity_at:" + product,
+                self.store.set_meta(_position_meta_key("primary_maturity_at:", product, scope),
                                     str(now + 60 * winner["maturity_minutes"]))
                 if status == "FILLED_VERIFIED":
                     for prefix in ("primary_peak:", "primary_fill_basis:",
                                    "primary_fill_basis_checked_at:"):
-                        self.store.set_meta(prefix + product, "")
+                        self.store.set_meta(_position_meta_key(prefix, product, scope), "")
         except Exception as exc:
             # Transport failures and ambiguous provider responses may have
             # placed an order. Make unresolved state visible, never "failed".
