@@ -80,7 +80,9 @@ def verify_installation(*, expected_sha: str, root: Path | None = None,
         return result
 
     try:
-        preflight = inspect()
+        # Enforce the exact same history and identity gate as Qt START.
+        # Never report local release readiness from a weaker connection check.
+        preflight = inspect(require_history=True)
         result["coinbase_preflight_passed"] = bool(
             preflight.get("execution_ready"))
         result["coinbase_preflight_blockers"] = list(
