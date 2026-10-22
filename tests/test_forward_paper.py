@@ -31,13 +31,13 @@ class ForwardPaperTests(unittest.TestCase):
         self.requests.append((start,end))
         return {t:v for t,v in self.rows.items()
                 if start<=t<end and t not in self.missing}
-    def run(self,at,**kwargs):
+    def simulate_tick(self,at,**kwargs):
         return observe_and_score(
             manifest=MANIFEST,db_path=self.path,fetcher=self.fetch,
             clock=lambda:at*BAR+1,**kwargs)
 
     def test_signal_is_recorded_before_next_entry_bar_exists(self):
-        result=self.run(440)
+        result=self.simulate_tick(440)
         self.assertTrue(result["paper_only"])
         self.assertFalse(result["promotion_authorized"])
         signal=result["products"]["BTC-USD"]
@@ -54,10 +54,10 @@ class ForwardPaperTests(unittest.TestCase):
         self.assertIsNone(row[2])
 
     def test_history_is_scored_only_after_exit_candle_completed(self):
-        self.run(440)
-        before=self.run(500)
+        self.simulate_tick(440)
+        before=self.simulate_tick(500)
         self.assertEqual(before["products"]["BTC-USD"]["status"],"PENDING")
-        done=self.run(514)
+        done=self.simulate_tick(514)
         self.assertEqual(done["products"]["BTC-USD"]["status"],"SCORED")
         self.assertEqual(done["scorecard"]["BTC-USD"]["scored_trades"],1)
         self.assertGreater(done["scorecard"]["BTC-USD"]["net_return"],0)
@@ -65,22 +65,22 @@ class ForwardPaperTests(unittest.TestCase):
         self.assertFalse(done["promotion_authorized"])
 
     def test_gap_over_open_paper_position_is_not_profitable_trade(self):
-        self.run(440)
+        self.simulate_tick(440)
         self.missing.add(482*BAR)
-        done=self.run(514)
+        done=self.simulate_tick(514)
         self.assertEqual(done["products"]["BTC-USD"]["status"],"DATA_GAP")
         self.assertEqual(done["scorecard"]["BTC-USD"]["net_return"],0)
         self.assertEqual(done["scorecard"]["BTC-USD"]["scored_trades"],0)
 
     def test_repeated_observation_in_same_slot_cannot_duplicate_signal(self):
-        self.run(440)
-        self.run(440)
+        self.simulate_tick(440)
+        self.simulate_tick(440)
         with sqlite3.connect(self.path) as db:
             n=db.execute("SELECT COUNT(*) FROM paper_decisions").fetchone()[0]
         self.assertEqual(n,1)
 
     def test_frozen_policy_cannot_change_or_be_retroactively_tuned(self):
-        self.run(440)
+        self.simulate_tick(440)
         with self.assertRaisesRegex(ValueError,"Frozen strategy"):
             observe_and_score(
                 manifest=[{"product":"BTC-USD","policy":"breakout",
@@ -88,7 +88,7 @@ class ForwardPaperTests(unittest.TestCase):
                 db_path=self.path,fetcher=self.fetch,
                 clock=lambda:441*BAR+1)
         with self.assertRaisesRegex(ValueError,"cost assumptions"):
-            self.run(441,fee_bps=25)
+            self.simulate_tick(441,fee_bps=25)
         with self.assertRaises(ValueError):
             observe_and_score(
                 manifest=[{"product":"BTC-USD","policy":"trend",
