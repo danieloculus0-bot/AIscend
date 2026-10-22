@@ -45,6 +45,37 @@ class ReleasePreflightTests(unittest.TestCase):
         self.path = Path(self.folder.name) / "live-advanced.db"
         self.spot = Spot()
 
+    def test_python_live_start_requires_complete_real_coinbase_fill_history(self):
+        class HistoricalSpot(Spot):
+            fills_complete = True
+            def account_scope_id(self):
+                return "a" * 64
+            def account_fills(self):
+                return {"complete": self.fills_complete,
+                        "fills": [{"entry_id": "123", "product_id": "GROVE-USDC",
+                                   "side": "BUY", "size": "1.2", "price": "2.5",
+                                   "commission": "0.01",
+                                   "trade_time": "2026-10-22T15:00:00Z"}]}
+        rail = HistoricalSpot()
+        report = inspect_advanced(vault=Key(), rail=rail,
+                                  db_path=self.path, require_history=True)
+        self.assertTrue(report["execution_ready"], report["blockers"])
+        self.assertEqual(report["authenticated_fill_count"], 1)
+        self.assertTrue(report["read_only"])
+        self.assertFalse(report["placed_orders"])
+        rail.fills_complete = False
+        blocked = inspect_advanced(vault=Key(), rail=rail,
+                                   db_path=self.path, require_history=True)
+        self.assertFalse(blocked["execution_ready"])
+        self.assertIn("COINBASE_FILL_HISTORY_INCOMPLETE", blocked["blockers"])
+
+    def test_python_live_start_rejects_missing_credential_identity_and_reader(self):
+        result = inspect_advanced(vault=Key(), rail=self.spot,
+                                  db_path=self.path, require_history=True)
+        self.assertFalse(result["execution_ready"])
+        self.assertIn("COINBASE_ACCOUNT_SCOPE_UNVERIFIED", result["blockers"])
+        self.assertIn("COINBASE_FILL_READER_UNAVAILABLE", result["blockers"])
+
     def test_funded_account_with_trade_permission_passes_read_only(self):
         report = inspect_advanced(vault=Key(), rail=self.spot, db_path=self.path)
         self.assertTrue(report["execution_ready"])
