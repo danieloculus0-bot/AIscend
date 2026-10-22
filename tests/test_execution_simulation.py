@@ -31,7 +31,7 @@ class ExecutionSimulationTests(unittest.TestCase):
         self.engine.growth_gate = None
         self.engine._taker_cost_bps = lambda: (60.0, "fake-tier")
         self.engine.sync = lambda: {}
-        self.store.set_meta("primary_maturity_at:GROVE-USDC",
+        self.store.set_meta("primary_maturity_at:unverified:GROVE-USDC",
                             str(time.time() + 3600))
 
     def tearDown(self):
@@ -114,7 +114,7 @@ class ExecutionSimulationTests(unittest.TestCase):
         self.assertEqual(self.store.latest_decisions(1)[0]["status"],
                          "FILLED_VERIFIED")
         self.assertFalse(self.store.get_meta("pending_coinbase_order"))
-        self.assertEqual(self.store.get_meta("primary_maturity_at:GROVE-USDC"), "0")
+        self.assertEqual(self.store.get_meta("primary_maturity_at:unverified:GROVE-USDC"), "0")
 
     def test_ambiguous_buy_does_not_release_client_order_id(self):
         class AmbiguousBuy(type(self.venue)):
