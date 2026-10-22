@@ -8,6 +8,8 @@ from pathlib import Path
 from scripts.execution_simulation import SimVenue, SimAudit, run_simulation, snapshot
 from src.advanced_live import AdvancedSpotEngine
 from src.core import StateStore
+from src.wallets.advanced_trade import CoinbaseSubmissionUnconfirmed
+from src.core import Decision
 
 
 class ExecutionSimulationTests(unittest.TestCase):
@@ -67,6 +69,49 @@ class ExecutionSimulationTests(unittest.TestCase):
         self.assertFalse(
             self.store.get_meta("pending_coinbase_order"),
             "A definitely rejected order must not block future attempts forever")
+
+    def test_ambiguous_sell_is_never_resubmitted(self):
+        class AmbiguousSell(type(self.venue)):
+            def market_sell(self, product, size, client_order_id):
+                self.submissions += 1
+                raise CoinbaseSubmissionUnconfirmed(
+                    "Coinbase order not confirmed accepted: unknown response")
+        self.venue = AmbiguousSell(price=1.6)
+        self.engine.rail = self.venue
+        self.engine._primary_trade_step(snapshot(1.6))
+        first = self.store.latest_decisions(1)[0]
+        self.assertEqual(first["status"], "ORDER_SUBMISSION_UNKNOWN")
+        pending = json.loads(self.store.get_meta("pending_coinbase_order"))
+        self.assertEqual(pending["side"], "SELL")
+        self.assertEqual(pending["product"], "GROVE-USDC")
+        self.assertTrue(pending["client_order_id"].startswith("aiscend-"))
+        self.engine._primary_trade_step(snapshot(1.5))
+        self.assertEqual(self.venue.submissions, 1)
+        self.assertEqual(self.store.latest_decisions(1)[0]["status"],
+                         "ORDER_AWAITING_VERIFICATION")
+
+    def test_ambiguous_buy_does_not_release_client_order_id(self):
+        class AmbiguousBuy(type(self.venue)):
+            def preview_market_buy(self, product, size):
+                return {"preview_id": "sim-buy"}
+            def market_buy(self, product, size, client_order_id):
+                self.submissions += 1
+                raise CoinbaseSubmissionUnconfirmed(
+                    "Coinbase order not confirmed accepted: unknown response")
+        self.venue = AmbiguousBuy(price=1.6)
+        self.engine.rail = self.venue
+        snap = snapshot(1.6)
+        snap["cash_by_quote"]["USDC"] = 20.0
+        with self.assertRaises(CoinbaseSubmissionUnconfirmed):
+            self.engine._execute_buy(
+                Decision("BUY", "GROVE-USDC", 1.0, "sim-test"), snap)
+        pending = json.loads(self.store.get_meta("pending_coinbase_order"))
+        self.assertEqual(pending["side"], "BUY")
+        self.assertEqual(pending["product"], "GROVE-USDC")
+        self.engine._primary_trade_step(snapshot(1.5))
+        self.assertEqual(self.venue.submissions, 1)
+        self.assertEqual(self.store.latest_decisions(1)[0]["status"],
+                         "ORDER_AWAITING_VERIFICATION")
 
     def test_partial_terminal_fill_does_not_trigger_double_sell(self):
         self.venue.outcome = "CANCELLED"
