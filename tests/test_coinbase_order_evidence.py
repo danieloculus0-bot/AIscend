@@ -39,19 +39,19 @@ class OrderEvidenceTests(unittest.TestCase):
     def test_cancelled_without_filled_quantity_cannot_confirm_zero_fill(self):
         evidence = {"order": {"order_id": "123", "status": "CANCELLED"}}
         result = verified_order(evidence, "123")
-        self.assertEqual(result["state"], "PARTIAL_FILL_REQUIRES_RECONCILIATION")
+        self.assertEqual(result["state"], "TERMINAL_FILL_UNVERIFIED")
 
     def test_cancelled_with_malformed_filled_quantity_keeps_order_pending(self):
         evidence = {"order": {"order_id": "123", "status": "CANCELLED",
                               "filled_size": "not-a-number"}}
         self.assertEqual(verified_order(evidence, "123")["state"],
-                         "PARTIAL_FILL_REQUIRES_RECONCILIATION")
+                         "TERMINAL_FILL_UNVERIFIED")
 
     def test_cancelled_zero_size_but_positive_filled_value_is_ambiguous(self):
         evidence = {"order": {"order_id": "123", "status": "CANCELLED",
                               "filled_size": "0", "filled_value": "2.34"}}
         self.assertEqual(verified_order(evidence, "123")["state"],
-                         "PARTIAL_FILL_REQUIRES_RECONCILIATION")
+                         "TERMINAL_FILL_UNVERIFIED")
 
     def test_invalid_terminal_receipt_does_not_release_order_idempotency(self):
         class Rail:
