@@ -7,6 +7,9 @@ import unittest
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
+from contextlib import redirect_stdout
+from io import StringIO
 
 from scripts.live_preflight import inspect_advanced
 
@@ -39,6 +42,18 @@ class Spot:
 
 
 class ReleasePreflightTests(unittest.TestCase):
+    def test_cli_requires_full_history_gate_like_python_start(self):
+        from scripts import live_preflight
+        with patch.object(live_preflight, "inspect_advanced",
+                          return_value={"execution_ready": False,
+                                        "blockers": ["COINBASE_FILL_HISTORY_INCOMPLETE"]}) as inspector:
+            out = StringIO()
+            with redirect_stdout(out):
+                code = live_preflight.main([])
+            inspector.assert_called_once_with(require_history=True)
+            self.assertEqual(code, 2)
+            self.assertIn("COINBASE_FILL_HISTORY_INCOMPLETE", out.getvalue())
+
     def setUp(self):
         self.folder = tempfile.TemporaryDirectory()
         self.addCleanup(self.folder.cleanup)
