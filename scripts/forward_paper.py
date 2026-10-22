@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 
 from src.forward_paper import observe_and_score, freeze_training_candidates
+from src.core import app_data_dir
 
 
 def main(argv=None):
@@ -22,6 +23,10 @@ def main(argv=None):
     parser.add_argument("--output",type=Path)
     parser.add_argument("--fee-bps",type=float,default=60)
     parser.add_argument("--spread-bps",type=float,default=10)
+    parser.add_argument("--bean-core",type=Path,
+                        help="Real BEAN repository checkout; never use a mock fallback")
+    parser.add_argument("--bean-learn-db",type=Path,
+                        help="Separate durable BEAN SpongeTD SQLite journal")
     args=parser.parse_args(argv)
     if args.freeze_aggregate:
         if not args.output:
@@ -39,6 +44,12 @@ def main(argv=None):
     result=observe_and_score(
         manifest=manifest, db_path=args.db,
         fee_bps=args.fee_bps, spread_bps=args.spread_bps)
+    if args.bean_core is not None:
+        from src.bean_core_paper_learning import learn_from_paper
+        result["bean_core_learning"]=learn_from_paper(
+            core_dir=args.bean_core,
+            paper_db=args.db or app_data_dir()/"forward-paper.sqlite3",
+            learning_db=args.bean_learn_db or app_data_dir()/"bean-core-paper.sqlite3")
     encoded=json.dumps(result,sort_keys=True,indent=2)
     print(encoded)
     if args.output:
