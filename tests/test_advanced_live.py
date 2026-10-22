@@ -1,7 +1,9 @@
+import json
 import tempfile
 import unittest
 from decimal import Decimal
 from pathlib import Path
+from unittest.mock import patch
 
 from src.advanced_live import AdvancedSpotEngine
 from src.core import StateStore
@@ -195,6 +197,70 @@ class AdvancedLiveTests(unittest.TestCase):
                 store.get_meta("advanced_starting_value:" + "a"*64), "25.0000000000")
             self.assertEqual(
                 store.get_meta("advanced_starting_value:" + "b"*64), "80.0000000000")
+            store.close()
+
+    def test_live_position_state_isolated_between_coinbase_keys(self):
+        class ScopedRail(FakeRail):
+            scope = "a" * 64
+
+            def account_scope_id(self):
+                return self.scope
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "advanced.db")
+            rail = ScopedRail()
+            rail.aleo = Decimal("3")
+            engine = AdvancedSpotEngine(
+                store, rail=rail, asset_universe=FakeUniverse(),
+                listing_sentinel=FakeListingSentinel(),
+                human_researcher=FakeHumanResearch(),
+            )
+            product = "ALEO-USDC"
+            a = "a" * 64
+            b = "b" * 64
+            store.set_meta(f"primary_peak:{a}:{product}", "99")
+            store.set_meta(f"primary_maturity_at:{a}:{product}", "1")
+            store.set_meta(f"primary_fill_basis:{a}:{product}", json.dumps({
+                "cost_basis_status": "verified_coinbase_fills", "avg_cost": 1.5}))
+            store.set_meta(f"primary_fill_basis_checked_at:{a}:{product}", "9999999999")
+
+            no_entry = {"routes": [], "examined": 0, "candidate_signals": 0,
+                        "costed_routes": 0, "skipped": {}}
+            with patch("src.advanced_live.select_plan", return_value=no_entry), \
+                 patch("src.advanced_live.exit_reason", return_value=None):
+                engine._primary_trade_step(engine.sync())
+                first = json.loads(store.get_meta("primary_trade_plan_latest"))
+                self.assertEqual(first["holding_reviews"][product]["observed_peak"], 99)
+                self.assertEqual(first["holding_reviews"][product]["entry_price"], 1.5)
+                rail.scope = b
+                engine._primary_trade_step(engine.sync())
+                second = json.loads(store.get_meta("primary_trade_plan_latest"))
+                self.assertEqual(second["holding_reviews"][product]["observed_peak"], 2.0)
+                self.assertIsNone(second["holding_reviews"][product]["entry_price"])
+                self.assertFalse(second["holding_reviews"][product]["deadline_reached"])
+            self.assertEqual(store.get_meta(f"primary_peak:{a}:{product}"), "99")
+            self.assertEqual(store.get_meta(f"primary_peak:{b}:{product}"), "2.0")
+            self.assertIsNone(store.get_meta("primary_peak:" + product))
+            self.assertFalse(rail.buys)
+            store.close()
+
+    def test_unverified_coinbase_scope_blocks_live_order_submission(self):
+        class UnidentifiedRail(FakeRail):
+            def account_scope_id(self):
+                return None
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "advanced.db")
+            rail = UnidentifiedRail()
+            engine = AdvancedSpotEngine(
+                store, rail=rail, asset_universe=FakeUniverse(),
+                listing_sentinel=FakeListingSentinel(),
+                human_researcher=FakeHumanResearch(),
+            )
+            engine.step()
+            self.assertFalse(rail.buys)
+            self.assertEqual(
+                store.latest_decisions(1)[0]["status"], "ACCOUNT_SCOPE_UNVERIFIED")
             store.close()
 
     def test_hourly_bean_exam_cannot_veto_advanced_opportunity(self):
