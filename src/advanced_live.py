@@ -955,9 +955,27 @@ class AdvancedSpotEngine:
         order_id = str(pending.get("order_id") or "")
         product = str(pending.get("product") or "")
         if not order_id:
-            return Decision("HOLD", None, 0.0,
-                "A prior Coinbase submission was accepted without an order ID. "
-                "Manual Coinbase order-history reconciliation is required."), "ORDER_AWAITING_VERIFICATION"
+            finder = getattr(self.rail, "find_order_id_by_client_id", None)
+            if callable(finder):
+                try:
+                    order_id = finder(
+                        product_id=product,
+                        client_order_id=str(pending.get("client_order_id") or ""),
+                    ) or ""
+                except Exception as exc:
+                    return Decision("HOLD", None, 0.0,
+                        "Authenticated Coinbase client-order lookup failed: "
+                        f"{type(exc).__name__}: {exc}. The original submission "
+                        "remains unresolved and no retry will be sent."), "ORDER_AWAITING_VERIFICATION"
+                if order_id:
+                    pending["order_id"] = order_id
+                    self.store.set_meta("pending_coinbase_order",
+                                        json.dumps(pending))
+            if not order_id:
+                return Decision("HOLD", None, 0.0,
+                    "Coinbase submission outcome remains unknown. No matching "
+                    "order has been verified by client order ID; automatic "
+                    "trading is paused until it can be reconciled."), "ORDER_AWAITING_VERIFICATION"
         getter = getattr(self.rail, "order_detail", None)
         if not callable(getter):
             return Decision("HOLD", None, 0.0,
