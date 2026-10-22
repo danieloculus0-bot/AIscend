@@ -71,6 +71,40 @@ class ActualDesktopIntegrationTests(unittest.TestCase):
             self.window.refresh()
             self.assertEqual(self.window.positions.rowCount(), 1)
 
+    def test_unconfigured_advanced_mode_launches_credential_setup(self):
+        self.window.execution.blockSignals(True)
+        self.window.execution.setCurrentIndex(3)
+        self.window.execution.blockSignals(False)
+        with (patch("src.ui.AdvancedTradeVault.configured",
+                    side_effect=[False, True]),
+              patch.object(self.window, "configure_coinbase") as configure,
+              patch.object(self.window, "_switch_to_live") as switch):
+            self.window.execution_changed()
+            configure.assert_called_once()
+            switch.assert_called_once_with("advanced")
+
+    def test_unverified_advanced_key_is_never_saved(self):
+        import json
+        from pathlib import Path
+        from types import SimpleNamespace
+
+        key_path = Path(self.temp.name) / "test-key.json"
+        key_path.write_text(json.dumps({
+            "name": "test-key-id", "privateKey": "test-key-secret"}))
+        self.window.execution.blockSignals(True)
+        self.window.execution.setCurrentIndex(3)
+        self.window.execution.blockSignals(False)
+        with (patch("src.ui.QFileDialog.getOpenFileName",
+                    return_value=(str(key_path), "JSON")),
+              patch("src.ui.AdvancedTradeSpot") as rail,
+              patch("src.ui.AdvancedTradeVault.save") as save,
+              patch("src.ui.QMessageBox.critical") as error):
+            rail.return_value.status.return_value = SimpleNamespace(
+                can_view=True, can_trade=False)
+            self.window.configure_coinbase()
+            save.assert_not_called()
+            error.assert_called_once()
+
     def test_advanced_does_not_offer_inert_llm_controls(self):
         self.window.execution.blockSignals(True)
         self.window.execution.setCurrentIndex(3)
