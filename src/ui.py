@@ -36,6 +36,8 @@ from .core import (
     app_data_dir,
 )
 from .live import LiveEngine
+from .advanced_live import AdvancedSpotEngine
+from .wallets.advanced_trade import AdvancedTradeSpot, AdvancedTradeVault
 from .bean_growth_adaptive import BeanAdaptiveGrowthGate
 from .bean_strategy_lab import BeanStrategyLab
 from .wallets.cdp_wallet import CdpWallet, CredentialVault
@@ -137,6 +139,7 @@ class MainWindow(QMainWindow):
                 "Synthetic sandbox",
                 "Coinbase live · Base Sepolia",
                 "Coinbase live · Base",
+                "Coinbase live · Advanced Spot",
             ]
         )
         self.execution.currentIndexChanged.connect(self.execution_changed)
@@ -170,7 +173,8 @@ class MainWindow(QMainWindow):
 
         api_note = QLabel(
             "Coinbase credentials are stored in Windows Credential Manager. "
-            "Live mode uses the dedicated CDP smart account."
+            "Base uses the CDP smart account; Advanced Spot uses a "
+            "Coinbase Advanced trading API key and its own filled-order ledger."
         )
         api_note.setWordWrap(True)
         api_note.setObjectName("hint")
@@ -215,7 +219,9 @@ class MainWindow(QMainWindow):
         school_layout.addWidget(school_title)
         school_description = QLabel(
             "Brute-force research, retain lessons, automatically select qualified strategies. "
-            "No live orders or automatic deployment."
+            "Live Advanced Spot uses separate Q-policy feedback for "
+            "executable trades. This strategy research panel tracks longer "
+            "holdout experiments, not open Coinbase orders."
         )
         school_description.setWordWrap(True)
         school_description.setObjectName("hint")
@@ -316,6 +322,8 @@ class MainWindow(QMainWindow):
             return "base-sepolia"
         if self.execution.currentIndex() == 2:
             return "base"
+        if self.execution.currentIndex() == 3:
+            return "advanced"
         return None
 
     def configure_coinbase(self) -> None:
@@ -338,6 +346,22 @@ class MainWindow(QMainWindow):
                 raise ValueError("CDP key JSON is missing id or privateKey.")
         except Exception as exc:
             QMessageBox.critical(self, "Coinbase setup", str(exc))
+            return
+
+        if self.selected_network() == "advanced":
+            try:
+                vault = AdvancedTradeVault()
+                vault.save(api_key_id, api_key_secret)
+                permissions = AdvancedTradeSpot(vault=vault).permissions()
+                if not permissions.get("can_view") or not permissions.get("can_trade"):
+                    raise RuntimeError(
+                        "Coinbase Advanced key requires view and trade permission.")
+            except Exception as exc:
+                QMessageBox.critical(self, "Coinbase Advanced setup", str(exc))
+                return
+            QMessageBox.information(
+                self, "Coinbase Advanced connected",
+                "Advanced Spot authenticated with view and trade permissions.")
             return
 
         wallet_secret, ok = QInputDialog.getText(
@@ -375,11 +399,14 @@ class MainWindow(QMainWindow):
             self._switch_to_synthetic()
             return
 
-        if not CredentialVault().configured():
+        vault_ready = (AdvancedTradeVault().configured()
+                       if network == "advanced"
+                       else CredentialVault().configured())
+        if not vault_ready:
             QMessageBox.information(
                 self,
                 "Coinbase setup",
-                "Configure Coinbase first, then select live execution.",
+                "Configure the selected Coinbase execution rail first.",
             )
             self.execution.blockSignals(True)
             self.execution.setCurrentIndex(0)
@@ -403,12 +430,18 @@ class MainWindow(QMainWindow):
         self.refresh()
 
     def _switch_to_live(self, network: str) -> None:
-        new_store = StateStore(app_data_dir() / f"live-{network}.db")
-        new_engine = LiveEngine(
-            store=new_store,
-            wallet=CdpWallet(network=network),
-            growth_gate=BeanAdaptiveGrowthGate(),
-        )
+        if network == "advanced":
+            new_store = StateStore(app_data_dir() / "live-advanced.db")
+            new_engine = AdvancedSpotEngine(
+                store=new_store, rail=AdvancedTradeSpot(),
+                growth_gate=BeanAdaptiveGrowthGate(),
+            )
+        else:
+            new_store = StateStore(app_data_dir() / f"live-{network}.db")
+            new_engine = LiveEngine(
+                store=new_store, wallet=CdpWallet(network=network),
+                growth_gate=BeanAdaptiveGrowthGate(),
+            )
         try:
             snap = new_engine.sync()
         except Exception as exc:
@@ -425,10 +458,11 @@ class MainWindow(QMainWindow):
         self.engine = new_engine
         old_store.close()
 
-        label = "Base Sepolia" if network == "base-sepolia" else "Base"
+        label = ("Advanced Spot" if network == "advanced" else
+                 "Base Sepolia" if network == "base-sepolia" else "Base")
         self.subtitle.setText(
             f"Autonomous capital experiment · Coinbase live · {label} · "
-            f"{snap['wallet_address'][:10]}…"
+            f"{snap['wallet_address'][:24]}…"
         )
         self.reset_button.setEnabled(False)
         self.refresh()
@@ -439,6 +473,10 @@ class MainWindow(QMainWindow):
         self.model.setEnabled(enabled and not self.timer.isActive())
 
     def configure_decider(self) -> None:
+        if isinstance(self.engine, AdvancedSpotEngine):
+            # The actual Advanced Spot decision policy is the live
+            # price-action + feedback-learned strategy planner.
+            return
         if self.mode.currentIndex() == 0:
             self.engine.set_decider(BuiltInDecider())
         else:
