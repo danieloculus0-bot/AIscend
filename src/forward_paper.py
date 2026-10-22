@@ -65,7 +65,8 @@ def _signals(product, policy, bars, signal_ts):
 def _db(conn):
     conn.execute("""CREATE TABLE IF NOT EXISTS frozen_policy (
         product TEXT PRIMARY KEY, policy TEXT NOT NULL,
-        policy_sha TEXT NOT NULL, frozen_at REAL NOT NULL)""")
+        policy_sha TEXT NOT NULL, frozen_at REAL NOT NULL,
+        fee_bps REAL NOT NULL, spread_bps REAL NOT NULL)""")
     conn.execute("""CREATE TABLE IF NOT EXISTS paper_decisions (
         product TEXT NOT NULL, policy_sha TEXT NOT NULL,
         signal_ts INTEGER NOT NULL, observed_at REAL NOT NULL,
@@ -75,17 +76,21 @@ def _db(conn):
         PRIMARY KEY(product, policy_sha, signal_ts))""")
 
 
-def freeze(conn, *, product, policy, now):
+def freeze(conn, *, product, policy, now, fee_bps, spread_bps):
     identity = policy_identity(product, policy)
     existing = conn.execute(
-        "SELECT policy_sha FROM frozen_policy WHERE product=?", (product,)
+        "SELECT policy_sha,fee_bps,spread_bps FROM frozen_policy WHERE product=?",
+        (product,)
     ).fetchone()
-    if existing is not None and existing[0] != identity:
-        raise ValueError("Frozen strategy changed; create a new clean research ledger")
-    if existing is None:
+    if existing is not None:
+        if (existing[0] != identity or
+                abs(existing[1]-fee_bps)>1e-10 or
+                abs(existing[2]-spread_bps)>1e-10):
+            raise ValueError("Frozen strategy/cost assumptions changed; start a new paper ledger")
+    else:
         conn.execute(
-            "INSERT INTO frozen_policy VALUES(?,?,?,?)",
-            (product,policy,identity,float(now)))
+            "INSERT INTO frozen_policy VALUES(?,?,?,?,?,?)",
+            (product,policy,identity,float(now),float(fee_bps),float(spread_bps)))
     return identity
 
 
@@ -111,7 +116,8 @@ def observe_and_score(*, manifest, db_path=None, fetcher=fetch_5m,
             policy = str(item.get("policy") or "")
             if not item.get("training_only_frozen"):
                 raise ValueError("Candidate must be frozen from training, not holdout")
-            identity = freeze(con,product=product,policy=policy,now=now)
+            identity = freeze(con,product=product,policy=policy,now=now,
+                              fee_bps=fee_bps,spread_bps=spread_bps)
             con.commit()
             pending = con.execute(
                 "SELECT signal_ts,exit_ts,observed_at FROM paper_decisions "
