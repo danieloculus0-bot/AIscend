@@ -173,7 +173,6 @@ class AdvancedLiveTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as td:
             store = StateStore(Path(td) / "advanced.db")
-            self.addCleanup(store.close)
             rail = ScopedRail()
             engine = AdvancedSpotEngine(
                 store, rail=rail, asset_universe=FakeUniverse(),
@@ -196,6 +195,7 @@ class AdvancedLiveTests(unittest.TestCase):
                 store.get_meta("advanced_starting_value:" + "a"*64), "25.0000000000")
             self.assertEqual(
                 store.get_meta("advanced_starting_value:" + "b"*64), "80.0000000000")
+            store.close()
 
     def test_hourly_bean_exam_cannot_veto_advanced_opportunity(self):
         class BeanDisagrees:
