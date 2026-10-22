@@ -7,7 +7,7 @@ import tempfile
 import unittest
 
 from src.bean_five_minute import BAR
-from src.forward_paper import observe_and_score
+from src.forward_paper import observe_and_score, freeze_training_candidates
 
 MANIFEST=[{"product":"BTC-USD","policy":"trend",
            "training_only_frozen":True}]
@@ -36,6 +36,24 @@ class ForwardPaperTests(unittest.TestCase):
         return observe_and_score(
             manifest=MANIFEST,db_path=self.path,fetcher=self.fetch,
             clock=lambda:at*BAR+1,**kwargs)
+
+    def test_freeze_uses_training_rank_only_and_never_chooses_holdout_winner(self):
+        report={"schema":"aiscend.universe_research_aggregate.v1",
+                "promotion_authorized":False,
+                "training_preselected":[
+                    {"product":"BTC-USD","policy":"trend","train_return":.08,
+                     "holdout_return":-.50},
+                    {"product":"ETH-USDC","policy":"breakout","train_return":.07,
+                     "holdout_return":.99},
+                ]}
+        frozen=freeze_training_candidates(report,limit=2)
+        self.assertEqual(frozen[0]["product"],"BTC-USD")
+        self.assertEqual(frozen[0]["policy"],"trend")
+        self.assertEqual(frozen[1]["product"],"ETH-USDC")
+        self.assertTrue(all(x["training_only_frozen"] for x in frozen))
+        report["promotion_authorized"]=True
+        with self.assertRaises(ValueError):
+            freeze_training_candidates(report)
 
     def test_signal_is_recorded_before_next_entry_bar_exists(self):
         result=self.simulate_tick(440)
