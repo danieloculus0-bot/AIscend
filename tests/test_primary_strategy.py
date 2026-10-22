@@ -86,6 +86,50 @@ class PrimaryPolicyTests(unittest.TestCase):
         self.assertEqual(result["winner"]["product"],"GOOD-USDC")
         self.assertEqual(result["skipped"]["stale_signal"],1)
 
+    def test_verified_losses_block_both_primary_and_bean_buy_signals(self):
+        snap={"asset_universe":{"scored":[row("GROVE-USDC")]},
+              "tradable_products":["GROVE-USDC"],
+              "cash_by_quote":{"USDC":25.0},"positions":{}}
+        verified={"account_scope_verified":True,"execution":{
+            "status":"COMPLETE","products":{"GROVE-USDC":{
+                "status":"VERIFIED_NET_CLOSED_TRADES","closed_sells":3,
+                "realized_net_quote":-7.2,
+                "return_on_matched_cost_bps":-2200.0}}}}
+        learned=[{"product":"GROVE-USDC","target_exposure":1,
+                  "reward_available":True,"reward_bps":4000.0,
+                  "action":"momentum"}]
+        self.assertIsNotNone(select_plan(snap,learned_candidates=learned)["winner"])
+        report=select_plan(snap,learned_candidates=learned,
+                           account_history=verified)
+        self.assertIsNone(report["winner"])
+        self.assertEqual(report["skipped"]["verified_historical_loss"],1)
+        self.assertEqual(report["routes"],[])
+
+    def test_unknown_or_foreign_history_cannot_lock_out_primary(self):
+        snap={"asset_universe":{"scored":[row("GROVE-USDC")]},
+              "tradable_products":["GROVE-USDC"],
+              "cash_by_quote":{"USDC":25.0},"positions":{}}
+        losses={"account_scope_verified":False,"execution":{
+            "status":"COMPLETE","products":{"GROVE-USDC":{
+                "status":"VERIFIED_NET_CLOSED_TRADES","closed_sells":3,
+                "realized_net_quote":-9,"return_on_matched_cost_bps":-3000}}}}
+        self.assertIsNotNone(select_plan(snap,account_history=losses)["winner"])
+        losses["account_scope_verified"]=True
+        losses["execution"]["status"]="UNVERIFIED_OR_STALE"
+        self.assertIsNotNone(select_plan(snap,account_history=losses)["winner"])
+
+    def test_losses_block_only_affected_coin_and_do_not_disable_alternative(self):
+        snap={"asset_universe":{"scored":[row("GROVE-USDC"),row("SOL-USDC")]},
+              "tradable_products":["GROVE-USDC","SOL-USDC"],
+              "cash_by_quote":{"USDC":25},"positions":{}}
+        history={"account_scope_verified":True,"execution":{"status":"COMPLETE",
+            "products":{"GROVE-USDC":{"status":"VERIFIED_NET_CLOSED_TRADES",
+            "closed_sells":4,"realized_net_quote":-12,
+            "return_on_matched_cost_bps":-1200}}}}
+        plan=select_plan(snap,account_history=history)
+        self.assertEqual(plan["winner"]["product"],"SOL-USDC")
+        self.assertEqual(plan["skipped"]["verified_historical_loss"],1)
+
     def test_incumbent_compared_with_same_horizon_and_future_fee(self):
         current=row("INC-USDC",r5=.012,r1=.04,r6=.08)
         whole=incumbent_hold_net_bps(current,360,taker_bps=60)
