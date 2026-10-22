@@ -124,8 +124,34 @@ def learned_proposal(item: dict) -> dict | None:
     }
 
 
+def verified_loss_lockout(account_history: dict | None, product: str) -> bool:
+    """Conservative re-entry lockout based on authenticated closed trades.
+
+    Applies to ALL primary and learned strategies, but only with current,
+    account-scoped, complete Coinbase fill history. This is not an assertion
+    that a previously losing coin must always lose.
+    """
+    history = account_history or {}
+    execution = history.get("execution") or {}
+    if (not history.get("account_scope_verified") or
+            execution.get("status") != "COMPLETE"):
+        return False
+    item = (execution.get("products") or {}).get(product.upper()) or {}
+    if item.get("status") != "VERIFIED_NET_CLOSED_TRADES":
+        return False
+    try:
+        sells = int(item.get("closed_sells") or 0)
+        cost_bps = float(item.get("return_on_matched_cost_bps"))
+        pnl = float(item.get("realized_net_quote"))
+        return (sells >= 3 and math.isfinite(cost_bps) and
+                math.isfinite(pnl) and cost_bps < 0 and pnl < 0)
+    except (TypeError, ValueError, OverflowError):
+        return False
+
+
 def select_plan(snapshot: dict, *, taker_bps=DEFAULT_TAKER_BPS,
-                enabled=POLICIES, learned_candidates=None) -> dict:
+                enabled=POLICIES, learned_candidates=None,
+                account_history=None) -> dict:
     universe = snapshot.get("asset_universe") or {}
     ranked = list(universe.get("scored") or universe.get("buy_top") or universe.get("top") or [])
     learned_candidates = list(learned_candidates or [])
@@ -149,7 +175,8 @@ def select_plan(snapshot: dict, *, taker_bps=DEFAULT_TAKER_BPS,
     quotes.update(p.rpartition("-")[2] for p in held)
     diag = {"examined":len(ranked), "candidate_signals":0, "costed_routes":0,
             "skipped":{"no_signal":0,"untradable":0,"no_quote_path":0,
-                       "negative_net_edge":0,"stale_signal":0}, "routes":[], "winner":None}
+                       "negative_net_edge":0,"stale_signal":0,
+                       "verified_historical_loss":0}, "routes":[], "winner":None}
     for row in ranked:
         if not evidence_fresh(row):
             diag["skipped"]["stale_signal"] += 1
@@ -157,6 +184,9 @@ def select_plan(snapshot: dict, *, taker_bps=DEFAULT_TAKER_BPS,
         product = str(row.get("product") or "").upper()
         if tradable and product not in tradable:
             diag["skipped"]["untradable"] += 1
+            continue
+        if verified_loss_lockout(account_history, product):
+            diag["skipped"]["verified_historical_loss"] += 1
             continue
         opts=proposals(row,enabled=enabled)
         learned = learned_proposal(learned_by_product.get(product) or {})
