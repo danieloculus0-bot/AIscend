@@ -31,6 +31,15 @@ def simulate(bars: dict, policy: str, *, fee_bps=60.0, spread_bps=10.0,
     equity=1.0
     equity_peak=1.0
     worst_dd=0.0
+    cost=(fee_bps+spread_bps/2)/10000
+    if not 0 <= cost < 1:
+        raise ValueError("Invalid modeled per-side execution cost")
+
+    def record_mark(mark):
+        nonlocal equity_peak, worst_dd
+        equity_peak=max(equity_peak,mark)
+        worst_dd=max(worst_dd,1-mark/equity_peak)
+
     while last < end-2:
         i=last
         lookback=145 if policy in ("trend_4h_hold","trend_1d_hold") else 72
@@ -43,10 +52,20 @@ def simulate(bars: dict, policy: str, *, fee_bps=60.0, spread_bps=10.0,
         if min(closes)<=0:
             last+=1
             continue
+        # Use only this completed candle and twelve preceding completed
+        # candles for volume confirmation. Missing volume is NOT 1.5x.
+        try:
+            volumes=[float(bars[times[k]]["volume"]) for k in range(i-12,i+1)]
+            trailing_mean=sum(volumes[:-1])/12
+            volume_ratio=(volumes[-1]/trailing_mean
+                          if all(math.isfinite(v) and v>=0 for v in volumes)
+                          and trailing_mean>0 else 0.0)
+        except (KeyError, TypeError, ValueError, OverflowError):
+            volume_ratio=0.0
         row={"product":"TEST-USD", "return_5m":price/prior-1,
              "return_1h":price/p1-1,
              "return_6h":price/p6-1,
-             "volume_ratio":1.5,"spread_bps":spread_bps}
+             "volume_ratio":volume_ratio,"spread_bps":spread_bps}
         if policy in ("trend_4h_hold","trend_1d_hold"):
             fast_1h=sum(float(bars[times[k]]["close"])
                          for k in range(i-11,i+1))/12
@@ -75,10 +94,17 @@ def simulate(bars: dict, policy: str, *, fee_bps=60.0, spread_bps=10.0,
         if buy<=0 or sell<=0:
             last+=1
             continue
-        net=(sell/buy)*(1-(fee_bps+spread_bps/2)/10000)**2-1
+        # Include liquidation-cost marks throughout the open position.
+        # Exit-only drawdowns conceal severe interim capital impairment.
+        record_mark(equity*(1-cost))
+        for k in range(i+1,exit_i):
+            mark=float(bars[times[k]]["close"])
+            if not math.isfinite(mark) or mark<=0:
+                raise ValueError("Invalid held-position mark in historical candles")
+            record_mark(equity*(1-cost)**2*mark/buy)
+        net=(sell/buy)*(1-cost)**2-1
         equity*=1+net
-        equity_peak=max(equity_peak,equity)
-        worst_dd=max(worst_dd,1-equity/equity_peak)
+        record_mark(equity)
         trades.append({"entry_ts":times[i+1],"exit_ts":times[exit_i],
                        "net_return":round(net,8),
                        "win":bool(net>0)})
