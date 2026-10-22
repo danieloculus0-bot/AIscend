@@ -39,8 +39,8 @@ class RelaunchGateTests(unittest.TestCase):
     def test_reviewed_clean_checkout_tests_and_coinbase_preflight_pass(self):
         runner = FakeRunner()
         preflight_calls = []
-        def inspect():
-            preflight_calls.append(True)
+        def inspect(*, require_history=False):
+            preflight_calls.append(require_history)
             return {"execution_ready": True, "blockers": [], "warnings": []}
         result = verify_installation(expected_sha=SHA, root=self.root,
                                      runner=runner, inspector=inspect)
@@ -48,12 +48,12 @@ class RelaunchGateTests(unittest.TestCase):
         self.assertTrue(result["revision_verified"])
         self.assertTrue(result["unit_tests_passed"])
         self.assertTrue(result["coinbase_preflight_passed"])
-        self.assertEqual(len(preflight_calls), 1)
+        self.assertEqual(preflight_calls, [True])
         self.assertFalse(result["placed_orders"])
 
     def test_wrong_git_revision_blocks_before_any_test_or_coinbase_call(self):
         runner = FakeRunner()
-        def forbidden():
+        def forbidden(**_kwargs):
             self.fail("No authenticated requests for mismatched code")
         result = verify_installation(expected_sha="b"*40, root=self.root,
                                      runner=runner, inspector=forbidden)
@@ -66,7 +66,7 @@ class RelaunchGateTests(unittest.TestCase):
         runner = FakeRunner(dirty=True)
         result = verify_installation(
             expected_sha=SHA, root=self.root, runner=runner,
-            inspector=lambda: self.fail("No authenticated requests when dirty"))
+            inspector=lambda **_kwargs: self.fail("No authenticated requests when dirty"))
         self.assertFalse(result["release_check_passed"])
         self.assertIn("LOCAL_SOURCE_HAS_UNCOMMITTED_CHANGES",
                       result["blockers"])
@@ -76,7 +76,7 @@ class RelaunchGateTests(unittest.TestCase):
         runner = FakeRunner(tests_ok=False)
         result = verify_installation(
             expected_sha=SHA, root=self.root, runner=runner,
-            inspector=lambda: self.fail("No account reads when tests fail"))
+            inspector=lambda **_kwargs: self.fail("No account reads when tests fail"))
         self.assertFalse(result["release_check_passed"])
         self.assertIn("LOCAL_PYTHON_REGRESSION_TESTS_FAILED",
                       result["blockers"])
@@ -85,7 +85,7 @@ class RelaunchGateTests(unittest.TestCase):
     def test_unresolved_coinbase_order_cannot_pass_relaunch_gate(self):
         runner = FakeRunner()
         result = verify_installation(expected_sha=SHA, root=self.root,
-            runner=runner, inspector=lambda: {
+            runner=runner, inspector=lambda **_kwargs: {
                 "execution_ready": False,
                 "blockers": ["UNRECONCILED_COINBASE_SUBMISSION"],
                 "warnings": []})
