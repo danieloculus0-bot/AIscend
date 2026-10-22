@@ -191,9 +191,11 @@ class AdvancedTradeTests(unittest.TestCase):
             status = AdvancedTradeSpot.validate_credentials(
                 "candidate-id", "candidate-secret")
             self.assertTrue(status.can_trade)
-            factory.assert_called_once_with(
-                api_key="candidate-id", api_secret="candidate-secret",
-                timeout=10)
+            self.assertEqual(factory.call_count, 2)
+            for args in factory.call_args_list:
+                self.assertEqual(args.kwargs, {
+                    "api_key": "candidate-id",
+                    "api_secret": "candidate-secret", "timeout": 10})
             self.assertNotIn("ADVANCED_TRADE_API_KEY_ID", os.environ)
             self.assertNotIn("ADVANCED_TRADE_API_KEY_SECRET", os.environ)
 
