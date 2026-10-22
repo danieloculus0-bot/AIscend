@@ -980,7 +980,7 @@ class AdvancedSpotEngine:
                 "submitted_at": time.time()}))
         return state, observation
 
-    def _pending_order_decision(self):
+    def _pending_order_decision(self, scope=None):
         """Reconcile accepted but unverified orders before placing another."""
         raw = self.store.get_meta("pending_coinbase_order")
         if not raw:
@@ -1033,11 +1033,11 @@ class AdvancedSpotEngine:
                                    "primary_fill_basis_checked_at:"):
                         self.store.set_meta(
                             _position_meta_key(prefix, product,
-                                               (self._snapshot or {}).get("authenticated_scope")), "")
+                                               scope), "")
                 if str(pending.get("side") or "").upper() == "SELL":
                     self.store.set_meta(
                         _position_meta_key("primary_maturity_at:", product,
-                                           (self._snapshot or {}).get("authenticated_scope")), "0")
+                                           scope), "0")
                 # Final receipt is appended separately from the original
                 # submitted-order audit; never retroactively rewrite history.
                 try:
@@ -1087,7 +1087,7 @@ class AdvancedSpotEngine:
                 "order_attempted": False, "decision_reason": decision.rationale,
                 "evaluated_at": time.time()}))
             return self.sync()
-        pending = self._pending_order_decision()
+        pending = self._pending_order_decision(scope=scope)
         if pending is not None:
             decision, status = pending
             self.store.add_decision(decision, status)
