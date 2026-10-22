@@ -73,6 +73,16 @@ class AdvancedSpotEngine:
         self.growth_gate = growth_gate
         self._snapshot: dict[str, Any] | None = None
 
+    def snapshot(self) -> dict[str, Any]:
+        """Provide the same snapshot interface as Base and synthetic engines.
+
+        The desktop refresh must not make another network request merely to
+        render the state already returned by a successful sync/step.
+        """
+        if self._snapshot is None:
+            return self.sync()
+        return self._snapshot
+
     @staticmethod
     def _split_product(product_id: str) -> tuple[str, str]:
         base, _, quote = product_id.upper().rpartition("-")
