@@ -112,15 +112,30 @@ class AdvancedTradeVault:
         )
 
 
+class CoinbaseExplicitRejection(RuntimeError):
+    """Exchange explicitly stated the order was not accepted."""
+
+
+class CoinbaseSubmissionUnconfirmed(RuntimeError):
+    """Submission outcome unknown; caller must retain the idempotency record."""
+
+
 def require_accepted_order(response: dict[str, Any]) -> dict[str, Any]:
-    """An HTTP 200 is not proof Coinbase accepted an order."""
-    if not isinstance(response, dict) or response.get("success") is not True:
-        reason = ""
-        if isinstance(response, dict):
-            reason = str(response.get("error_response") or response.get("failure_reason")
-                         or response.get("message") or "unconfirmed order response")
-        raise RuntimeError(f"Coinbase order not confirmed accepted: {reason or 'unconfirmed response'}")
-    return response
+    """Separate an explicit reject from an ambiguous provider response.
+
+    Both are failures to confirm acceptance; only an explicit reject can
+    release the durable pending-order intent without reconciliation.
+    """
+    if isinstance(response, dict) and response.get("success") is True:
+        return response
+    reason = ""
+    if isinstance(response, dict):
+        reason = str(response.get("error_response") or response.get("failure_reason")
+                     or response.get("message") or "unconfirmed order response")
+    error = f"Coinbase order not confirmed accepted: {reason or 'unconfirmed response'}"
+    if isinstance(response, dict) and response.get("success") is False:
+        raise CoinbaseExplicitRejection(error)
+    raise CoinbaseSubmissionUnconfirmed(error)
 
 
 class AdvancedTradeSpot:
