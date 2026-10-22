@@ -16,11 +16,15 @@ from .primary_strategy import DEFAULT_TAKER_BPS
 EVALUATION_BATCH = 48
 
 
-def evaluate_candidates(growth_gate, snapshot, *, limit=EVALUATION_BATCH, cursor=0):
+def evaluate_candidates(growth_gate, snapshot, *, limit=EVALUATION_BATCH, cursor=0,
+                        account_history=None):
     universe = snapshot.get("asset_universe") or {}
     ranked = universe.get("scored") or universe.get("buy_top") or universe.get("top") or []
     tradable = set(snapshot.get("tradable_products") or ())
     positions = snapshot.get("positions") or {}
+    execution = (account_history or {}).get("execution") or {}
+    completed = execution.get("status") == "COMPLETE"
+    actual_products = execution.get("products") or {}
     candidates = []
     ordered = sorted(ranked, key=lambda x: float(
         x.get("decision_score") if x.get("decision_score") is not None
@@ -77,6 +81,18 @@ def evaluate_candidates(growth_gate, snapshot, *, limit=EVALUATION_BATCH, cursor
         reward = float(scores.get(action, 0.0))
         if not isfinite(reward):
             continue
+        execution_row = actual_products.get(product) or {}
+        # Real closed-trade losses are an explicit conservative penalty to
+        # paper reward, NOT new Q rewards attributed to unproven strategies.
+        verified = (completed and execution_row.get("status") ==
+                    "VERIFIED_NET_CLOSED_TRADES")
+        observed_bps = (execution_row.get("return_on_matched_cost_bps")
+                        if verified else None)
+        n_closed = int(execution_row.get("closed_sells") or 0) if verified else 0
+        historical_penalty = (min(250.0, max(0.0, -float(observed_bps)))
+                              if observed_bps is not None and n_closed >= 3
+                              else 0.0)
+        adjusted_reward = reward - historical_penalty
         spread = float(item.get("spread_bps") or 0.0)
         volume = float(item.get("volume_ratio") or 1.0)
         exposure = bool(evidence.get("target_exposure"))
@@ -86,12 +102,19 @@ def evaluate_candidates(growth_gate, snapshot, *, limit=EVALUATION_BATCH, cursor
         # must also clear a prospective taker fee and half the live spread.
         # Keep the 60-bps fallback consistent with AdvancedSpotEngine.
         cost_bps = max(0.0, spread) * .5 + DEFAULT_TAKER_BPS
-        edge = reward - cost_bps if exposure else 0.0
+        edge = adjusted_reward - cost_bps if exposure else 0.0
         results.append({
             "product": product,
             "action": action,
             "target_exposure": int(exposure),
-            "reward_bps": round(reward, 5),
+            "reward_bps": round(adjusted_reward, 5),
+            "paper_reward_bps": round(reward, 5),
+            "historical_loss_penalty_bps": round(historical_penalty, 5),
+            "closed_fills_evidence_count": n_closed,
+            "realized_trade_return_bps": observed_bps,
+            "real_trade_feedback_status": (
+                "VERIFIED_PRODUCT_EXECUTION" if verified
+                else "UNVERIFIED_OR_INCOMPLETE"),
             "edge_bps": round(edge, 5),
             "spread_bps": spread,
             "volume_ratio": volume,
