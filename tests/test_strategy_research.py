@@ -92,6 +92,28 @@ class ResearchEvidenceTests(unittest.TestCase):
         self.assertGreater(stressed["max_drawdown"],0.50)
         self.assertGreater(stressed["max_drawdown"],baseline["max_drawdown"])
 
+    def test_missing_holding_period_candles_invalidate_crossing_trades(self):
+        baseline = fixture(n=1100)
+        observed = simulate(baseline, "trend")
+        self.assertGreater(observed["trades"], 0)
+        keys = sorted(baseline)
+        discontinuity = keys[105]
+        # A genuine 5-minute outage occurs AFTER the entry's complete
+        # lookback but BEFORE its planned exit, and must cancel that trade.
+        bars = {
+            (ts if i <= 105 else ts + BAR): baseline[ts]
+            for i, ts in enumerate(keys)
+        }
+        result = simulate(bars, "trend")
+        self.assertTrue(all(not (
+            trade["entry_ts"] <= discontinuity
+            and trade["exit_ts"] >= discontinuity + 2*BAR
+        ) for trade in result["trade_examples"]))
+        self.assertTrue(any(
+            trade["entry_ts"] <= discontinuity
+            and trade["exit_ts"] > discontinuity
+            for trade in observed["trade_examples"]))
+
     def test_coinbase_loader_retains_actual_volume(self):
         ts=1_700_000_100 // BAR * BAR
         response=[[ts, 9.0, 11.0, 10.0, 10.5, 123.45]]
