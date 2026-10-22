@@ -4,7 +4,8 @@ import unittest
 from pathlib import Path
 
 from src.bean_growth_adaptive import (BAR, BeanAdaptiveGrowthGate,
-    _fresh_state, _features, _choose, _position)
+    _fresh_state, _features, _choose, _position, MODEL_FEE)
+from src.primary_strategy import DEFAULT_TAKER_BPS
 
 
 class GrowthPolicyTests(unittest.TestCase):
@@ -81,6 +82,49 @@ class GrowthPolicyTests(unittest.TestCase):
         self.assertEqual(state["forward_behavior_revisions"], 1)
         self.assertEqual(state["last_behavior_revision"]["before"], before)
         self.assertEqual(state["last_behavior_revision"]["after"], after)
+
+    def test_mock_round_trip_fee_matches_live_order_cost_assumption(self):
+        # The live primary engine starts with a 60 bps taker-cost estimate.
+        # Seven-basis-point simulated transitions fabricate cheap turnover.
+        self.assertAlmostEqual(MODEL_FEE, DEFAULT_TAKER_BPS / 10000)
+        s = _fresh_state()
+        s["last_bar"] = 0
+        s["last_close"] = 100.0
+        s["pending"] = {"context": "initial", "action": "buy_hold", "position": 1}
+        BeanAdaptiveGrowthGate._apply_bar(
+            s, {"open": 100.0, "close": 100.0}, BAR, "ETH-USD")
+        self.assertAlmostEqual(s["equity"], 100.0 * (1 - MODEL_FEE), places=8)
+        self.assertEqual(s["mock_trades"], 1)
+        s["pending"] = {"context": "initial", "action": "cash", "position": 0}
+        BeanAdaptiveGrowthGate._apply_bar(
+            s, {"open": 100.0, "close": 100.0}, BAR * 2, "ETH-USD")
+        self.assertAlmostEqual(s["equity"], 100.0 * (1 - MODEL_FEE) ** 2, places=8)
+        self.assertEqual(s["mock_trades"], 2)
+
+    def test_held_asset_price_gap_is_marked_before_selling_at_next_open(self):
+        # A real long position loses money when the next candle opens 10% lower,
+        # even if a sell signal then exits immediately at that open.
+        s = _fresh_state()
+        s["last_bar"] = 0
+        s["last_close"] = 100.0
+        s["held"] = 1
+        s["pending"] = {"context": "initial", "action": "cash", "position": 0}
+        BeanAdaptiveGrowthGate._apply_bar(
+            s, {"open": 90.0, "close": 90.0}, BAR, "ETH-USD")
+        self.assertAlmostEqual(
+            s["equity"], 100 * .90 * (1 - MODEL_FEE), places=8)
+        self.assertLess(s["equity"], 90)
+        self.assertEqual(s["held"], 0)
+
+    def test_cash_does_not_gain_from_price_gap_prior_to_buy(self):
+        s = _fresh_state()
+        s["last_bar"] = 0
+        s["last_close"] = 100.0
+        s["held"] = 0
+        s["pending"] = {"context": "initial", "action": "buy_hold", "position": 1}
+        BeanAdaptiveGrowthGate._apply_bar(
+            s, {"open": 110.0, "close": 110.0}, BAR, "ETH-USD")
+        self.assertAlmostEqual(s["equity"], 100 * (1 - MODEL_FEE), places=8)
 
     def test_unavailable_market_does_not_create_reward(self):
         with tempfile.TemporaryDirectory() as temp:
