@@ -14,6 +14,7 @@ from .bean_policy import BeanPolicyGate
 from .bean_growth_rotation import evaluate_candidates
 from .bean_rotation_economics import (score_route, bridge_order,
                                       maturity_minutes, trade_cost_bps)
+from .position_cost_basis import rebuild_position_basis
 from .primary_strategy import (
     select_plan, proposals, exit_reason, incumbent_hold_net_bps,
     ROTATION_MARGIN_BPS,
@@ -961,6 +962,15 @@ class AdvancedSpotEngine:
             self.store.set_meta("pending_coinbase_order", "")
             self.store.set_meta("last_coinbase_submission_state", state)
             if state == "FILLED_VERIFIED":
+                # A completed SELL or BUY changes the position's lifecycle.
+                # Reset observed peaks and cached entry costs so an old lot's
+                # peak cannot mistakenly trigger a new position's stop.
+                if str(pending.get("side") or "").upper() in {"BUY", "SELL"}:
+                    for prefix in ("primary_peak:", "primary_fill_basis:",
+                                   "primary_fill_basis_checked_at:"):
+                        self.store.set_meta(prefix + product, "")
+                if str(pending.get("side") or "").upper() == "SELL":
+                    self.store.set_meta("primary_maturity_at:" + product, "0")
                 # Final receipt is appended separately from the original
                 # submitted-order audit; never retroactively rewrite history.
                 try:
@@ -1010,7 +1020,24 @@ class AdvancedSpotEngine:
                 "blocker": "coinbase_fill_reconciliation"}))
             return self.sync()
         fee_bps, fee_source = self._taker_cost_bps()
-        plan = select_plan(snapshot, taker_bps=fee_bps)
+        # Actual BEAN Q feedback now competes for live funded allocation.
+        # Its selected long/cash signals are not merely advisory telemetry.
+        learned_plan = None
+        learned_error = None
+        if self.growth_gate is not None:
+            try:
+                cursor = int(self.store.get_meta("bean_rotation_cursor") or "0")
+                learned_plan = evaluate_candidates(
+                    self.growth_gate, snapshot, cursor=cursor)
+                self.store.set_meta(
+                    "bean_rotation_cursor", str(learned_plan["next_cursor"]))
+            except Exception as exc:
+                learned_error = f"{type(exc).__name__}: {exc}"
+        learned_rows = (learned_plan or {}).get("evaluated") or []
+        plan = select_plan(
+            snapshot, taker_bps=fee_bps, learned_candidates=learned_rows)
+        learned_by_product = {
+            str(row.get("product") or ""): row for row in learned_rows}
         positions = snapshot.get("positions") or {}
         rows = (snapshot.get("asset_universe") or {}).get("scored") or []
         eligible_routes = []
@@ -1033,8 +1060,12 @@ class AdvancedSpotEngine:
         plan["primary_engine"] = "aiscend_price_action_v1"
         plan["fee_source"] = fee_source
         plan["fee_bps"] = fee_bps
-        plan["bean_role"] = "research_advisory_only"
+        plan["bean_role"] = "q_policy_live_candidate_and_cash_exit"
+        plan["bean_assessed_count"] = (learned_plan or {}).get("assessed_count", 0)
+        plan["bean_live_signals"] = len(learned_rows)
+        plan["bean_error"] = learned_error
         plan["order_attempted"] = False
+        plan["holding_reviews"] = {}
         plan["decision_reason"] = None
         now = time.time()
 
@@ -1063,8 +1094,59 @@ class AdvancedSpotEngine:
                 horizon = max((s["maturity_minutes"] for s in signals), default=60)
                 deadline = now + horizon * 60
                 self.store.set_meta(key, str(deadline))
-            issue = exit_reason(product, snapshot, deadline_reached=now >= deadline)
+            # Observe a real high-water mark on every trading cycle.
+            mark = float(holding.get("mark_price") or
+                         (snapshot.get("prices") or {}).get(product) or 0)
+            peak_key = "primary_peak:" + product
+            prior_peak = float(self.store.get_meta(peak_key) or "0")
+            peak = max(prior_peak, mark) if math.isfinite(mark) and mark > 0 else prior_peak
+            if peak > prior_peak:
+                self.store.set_meta(peak_key, str(peak))
+
+            # Reconstruct cost using authenticated Coinbase execution fills.
+            # If transfers, missing history or incomplete pages prevent matching
+            # the current balance, the basis is marked unknown, not invented.
+            basis_key = "primary_fill_basis:" + product
+            check_key = "primary_fill_basis_checked_at:" + product
+            basis = json.loads(self.store.get_meta(basis_key) or "{}")
+            last_checked = float(self.store.get_meta(check_key) or "0")
+            fill_reader = getattr(getattr(self, "rail", None), "position_fills", None)
+            if callable(fill_reader) and now - last_checked >= 300:
+                try:
+                    evidence = fill_reader(product)
+                    basis = rebuild_position_basis(
+                        product, holding.get("qty") or 0,
+                        evidence["fills"], complete_history=evidence["complete"])
+                except Exception as exc:
+                    basis = {"cost_basis_status": "coinbase_fill_lookup_error",
+                             "avg_cost": None, "reason": str(exc)[:200]}
+                self.store.set_meta(basis_key, json.dumps(basis))
+                self.store.set_meta(check_key, str(now))
+            verified_cost = (basis.get("avg_cost")
+                             if basis.get("cost_basis_status") == "verified_coinbase_fills"
+                             else None)
+            learned = learned_by_product.get(product)
+            learned_exposure = (
+                bool(learned["target_exposure"]) if learned is not None else None)
+            issue = exit_reason(
+                product, snapshot, deadline_reached=now >= deadline,
+                current_mark_price=mark, observed_peak_price=peak,
+                verified_entry_price=verified_cost,
+                learned_exposure=learned_exposure)
             candidate = bool(winner and winner["source_asset"] == product)
+            row = next((x for x in rows if str(x.get("product") or "") == product), None)
+            plan["holding_reviews"][product] = {
+                "mark": mark or None, "observed_peak": peak or None,
+                "observed_drawdown_pct": round(100 * (1 - mark/peak), 3)
+                    if mark > 0 and peak > 0 else None,
+                "entry_price": verified_cost,
+                "cost_basis_status": basis.get("cost_basis_status", "unavailable"),
+                "return_1h": row.get("return_1h") if row else None,
+                "return_6h": row.get("return_6h") if row else None,
+                "bean_q_exposure": learned_exposure,
+                "deadline_reached": now >= deadline,
+                "exit_reason": issue, "rotation_candidate": candidate,
+            }
             # Incumbent fee-adjusted horizon comparison occurs before winner selection.
             if issue or candidate:
                 reason = issue or "better_net_route"
@@ -1079,6 +1161,9 @@ class AdvancedSpotEngine:
                     status = self._execute_sell(decision, snapshot) or "ORDER_ACCEPTED_UNVERIFIED"
                     if status == "FILLED_VERIFIED":
                         self.store.set_meta(key, "0")
+                        self.store.set_meta(peak_key, "0")
+                        self.store.set_meta(basis_key, "")
+                        self.store.set_meta(check_key, "0")
                 except Exception as exc:
                     status = "EXECUTION_ERROR"
                     decision = Decision("SELL", product, 1.0,
@@ -1094,7 +1179,8 @@ class AdvancedSpotEngine:
                 f"routes={plan['costed_routes']}, "
                 f"below_cost={skipped.get('negative_net_edge',0)}, "
                 f"no_quote_path={skipped.get('no_quote_path',0)}. "
-                "Current holdings evaluated separately for exits."
+                "Current holdings evaluated separately for exits: "
+                + json.dumps(plan["holding_reviews"], sort_keys=True)[:900]
             )
             return write(Decision("HOLD", None, 0.0, rationale), "HELD")
 
@@ -1103,10 +1189,12 @@ class AdvancedSpotEngine:
         target_quote = self._split_product(product)[1]
         source_quote = winner["source_quote"]
         if source_asset:
-            reason = (f"AIscend HOLD: {product} would require selling "
-                      f"{source_asset}, but holding it currently scores "
-                      "better or equal after route costs.")
-            return write(Decision("HOLD", None, 0.0, reason), "HELD")
+            # The incumbent was evaluated above; if its rotation is truly the
+            # best eligible funded route, its SELL should already have run.
+            # This condition is a detected planning defect, never a fake HOLD.
+            reason = (f"Live rotation could not sell {source_asset} to fund "
+                      f"{product}; route selection is inconsistent.")
+            return write(Decision("HOLD", None, 0.0, reason), "PLAN_ERROR")
 
         if source_quote != target_quote:
             rationale = (f"AIscend cross-quote route toward {product}: "
@@ -1136,6 +1224,10 @@ class AdvancedSpotEngine:
             if status in {"FILLED_VERIFIED", "ORDER_ACCEPTED_UNVERIFIED"}:
                 self.store.set_meta("primary_maturity_at:" + product,
                                     str(now + 60 * winner["maturity_minutes"]))
+                if status == "FILLED_VERIFIED":
+                    for prefix in ("primary_peak:", "primary_fill_basis:",
+                                   "primary_fill_basis_checked_at:"):
+                        self.store.set_meta(prefix + product, "")
         except Exception as exc:
             status = "EXECUTION_ERROR"
             decision = Decision("BUY", product, 1.0,
