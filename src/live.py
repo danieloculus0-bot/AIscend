@@ -95,7 +95,9 @@ class LiveEngine:
         if weth_qty > 0.000000001:
             positions["WETH"] = {
                 "qty": weth_qty,
-                "avg_cost": price,
+                "avg_cost": None,
+                "mark_price": price,
+                "cost_basis_status": "unverified_without_wallet_trade_lots",
             }
 
         change = ((price / previous) - 1.0) if previous and price else 0.0
