@@ -1077,7 +1077,7 @@ class AdvancedSpotEngine:
         this durable plan after execution. One confirmed order leg per cycle.
         """
         scope = snapshot.get("authenticated_scope")
-        if callable(getattr(self.rail, "account_scope_id", None)) and not scope:
+        if callable(getattr(getattr(self, "rail", None), "account_scope_id", None)) and not scope:
             decision = Decision(
                 "HOLD", None, 0.0,
                 "Coinbase account identity unverified; live trading paused.")
