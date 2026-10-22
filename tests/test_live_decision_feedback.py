@@ -78,5 +78,63 @@ class ActualTradeDecisionTests(unittest.TestCase):
             snap,taker_bps=60,learned_candidates=learned)["winner"])
 
 
+class FundedExecutionPathTests(unittest.TestCase):
+    """Run the actual primary trade method, with ONLY Coinbase calls mocked."""
+
+    def test_funded_grove_is_sold_when_q_policy_selects_cash(self):
+        import tempfile
+        from pathlib import Path
+        from src.core import StateStore
+        from src.advanced_live import AdvancedSpotEngine
+
+        class CashLearner:
+            def assess(self, product):
+                return {"trade_effect": "ADOPTED_LONG_CASH",
+                        "learned_strategy": "cash",
+                        "target_exposure": 0,
+                        "chosen_action_scores_bps": {"cash": 30},
+                        "observed_samples": 60}
+
+        class Coinbase:
+            def position_fills(self, product):
+                return {"complete": True,
+                        "fills": [fill(1, "BUY", 10, 2)]}
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "trading.db")
+            try:
+                engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                engine.store = store
+                engine.rail = Coinbase()
+                engine.growth_gate = CashLearner()
+                engine._taker_cost_bps = lambda: (60.0, "test_actual_taker")
+                engine.sync = lambda: {"refreshed": True}
+                submitted = []
+                engine._execute_sell = lambda d, snap: (
+                    submitted.append((d.action, d.symbol, d.rationale))
+                    or "FILLED_VERIFIED")
+                snapshot = {
+                    "asset_universe": {"scored": []},
+                    "tradable_products": ["GROVE-USDC"],
+                    "positions": {"GROVE-USDC": {
+                        "qty": 10, "available_qty": 10, "mark_price": 1.65}},
+                    "cash_by_quote": {"USDC": 0.6},
+                    "balance_values_usd": {"GROVE": 16.5},
+                    "prices": {"GROVE-USDC": 1.65},
+                }
+                engine._primary_trade_step(snapshot)
+                self.assertEqual(submitted[0][:2], ("SELL", "GROVE-USDC"))
+                self.assertIn("bean_q_policy_cash", submitted[0][2])
+                plan = __import__("json").loads(
+                    store.get_meta("primary_trade_plan_latest"))
+                self.assertEqual(plan["holding_reviews"]["GROVE-USDC"][
+                    "cost_basis_status"], "verified_coinbase_fills")
+                self.assertAlmostEqual(plan["holding_reviews"]["GROVE-USDC"][
+                    "entry_price"], 2.0)
+                self.assertEqual(plan["execution_status"], "FILLED_VERIFIED")
+            finally:
+                store.close()
+
+
 if __name__ == "__main__":
     unittest.main()
