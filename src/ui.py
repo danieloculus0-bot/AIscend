@@ -53,6 +53,7 @@ class StatCard(QFrame):
         layout.setContentsMargins(16, 12, 16, 12)
         caption = QLabel(title.upper())
         caption.setObjectName("statCaption")
+        self.caption = caption
         self.value = QLabel("--")
         self.value.setObjectName("statValue")
         layout.addWidget(caption)
@@ -575,6 +576,13 @@ class MainWindow(QMainWindow):
         snap = self.engine.snapshot()
         self.net_card.value.setText(f"${snap['net_liquidation']:.4f}")
         self.cash_card.value.setText(f"${snap['cash']:.4f}")
+        verified_profit = snap.get("pnl_is_verified_trading_profit", True)
+        self.pnl_card.caption.setText(
+            "PROFIT / LOSS" if verified_profit else "EQUITY CHANGE*")
+        self.pnl_card.caption.setToolTip(
+            "" if verified_profit else
+            "Change since the first observed account balance; deposits, "
+            "withdrawals and transfers are not reconciled. Not trading profit.")
         self.pnl_card.value.setText(f"${snap['pnl']:+.4f}")
         self.multiple_card.value.setText(f"{snap['multiple']:.3f}x")
         self.bankroll.setValue(max(0.0, float(snap["starting_cash"])))
