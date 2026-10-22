@@ -62,7 +62,9 @@ class ForwardPaperTests(unittest.TestCase):
         signal=result["products"]["BTC-USD"]
         self.assertEqual(signal["status"],"PENDING")
         self.assertEqual(signal["signal_ts"],439*BAR)
-        self.assertEqual(signal["exit_ts"],512*BAR)
+        self.assertEqual(signal["entry_ts"],441*BAR)
+        self.assertEqual(signal["exit_ts"],513*BAR)
+        self.assertGreater(signal["entry_ts"],440*BAR+1)
         self.assertTrue(all(end<=440*BAR for _,end in self.requests))
         self.assertEqual(result["scorecard"]["BTC-USD"]["scored_trades"],0)
         with closing(sqlite3.connect(self.path)) as db:
@@ -72,11 +74,35 @@ class ForwardPaperTests(unittest.TestCase):
         self.assertIsNone(row[1])
         self.assertIsNone(row[2])
 
+    def test_paper_reward_uses_future_open_not_already_open_bar(self):
+        self.simulate_tick(440)
+        # At 440*BAR+1, bar 440 OPEN has already happened. Its opening
+        # price must never appear as this strategy's acquired fill.
+        self.rows[440*BAR]["open"] = 0.01
+        self.rows[441*BAR]["open"] = 123.456
+        self.simulate_tick(515)
+        with closing(sqlite3.connect(self.path)) as db:
+            got=db.execute(
+                "SELECT observed_at,entry_ts,entry_price,exit_ts "
+                "FROM paper_decisions").fetchone()
+        self.assertLess(got[0], got[1])
+        self.assertEqual(got[1], 441*BAR)
+        self.assertEqual(got[2], 123.456)
+        self.assertEqual(got[3], 513*BAR)
+
+    def test_legacy_paper_ledger_with_time_leakage_fails_closed(self):
+        with closing(sqlite3.connect(self.path)) as db:
+            db.execute("CREATE TABLE paper_decisions("
+                       "product TEXT,policy_sha TEXT,signal_ts INTEGER,"
+                       "observed_at REAL,exit_ts INTEGER,state TEXT)")
+        with self.assertRaisesRegex(ValueError,"Legacy paper fills"):
+            self.simulate_tick(440)
+
     def test_history_is_scored_only_after_exit_candle_completed(self):
         self.simulate_tick(440)
         before=self.simulate_tick(500)
         self.assertEqual(before["products"]["BTC-USD"]["status"],"PENDING")
-        done=self.simulate_tick(514)
+        done=self.simulate_tick(515)
         self.assertEqual(done["products"]["BTC-USD"]["status"],"SCORED")
         self.assertEqual(done["scorecard"]["BTC-USD"]["scored_trades"],1)
         self.assertGreater(done["scorecard"]["BTC-USD"]["net_return"],0)
