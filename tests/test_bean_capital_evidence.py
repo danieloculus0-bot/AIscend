@@ -209,6 +209,70 @@ class AccountEvidenceTests(unittest.TestCase):
             self.history(self.store, clock=lambda: 1002)["status"],
             "UNVERIFIED_OR_STALE")
 
+    def test_account_fills_are_physically_isolated_even_with_same_fill_id(self):
+        self.preserve(self.store, {"fills": self.fills, "complete": True},
+                      clock=lambda: 1000)
+        a = self.history(self.store, clock=lambda: 1001)
+        self.assertEqual(a["fill_count_retained"], 4)
+        empty = execution_history(self.store, account_scope=SCOPE_B,
+                                  clock=lambda: 1001)
+        self.assertEqual(empty["fill_count_retained"], 0)
+        self.assertEqual(empty["status"], "UNVERIFIED_OR_STALE")
+        unrelated = [fill(1,"BUY",1,100,".10",product="SOL-USDC")]
+        preserve_fills(self.store, {"fills": unrelated, "complete": True},
+                       account_scope=SCOPE_B, clock=lambda: 1000)
+        b = execution_history(self.store, account_scope=SCOPE_B,
+                              clock=lambda: 1001)
+        self.assertEqual(b["fill_count_retained"], 1)
+        self.assertEqual(b["recent_trades"][0]["product"],"SOL-USDC")
+        self.assertEqual(self.history(self.store, clock=lambda: 1001),
+                         a)
+        self.assertEqual(self.store.conn.execute(
+            "SELECT COUNT(*) FROM bean_account_fills").fetchone()[0], 5)
+
+    def test_previous_unscoped_fill_history_cannot_be_reclassified_as_current(self):
+        self.store.conn.execute(
+            "CREATE TABLE IF NOT EXISTS bean_verified_fills("
+            "fill_id TEXT PRIMARY KEY,evidence TEXT NOT NULL,observed_at REAL)")
+        self.store.conn.execute(
+            "INSERT INTO bean_verified_fills VALUES(?,?,?)",
+            ("1", '{"legacy":true}', 999))
+        self.store.set_meta("bean_fills_last_complete_at", "1000")
+        history = self.history(self.store, clock=lambda: 1001)
+        self.assertEqual(history["fill_count_retained"], 0)
+        self.assertEqual(history["status"],"UNVERIFIED_OR_STALE")
+
+    def test_credential_switch_rejects_old_key_scheduled_evidence(self):
+        self.preserve(self.store, {"fills": self.fills, "complete": True},
+                      clock=lambda: 1000)
+        class SwitchedReader:
+            def account_scope_id(self):
+                return SCOPE_B
+            def account_fills(self):
+                return {"fills": [], "complete": True}
+        switched = evaluate_account(
+            self.store, {**self.snap, "authenticated_scope": SCOPE_B},
+            SwitchedReader(), clock=lambda: 1001)
+        self.assertEqual(switched["execution"]["fill_count_retained"], 0)
+        self.assertTrue(switched["account_scope_verified"])
+        self.assertEqual(self.history(self.store, clock=lambda: 1002)["fill_count_retained"], 4)
+        mismatch = evaluate_account(self.store, self.snap,
+                                    SwitchedReader(), clock=lambda: 1002)
+        self.assertEqual(mismatch["execution"]["status"],"UNVERIFIED_ACCOUNT_SCOPE")
+        self.assertIsNone(mismatch["capital"]["starting_equity_usd"])
+        self.assertFalse(mismatch["account_scope_verified"])
+
+    def test_missing_credential_scope_cannot_resume_old_fills(self):
+        self.preserve(self.store, {"fills": self.fills, "complete": True},
+                      clock=lambda: 1000)
+        class Disconnected:
+            def account_fills(self):
+                raise AssertionError("Must not read without account scope")
+        report=evaluate_account(self.store,self.snap,Disconnected(),
+                                clock=lambda:1001)
+        self.assertEqual(report["execution"]["status"],"UNVERIFIED_ACCOUNT_SCOPE")
+        self.assertEqual(report["execution"]["fill_count_retained"],0)
+
     def test_broken_fill_reader_reports_problem_without_inventing_fills(self):
         class Broken:
             def account_scope_id(self):
