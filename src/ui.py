@@ -427,6 +427,8 @@ class MainWindow(QMainWindow):
 
         self.subtitle.setText("Autonomous capital experiment · synthetic sandbox")
         self.reset_button.setEnabled(True)
+        self.mode.setEnabled(True)
+        self.toggle_ai_fields()
         self.refresh()
 
     def _switch_to_live(self, network: str) -> None:
@@ -465,10 +467,17 @@ class MainWindow(QMainWindow):
             f"{snap['wallet_address'][:24]}…"
         )
         self.reset_button.setEnabled(False)
+        if network == "advanced":
+            # An OpenAI-compatible model is not wired into Advanced trading.
+            # Never show inert controls as though they make trade decisions.
+            self.mode.setCurrentIndex(0)
+        self.mode.setEnabled(network != "advanced")
+        self.toggle_ai_fields()
         self.refresh()
 
     def toggle_ai_fields(self) -> None:
-        enabled = self.mode.currentIndex() == 1
+        advanced = self.selected_network() == "advanced"
+        enabled = self.mode.currentIndex() == 1 and not advanced
         self.endpoint.setEnabled(enabled and not self.timer.isActive())
         self.model.setEnabled(enabled and not self.timer.isActive())
 
@@ -524,7 +533,7 @@ class MainWindow(QMainWindow):
         self.interval.setEnabled(True)
         self.execution.setEnabled(True)
         self.coinbase_button.setEnabled(True)
-        self.mode.setEnabled(True)
+        self.mode.setEnabled(self.selected_network() != "advanced")
         self.reset_button.setEnabled(self.selected_network() is None)
         self.toggle_ai_fields()
 
@@ -570,7 +579,8 @@ class MainWindow(QMainWindow):
             values = [
                 symbol,
                 f"{data['qty']:.8f}",
-                f"${data['avg_cost']:.4f}",
+                (f"${float(data['avg_cost']):.4f}"
+                 if data.get("avg_cost") is not None else "Unverified"),
                 f"${prices.get(symbol, 0):.4f}",
                 f"${data['qty'] * prices.get(symbol, 0):.4f}",
             ]
