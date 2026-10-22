@@ -29,7 +29,7 @@ git pull --ff-only
 .\.venv\Scripts\python.exe main.py
 ```
 
-Preflight performs authenticated status reads and checks the local order journal. It **never places trades**. Exit code 0 means the read-only readiness checks passed; code 2 means it reported a blocker. A green preflight does not prove an exchange fill. Inspect [live trading diagnostics](http://127.0.0.1:5000/api/trading-diagnostics) from the locally running web dashboard when available. No public web endpoint should be exposed without the app's access controls.
+Preflight performs authenticated status reads and checks the local order journal. It **never places trades**. Exit code 0 means the read-only readiness checks passed; code 2 means it reported a blocker. A green preflight does not prove an exchange fill. Inspect [live trading diagnostics](http://127.0.0.1:8000/api/trading-diagnostics) from the locally running web dashboard when available. No public web endpoint should be exposed without the app's access controls.
 
 ## Known limitations
 
