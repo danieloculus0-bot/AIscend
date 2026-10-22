@@ -126,6 +126,44 @@ class GrowthPolicyTests(unittest.TestCase):
             s, {"open": 110.0, "close": 110.0}, BAR, "ETH-USD")
         self.assertAlmostEqual(s["equity"], 100 * (1 - MODEL_FEE), places=8)
 
+    def test_legacy_low_fee_q_scores_are_archived_and_recalibrated(self):
+        import json
+
+        end = BAR * 500
+        candles = {
+            ts: {"open": 100.0, "close": 100.0}
+            for ts in range(end - BAR * 280, end, BAR)
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            gate = BeanAdaptiveGrowthGate(
+                path=Path(folder) / "policy.sqlite3",
+                fetcher=lambda _product, start, stop: {
+                    ts: bar for ts, bar in candles.items() if start <= ts < stop
+                },
+                clock=lambda: end + 20)
+            stale = _fresh_state()
+            stale.pop("cost_model", None)
+            stale["schema"] = "aiscend.bean.growth.v1"
+            stale["q"] = {"initial": {"buy_hold": 9999.0}}
+            with gate._db() as db:
+                db.execute("INSERT INTO policy(product,state) VALUES(?,?)",
+                           ("ETH-USD", json.dumps(stale)))
+            result = gate.assess("ETH-USD")
+            self.assertEqual(result["status"], "READY")
+            self.assertEqual(result["paper_taker_fee_bps"], DEFAULT_TAKER_BPS)
+            with gate._db() as db:
+                archive = db.execute(
+                    "SELECT model_version,state FROM policy_archive WHERE product=?",
+                    ("ETH-USD",)).fetchone()
+                updated = db.execute(
+                    "SELECT state FROM policy WHERE product=?",
+                    ("ETH-USD",)).fetchone()
+            self.assertEqual(archive["model_version"], "legacy_fee_7bps")
+            self.assertEqual(json.loads(archive["state"])["q"]["initial"]["buy_hold"], 9999.0)
+            self.assertNotEqual(
+                json.loads(updated["state"])["q"].get("initial", {}).get("buy_hold"),
+                9999.0)
+
     def test_unavailable_market_does_not_create_reward(self):
         with tempfile.TemporaryDirectory() as temp:
             g = BeanAdaptiveGrowthGate(path=Path(temp) / "db.sqlite",
