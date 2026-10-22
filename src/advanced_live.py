@@ -287,6 +287,17 @@ class AdvancedSpotEngine:
 
     def sync(self) -> dict[str, Any]:
         status = self.rail.status()
+        # status() must authenticate first. Never trust a key fingerprint as
+        # proof the key has permissions until the venue status call succeeds.
+        scope_reader = getattr(self.rail, "account_scope_id", None)
+        try:
+            authenticated_scope = scope_reader() if callable(scope_reader) else None
+        except Exception:
+            authenticated_scope = None
+        if (not isinstance(authenticated_scope, str)
+                or len(authenticated_scope) != 64
+                or any(c not in "0123456789abcdef" for c in authenticated_scope)):
+            authenticated_scope = None
         listing = self.listing_sentinel.poll()
         priority_products = [
             str(event.get("product") or "").upper()
@@ -383,10 +394,14 @@ class AdvancedSpotEngine:
 
         net = sum(balance_values_usd.values())
         market_value = max(0.0, net - cash)
-        start_text = self.store.get_meta("advanced_starting_value")
+        # Never reuse a previous Coinbase key's baseline after credentials
+        # change. The legacy unscoped value is not migrated automatically.
+        baseline_key = ("advanced_starting_value:" + authenticated_scope
+                        if authenticated_scope else "advanced_starting_value")
+        start_text = self.store.get_meta(baseline_key)
         if start_text is None and net > 0.01:
             start = net
-            self.store.set_meta("advanced_starting_value", f"{start:.10f}")
+            self.store.set_meta(baseline_key, f"{start:.10f}")
         elif start_text is not None:
             start = float(start_text)
         else:
@@ -436,6 +451,7 @@ class AdvancedSpotEngine:
             "valuation_complete": all(currency in balance_values_usd for currency in raw_balances),
             "unpriced_balances": {currency: qty for currency, qty in raw_balances.items() if currency not in balance_values_usd},
             "starting_cash": start,
+            "authenticated_scope": authenticated_scope,
             "positions": positions,
             "prices": prices,
             "returns": {
@@ -1090,7 +1106,8 @@ class AdvancedSpotEngine:
                 learned_error = f"{type(exc).__name__}: {exc}"
         learned_rows = (learned_plan or {}).get("evaluated") or []
         plan = select_plan(
-            snapshot, taker_bps=fee_bps, learned_candidates=learned_rows)
+            snapshot, taker_bps=fee_bps, learned_candidates=learned_rows,
+            account_history=account_evidence)
         learned_by_product = {
             str(row.get("product") or ""): row for row in learned_rows}
         positions = snapshot.get("positions") or {}
@@ -1125,6 +1142,7 @@ class AdvancedSpotEngine:
             "fill_count_retained": account_evidence["execution"].get("fill_count_retained", 0),
             "products": account_evidence["execution"].get("products", {}),
             "realized_account_profit_verified": False,
+            "account_scope_verified": account_evidence.get("account_scope_verified", False),
         }
         plan["bean_error"] = learned_error
         plan["order_attempted"] = False
