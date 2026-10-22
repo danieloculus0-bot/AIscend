@@ -21,6 +21,7 @@ from typing import Any
 from src.core import app_data_dir
 from src.bean_rotation_economics import bridge_order
 from src.wallets.advanced_trade import AdvancedTradeSpot, AdvancedTradeVault
+from src.bean_capital_evidence import _normalize_fill
 
 
 def _read_metadata(db: Path) -> dict[str, str]:
@@ -172,7 +173,8 @@ def _sized_funded_pairs(rail, product_ids: tuple[str, ...],
     return sized, lookups, sorted(errors), capped
 
 
-def inspect_advanced(*, vault=None, rail=None, db_path: Path | None = None) -> dict[str, Any]:
+def inspect_advanced(*, vault=None, rail=None, db_path: Path | None = None,
+                     require_history: bool = False) -> dict[str, Any]:
     vault = vault or AdvancedTradeVault()
     state = {"execution_rail": "coinbase-advanced", "checked_live_orders": False,
              "placed_orders": False, "read_only": True,
@@ -240,6 +242,36 @@ def inspect_advanced(*, vault=None, rail=None, db_path: Path | None = None) -> d
             state["warnings"].append("LAST_TRADE_PLAN_NOT_PARSEABLE")
     else:
         state["warnings"].append("NO_PRIOR_ADVANCED_DECISION_FOUND")
+    if require_history:
+        # Actual Python live START requires history and a stable credential
+        # identity, in addition to the standard account/order checks.
+        reader = getattr(rail, "account_fills", None)
+        scope_reader = getattr(rail, "account_scope_id", None)
+        try:
+            scope = scope_reader() if callable(scope_reader) else None
+        except Exception:
+            scope = None
+        valid_scope = (isinstance(scope, str) and len(scope) == 64 and
+                       all(c in "0123456789abcdef" for c in scope))
+        if not valid_scope:
+            state["blockers"].append("COINBASE_ACCOUNT_SCOPE_UNVERIFIED")
+        if not callable(reader):
+            state["blockers"].append("COINBASE_FILL_READER_UNAVAILABLE")
+        elif valid_scope and state["exchange_access"]:
+            try:
+                history = reader()
+                rows = history.get("fills") if isinstance(history, dict) else None
+                if not isinstance(rows, list) or history.get("complete") is not True:
+                    state["blockers"].append("COINBASE_FILL_HISTORY_INCOMPLETE")
+                else:
+                    normalized = [_normalize_fill(row) for row in rows]
+                    ids = [row["fill_id"] for row in normalized]
+                    if len(ids) != len(set(ids)):
+                        state["blockers"].append("COINBASE_FILL_HISTORY_DUPLICATED")
+                    state["authenticated_fill_count"] = len(normalized)
+            except Exception as exc:
+                state["blockers"].append("COINBASE_FILL_HISTORY_UNAVAILABLE")
+                state["fill_history_error_type"] = type(exc).__name__
     state["execution_ready"] = not state["blockers"]
     state["note"] = ("Read-only account and journal preflight only; "
                      "no Coinbase order submission, order preview, "
