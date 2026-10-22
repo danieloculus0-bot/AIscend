@@ -165,6 +165,38 @@ class FakeUniverse:
 
 
 class AdvancedLiveTests(unittest.TestCase):
+    def test_authentication_key_switch_resets_starting_equity_baseline(self):
+        class ScopedRail(FakeRail):
+            scope = "a" * 64
+            def account_scope_id(self):
+                return self.scope
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "advanced.db")
+            self.addCleanup(store.close)
+            rail = ScopedRail()
+            engine = AdvancedSpotEngine(
+                store, rail=rail, asset_universe=FakeUniverse(),
+                listing_sentinel=FakeListingSentinel(),
+                human_researcher=FakeHumanResearch(),
+            )
+            account_a = engine.sync()
+            self.assertEqual(account_a["starting_cash"], 25.0)
+            self.assertEqual(account_a["authenticated_scope"], "a" * 64)
+            rail.scope = "b" * 64
+            rail.usdc = Decimal("80")
+            account_b = engine.sync()
+            self.assertEqual(account_b["starting_cash"], 80.0)
+            self.assertEqual(account_b["authenticated_scope"], "b" * 64)
+            rail.scope = "a" * 64
+            restored = engine.sync()
+            self.assertEqual(restored["starting_cash"], 25.0)
+            self.assertNotEqual(restored["starting_cash"], account_b["starting_cash"])
+            self.assertEqual(
+                store.get_meta("advanced_starting_value:" + "a"*64), "25.0000000000")
+            self.assertEqual(
+                store.get_meta("advanced_starting_value:" + "b"*64), "80.0000000000")
+
     def test_hourly_bean_exam_cannot_veto_advanced_opportunity(self):
         class BeanDisagrees:
             def assess(self):
