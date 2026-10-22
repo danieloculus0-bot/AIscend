@@ -70,11 +70,18 @@ def _normalize_fill(raw):
     if (not identity or "-" not in product
             or side not in ("BUY", "SELL")):
         raise ValueError("Missing verified Coinbase fill identity, side or spot pair")
-    size = _positive(raw.get("size"))
-    price = _positive(raw.get("price"))
-    # Coinbase maker rebates can be negative commission.
-    fee = _signed_finite(raw.get("commission"))
-    if size is None or price is None or fee is None:
+    try:
+        # Keep original exchange decimal strings intact. A float round-trip
+        # can lose precision on crypto quantities and falsify fee-net P/L.
+        size = Decimal(str(raw["size"]))
+        price = Decimal(str(raw["price"]))
+        fee = Decimal(str(raw["commission"]))
+        if not all(x.is_finite() for x in (size, price, fee)):
+            raise ValueError("Nonfinite Coinbase fill")
+        if size <= 0 or price <= 0:
+            raise ValueError("Invalid Coinbase fill size or price")
+        # Coinbase maker rebates may legitimately be negative commission.
+    except (KeyError, TypeError, ValueError, InvalidOperation, ArithmeticError):
         raise ValueError("Coinbase fill size, price or commission is incomplete")
     stamp = str(raw.get("trade_time") or "").strip()
     if not stamp:
@@ -89,8 +96,8 @@ def _normalize_fill(raw):
                        product.rsplit("-", 1)[1]).upper()
     return {
         "fill_id": identity, "product": product, "side": side,
-        "size": str(Decimal(str(size))), "price": str(Decimal(str(price))),
-        "fee": str(Decimal(str(fee))), "fee_currency": fee_currency,
+        "size": str(size), "price": str(price),
+        "fee": str(fee), "fee_currency": fee_currency,
         "trade_time": stamp,
         "order_id": str(raw.get("order_id") or ""),
         "source": "authenticated_coinbase_advanced_get_fills",
