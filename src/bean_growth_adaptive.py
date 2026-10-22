@@ -18,9 +18,13 @@ from pathlib import Path
 
 from .bean_five_minute import BAR, fetch_5m
 from .core import app_data_dir
+from .primary_strategy import DEFAULT_TAKER_BPS
 
 ACTIONS = ("momentum", "reversion", "trend_3", "buy_hold", "cash")
-MODEL_FEE = .0007
+PAPER_COST_MODEL = "taker60bps_held_gap_v2"
+# Match the primary engine's conservative taker fallback per BUY/SELL leg.
+# Actual account fees can be higher; neither this model nor its rewards prove profit.
+MODEL_FEE = DEFAULT_TAKER_BPS / 10000.0
 LEARNING_RATE = .08
 PAPER_EXPLORATION = .12
 MIN_HISTORY = 12
@@ -63,7 +67,8 @@ def _choose(state, context, *, explore, seed):
 
 
 def _fresh_state():
-    return {"schema": "aiscend.bean.growth.v1", "last_bar": None,
+    return {"schema": "aiscend.bean.growth.v2", "cost_model": PAPER_COST_MODEL,
+            "last_bar": None,
             "last_close": None, "recent_returns": [], "pending": None,
             "held": 0, "equity": 100.0, "peak": 100.0, "drawdown": 0.0,
             "q": {}, "visits": {}, "wins": {}, "win_trials": {}, "paper_bars": 0, "forward_bars": 0,
@@ -89,6 +94,10 @@ class BeanAdaptiveGrowthGate:
         self._lock = threading.RLock()
         with self._db() as db:
             db.execute("CREATE TABLE IF NOT EXISTS policy (product TEXT PRIMARY KEY, state TEXT NOT NULL)")
+            db.execute("CREATE TABLE IF NOT EXISTS policy_archive ("
+                       "product TEXT NOT NULL, model_version TEXT NOT NULL, "
+                       "archived_at INTEGER NOT NULL, state TEXT NOT NULL, "
+                       "PRIMARY KEY (product, model_version))")
 
 
     @contextmanager
@@ -137,8 +146,18 @@ class BeanAdaptiveGrowthGate:
             held = int(state["held"])
             target = int(pending["position"])
             transaction_cost = MODEL_FEE if held != target else 0.0
-            realized = target * (close / opening - 1.0) - transaction_cost
-            state["equity"] *= (1 + realized)
+            # The action selected after the previous completed bar can only
+            # trade at THIS bar's open. Attribute today's open-to-close reward
+            # (and any trading fee) to it, not the unknowable overnight gap.
+            intrabar_return = (close / opening - 1.0) if target else 0.0
+            realized = (1 - transaction_cost) * (1 + intrabar_return) - 1
+            # But a position already held over the bar boundary owns the
+            # price movement from previous CLOSE to current OPEN. Omitting
+            # this gap fabricated paper equity after a jump or crash.
+            prior_close = state["last_close"]
+            held_gap_return = (opening / prior_close - 1.0) if (
+                held and prior_close is not None and prior_close > 0) else 0.0
+            state["equity"] *= (1 + held_gap_return) * (1 + realized)
             if state["equity"] <= 0:
                 raise ValueError("simulated paper capital exhausted")
             if transaction_cost:
@@ -200,6 +219,17 @@ class BeanAdaptiveGrowthGate:
             with self._lock, self._db() as db:
                 row = db.execute("SELECT state FROM policy WHERE product=?", (market,)).fetchone()
                 state = json.loads(row["state"]) if row else _fresh_state()
+                if row and state.get("cost_model") != PAPER_COST_MODEL:
+                    # Old Q values learned with a 7-bps fee and missing
+                    # inter-bar returns cannot be relabeled as 60-bps returns.
+                    # Archive them for evidence, then replay available bars
+                    # under the corrected model before adopting decisions.
+                    db.execute(
+                        "INSERT OR IGNORE INTO policy_archive "
+                        "(product,model_version,archived_at,state) VALUES(?,?,?,?)",
+                        (market, str(state.get("cost_model") or "legacy_fee_7bps"),
+                         int(self.clock()), row["state"]))
+                    state = _fresh_state()
                 initial = not state["bootstrapped"]
                 for ts in valid_times:
                     if state["last_bar"] is None or ts > state["last_bar"]:
@@ -218,6 +248,8 @@ class BeanAdaptiveGrowthGate:
                 samples = int(state.get("win_trials", {}).get(ctxt, {}).get(adopted, 0))
                 won = int(state.get("wins", {}).get(ctxt, {}).get(adopted, 0))
                 result = {"status": "READY" if enough else "WARMING_UP",
+                          "paper_cost_model": PAPER_COST_MODEL,
+                          "paper_taker_fee_bps": round(MODEL_FEE * 10000, 4),
                           "mode": mode, "product": market,
                           "trade_effect": "ADOPTED_LONG_CASH" if enough else "NONE",
                           "learning_source": "completed_public_coinbase_5m_candles",
