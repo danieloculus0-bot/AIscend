@@ -37,5 +37,10 @@ jobs:
         run: python -m unittest discover -s tests -p test_bean_growth_rotation.py -v
       - name: Run complete Python regression suite
         run: python -m unittest discover -s tests -v
+      - name: Exercise isolated Qt desktop integration
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m scripts.desktop_integration_check
+
       - name: Verify syntax of live adapters
         run: python -m compileall -q src/bean_growth_adaptive.py src/live.py src/advanced_live.py web_app.py
