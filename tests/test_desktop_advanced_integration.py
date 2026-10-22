@@ -86,7 +86,6 @@ class ActualDesktopIntegrationTests(unittest.TestCase):
     def test_unverified_advanced_key_is_never_saved(self):
         import json
         from pathlib import Path
-        from types import SimpleNamespace
 
         key_path = Path(self.temp.name) / "test-key.json"
         key_path.write_text(json.dumps({
@@ -99,8 +98,8 @@ class ActualDesktopIntegrationTests(unittest.TestCase):
               patch("src.ui.AdvancedTradeSpot") as rail,
               patch("src.ui.AdvancedTradeVault.save") as save,
               patch("src.ui.QMessageBox.critical") as error):
-            rail.return_value.status.return_value = SimpleNamespace(
-                can_view=True, can_trade=False)
+            rail.validate_credentials.side_effect = RuntimeError(
+                "Coinbase Advanced key requires both view and trade permissions.")
             self.window.configure_coinbase()
             save.assert_not_called()
             error.assert_called_once()
