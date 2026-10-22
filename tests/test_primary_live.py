@@ -59,7 +59,7 @@ class PrimaryLiveTests(unittest.TestCase):
         self.engine._primary_trade_step(self.snapshot(cash={"USD":19}))
         self.assertEqual(self.actions[-1],("BUY","ALEO-USD"))
         self.assertGreater(float(self.store.get_meta(
-            "primary_maturity_at:ALEO-USD")),0)
+            "primary_maturity_at:unverified:ALEO-USD")),0)
 
     def test_ambiguous_quote_bridge_reports_unknown_and_retains_intent(self):
         # The bridge might have reached Coinbase before the timeout.
@@ -127,7 +127,7 @@ class PrimaryLiveTests(unittest.TestCase):
         self.assertIn("preview rejected",row["rationale"])
 
     def test_expired_unscored_holding_is_sold_not_perpetually_held(self):
-        self.store.set_meta("primary_maturity_at:MET-USDC","1")
+        self.store.set_meta("primary_maturity_at:unverified:MET-USDC","1")
         self.engine._primary_trade_step(self.snapshot(
             held={"MET-USDC":{"qty":3,"available_qty":3}}))
         self.assertEqual(self.actions[-1],("SELL","MET-USDC"))
