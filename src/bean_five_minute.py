@@ -45,9 +45,18 @@ def fetch_5m(product, start, end):
         if not isinstance(row, (list, tuple)) or len(row) < 6:
             continue
         ts, op, cl = int(row[0]), float(row[3]), float(row[4])
+        try:
+            volume = float(row[5])
+        except (TypeError, ValueError, OverflowError):
+            volume = float("nan")
         if (start <= ts < end and ts % BAR == 0 and
                 math.isfinite(op) and math.isfinite(cl) and op > 0 and cl > 0):
-            out[ts] = {"open": op, "close": cl}
+            candle = {"open": op, "close": cl}
+            # Retain authentic Coinbase base-asset volume for research.
+            # Invalid observations stay missing, never synthetic.
+            if math.isfinite(volume) and volume >= 0:
+                candle["volume"] = volume
+            out[ts] = candle
     return out
 
 
