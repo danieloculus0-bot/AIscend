@@ -204,7 +204,8 @@ class AccountEvidenceTests(unittest.TestCase):
         complete = rail.account_fills()
         self.assertEqual(len(complete["fills"]), 2)
         self.assertTrue(complete["complete"])
-        self.assertEqual(vault.instance.calls[0], {"limit": 100})
+        self.assertEqual(vault.instance.calls[0],
+                         {"limit": 100, "product_types": ["SPOT"]})
         self.assertEqual(vault.instance.calls[1]["cursor"], "next")
         self.assertFalse(rail.account_fills(max_pages=1)["complete"])
 
