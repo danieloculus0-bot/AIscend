@@ -242,21 +242,40 @@ def execution_history(store, *, account_scope, fresh_seconds=900, clock=time.tim
 
 def evaluate_account(store, snapshot, rail, *, clock=time.time,
                      refresh_seconds=300):
-    """Read-only fetch, durable ledger, reported sync errors; no trade calls."""
+    """Real account evidence, strictly isolated by active verified key scope."""
     capital = capital_snapshot(snapshot)
-    last = _money(store.get_meta("bean_fills_last_attempt_at"))
+    scope_getter = getattr(rail, "account_scope_id", None)
+    try:
+        scope = scope_getter() if callable(scope_getter) else None
+    except Exception:
+        scope = None
+    if not _valid_scope(scope) or snapshot.get("authenticated_scope") != scope:
+        # Missing or switched credentials cannot inherit any previous account's
+        # funds, entry baseline, closed trades or prior complete-history flag.
+        return {
+            "capital": {**capital, "starting_equity_usd": None,
+                        "equity_change_usd": None,
+                        "baseline_description": "unverified_account_scope"},
+            "execution": {"status": "UNVERIFIED_ACCOUNT_SCOPE",
+                          "fill_count_retained": 0, "history_fully_reconciled": False,
+                          "products": {}, "recent_trades": []},
+            "read_status": "AUTHENTICATED_ACCOUNT_SCOPE_UNAVAILABLE",
+            "account_scope_verified": False,
+            "realized_account_profit_verified": False,
+        }
+    last = _money(store.get_meta(_scope_meta("bean_fills_last_attempt_at", scope)))
     now = float(clock())
     reader = getattr(rail, "account_fills", None)
     status = "NOT_QUERIED"
     if not callable(reader):
         status = "AUTHENTICATED_FILL_READER_UNAVAILABLE"
     elif last is None or now - last >= refresh_seconds or now < last:
-        # Throttle even unsuccessful reads; never burn rate limits per scan.
-        store.set_meta("bean_fills_last_attempt_at", str(now))
+        store.set_meta(_scope_meta("bean_fills_last_attempt_at", scope), str(now))
         try:
             response = reader()
-            preserve_fills(store, response, clock=clock)
-            status = "PROVIDER_HISTORY_COMPLETE" if response.get("complete") else "PROVIDER_HISTORY_PARTIAL"
+            preserve_fills(store, response, account_scope=scope, clock=clock)
+            status = ("PROVIDER_HISTORY_COMPLETE" if response.get("complete") is True
+                      else "PROVIDER_HISTORY_PARTIAL")
         except Exception as exc:
             store.set_meta(_scope_meta("bean_fills_last_complete_at", scope), "")
             status = "HISTORY_READ_FAILED:" + type(exc).__name__
@@ -264,7 +283,8 @@ def evaluate_account(store, snapshot, rail, *, clock=time.time,
         status = "CACHED_HISTORY"
     return {
         "capital": capital,
-        "execution": execution_history(store, clock=clock),
+        "execution": execution_history(store, account_scope=scope, clock=clock),
         "read_status": status,
+        "account_scope_verified": True,
         "realized_account_profit_verified": False,
     }
