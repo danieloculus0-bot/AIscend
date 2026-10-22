@@ -1,5 +1,6 @@
 """No real orders; test causal forward paper decisions with deterministic bars."""
 import json
+from contextlib import closing
 from pathlib import Path
 import sqlite3
 import tempfile
@@ -46,7 +47,7 @@ class ForwardPaperTests(unittest.TestCase):
         self.assertEqual(signal["exit_ts"],512*BAR)
         self.assertTrue(all(end<=440*BAR for _,end in self.requests))
         self.assertEqual(result["scorecard"]["BTC-USD"]["scored_trades"],0)
-        with sqlite3.connect(self.path) as db:
+        with closing(sqlite3.connect(self.path)) as db:
             row=db.execute(
                 "SELECT state,entry_price,net_return FROM paper_decisions").fetchone()
         self.assertEqual(row[0],"PENDING")
@@ -75,7 +76,7 @@ class ForwardPaperTests(unittest.TestCase):
     def test_repeated_observation_in_same_slot_cannot_duplicate_signal(self):
         self.simulate_tick(440)
         self.simulate_tick(440)
-        with sqlite3.connect(self.path) as db:
+        with closing(sqlite3.connect(self.path)) as db:
             n=db.execute("SELECT COUNT(*) FROM paper_decisions").fetchone()[0]
         self.assertEqual(n,1)
 
