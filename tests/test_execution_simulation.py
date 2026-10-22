@@ -90,6 +90,32 @@ class ExecutionSimulationTests(unittest.TestCase):
         self.assertEqual(self.store.latest_decisions(1)[0]["status"],
                          "ORDER_AWAITING_VERIFICATION")
 
+    def test_ambiguous_accepted_sell_recovers_using_original_client_id(self):
+        class AcceptedButTimedOut(type(self.venue)):
+            submitted_client_id = None
+            def market_sell(self, product, size, client_order_id):
+                super().market_sell(product, size, client_order_id)
+                self.submitted_client_id = client_order_id
+                raise CoinbaseSubmissionUnconfirmed("Coinbase timed out after submit")
+            def find_order_id_by_client_id(self, *, product_id, client_order_id):
+                if (product_id == "GROVE-USDC"
+                        and client_order_id == self.submitted_client_id):
+                    return next(iter(self.orders))
+                return None
+
+        self.venue = AcceptedButTimedOut(price=1.6)
+        self.engine.rail = self.venue
+        self.engine._primary_trade_step(snapshot(1.6))
+        self.assertEqual(self.venue.submissions, 1)
+        self.assertEqual(self.store.latest_decisions(1)[0]["status"],
+                         "ORDER_SUBMISSION_UNKNOWN")
+        self.engine._primary_trade_step(snapshot(1.5))
+        self.assertEqual(self.venue.submissions, 1, "Duplicate accepted order")
+        self.assertEqual(self.store.latest_decisions(1)[0]["status"],
+                         "FILLED_VERIFIED")
+        self.assertFalse(self.store.get_meta("pending_coinbase_order"))
+        self.assertEqual(self.store.get_meta("primary_maturity_at:GROVE-USDC"), "0")
+
     def test_ambiguous_buy_does_not_release_client_order_id(self):
         class AmbiguousBuy(type(self.venue)):
             def preview_market_buy(self, product, size):
