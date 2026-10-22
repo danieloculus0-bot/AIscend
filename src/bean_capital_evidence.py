@@ -112,6 +112,18 @@ def preserve_fills(store, response, *, clock=time.time):
         fill_id TEXT PRIMARY KEY, evidence TEXT NOT NULL,
         observed_at REAL NOT NULL)""")
     normalized = [_normalize_fill(item) for item in response["fills"]]
+    if response.get("complete") is True:
+        # A fully paginated account snapshot must include every previously
+        # observed ID. Otherwise credentials, portfolio scope, or retention
+        # changed and historical results cannot be reconciled safely.
+        previous = {
+            row["fill_id"] for row in store.conn.execute(
+                "SELECT fill_id FROM bean_verified_fills")
+        }
+        incoming = {row["fill_id"] for row in normalized}
+        if previous - incoming:
+            store.set_meta("bean_fills_last_complete_at", "")
+            raise ValueError("Coinbase complete history excludes prior recorded fills")
     with store.conn:
         for fill in normalized:
             payload = json.dumps(fill, sort_keys=True)
