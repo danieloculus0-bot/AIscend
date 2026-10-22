@@ -346,6 +346,36 @@ class AdvancedTradeSpot:
             raise ValueError("Coinbase order ID is required")
         return self._dict(self.vault.client().get_order(order_id=order_id))
 
+    def position_fills(self, product_id: str, *, max_pages: int = 30) -> dict[str, Any]:
+        """Read actual Coinbase fills for this product, exhausting pagination.
+
+        A capped or incomplete history is never treated as verified cost basis.
+        """
+        client = self.vault.client()
+        cursor = None
+        seen_cursors = set()
+        fills: list[dict[str, Any]] = []
+        for _ in range(max_pages):
+            kwargs = {"product_ids": [product_id.upper()], "limit": 100}
+            if cursor:
+                kwargs["cursor"] = cursor
+            response = self._dict(client.get_fills(**kwargs))
+            if "fills" not in response:
+                raise RuntimeError("Coinbase fill history returned no fills field.")
+            rows = response["fills"]
+            if not isinstance(rows, list):
+                raise RuntimeError("Coinbase fill history returned invalid rows.")
+            fills.extend(rows)
+            next_cursor = str(response.get("cursor") or "")
+            if not next_cursor:
+                return {"fills": fills, "complete": True, "pages": len(seen_cursors) + 1}
+            if next_cursor in seen_cursors:
+                raise RuntimeError("Coinbase fill pagination repeated a cursor.")
+            seen_cursors.add(next_cursor)
+            cursor = next_cursor
+        return {"fills": fills, "complete": False, "pages": max_pages}
+
+
     def order_fills(self, order_id: str) -> dict[str, Any]:
         """Read actual execution fills/commissions, never a preview estimate."""
         if not order_id or not order_id.strip():

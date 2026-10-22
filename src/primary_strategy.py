@@ -15,6 +15,9 @@ POLICIES = ("trend", "breakout", "reversal")
 DEFAULT_TAKER_BPS = 60.0
 MAX_SIGNAL_AGE_SECONDS = 150.0
 ROTATION_MARGIN_BPS = 12.0
+TRAILING_DRAWDOWN_FRACTION = 0.08
+SEVERE_DRAWDOWN_FRACTION = 0.12
+ENTRY_LOSS_FRACTION = 0.08
 
 
 def evidence_fresh(row: dict, *, max_age_seconds=MAX_SIGNAL_AGE_SECONDS) -> bool:
@@ -85,10 +88,54 @@ def proposals(row: dict, *, enabled=POLICIES) -> list[dict]:
     } for name, horizon, gross in specs]
 
 
+def learned_proposal(item: dict) -> dict | None:
+    """Turn a READY BEAN Q-policy into a real costed entry candidate."""
+    if not item.get("target_exposure") or not item.get("reward_available"):
+        return None
+    product = str(item.get("product") or "").upper()
+    if not product or "-" not in product:
+        return None
+    try:
+        reward = float(item["reward_bps"])
+        spread = float(item.get("spread_bps") or 0)
+    except (ValueError, TypeError, KeyError):
+        return None
+    if not all(math.isfinite(x) for x in (reward, spread)):
+        return None
+    r5 = float(item.get("return_5m") or 0)
+    r1 = float(item.get("return_1h") or 0)
+    r6 = float(item.get("return_6h") or 0)
+    if r5 > 0 and r1 > 0 and r6 > 0:
+        horizon = 360
+    elif r5 > 0 and r1 > 0:
+        horizon = 60
+    elif r5 > 0:
+        horizon = 15
+    else:
+        horizon = 5
+    return {
+        **item, "product": product,
+        "strategy": "bean_q_" + str(item.get("action") or "learned"),
+        "maturity_minutes": horizon,
+        "gross_projection_bps": reward * min(12, max(1, horizon // 5)),
+        "signal_source": "bean_q_feedback_unvalidated_forward_hypothesis",
+    }
+
+
 def select_plan(snapshot: dict, *, taker_bps=DEFAULT_TAKER_BPS,
-                enabled=POLICIES) -> dict:
+                enabled=POLICIES, learned_candidates=None) -> dict:
     universe = snapshot.get("asset_universe") or {}
-    ranked = universe.get("scored") or universe.get("buy_top") or universe.get("top") or []
+    ranked = list(universe.get("scored") or universe.get("buy_top") or universe.get("top") or [])
+    learned_candidates = list(learned_candidates or [])
+    learned_by_product = {
+        str(item.get("product") or "").upper(): item
+        for item in learned_candidates if isinstance(item, dict)
+    }
+    present = {str(item.get("product") or "").upper() for item in ranked}
+    # A learned position must not be invisible merely because the public scan
+    # omitted the instrument. Only live assessment-backed rows are included.
+    ranked.extend(item for product, item in learned_by_product.items()
+                  if product not in present and item.get("target_exposure"))
     tradable = set(snapshot.get("tradable_products") or ())
     held = snapshot.get("positions") or {}
     cash = snapshot.get("cash_by_quote") or {}
@@ -110,6 +157,9 @@ def select_plan(snapshot: dict, *, taker_bps=DEFAULT_TAKER_BPS,
             diag["skipped"]["untradable"] += 1
             continue
         opts=proposals(row,enabled=enabled)
+        learned = learned_proposal(learned_by_product.get(product) or {})
+        if learned is not None:
+            opts.append(learned)
         if not opts:
             diag["skipped"]["no_signal"] += 1
             continue
@@ -163,19 +213,52 @@ def select_plan(snapshot: dict, *, taker_bps=DEFAULT_TAKER_BPS,
 
 
 def exit_reason(held_product: str, snapshot: dict, *,
-                deadline_reached=False) -> str | None:
-    rows=(snapshot.get("asset_universe") or {}).get("scored") or []
-    row=next((r for r in rows if str(r.get("product") or "")==held_product),None)
+                deadline_reached=False, observed_peak_price=None,
+                current_mark_price=None, verified_entry_price=None,
+                learned_exposure=None) -> str | None:
+    """Live held-position exit policy, including BEAN cash and observed loss.
+
+    No P/L is fabricated when Coinbase historical fill coverage is incomplete.
+    The thresholds are real trading rules, not advisory notifications.
+    """
+    if learned_exposure is False:
+        return "bean_q_policy_cash"
+    rows = (snapshot.get("asset_universe") or {}).get("scored") or []
+    row = next((r for r in rows
+                if str(r.get("product") or "").upper() == held_product.upper()), None)
+    try:
+        mark = float(current_mark_price or 0)
+        peak = float(observed_peak_price or 0)
+        entry = float(verified_entry_price or 0)
+        if not all(math.isfinite(x) for x in (mark, peak, entry)):
+            mark = peak = entry = 0.0
+    except (ValueError, TypeError, OverflowError):
+        mark = peak = entry = 0.0
+    if mark > 0 and entry > 0 and mark <= entry * (1 - ENTRY_LOSS_FRACTION):
+        return "verified_entry_loss_limit"
+    if mark > 0 and peak > 0 and mark <= peak:
+        drop = 1 - mark / peak
+        if drop >= SEVERE_DRAWDOWN_FRACTION:
+            return "severe_observed_drawdown"
+        if drop >= TRAILING_DRAWDOWN_FRACTION:
+            # Peak loss is a valid signal even if public candles are missing.
+            return "observed_trailing_drawdown"
     if row is None or not evidence_fresh(row):
-        # Missing evidence cannot indefinitely extend an expired holding.
         return "planned_maturity_exit_unobserved" if deadline_reached else None
-    r5=float(row.get("return_5m") or 0.0)
-    r1=float(row.get("return_1h") or 0.0)
-    r6=float(row.get("return_6h") or 0.0)
+    try:
+        r5 = float(row.get("return_5m") or 0)
+        r1 = float(row.get("return_1h") or 0)
+        r6 = float(row.get("return_6h") or 0)
+    except (ValueError, TypeError, OverflowError):
+        return "planned_maturity_exit_unobserved" if deadline_reached else None
+    if not all(math.isfinite(x) for x in (r5, r1, r6)):
+        return "planned_maturity_exit_unobserved" if deadline_reached else None
     if r5 < -0.008 and r1 < 0:
         return "trend_invalidation"
     if r1 <= -0.015 and r6 <= -0.025:
         return "sustained_downtrend"
+    if r1 <= -0.006 and r6 <= -0.02 and r5 <= 0:
+        return "persistent_multi_hour_weakness"
     if deadline_reached:
         return "planned_maturity_exit"
     return None

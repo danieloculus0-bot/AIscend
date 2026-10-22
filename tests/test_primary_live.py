@@ -65,7 +65,7 @@ class PrimaryLiveTests(unittest.TestCase):
         row=self.store.latest_decisions(1)[0]
         self.assertEqual(row["action"],"HOLD")
         self.assertIn("no cost-positive executable entry",row["rationale"])
-        self.assertIn('"bean_role": "research_advisory_only"',
+        self.assertIn('"bean_role": "q_policy_live_candidate_and_cash_exit"',
                       self.store.get_meta("primary_trade_plan_latest"))
 
     def test_buy_execution_error_is_not_called_success(self):

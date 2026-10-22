@@ -52,14 +52,11 @@ def choose_execution_rail(
         and bool(base.get("positions") or {})
     ):
         return "base"
-    if weakest:
-        weakest_product = str(weakest.get("product") or "").upper()
-        weakest_score = float(weakest.get("decision_score") if weakest.get("decision_score") is not None else (weakest.get("score") or 0.0))
-        if weakest_product in (advanced.get("positions") or {}):
-            # The execution engine handles whether to rotate or exit.
-            # Do not strand the holding on another rail using an obsolete
-            # hard-coded sell threshold.
-            return "advanced"
+    if advanced.get("positions"):
+        # All owned Coinbase Advanced positions require a live execution cycle
+        # for maturity, cost-basis, drawdown and learned CASH checks, even when
+        # the public scanner cannot score them. A missing row is not HOLD.
+        return "advanced"
 
     base_cash = float(base.get("cash") or 0.0)
     base_positions = base.get("positions") or {}
