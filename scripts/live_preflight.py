@@ -284,7 +284,9 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, help="Optional JSON report destination")
     args = parser.parse_args(argv)
-    report = inspect_advanced()
+    # CLI must enforce the same authenticated-history gate as the Qt START
+    # button. A basic connection check is not sufficient for live admission.
+    report = inspect_advanced(require_history=True)
     encoded = json.dumps(report, indent=2, sort_keys=True)
     print(encoded)
     if args.output:
