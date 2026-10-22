@@ -69,6 +69,11 @@ class FakeVault:
     def client(self, timeout=10):
         return self.sdk
 
+    def _credentials(self):
+        # Simulated key identity for an offline SDK execution contract test.
+        # This is deliberately not a real authenticated Coinbase account.
+        return ("offline-test-coinbase-key", "offline-test-secret")
+
 
 class CaptureAudit:
     provider_id = staticmethod(AuditTrail.provider_id)
@@ -109,7 +114,12 @@ class RealToolchainBoundaryTests(unittest.TestCase):
                 engine.audit = audit
                 engine.growth_gate = None
                 engine._taker_cost_bps = lambda: (60.0, "test_fee")
-                current = {"snapshot": snapshot({"USDC": 20.0})}
+                scope = rail.account_scope_id()
+                self.assertEqual(len(scope), 64)
+                current = {"snapshot": {
+                    **snapshot({"USDC": 20.0}),
+                    "authenticated_scope": scope,
+                }}
                 engine.sync = lambda: current["snapshot"]
 
                 advanced = {**current["snapshot"],
@@ -133,7 +143,10 @@ class RealToolchainBoundaryTests(unittest.TestCase):
 
                 # Next authenticated sync has observed the conversion proceeds.
                 # There is no same-cycle fake cash credit.
-                current["snapshot"] = snapshot({"USD": 19.0})
+                current["snapshot"] = {
+                    **snapshot({"USD": 19.0}),
+                    "authenticated_scope": scope,
+                }
                 engine._primary_trade_step(current["snapshot"])
                 second = dict(store.latest_decisions(1)[0])
                 self.assertEqual((second["action"], second["symbol"],
