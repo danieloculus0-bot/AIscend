@@ -135,6 +135,30 @@ class AdvancedTradeSpot:
     def __init__(self, vault: AdvancedTradeVault | None = None) -> None:
         self.vault = vault or AdvancedTradeVault()
 
+    @classmethod
+    def validate_credentials(cls, api_key_id: str, api_key_secret: str):
+        """Prove an Advanced key works before persisting it or changing env.
+
+        The candidate client is transient and does not overwrite credentials
+        belonging to a currently running trading engine.
+        """
+        if not api_key_id.strip() or not api_key_secret.strip():
+            raise ValueError("Advanced Trade key id and secret are required.")
+
+        class CandidateVault:
+            def client(self, timeout=10):
+                return RESTClient(
+                    api_key=api_key_id.strip(),
+                    api_secret=api_key_secret.strip(),
+                    timeout=timeout,
+                )
+
+        status = cls(vault=CandidateVault()).status()
+        if not status.can_view or not status.can_trade:
+            raise RuntimeError(
+                "Coinbase Advanced key requires both view and trade permissions.")
+        return status
+
     @staticmethod
     def _dict(value: Any) -> dict[str, Any]:
         if isinstance(value, dict):

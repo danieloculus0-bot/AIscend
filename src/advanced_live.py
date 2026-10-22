@@ -73,6 +73,16 @@ class AdvancedSpotEngine:
         self.growth_gate = growth_gate
         self._snapshot: dict[str, Any] | None = None
 
+    def snapshot(self) -> dict[str, Any]:
+        """Provide the same snapshot interface as Base and synthetic engines.
+
+        The desktop refresh must not make another network request merely to
+        render the state already returned by a successful sync/step.
+        """
+        if self._snapshot is None:
+            return self.sync()
+        return self._snapshot
+
     @staticmethod
     def _split_product(product_id: str) -> tuple[str, str]:
         base, _, quote = product_id.upper().rpartition("-")
@@ -1244,13 +1254,9 @@ class AdvancedSpotEngine:
         _, quote = self._split_product(product_id)
         available = Decimal(str((snapshot.get("cash_by_quote") or {}).get(quote, 0.0)))
         spend = available * Decimal(str(decision.fraction))
-        # Preserve the latest main branch's position concentration constraint.
-        nav = float(snapshot.get("net_liquidation") or 0.0)
-        if nav > 0.0 and quote in DOLLAR_ASSETS:
-            base, _ = self._split_product(product_id)
-            held_value = float((snapshot.get("balance_values_usd") or {}).get(base) or 0.0)
-            limit = Decimal(str(max(0.0, 0.60 * nav - held_value)))
-            spend = min(spend, limit)
+        # Trade the requested fraction of spendable quote balance.
+        # No hidden portfolio-percentage cap: the experiment's exposure is
+        # controlled by its actual decision, available funds and venue sizing.
         # Coinbase requires each market's quote increment, including when
         # spending the full quote balance. Rounding down is exchange sizing,
         # not a policy cash reserve.

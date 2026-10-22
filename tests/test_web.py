@@ -202,7 +202,7 @@ class WebAppTests(unittest.TestCase):
         key = {"name": "sample-advanced-id", "privateKey": "sample-advanced-key"}
         client = app.test_client()
         with patch("web_app.AdvancedTradeVault") as vault_cls, patch("web_app.AdvancedTradeSpot") as spot_cls:
-            spot_cls.return_value.status.return_value.as_dict.return_value = {
+            spot_cls.validate_credentials.return_value.as_dict.return_value = {
                 "configured": True, "tradable_spot_products": 1
             }
             response = client.post(
@@ -211,25 +211,62 @@ class WebAppTests(unittest.TestCase):
             )
             self.assertEqual(response.status_code, 200)
             self.assertTrue(response.get_json()["persisted"])
-            vault_cls.return_value.configure.assert_called_once_with(
+            vault_cls.return_value.configure.assert_not_called()
+            spot_cls.validate_credentials.assert_called_once_with(
                 "sample-advanced-id", "sample-advanced-key"
             )
             vault_cls.return_value.save.assert_called_once_with(
                 "sample-advanced-id", "sample-advanced-key"
             )
-            spot_cls.return_value.status.assert_called_once()
+            spot_cls.return_value.status.assert_not_called()
 
     def test_failed_advanced_connect_does_not_persist_key(self):
         key = {"name": "sample-advanced-id", "privateKey": "sample-advanced-key"}
         client = app.test_client()
         with patch("web_app.AdvancedTradeVault") as vault_cls, patch("web_app.AdvancedTradeSpot") as spot_cls:
-            spot_cls.return_value.status.side_effect = RuntimeError("permission denied")
+            spot_cls.validate_credentials.side_effect = RuntimeError("permission denied")
             response = client.post(
                 "/api/configure-advanced",
                 data={"key_file": (io.BytesIO(json.dumps(key).encode()), "advanced.json")},
             )
             self.assertEqual(response.status_code, 400)
             vault_cls.return_value.save.assert_not_called()
+
+    def test_diagnostics_report_actual_q_trade_plan_not_fixed_advisory(self):
+        from src.core import Decision
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "live-advanced.db"
+            store = StateStore(path)
+            try:
+                plan = {
+                    "primary_engine": "aiscend_price_action_v1",
+                    "bean_role": "q_policy_live_candidate_and_cash_exit",
+                    "decision": "SELL",
+                    "holding_reviews": {
+                        "GROVE-USDC": {"exit_reason": "bean_q_policy_cash"}
+                    },
+                }
+                store.set_meta("primary_trade_plan_latest",
+                               json.dumps(plan))
+                store.add_decision(
+                    Decision("SELL", "GROVE-USDC", 1.0,
+                             "AIscend bean_q_policy_cash"), "FILLED_VERIFIED")
+            finally:
+                store.close()
+            with patch("web_app._db_path",
+                       side_effect=lambda network, rail="base":
+                       path if rail == "advanced" else Path(td) / "absent.db"), patch(
+                       "web_app._bean_growth") as gate:
+                gate.status.return_value = {"mode": "live"}
+                diagnostics = app.test_client().get("/api/trading-diagnostics")
+                self.assertEqual(diagnostics.status_code, 200)
+                self.assertEqual(diagnostics.get_json()["bean_role"],
+                                 "q_policy_live_candidate_and_cash_exit")
+                growth = app.test_client().get("/api/bean-growth")
+                self.assertEqual(growth.status_code, 200)
+                record = growth.get_json()["execution_evidence"]["advanced"]
+                self.assertTrue(record["decision_derived_from_learned_policy"])
+                self.assertEqual(record["execution_status"], "FILLED_VERIFIED")
 
     def test_failed_cycle_is_written_to_decision_journal(self):
         class BrokenEngine:
