@@ -10,6 +10,7 @@ account is readable and operable; it does not prove fills or profitability.
 from __future__ import annotations
 
 import argparse
+from contextlib import closing
 import json
 import sqlite3
 from pathlib import Path
@@ -23,7 +24,7 @@ def _read_metadata(db: Path) -> dict[str, str]:
     if not db.is_file():
         return {}
     try:
-        with sqlite3.connect(f"{db.as_uri()}?mode=ro", uri=True, timeout=5) as con:
+        with closing(sqlite3.connect(f"{db.as_uri()}?mode=ro", uri=True, timeout=5)) as con:
             return {
                 str(key): str(value)
                 for key, value in con.execute(
