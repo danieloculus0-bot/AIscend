@@ -72,7 +72,8 @@ def _normalize_fill(raw):
         raise ValueError("Missing verified Coinbase fill identity, side or spot pair")
     size = _positive(raw.get("size"))
     price = _positive(raw.get("price"))
-    fee = _money(raw.get("commission"))
+    # Coinbase maker rebates can be negative commission.
+    fee = _signed_finite(raw.get("commission"))
     if size is None or price is None or fee is None:
         raise ValueError("Coinbase fill size, price or commission is incomplete")
     stamp = str(raw.get("trade_time") or "").strip()
