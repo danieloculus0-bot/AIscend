@@ -104,13 +104,35 @@ def _normalize_fill(raw):
     }
 
 
-def preserve_fills(store, response, *, clock=time.time):
+def _valid_scope(scope):
+    return (isinstance(scope, str) and len(scope) == 64 and
+            all(c in "0123456789abcdef" for c in scope))
+
+
+def _require_scope(scope):
+    if not _valid_scope(scope):
+        raise ValueError("Verified Coinbase credential scope required")
+    return scope
+
+
+def _scope_meta(key, scope):
+    return key + ":" + _require_scope(scope)
+
+
+def _fill_table(store):
+    # Never import legacy, unscoped fills: their account is unknown.
+    store.conn.execute("""CREATE TABLE IF NOT EXISTS bean_account_fills (
+        account_scope TEXT NOT NULL, fill_id TEXT NOT NULL,
+        evidence TEXT NOT NULL, observed_at REAL NOT NULL,
+        PRIMARY KEY (account_scope, fill_id))""")
+
+
+def preserve_fills(store, response, *, account_scope, clock=time.time):
     """Idempotently retain all observed fills, including an incomplete page run."""
     if not isinstance(response, dict) or not isinstance(response.get("fills"), list):
         raise ValueError("Coinbase fills response missing list")
-    store.conn.execute("""CREATE TABLE IF NOT EXISTS bean_verified_fills (
-        fill_id TEXT PRIMARY KEY, evidence TEXT NOT NULL,
-        observed_at REAL NOT NULL)""")
+    scope = _require_scope(account_scope)
+    _fill_table(store)
     normalized = [_normalize_fill(item) for item in response["fills"]]
     if response.get("complete") is True:
         # A fully paginated account snapshot must include every previously
@@ -118,41 +140,45 @@ def preserve_fills(store, response, *, clock=time.time):
         # changed and historical results cannot be reconciled safely.
         previous = {
             row["fill_id"] for row in store.conn.execute(
-                "SELECT fill_id FROM bean_verified_fills")
+                "SELECT fill_id FROM bean_account_fills WHERE account_scope=?",
+                (scope,))
         }
         incoming = {row["fill_id"] for row in normalized}
         if previous - incoming:
-            store.set_meta("bean_fills_last_complete_at", "")
+            store.set_meta(_scope_meta("bean_fills_last_complete_at", scope), "")
             raise ValueError("Coinbase complete history excludes prior recorded fills")
     with store.conn:
         for fill in normalized:
             payload = json.dumps(fill, sort_keys=True)
             previous = store.conn.execute(
-                "SELECT evidence FROM bean_verified_fills WHERE fill_id=?",
-                (fill["fill_id"],)).fetchone()
+                "SELECT evidence FROM bean_account_fills WHERE account_scope=? AND fill_id=?",
+                (scope, fill["fill_id"])).fetchone()
             if previous is not None and previous["evidence"] != payload:
                 raise ValueError("Coinbase returned conflicting evidence for a fill ID")
             if previous is None:
                 store.conn.execute(
-                    "INSERT INTO bean_verified_fills(fill_id,evidence,observed_at) "
-                    "VALUES(?,?,?)", (fill["fill_id"], payload, float(clock())))
+                    "INSERT INTO bean_account_fills(account_scope,fill_id,evidence,observed_at) "
+                    "VALUES(?,?,?,?)", (scope, fill["fill_id"], payload, float(clock())))
     if response.get("complete") is True:
-        store.set_meta("bean_fills_last_complete_at", str(float(clock())))
+        store.set_meta(_scope_meta("bean_fills_last_complete_at", scope),
+                       str(float(clock())))
     else:
-        store.set_meta("bean_fills_last_complete_at", "")
-    store.set_meta("bean_fills_last_attempt_at", str(float(clock())))
+        store.set_meta(_scope_meta("bean_fills_last_complete_at", scope), "")
+    store.set_meta(_scope_meta("bean_fills_last_attempt_at", scope),
+                   str(float(clock())))
     return len(normalized)
 
 
-def execution_history(store, *, fresh_seconds=900, clock=time.time):
+def execution_history(store, *, account_scope, fresh_seconds=900, clock=time.time):
     """Never declare a partial or stale exchange history complete."""
-    store.conn.execute("""CREATE TABLE IF NOT EXISTS bean_verified_fills (
-        fill_id TEXT PRIMARY KEY, evidence TEXT NOT NULL,
-        observed_at REAL NOT NULL)""")
-    last = _money(store.get_meta("bean_fills_last_complete_at"))
+    scope = _require_scope(account_scope)
+    _fill_table(store)
+    last = _money(store.get_meta(_scope_meta("bean_fills_last_complete_at", scope)))
     fresh = last is not None and 0 <= float(clock()) - last <= fresh_seconds
     rows = [json.loads(row["evidence"]) for row in
-            store.conn.execute("SELECT evidence FROM bean_verified_fills").fetchall()]
+            store.conn.execute(
+                "SELECT evidence FROM bean_account_fills WHERE account_scope=?",
+                (scope,)).fetchall()]
     rows.sort(key=lambda x: (x["trade_time"], x["fill_id"]))
     result = {
         "status": "COMPLETE" if fresh else "UNVERIFIED_OR_STALE",
@@ -232,7 +258,7 @@ def evaluate_account(store, snapshot, rail, *, clock=time.time,
             preserve_fills(store, response, clock=clock)
             status = "PROVIDER_HISTORY_COMPLETE" if response.get("complete") else "PROVIDER_HISTORY_PARTIAL"
         except Exception as exc:
-            store.set_meta("bean_fills_last_complete_at", "")
+            store.set_meta(_scope_meta("bean_fills_last_complete_at", scope), "")
             status = "HISTORY_READ_FAILED:" + type(exc).__name__
     else:
         status = "CACHED_HISTORY"
