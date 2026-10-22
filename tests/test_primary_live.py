@@ -1,4 +1,5 @@
 """Mock Coinbase order paths for the real AIscend policy, independent of BEAN."""
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -59,6 +60,33 @@ class PrimaryLiveTests(unittest.TestCase):
         self.assertEqual(self.actions[-1],("BUY","ALEO-USD"))
         self.assertGreater(float(self.store.get_meta(
             "primary_maturity_at:ALEO-USD")),0)
+
+    def test_ambiguous_quote_bridge_reports_unknown_and_retains_intent(self):
+        # The bridge might have reached Coinbase before the timeout.
+        from src.wallets.advanced_trade import CoinbaseSubmissionUnconfirmed
+
+        def uncertain_bridge(source, target, snapshot, rationale):
+            self.store.set_meta("pending_coinbase_order", '{"client_order_id":"bridge-1","product":"USDC-USD","side":"SELL"}')
+            raise CoinbaseSubmissionUnconfirmed("Coinbase timed out after bridge submit")
+
+        self.engine._execute_quote_bridge = uncertain_bridge
+        self.engine._primary_trade_step(self.snapshot(cash={"USDC": 20}))
+        row = self.store.latest_decisions(1)[0]
+        self.assertEqual(row["status"], "ORDER_SUBMISSION_UNKNOWN")
+        self.assertIn("Conversion failed", row["rationale"])
+        self.assertIn("bridge-1", self.store.get_meta("pending_coinbase_order"))
+        self.assertEqual(json.loads(self.store.get_meta(
+            "primary_trade_plan_latest"))["execution_status"],
+                         "ORDER_SUBMISSION_UNKNOWN")
+
+    def test_bridge_failure_without_submitted_order_is_execution_error(self):
+        def fail_before_submitting(source, target, snapshot, rationale):
+            raise RuntimeError("Coinbase bridge preview rejected")
+        self.engine._execute_quote_bridge = fail_before_submitting
+        self.engine._primary_trade_step(self.snapshot(cash={"USDC": 20}))
+        row = self.store.latest_decisions(1)[0]
+        self.assertEqual(row["status"], "EXECUTION_ERROR")
+        self.assertFalse(self.store.get_meta("pending_coinbase_order"))
 
     def test_idle_wallet_explains_no_compatible_eligible_route(self):
         self.engine._primary_trade_step(self.snapshot(cash={}))
