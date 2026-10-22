@@ -379,6 +379,48 @@ class AdvancedTradeSpot:
             return None
         return float(value * Decimal("10000"))
 
+    def find_order_id_by_client_id(
+        self, *, product_id: str, client_order_id: str, max_pages: int = 10
+    ) -> str | None:
+        """Locate an uncertain submission without ever creating another order.
+
+        Coinbase's authenticated List Orders endpoint supports pagination.
+        A missing listing is NOT confirmation that a submission failed.
+        """
+        if not product_id or not client_order_id:
+            raise ValueError("Product and client order ID are required")
+        client = self.vault.client()
+        cursor = None
+        seen_cursors = set()
+        matched_ids = set()
+        for _ in range(max_pages):
+            kwargs = {"product_ids": [product_id.upper()], "limit": 100}
+            if cursor:
+                kwargs["cursor"] = cursor
+            response = self._dict(client.list_orders(**kwargs))
+            orders = response.get("orders")
+            if not isinstance(orders, list):
+                raise RuntimeError("Coinbase order history returned invalid data")
+            for order in orders:
+                if not isinstance(order, dict):
+                    continue
+                if (str(order.get("client_order_id") or "") == client_order_id
+                        and str(order.get("product_id") or "").upper()
+                        == product_id.upper()):
+                    found = str(order.get("order_id") or "")
+                    if found:
+                        matched_ids.add(found)
+            if len(matched_ids) > 1:
+                raise RuntimeError("Coinbase returned multiple orders for one client ID")
+            next_cursor = str(response.get("cursor") or "")
+            if response.get("has_next") is False or not next_cursor:
+                break
+            if next_cursor in seen_cursors:
+                raise RuntimeError("Coinbase order history repeated a cursor")
+            seen_cursors.add(next_cursor)
+            cursor = next_cursor
+        return next(iter(matched_ids)) if matched_ids else None
+
     def order_detail(self, order_id: str) -> dict[str, Any]:
         """Read an authenticated Coinbase order (not the submit ACK)."""
         if not order_id or not order_id.strip():
