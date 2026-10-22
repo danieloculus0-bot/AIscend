@@ -469,7 +469,7 @@ class AdvancedTradeSpot:
         seen = set()
         fills = []
         for page in range(max_pages):
-            kwargs = {"limit": 100}
+            kwargs = {"limit": 100, "product_types": ["SPOT"]}
             if cursor:
                 kwargs["cursor"] = cursor
             payload = self._dict(client.get_fills(**kwargs))
