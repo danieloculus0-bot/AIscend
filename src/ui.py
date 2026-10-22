@@ -329,7 +329,9 @@ class MainWindow(QMainWindow):
     def configure_coinbase(self) -> None:
         key_file, _ = QFileDialog.getOpenFileName(
             self,
-            "Select Coinbase CDP API key JSON",
+            ("Select Coinbase Advanced Trade API key JSON"
+             if self.selected_network() == "advanced"
+             else "Select Coinbase CDP API key JSON"),
             str(Path.home()),
             "JSON files (*.json);;All files (*.*)",
         )
@@ -350,12 +352,9 @@ class MainWindow(QMainWindow):
 
         if self.selected_network() == "advanced":
             try:
-                vault = AdvancedTradeVault()
-                vault.save(api_key_id, api_key_secret)
-                permissions = AdvancedTradeSpot(vault=vault).permissions()
-                if not permissions.get("can_view") or not permissions.get("can_trade"):
-                    raise RuntimeError(
-                        "Coinbase Advanced key requires view and trade permission.")
+                AdvancedTradeSpot.validate_credentials(
+                    api_key_id, api_key_secret)
+                AdvancedTradeVault().save(api_key_id, api_key_secret)
             except Exception as exc:
                 QMessageBox.critical(self, "Coinbase Advanced setup", str(exc))
                 return
@@ -403,11 +402,14 @@ class MainWindow(QMainWindow):
                        if network == "advanced"
                        else CredentialVault().configured())
         if not vault_ready:
-            QMessageBox.information(
-                self,
-                "Coinbase setup",
-                "Configure the selected Coinbase execution rail first.",
-            )
+            # Give the user a working way to provision the chosen rail:
+            # previously this reverted to synthetic BEFORE Configure Coinbase
+            # could learn which key type the user intended to supply.
+            self.configure_coinbase()
+            vault_ready = (AdvancedTradeVault().configured()
+                           if network == "advanced"
+                           else CredentialVault().configured())
+        if not vault_ready:
             self.execution.blockSignals(True)
             self.execution.setCurrentIndex(0)
             self.execution.blockSignals(False)
@@ -427,6 +429,8 @@ class MainWindow(QMainWindow):
 
         self.subtitle.setText("Autonomous capital experiment · synthetic sandbox")
         self.reset_button.setEnabled(True)
+        self.mode.setEnabled(True)
+        self.toggle_ai_fields()
         self.refresh()
 
     def _switch_to_live(self, network: str) -> None:
@@ -465,10 +469,17 @@ class MainWindow(QMainWindow):
             f"{snap['wallet_address'][:24]}…"
         )
         self.reset_button.setEnabled(False)
+        if network == "advanced":
+            # An OpenAI-compatible model is not wired into Advanced trading.
+            # Never show inert controls as though they make trade decisions.
+            self.mode.setCurrentIndex(0)
+        self.mode.setEnabled(network != "advanced")
+        self.toggle_ai_fields()
         self.refresh()
 
     def toggle_ai_fields(self) -> None:
-        enabled = self.mode.currentIndex() == 1
+        advanced = self.selected_network() == "advanced"
+        enabled = self.mode.currentIndex() == 1 and not advanced
         self.endpoint.setEnabled(enabled and not self.timer.isActive())
         self.model.setEnabled(enabled and not self.timer.isActive())
 
@@ -524,7 +535,7 @@ class MainWindow(QMainWindow):
         self.interval.setEnabled(True)
         self.execution.setEnabled(True)
         self.coinbase_button.setEnabled(True)
-        self.mode.setEnabled(True)
+        self.mode.setEnabled(self.selected_network() != "advanced")
         self.reset_button.setEnabled(self.selected_network() is None)
         self.toggle_ai_fields()
 
@@ -570,7 +581,8 @@ class MainWindow(QMainWindow):
             values = [
                 symbol,
                 f"{data['qty']:.8f}",
-                f"${data['avg_cost']:.4f}",
+                (f"${float(data['avg_cost']):.4f}"
+                 if data.get("avg_cost") is not None else "Unverified"),
                 f"${prices.get(symbol, 0):.4f}",
                 f"${data['qty'] * prices.get(symbol, 0):.4f}",
             ]

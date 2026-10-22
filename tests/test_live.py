@@ -64,6 +64,19 @@ class LiveEngineTests(unittest.TestCase):
         self.addCleanup(store.close)
         return store
 
+    def test_base_wallet_does_not_invent_purchase_cost_from_mark(self):
+        store = self.make_store()
+        wallet = FakeWallet()
+        wallet.weth = Decimal("0.005")
+        wallet.usdc = Decimal("0")
+        snap = LiveEngine(store, wallet).sync()
+        self.assertIn("WETH", snap["positions"])
+        self.assertIsNone(snap["positions"]["WETH"]["avg_cost"])
+        self.assertEqual(
+            snap["positions"]["WETH"]["cost_basis_status"],
+            "unverified_without_wallet_trade_lots")
+        self.assertEqual(snap["positions"]["WETH"]["mark_price"], 2500.0)
+
     def test_live_buy_remains_executable_when_hourly_bean_disagrees(self):
         class BeanDisagrees:
             def assess(self):

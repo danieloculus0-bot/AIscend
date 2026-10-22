@@ -428,10 +428,25 @@ def bean_growth_status():
             latest = store.latest_decisions(1)
             decision = dict(latest[0]) if latest else None
             rationale = str((decision or {}).get("rationale") or "")
+            plan = json.loads(store.get_meta("primary_trade_plan_latest") or "{}")
+            winner = plan.get("winner") or {}
+            reviews = plan.get("holding_reviews") or {}
+            # Advanced's real primary engine names Q-driven decisions AIscend,
+            # not "BEAN learned"; a rationale-prefix-only check falsely
+            # reported live learned decisions as disconnected.
+            learned_decision = (
+                rationale.startswith("BEAN learned ")
+                or (plan.get("decision") == "BUY"
+                    and str(winner.get("strategy") or "").startswith("bean_q_"))
+                or (plan.get("decision") == "SELL"
+                    and any((review or {}).get("exit_reason") ==
+                            "bean_q_policy_cash" for review in reviews.values()))
+            )
             evidence[rail] = {
                 "last_policy_evaluation": growth,
                 "last_order_decision": decision,
-                "decision_derived_from_learned_policy": rationale.startswith("BEAN learned "),
+                "decision_derived_from_learned_policy": bool(learned_decision),
+                "execution_status": (decision or {}).get("status"),
             }
         finally:
             store.close()
@@ -463,8 +478,8 @@ def trading_diagnostics():
             bridge["status"] = f"UNAVAILABLE: {type(exc).__name__}"
     return jsonify({
         "ok": True,
-        "primary_engine": "aiscend_price_action_v1",
-        "bean_role": "research_advisory_only",
+        "primary_engine": plan.get("primary_engine", "not_yet_evaluated"),
+        "bean_role": plan.get("bean_role", "not_yet_evaluated"),
         "version": (Path(__file__).parent / "VERSION").read_text(encoding="utf-8").strip(),
         "bean_bridge": bridge,
         "order_evidence": order_evidence,
@@ -519,9 +534,11 @@ def configure_advanced():
         if not api_key_id or not api_key_secret:
             raise ValueError("Advanced Trade key JSON is missing id/name or privateKey.")
 
+        # Validate a candidate key without putting it into process-wide env.
+        # Only authenticated, trade-capable keys are persisted.
+        status = AdvancedTradeSpot.validate_credentials(
+            api_key_id, api_key_secret)
         vault = AdvancedTradeVault()
-        vault.configure(api_key_id, api_key_secret)
-        status = AdvancedTradeSpot(vault).status()
         vault.save(api_key_id, api_key_secret)
         return jsonify({"ok": True, "persisted": True, **status.as_dict()})
     except Exception as exc:

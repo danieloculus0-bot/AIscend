@@ -183,6 +183,34 @@ class AdvancedTradeTests(unittest.TestCase):
                     api_key="new-id", api_secret="new-secret", timeout=10
                 )
 
+    def test_candidate_key_validation_does_not_poison_environment(self):
+        client = FakeClient()
+        with patch.dict(os.environ, {}, clear=True), patch(
+            "src.wallets.advanced_trade.RESTClient", return_value=client
+        ) as factory:
+            status = AdvancedTradeSpot.validate_credentials(
+                "candidate-id", "candidate-secret")
+            self.assertTrue(status.can_trade)
+            self.assertEqual(factory.call_count, 2)
+            for args in factory.call_args_list:
+                self.assertEqual(args.kwargs, {
+                    "api_key": "candidate-id",
+                    "api_secret": "candidate-secret", "timeout": 10})
+            self.assertNotIn("ADVANCED_TRADE_API_KEY_ID", os.environ)
+            self.assertNotIn("ADVANCED_TRADE_API_KEY_SECRET", os.environ)
+
+    def test_candidate_without_trade_permission_rejected(self):
+        class ViewOnly(FakeClient):
+            def get_api_key_permissions(self):
+                return FakeResponse({"can_view": True, "can_trade": False,
+                                     "can_transfer": False})
+        with patch("src.wallets.advanced_trade.RESTClient",
+                   return_value=ViewOnly()), patch.dict(
+                       os.environ, {}, clear=True):
+            with self.assertRaisesRegex(RuntimeError, "view and trade"):
+                AdvancedTradeSpot.validate_credentials("id", "secret")
+            self.assertNotIn("ADVANCED_TRADE_API_KEY_ID", os.environ)
+
     def test_status_lists_balances_and_tradable_spot_products(self):
         status = AdvancedTradeSpot(FakeVault()).status()
         self.assertEqual(status.tradable_spot_products, 2)

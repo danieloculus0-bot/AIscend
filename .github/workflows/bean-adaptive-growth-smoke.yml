@@ -22,6 +22,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install Qt runtime libraries for headless GUI integration
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libegl1 libgl1 libopengl0 libxkbcommon-x11-0 libxcb-cursor0
       - name: Install Python runtime dependencies
         run: python -m pip install -r requirements.txt
       - name: Run causal reward-learning integration tests
@@ -32,5 +37,10 @@ jobs:
         run: python -m unittest discover -s tests -p test_bean_growth_rotation.py -v
       - name: Run complete Python regression suite
         run: python -m unittest discover -s tests -v
+      - name: Exercise isolated Qt desktop integration
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m scripts.desktop_integration_check
+
       - name: Verify syntax of live adapters
         run: python -m compileall -q src/bean_growth_adaptive.py src/live.py src/advanced_live.py web_app.py
