@@ -258,6 +258,38 @@ class AdvancedTradeTests(unittest.TestCase):
         with self.assertRaises(CoinbaseSubmissionUnconfirmed):
             rail.market_buy("btc-usd", Decimal("5"), "unknown-2")
 
+    def test_client_order_recovery_matches_exact_authenticated_identifier(self):
+        rail = AdvancedTradeSpot(FakeVault())
+        calls = []
+        def listing(**kw):
+            calls.append(kw)
+            if "cursor" not in kw:
+                return FakeResponse({
+                    "orders": [{"order_id": "wrong", "product_id": "GROVE-USDC",
+                                "client_order_id": "someone-else"}],
+                    "cursor": "next", "has_next": True,
+                })
+            return FakeResponse({
+                "orders": [{"order_id": "coinbase-actual-id",
+                            "product_id": "GROVE-USDC",
+                            "client_order_id": "aiscend-same-id"}],
+                "has_next": False,
+            })
+        rail.vault.fake_client.list_orders = listing
+        found = rail.find_order_id_by_client_id(
+            product_id="GROVE-USDC", client_order_id="aiscend-same-id")
+        self.assertEqual(found, "coinbase-actual-id")
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0]["product_ids"], ["GROVE-USDC"])
+        self.assertEqual(calls[1]["cursor"], "next")
+
+    def test_client_order_not_found_is_not_called_rejected(self):
+        rail = AdvancedTradeSpot(FakeVault())
+        rail.vault.fake_client.list_orders = lambda **kw: FakeResponse({
+            "orders": [], "has_next": False})
+        self.assertIsNone(rail.find_order_id_by_client_id(
+            product_id="GROVE-USDC", client_order_id="aiscend-unknown"))
+
     def test_preview_rejection_blocks_order(self):
         rail = AdvancedTradeSpot(FakeVault())
         rail.vault.fake_client.preview_market_order_buy = lambda **kwargs: FakeResponse(
