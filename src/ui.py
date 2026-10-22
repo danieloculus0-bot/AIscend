@@ -352,21 +352,8 @@ class MainWindow(QMainWindow):
 
         if self.selected_network() == "advanced":
             try:
-                # Verify the actual Coinbase account before saving a key.
-                # Do not advertise invalid credentials as "configured".
-                class CandidateVault:
-                    def client(self, timeout=10):
-                        from coinbase.rest import RESTClient
-                        return RESTClient(
-                            api_key=api_key_id,
-                            api_secret=api_key_secret,
-                            timeout=timeout,
-                        )
-
-                status = AdvancedTradeSpot(vault=CandidateVault()).status()
-                if not status.can_view or not status.can_trade:
-                    raise RuntimeError(
-                        "Coinbase Advanced key requires view and trade permission.")
+                AdvancedTradeSpot.validate_credentials(
+                    api_key_id, api_key_secret)
                 AdvancedTradeVault().save(api_key_id, api_key_secret)
             except Exception as exc:
                 QMessageBox.critical(self, "Coinbase Advanced setup", str(exc))
