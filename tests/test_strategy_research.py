@@ -1,6 +1,7 @@
 import unittest
+from unittest.mock import patch
 
-from src.bean_five_minute import BAR
+from src.bean_five_minute import BAR, fetch_5m
 from src.strategy_research import validate, simulate, RESEARCH_POLICIES
 from src.primary_strategy import POLICIES
 
@@ -13,7 +14,8 @@ def fixture(n=1100, *, trend=.001):
         # Deterministic, future-independent example, not market evidence.
         op=price
         price=price*(1+trend)
-        data[ts0+k*BAR]={"open":op,"close":price}
+        data[ts0+k*BAR]={"open":op,"close":price,
+                         "volume":400.0 if k%6 == 0 else 100.0}
     return data
 
 
@@ -60,6 +62,49 @@ class ResearchEvidenceTests(unittest.TestCase):
         result=validate(fixture(100))
         self.assertEqual(result["status"],"INSUFFICIENT_HISTORY")
         self.assertNotIn("promotion_eligible",result)
+
+    def test_flat_market_volume_does_not_confirm_breakout(self):
+        bars=fixture()
+        self.assertGreater(simulate(bars,"breakout")["trades"],0)
+        for candle in bars.values():
+            candle["volume"]=100.0
+        self.assertEqual(simulate(bars,"breakout")["trades"],0)
+
+    def test_missing_and_zero_market_volume_do_not_confirm_breakout(self):
+        bars=fixture()
+        for candle in bars.values():
+            candle.pop("volume")
+        self.assertEqual(simulate(bars,"breakout")["trades"],0)
+        for candle in bars.values():
+            candle["volume"]=0.0
+        self.assertEqual(simulate(bars,"breakout")["trades"],0)
+
+    def test_interim_underwater_position_increases_drawdown(self):
+        bars=fixture()
+        baseline=simulate(bars,"trend")
+        keys=sorted(bars)
+        # An adverse interim close is followed by a full recovery before
+        # scheduled liquidation, so final trade P/L should not conceal risk.
+        bars[keys[80]]["close"]*=0.35
+        stressed=simulate(bars,"trend")
+        self.assertAlmostEqual(baseline["net_return"],
+                               stressed["net_return"],places=6)
+        self.assertGreater(stressed["max_drawdown"],0.50)
+        self.assertGreater(stressed["max_drawdown"],baseline["max_drawdown"])
+
+    def test_coinbase_loader_retains_actual_volume(self):
+        ts=1_700_000_100 // BAR * BAR
+        response=[[ts, 9.0, 11.0, 10.0, 10.5, 123.45]]
+        with patch("src.bean_five_minute._get_json",return_value=response):
+            bars=fetch_5m("BTC-USD",ts,ts+BAR)
+        self.assertEqual(bars[ts]["volume"],123.45)
+
+    def test_coinbase_invalid_volume_never_becomes_fake_confirmation(self):
+        ts=1_700_000_100 // BAR * BAR
+        response=[[ts, 9.0, 11.0, 10.0, 10.5, None]]
+        with patch("src.bean_five_minute._get_json",return_value=response):
+            bars=fetch_5m("BTC-USD",ts,ts+BAR)
+        self.assertNotIn("volume",bars[ts])
 
 
 if __name__=="__main__":
