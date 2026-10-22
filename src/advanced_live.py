@@ -962,6 +962,15 @@ class AdvancedSpotEngine:
             self.store.set_meta("pending_coinbase_order", "")
             self.store.set_meta("last_coinbase_submission_state", state)
             if state == "FILLED_VERIFIED":
+                # A completed SELL or BUY changes the position's lifecycle.
+                # Reset observed peaks and cached entry costs so an old lot's
+                # peak cannot mistakenly trigger a new position's stop.
+                if str(pending.get("side") or "").upper() in {"BUY", "SELL"}:
+                    for prefix in ("primary_peak:", "primary_fill_basis:",
+                                   "primary_fill_basis_checked_at:"):
+                        self.store.set_meta(prefix + product, "")
+                if str(pending.get("side") or "").upper() == "SELL":
+                    self.store.set_meta("primary_maturity_at:" + product, "0")
                 # Final receipt is appended separately from the original
                 # submitted-order audit; never retroactively rewrite history.
                 try:
@@ -1215,6 +1224,10 @@ class AdvancedSpotEngine:
             if status in {"FILLED_VERIFIED", "ORDER_ACCEPTED_UNVERIFIED"}:
                 self.store.set_meta("primary_maturity_at:" + product,
                                     str(now + 60 * winner["maturity_minutes"]))
+                if status == "FILLED_VERIFIED":
+                    for prefix in ("primary_peak:", "primary_fill_basis:",
+                                   "primary_fill_basis_checked_at:"):
+                        self.store.set_meta(prefix + product, "")
         except Exception as exc:
             status = "EXECUTION_ERROR"
             decision = Decision("BUY", product, 1.0,
