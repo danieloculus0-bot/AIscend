@@ -171,7 +171,7 @@ def run_simulation(*, seed=20261022, policy_cases=5000,
         elif case == 3 and reason != "bean_q_policy_cash":
             report["failures"].append(f"learned-cash-ignored:{idx}:{reason}")
         elif case == 4 and reason not in {
-                "verified_entry_loss_limit", "planned_maturity_exit"}:
+                "verified_entry_loss_limit", "planned_maturity_exit_unobserved"}:
             report["failures"].append(f"maturity-not-sold:{idx}:{reason}")
         counts[reason or "HOLD"] += 1
     report["policy_outcomes"] = dict(counts)
