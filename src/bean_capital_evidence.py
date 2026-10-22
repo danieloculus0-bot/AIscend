@@ -26,6 +26,14 @@ def _positive(value):
     return amount if amount is not None and amount > 0 else None
 
 
+def _signed_finite(value):
+    try:
+        amount = float(value)
+        return amount if math.isfinite(amount) else None
+    except (ValueError, TypeError, OverflowError):
+        return None
+
+
 def capital_snapshot(snapshot):
     """Preserve the original observed starting equity, not a synthetic seed."""
     complete = bool(snapshot.get("valuation_complete", False))
