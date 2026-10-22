@@ -59,9 +59,9 @@ def _normalize_fill(raw):
     identity = str(raw.get("entry_id") or raw.get("trade_id") or "").strip()
     product = str(raw.get("product_id") or "").upper()
     side = str(raw.get("side") or "").upper()
-    if (not identity or not product.endswith(("-USD", "-USDC"))
+    if (not identity or "-" not in product
             or side not in ("BUY", "SELL")):
-        raise ValueError("Missing verified Coinbase fill identity, side or USD/USDC pair")
+        raise ValueError("Missing verified Coinbase fill identity, side or spot pair")
     size = _positive(raw.get("size"))
     price = _positive(raw.get("price"))
     fee = _money(raw.get("commission"))
