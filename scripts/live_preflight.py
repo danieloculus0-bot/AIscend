@@ -5,7 +5,8 @@ Usage:
 
 This validates the *installed* program's credentials, tradability, stored
 order-reconciliation state and recent decision. A green result means the
-account has a funded USD/USDC spot route; it does not prove order sizing,\nactual fills, or profitability.
+account has a funded USD/USDC spot route; it does not prove order sizing,
+actual fills, or profitability.
 """
 from __future__ import annotations
 
