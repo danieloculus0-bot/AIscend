@@ -42,7 +42,10 @@ class PaperCoreLearningContracts(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["entry_ts"], self.entry)
         self.assertGreater(rows[0]["entry_ts"], self.observed)
-        self.assertGreater(rows[0]["net_return"], 0)
+        # A 1% gross increase still loses money after the modeled
+        # 1.3% round-trip taker+spread cost. Never train BEAN on gross P/L.
+        self.assertLess(rows[0]["net_return"], 0)
+        self.assertAlmostEqual(rows[0]["net_return"], -0.0030873275, places=8)
         self.assertNotIn("price", rows[0])
 
     def test_prior_bar_entry_or_mutated_pnl_never_teaches_bean(self):
