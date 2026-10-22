@@ -329,7 +329,9 @@ class MainWindow(QMainWindow):
     def configure_coinbase(self) -> None:
         key_file, _ = QFileDialog.getOpenFileName(
             self,
-            "Select Coinbase CDP API key JSON",
+            ("Select Coinbase Advanced Trade API key JSON"
+             if self.selected_network() == "advanced"
+             else "Select Coinbase CDP API key JSON"),
             str(Path.home()),
             "JSON files (*.json);;All files (*.*)",
         )
@@ -350,12 +352,22 @@ class MainWindow(QMainWindow):
 
         if self.selected_network() == "advanced":
             try:
-                vault = AdvancedTradeVault()
-                vault.save(api_key_id, api_key_secret)
-                permissions = AdvancedTradeSpot(vault=vault).permissions()
-                if not permissions.get("can_view") or not permissions.get("can_trade"):
+                # Verify the actual Coinbase account before saving a key.
+                # Do not advertise invalid credentials as "configured".
+                class CandidateVault:
+                    def client(self, timeout=10):
+                        from coinbase.rest import RESTClient
+                        return RESTClient(
+                            api_key=api_key_id,
+                            api_secret=api_key_secret,
+                            timeout=timeout,
+                        )
+
+                status = AdvancedTradeSpot(vault=CandidateVault()).status()
+                if not status.can_view or not status.can_trade:
                     raise RuntimeError(
                         "Coinbase Advanced key requires view and trade permission.")
+                AdvancedTradeVault().save(api_key_id, api_key_secret)
             except Exception as exc:
                 QMessageBox.critical(self, "Coinbase Advanced setup", str(exc))
                 return
@@ -403,11 +415,14 @@ class MainWindow(QMainWindow):
                        if network == "advanced"
                        else CredentialVault().configured())
         if not vault_ready:
-            QMessageBox.information(
-                self,
-                "Coinbase setup",
-                "Configure the selected Coinbase execution rail first.",
-            )
+            # Give the user a working way to provision the chosen rail:
+            # previously this reverted to synthetic BEFORE Configure Coinbase
+            # could learn which key type the user intended to supply.
+            self.configure_coinbase()
+            vault_ready = (AdvancedTradeVault().configured()
+                           if network == "advanced"
+                           else CredentialVault().configured())
+        if not vault_ready:
             self.execution.blockSignals(True)
             self.execution.setCurrentIndex(0)
             self.execution.blockSignals(False)
