@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import hashlib
 from dataclasses import asdict, dataclass
 from decimal import Decimal
 from typing import Any
@@ -149,6 +150,21 @@ class AdvancedTradeSpot:
 
     def __init__(self, vault: AdvancedTradeVault | None = None) -> None:
         self.vault = vault or AdvancedTradeVault()
+
+    def account_scope_id(self) -> str | None:
+        """Opaque per-credential scope; key rotations start new evidence scopes.
+
+        Only call after authenticated Coinbase account status succeeds. Hash
+        the key identifier, never its secret or portfolio balance. Distinct
+        keys to one portfolio deliberately remain isolated until proven safe
+        to combine. This is a credential scope, not an account UUID.
+        """
+        credentials = self.vault._credentials()
+        if not credentials or not credentials[0].strip():
+            return None
+        return hashlib.sha256(
+            ("coinbase-advanced-key-v1:" + credentials[0].strip()).encode(
+                "utf-8")).hexdigest()
 
     @classmethod
     def validate_credentials(cls, api_key_id: str, api_key_secret: str):
