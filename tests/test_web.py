@@ -202,7 +202,7 @@ class WebAppTests(unittest.TestCase):
         key = {"name": "sample-advanced-id", "privateKey": "sample-advanced-key"}
         client = app.test_client()
         with patch("web_app.AdvancedTradeVault") as vault_cls, patch("web_app.AdvancedTradeSpot") as spot_cls:
-            spot_cls.return_value.status.return_value.as_dict.return_value = {
+            spot_cls.validate_credentials.return_value.as_dict.return_value = {
                 "configured": True, "tradable_spot_products": 1
             }
             response = client.post(
@@ -211,19 +211,20 @@ class WebAppTests(unittest.TestCase):
             )
             self.assertEqual(response.status_code, 200)
             self.assertTrue(response.get_json()["persisted"])
-            vault_cls.return_value.configure.assert_called_once_with(
+            vault_cls.return_value.configure.assert_not_called()
+            spot_cls.validate_credentials.assert_called_once_with(
                 "sample-advanced-id", "sample-advanced-key"
             )
             vault_cls.return_value.save.assert_called_once_with(
                 "sample-advanced-id", "sample-advanced-key"
             )
-            spot_cls.return_value.status.assert_called_once()
+            spot_cls.return_value.status.assert_not_called()
 
     def test_failed_advanced_connect_does_not_persist_key(self):
         key = {"name": "sample-advanced-id", "privateKey": "sample-advanced-key"}
         client = app.test_client()
         with patch("web_app.AdvancedTradeVault") as vault_cls, patch("web_app.AdvancedTradeSpot") as spot_cls:
-            spot_cls.return_value.status.side_effect = RuntimeError("permission denied")
+            spot_cls.validate_credentials.side_effect = RuntimeError("permission denied")
             response = client.post(
                 "/api/configure-advanced",
                 data={"key_file": (io.BytesIO(json.dumps(key).encode()), "advanced.json")},
