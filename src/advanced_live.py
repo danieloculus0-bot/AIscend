@@ -25,7 +25,8 @@ from .game import score_game
 from .listing_sentinel import CoinbaseListingSentinel
 from .research import MarketResearch
 from .sentiment import HumanSignalResearch, HumanSignals
-from .wallets.advanced_trade import AdvancedTradeSpot, require_accepted_order
+from .wallets.advanced_trade import (AdvancedTradeSpot, require_accepted_order,
+                                     CoinbaseExplicitRejection)
 
 
 DOLLAR_ASSETS = {"USD", "USDC"}
@@ -1175,7 +1176,9 @@ class AdvancedSpotEngine:
                         self.store.set_meta(basis_key, "")
                         self.store.set_meta(check_key, "0")
                 except Exception as exc:
-                    status = "EXECUTION_ERROR"
+                    status = ("ORDER_SUBMISSION_UNKNOWN"
+                              if self.store.get_meta("pending_coinbase_order")
+                              else "EXECUTION_ERROR")
                     decision = Decision("SELL", product, 1.0,
                                         rationale + f" Execution failed: {exc}")
                 return write(decision, status)
@@ -1239,7 +1242,11 @@ class AdvancedSpotEngine:
                                    "primary_fill_basis_checked_at:"):
                         self.store.set_meta(prefix + product, "")
         except Exception as exc:
-            status = "EXECUTION_ERROR"
+            # Transport failures and ambiguous provider responses may have
+            # placed an order. Make unresolved state visible, never "failed".
+            status = ("ORDER_SUBMISSION_UNKNOWN"
+                      if self.store.get_meta("pending_coinbase_order")
+                      else "EXECUTION_ERROR")
             decision = Decision("BUY", product, 1.0,
                                 decision.rationale + f" Execution failed: {exc}")
         return write(decision, status)
@@ -1276,20 +1283,18 @@ class AdvancedSpotEngine:
         try:
             order = self.rail.market_buy(
                 product_id, spend, client_order_id=client_order_id)
-        except RuntimeError as exc:
-            if str(exc).startswith("Coinbase order not confirmed accepted:"):
-                self.store.set_meta("pending_coinbase_order", "")
+        except CoinbaseExplicitRejection:
+            # Coinbase explicitly rejected the order; no possible accepted fill.
+            self.store.set_meta("pending_coinbase_order", "")
+            self.store.set_meta("last_coinbase_submission_state", "VENUE_REJECTED")
             raise
+        # All other transport, SDK and unconfirmed-response failures retain
+        # the previously recorded client_order_id. We cannot safely retry.
         try:
             require_accepted_order(order)
-        except RuntimeError:
-            # Explicit venue rejection is final. Leaving its pre-submission
-            # intent pending freezes trading despite having no accepted order.
-            # Ambiguous/noncommittal responses remain pending for investigation.
-            if isinstance(order, dict) and order.get("success") is False:
-                self.store.set_meta("pending_coinbase_order", "")
-                self.store.set_meta(
-                    "last_coinbase_submission_state", "VENUE_REJECTED")
+        except CoinbaseExplicitRejection:
+            self.store.set_meta("pending_coinbase_order", "")
+            self.store.set_meta("last_coinbase_submission_state", "VENUE_REJECTED")
             raise
         result_state, evidence = self._check_or_track_submission(
             order, product=product_id, side="BUY", client_id=client_order_id)
@@ -1362,20 +1367,18 @@ class AdvancedSpotEngine:
         try:
             order = self.rail.market_sell(
                 product_id, qty, client_order_id=client_order_id)
-        except RuntimeError as exc:
-            if str(exc).startswith("Coinbase order not confirmed accepted:"):
-                self.store.set_meta("pending_coinbase_order", "")
+        except CoinbaseExplicitRejection:
+            # Coinbase explicitly rejected the order; no possible accepted fill.
+            self.store.set_meta("pending_coinbase_order", "")
+            self.store.set_meta("last_coinbase_submission_state", "VENUE_REJECTED")
             raise
+        # All other transport, SDK and unconfirmed-response failures retain
+        # the previously recorded client_order_id. We cannot safely retry.
         try:
             require_accepted_order(order)
-        except RuntimeError:
-            # Explicit venue rejection is final. Leaving its pre-submission
-            # intent pending freezes trading despite having no accepted order.
-            # Ambiguous/noncommittal responses remain pending for investigation.
-            if isinstance(order, dict) and order.get("success") is False:
-                self.store.set_meta("pending_coinbase_order", "")
-                self.store.set_meta(
-                    "last_coinbase_submission_state", "VENUE_REJECTED")
+        except CoinbaseExplicitRejection:
+            self.store.set_meta("pending_coinbase_order", "")
+            self.store.set_meta("last_coinbase_submission_state", "VENUE_REJECTED")
             raise
         result_state, evidence = self._check_or_track_submission(
             order, product=product_id, side="SELL", client_id=client_order_id)
