@@ -4,15 +4,16 @@ Usage:
   python -m scripts.live_preflight
 
 This validates the *installed* program's credentials, tradability, stored
-order-reconciliation state and recent decision. A green result means the
-account has a funded USD/USDC spot route; it does not prove order sizing,
-actual fills, or profitability.
+order-reconciliation state, product-rule minimums and recent decision.
+A green result means at least one screened USD/USDC route is sized; it does
+not prove order-preview approval, actual fills, or profitability.
 """
 from __future__ import annotations
 
 import argparse
 from contextlib import closing
 import json
+from decimal import Decimal, InvalidOperation, ROUND_DOWN
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -62,6 +63,115 @@ def _funded_executable_pairs(funded_assets: set[str], product_ids: tuple[str, ..
     return reachable
 
 
+# Limit authenticated product-rule lookups during read-only relaunch checks.
+# A capped/incomplete probe must NEVER be interpreted as an all-clear.
+MAX_PRODUCT_RULE_CHECKS = 12
+
+
+def _positive_amount(value: Any) -> Decimal:
+    try:
+        amount = Decimal(str(value))
+        return amount if amount.is_finite() and amount > 0 else Decimal(0)
+    except (InvalidOperation, TypeError, ValueError):
+        return Decimal(0)
+
+
+def _usable_size(amount: Decimal, rules: dict, *, side: str) -> bool:
+    """Check spendable funds after the same venue increment rounding as live execution."""
+    key = "quote" if side == "BUY" else "base"
+    try:
+        minimum = Decimal(str(rules[key + "_min_size"]))
+        increment = Decimal(str(rules[key + "_increment"]))
+        if (not minimum.is_finite() or minimum < 0 or
+                not increment.is_finite() or increment <= 0):
+            return False
+        rounded = (amount / increment).to_integral_value(rounding=ROUND_DOWN) * increment
+        return rounded > 0 and rounded >= minimum
+    except (KeyError, InvalidOperation, TypeError, ValueError, ArithmeticError):
+        return False
+
+
+def _sized_funded_pairs(rail, product_ids: tuple[str, ...],
+                        funded_pairs: list[str], balances: dict[str, Decimal]):
+    """Bounded no-order lookup of Coinbase product increments and minimums.
+
+    This is a rough sizing check, NOT a preview, fee quote, authorization to
+    trade, or a promise about the current order book. The exchange's live
+    preview still decides whether an actual order is valid.
+    """
+    getter = getattr(rail, "product", None)
+    if not callable(getter):
+        return [], 0, ["PRODUCT_RULES_UNAVAILABLE"], False
+    listed = set(product_ids)
+    cache = {}
+    errors = set()
+    lookups = 0
+    capped = False
+
+    def rules(product):
+        nonlocal lookups, capped
+        if product in cache:
+            return cache[product]
+        if lookups >= MAX_PRODUCT_RULE_CHECKS:
+            capped = True
+            return None
+        lookups += 1
+        try:
+            value = getter(product)
+            if not isinstance(value, dict):
+                raise ValueError("Invalid product-rule payload")
+            cache[product] = value
+            return value
+        except Exception:
+            errors.add("PRODUCT_RULES_UNAVAILABLE")
+            cache[product] = None
+            return None
+
+    # Prioritize held assets and directly funded quotes, since those require
+    # only one leg and avoid unnecessary API calls to unrelated markets.
+    ordered = sorted(
+        funded_pairs,
+        key=lambda p: (
+            0 if p.rpartition("-")[0] in balances
+            else 1 if p.rpartition("-")[2] in balances else 2,
+            p))
+    sized = []
+    for product in ordered:
+        base, _, quote = product.rpartition("-")
+        rule = rules(product)
+        if rule is None:
+            continue
+        if (base in balances and
+                _usable_size(balances[base], rule, side="SELL")):
+            sized.append(product)
+            break
+        if (quote in balances and
+                _usable_size(balances[quote], rule, side="BUY")):
+            sized.append(product)
+            break
+        for source in ("USD", "USDC"):
+            amount = balances.get(source, Decimal(0))
+            conversion = bridge_order(source, quote, listed)
+            if amount <= 0 or not conversion:
+                continue
+            bridge_rule = rules(conversion["product"])
+            if bridge_rule is None or not _usable_size(
+                    amount, bridge_rule, side=conversion["side"]):
+                continue
+            # The USD/USDC conversion is approximately par, but a conservative
+            # 2% reserve must cover both potential fee/spread changes. This
+            # DOES NOT replace the real Coinbase market-order preview.
+            if _usable_size(amount * Decimal("0.98"), rule, side="BUY"):
+                sized.append(product)
+                errors.add("CROSS_QUOTE_ORDER_SIZE_ESTIMATED")
+                break
+        if sized:
+            break
+    if capped:
+        errors.add("PRODUCT_RULE_PROBE_LIMIT_REACHED")
+    return sized, lookups, sorted(errors), capped
+
+
 def inspect_advanced(*, vault=None, rail=None, db_path: Path | None = None) -> dict[str, Any]:
     vault = vault or AdvancedTradeVault()
     state = {"execution_rail": "coinbase-advanced", "checked_live_orders": False,
@@ -82,11 +192,12 @@ def inspect_advanced(*, vault=None, rail=None, db_path: Path | None = None) -> d
     state["can_view"] = bool(status.can_view)
     state["can_trade"] = bool(status.can_trade)
     state["tradable_products"] = int(status.tradable_spot_products)
-    assets = [
-        str(a.currency).upper() for a in status.balances
-        if float(a.available) > 0
-    ]
-    state["available_asset_symbols"] = sorted(set(assets))
+    balances = {
+        str(a.currency).upper(): _positive_amount(a.available)
+        for a in status.balances if _positive_amount(a.available) > 0
+    }
+    assets = sorted(balances)
+    state["available_asset_symbols"] = assets
     if not state["can_view"] or not state["can_trade"]:
         state["blockers"].append("COINBASE_KEY_MISSING_VIEW_OR_TRADE")
     if not status.product_ids:
@@ -96,6 +207,15 @@ def inspect_advanced(*, vault=None, rail=None, db_path: Path | None = None) -> d
     state["funded_executable_pairs"] = funded_pairs
     if not funded_pairs:
         state["blockers"].append("NO_FUNDED_EXECUTABLE_SPOT_ROUTE")
+    sized, checks, warnings, limited = _sized_funded_pairs(
+        rail, tuple(status.product_ids), funded_pairs, balances)
+    state["sized_funded_pairs"] = sized
+    state["order_size_rule_checks"] = checks
+    state["warnings"].extend(warnings)
+    if funded_pairs and not sized:
+        state["blockers"].append("NO_ORDER_SIZE_ELIGIBLE_FUNDED_ROUTE")
+    if limited and not sized:
+        state["blockers"].append("ORDER_SIZE_CHECK_INCOMPLETE")
     meta = _read_metadata(db_path or app_data_dir() / "live-advanced.db")
     pending_raw = meta.get("pending_coinbase_order")
     if pending_raw:
@@ -122,8 +242,9 @@ def inspect_advanced(*, vault=None, rail=None, db_path: Path | None = None) -> d
         state["warnings"].append("NO_PRIOR_ADVANCED_DECISION_FOUND")
     state["execution_ready"] = not state["blockers"]
     state["note"] = ("Read-only account and journal preflight only; "
-                     "no Coinbase order submission, order minimum-size check, "
-                     "fill verification or profitability demonstration performed.")
+                     "no Coinbase order submission, order preview, "
+                     "fill verification or profitability demonstration performed. "
+                     "Product-rule sizing is read-only and estimated for bridged quotes.")
     return state
 
 
