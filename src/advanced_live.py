@@ -811,7 +811,9 @@ class AdvancedSpotEngine:
                               or "ORDER_ACCEPTED_UNVERIFIED")
                     self.store.set_meta(key, "0")
                 except Exception as exc:
-                    status = "EXECUTION_ERROR"
+                    status = ("ORDER_SUBMISSION_UNKNOWN"
+                              if self.store.get_meta("pending_coinbase_order")
+                              else "EXECUTION_ERROR")
                     decision = Decision("SELL", held_product, 1.0,
                                         rationale + f" Execution failed: {exc}")
                 self.store.add_decision(decision, status)
@@ -855,7 +857,9 @@ class AdvancedSpotEngine:
                 status = (self.store.get_meta("last_coinbase_submission_state")
                               or "ORDER_ACCEPTED_UNVERIFIED")
             except Exception as exc:
-                status = "EXECUTION_ERROR"
+                status = ("ORDER_SUBMISSION_UNKNOWN"
+                              if self.store.get_meta("pending_coinbase_order")
+                              else "EXECUTION_ERROR")
                 decision = Decision("HOLD", None, 0.0,
                                     rationale + f" Conversion failed: {exc}")
             self.store.add_decision(decision, status)
@@ -874,7 +878,9 @@ class AdvancedSpotEngine:
             status = (self.store.get_meta("last_coinbase_submission_state")
                               or "ORDER_ACCEPTED_UNVERIFIED")
         except Exception as exc:
-            status = "EXECUTION_ERROR"
+            status = ("ORDER_SUBMISSION_UNKNOWN"
+                              if self.store.get_meta("pending_coinbase_order")
+                              else "EXECUTION_ERROR")
             decision = Decision("BUY", product, 1.0,
                                 rationale + f" Execution failed: {exc}")
         self.store.add_decision(decision, status)
@@ -1238,7 +1244,9 @@ class AdvancedSpotEngine:
                 status = (self.store.get_meta("last_coinbase_submission_state")
                           or "ORDER_ACCEPTED_UNVERIFIED")
             except Exception as exc:
-                status = "EXECUTION_ERROR"
+                status = ("ORDER_SUBMISSION_UNKNOWN"
+                          if self.store.get_meta("pending_coinbase_order")
+                          else "EXECUTION_ERROR")
                 decision = Decision("HOLD", None, 0.0,
                                     rationale + f" Conversion failed: {exc}")
             return write(decision, status)
