@@ -104,6 +104,14 @@ def _db(conn):
         entry_price REAL, exit_price REAL, net_return REAL,
         reason TEXT NOT NULL DEFAULT '',
         PRIMARY KEY(product, policy_sha, signal_ts))""")
+    # BEAN's shadow choice is committed BEFORE any hypothetical entry,
+    # in a separate table so paper baseline accounting is unaffected.
+    conn.execute("""CREATE TABLE IF NOT EXISTS bean_paper_shadow (
+        product TEXT NOT NULL, policy_sha TEXT NOT NULL,
+        signal_ts INTEGER NOT NULL, observed_at REAL NOT NULL,
+        action TEXT NOT NULL CHECK(action IN ('trade','cash')),
+        core_sha TEXT NOT NULL, q_updates INTEGER NOT NULL,
+        PRIMARY KEY(product,policy_sha,signal_ts))""")
     columns = [r[1] for r in conn.execute("PRAGMA table_info(paper_decisions)")]
     if "entry_ts" not in columns:
         raise ValueError("Legacy paper fills used an already-open entry bar; "
