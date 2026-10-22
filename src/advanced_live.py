@@ -445,6 +445,8 @@ class AdvancedSpotEngine:
             "market_value": market_value,
             "net_liquidation": net,
             "pnl": (net - start) if start else 0.0,
+            "pnl_is_verified_trading_profit": False,
+            "pnl_semantics": "unadjusted_equity_change_since_first_observed_balance",
             "multiple": (net / start) if start else math.nan,
             "wallet_address": "Coinbase Advanced portfolio",
             "network": "coinbase-advanced",
