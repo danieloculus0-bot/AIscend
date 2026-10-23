@@ -59,7 +59,7 @@ class PrimaryLiveTests(unittest.TestCase):
         self.engine._primary_trade_step(self.snapshot(cash={"USD":19}))
         self.assertEqual(self.actions[-1],("BUY","ALEO-USD"))
         self.assertGreater(float(self.store.get_meta(
-            "primary_maturity_at:ALEO-USD")),0)
+            "primary_maturity_at:unverified:ALEO-USD")),0)
 
     def test_ambiguous_quote_bridge_reports_unknown_and_retains_intent(self):
         # The bridge might have reached Coinbase before the timeout.
@@ -96,6 +96,26 @@ class PrimaryLiveTests(unittest.TestCase):
         self.assertIn('"bean_role": "q_policy_live_candidate_and_cash_exit"',
                       self.store.get_meta("primary_trade_plan_latest"))
 
+    def test_actual_advanced_step_cannot_bypass_verified_loss_with_price_action(self):
+        from unittest.mock import patch
+        account={"account_scope_verified":True,
+                 "capital":{"starting_equity_usd":25.0,"current_equity_usd":18.0},
+                 "read_status":"PROVIDER_HISTORY_COMPLETE",
+                 "execution":{"status":"COMPLETE","fill_count_retained":5,
+                              "products":{"ALEO-USD":{
+                                  "status":"VERIFIED_NET_CLOSED_TRADES",
+                                  "closed_sells":4,"realized_net_quote":-7.0,
+                                  "return_on_matched_cost_bps":-2500.0}}}}
+        snapshot=self.snapshot(cash={"USD":25})
+        with patch("src.advanced_live.evaluate_account",return_value=account):
+            self.engine._primary_trade_step(snapshot)
+        self.assertNotIn(("BUY","ALEO-USD"),self.actions)
+        self.assertEqual(self.store.latest_decisions(1)[0]["action"],"HOLD")
+        plan=json.loads(self.store.get_meta("primary_trade_plan_latest"))
+        self.assertIsNone(plan["winner"])
+        self.assertEqual(plan["skipped"]["verified_historical_loss"],1)
+        self.assertTrue(plan["authenticated_trade_history"]["account_scope_verified"])
+
     def test_buy_execution_error_is_not_called_success(self):
         def boom(decision,snapshot):
             raise RuntimeError("preview rejected by venue")
@@ -107,7 +127,7 @@ class PrimaryLiveTests(unittest.TestCase):
         self.assertIn("preview rejected",row["rationale"])
 
     def test_expired_unscored_holding_is_sold_not_perpetually_held(self):
-        self.store.set_meta("primary_maturity_at:MET-USDC","1")
+        self.store.set_meta("primary_maturity_at:unverified:MET-USDC","1")
         self.engine._primary_trade_step(self.snapshot(
             held={"MET-USDC":{"qty":3,"available_qty":3}}))
         self.assertEqual(self.actions[-1],("SELL","MET-USDC"))

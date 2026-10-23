@@ -174,6 +174,62 @@ class PortfolioCoordinatorTests(unittest.TestCase):
                    return_value=BuyDecision()):
             self.assertEqual(choose_execution_rail(base, advanced), "advanced")
 
+    def test_auto_rail_uses_real_usdc_to_usd_bridge_for_better_opportunity(self):
+        base = {"cash": 0.0, "net_liquidation": 70.0,
+                "positions": {}, "research": {"composite_score": 0.01}}
+        advanced = {"cash": 20.0, "net_liquidation": 20.0,
+                    "cash_by_quote": {"USDC": 20.0}, "positions": {},
+                    "tradable_products": ["BTC-USD", "USDC-USD"],
+                    "market_radar": {"best_long": {
+                        "product": "BTC-USD", "decision_score": 0.5}}}
+        class Hold:
+            action = "HOLD"
+        with patch("src.portfolio.ResearchDecider.decide", return_value=Hold()):
+            self.assertEqual(choose_execution_rail(base, advanced), "advanced")
+
+    def test_auto_rail_uses_real_usd_to_usdc_bridge(self):
+        base = {"cash": 0.0, "net_liquidation": 70.0,
+                "positions": {}, "research": {"composite_score": 0.0}}
+        advanced = {"cash": 20.0, "net_liquidation": 20.0,
+                    "cash_by_quote": {"USD": 20.0}, "positions": {},
+                    "tradable_products": ["ETH-USDC", "USDC-USD"],
+                    "market_radar": {"best_long": {
+                        "product": "ETH-USDC", "decision_score": 0.5}}}
+        class Hold:
+            action = "HOLD"
+        with patch("src.portfolio.ResearchDecider.decide", return_value=Hold()):
+            self.assertEqual(choose_execution_rail(base, advanced), "advanced")
+
+    def test_auto_rail_does_not_invent_unlisted_coinbase_bridge(self):
+        base = {"cash": 10.0, "net_liquidation": 10.0,
+                "positions": {}, "research": {"composite_score": 0.02}}
+        advanced = {"cash": 20.0, "net_liquidation": 20.0,
+                    "cash_by_quote": {"USDC": 20.0}, "positions": {},
+                    "tradable_products": ["BTC-USD"],
+                    "market_radar": {"best_long": {
+                        "product": "BTC-USD", "decision_score": 0.5}}}
+        class Buy:
+            action = "BUY"
+        with patch("src.portfolio.ResearchDecider.decide", return_value=Buy()):
+            self.assertEqual(choose_execution_rail(base, advanced), "base")
+
+    def test_auto_rail_explicit_empty_tradability_is_not_a_buy_signal(self):
+        base = {"cash": 10.0, "net_liquidation": 50.0,
+                "positions": {}, "research": {"composite_score": 0.0}}
+        advanced = {
+            "cash": 20.0, "net_liquidation": 20.0,
+            "cash_by_quote": {"USDC": 20.0}, "positions": {},
+            "tradable_products": [],
+            "market_radar": {"best_long": {
+                "product": "ETH-USDC", "decision_score": 0.8}},
+        }
+        class Hold:
+            action = "HOLD"
+        with patch("src.portfolio.ResearchDecider.decide", return_value=Hold()):
+            # No authenticated tradable market means no Advanced BUY.
+            # Select the better-funded rail to journal HOLD.
+            self.assertEqual(choose_execution_rail(base, advanced), "base")
+
     def test_auto_rail_rechecks_held_advanced_asset(self):
         base = {"cash": 10.0, "net_liquidation": 10.0,
                 "positions": {}, "research": {"composite_score": 0.25}}

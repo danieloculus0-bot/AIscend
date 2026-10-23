@@ -207,12 +207,12 @@ def run_simulation(*, seed=20261022, policy_cases=5000,
 
                 product = "GROVE-USDC"
                 store.set_meta("pending_coinbase_order", "")
-                store.set_meta("primary_peak:" + product,
+                store.set_meta("primary_peak:unverified:" + product,
                                str(price / .89) if case == 2 else str(price))
-                store.set_meta("primary_maturity_at:" + product,
+                store.set_meta("primary_maturity_at:unverified:" + product,
                                "1" if case == 4 else str(time.time() + 3600))
-                store.set_meta("primary_fill_basis:" + product, "")
-                store.set_meta("primary_fill_basis_checked_at:" + product, "0")
+                store.set_meta("primary_fill_basis:unverified:" + product, "")
+                store.set_meta("primary_fill_basis_checked_at:unverified:" + product, "0")
                 signal = None
                 if case == 5:
                     signal = {"product": product, "return_5m": -.003,

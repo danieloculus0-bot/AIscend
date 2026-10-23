@@ -46,6 +46,8 @@ _loop_thread: threading.Thread | None = None
 _capital_lock = threading.Lock()
 _snapshot_cache_lock = threading.Lock()
 _snapshot_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+# A repeated infrastructure/SDK failure must not drive unattended retries forever.
+MAX_CONSECUTIVE_CYCLE_ERRORS = 5
 _loop_state: dict[str, Any] = {
     "running": False,
     "rail": "auto",
@@ -56,6 +58,9 @@ _loop_state: dict[str, Any] = {
     "last_cycle_at": None,
     "last_decision_action": None,
     "last_decision_status": None,
+    "consecutive_errors": 0,
+    "last_failure_at": None,
+    "stop_reason": None,
 }
 
 
@@ -292,6 +297,8 @@ def _runner(network: str, interval: float, rail: str) -> None:
                 "interval": interval,
                 "active_rail": None,
                 "last_error": None,
+                "consecutive_errors": 0,
+                "stop_reason": None,
             }
         )
 
@@ -302,13 +309,23 @@ def _runner(network: str, interval: float, rail: str) -> None:
                 with _loop_lock:
                     _loop_state["active_rail"] = cycle.get("active_rail") or rail
                     _loop_state["last_error"] = None
+                    _loop_state["consecutive_errors"] = 0
                     _loop_state["last_cycle_at"] = time.time()
                     decision = cycle.get("decision") or {}
                     _loop_state["last_decision_action"] = decision.get("action")
                     _loop_state["last_decision_status"] = decision.get("status")
             except Exception as exc:
                 with _loop_lock:
-                    _loop_state["last_error"] = str(exc)
+                    _loop_state["last_error"] = f"{type(exc).__name__}: {str(exc)[:240]}"
+                    _loop_state["last_failure_at"] = time.time()
+                    _loop_state["consecutive_errors"] = (
+                        int(_loop_state.get("consecutive_errors") or 0) + 1)
+                    if (_loop_state["consecutive_errors"] >=
+                            MAX_CONSECUTIVE_CYCLE_ERRORS):
+                        _loop_state["stop_reason"] = "CONSECUTIVE_CYCLE_FAILURES"
+                        # Require an explicit restart after repeated exceptions;
+                        # never let unattended execution retry without a bound.
+                        break
             _stop_event.wait(interval)
     finally:
         with _loop_lock:
@@ -813,6 +830,8 @@ def start():
                 "network": network,
                 "interval": interval,
                 "last_error": None,
+                "consecutive_errors": 0,
+                "stop_reason": None,
             }
         )
         _loop_thread = threading.Thread(
@@ -829,6 +848,8 @@ def start():
 @app.post("/api/stop")
 def stop():
     _stop_event.set()
+    with _loop_lock:
+        _loop_state["stop_reason"] = "USER_STOP_REQUESTED"
     return jsonify({"ok": True, "runner": dict(_loop_state)})
 
 

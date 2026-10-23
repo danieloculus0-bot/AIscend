@@ -57,10 +57,24 @@ class RotationTests(unittest.TestCase):
         engine._execute_sell = lambda d, snap: calls.append(("SELL", d.symbol, d.fraction))
         return engine
 
+    def test_explicit_empty_tradability_blocks_bean_candidates(self):
+        learner = LearnedPolicy()
+        snap = self.snapshot(held={"ETH-USDC": {"qty": 1}},
+                             cash={"USDC": 25.0})
+        snap["tradable_products"] = []
+        result = evaluate_candidates(learner, snap)
+        self.assertEqual(result["eligible_count"], 0)
+        self.assertEqual(result["assessed_count"], 0)
+        self.assertIsNone(result["best_long"])
+        self.assertEqual(learner.calls, [])
+
     def test_learned_market_wins_over_scanner_rank(self):
         learner = LearnedPolicy()
         result = evaluate_candidates(learner, self.snapshot(cash={"USDC": 25.0}))
         self.assertEqual(result["best_long"]["product"], "ALEO-USDC")
+        # Prospective conversion from paper reward to live choice must use
+        # the same 60-bps taker fallback, never the former hidden 7-bps value.
+        self.assertAlmostEqual(result["best_long"]["edge_bps"], 400 - 60 - 4 / 2)
         self.assertEqual(result["assessed_count"], 3)
         self.assertEqual(set(learner.calls),
                          {"ETH-USDC", "ALEO-USDC", "DIMO-USDC"})
