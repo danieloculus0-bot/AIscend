@@ -314,8 +314,8 @@ def experiment(product, data, *, fee_bps=60.0, spread_bps=10.0,
                   promotion_authorized=False)
     return {"status": ("DATA_GAP" if test["status"] != "OK" else
                        "HISTORICAL_OOS_PASS" if historical_pass else "NOT_PROVEN"),
-            "product": product, "4h_bars": len(rows),
-            "champion": champion, "training": training,
+            "product": product, "evaluated_bars": len(rows),
+            "period_seconds": period, "champion": champion, "training": training,
             "validation": validation, "holdout": test,
             "holdout_cash": cash, "holdout_buy_hold": buy_hold,
             "eligible_before_holdout": frozen, "promotion_authorized": False,
