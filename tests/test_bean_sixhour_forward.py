@@ -67,6 +67,47 @@ class BeanProspectiveTests(unittest.TestCase):
         self.assertGreaterEqual(confirmed["forward_bars"],2)
         self.assertFalse(confirmed["promotion_authorized"])
 
+    def test_candle_opened_before_freeze_never_counts_as_forward(self):
+        # Freeze happens inside candle 60. Its later close is still historical.
+        self.manifest["frozen_at_unix"] = 60 * BAR + 600
+        self.save()
+        initial = self.run_step(60)["markets"]["BTC-USD"]
+        self.assertEqual(initial["forward_bars"], 0)
+        self.assertEqual(initial["pending"]["entry_ts"], 61 * BAR)
+
+        excluded = self.run_step(61)["markets"]["BTC-USD"]
+        self.assertEqual(excluded["forward_bars"], 0)
+        self.assertEqual(excluded["orders"], 0)
+        self.assertEqual(excluded["q_updates"], 0)
+        self.assertEqual(excluded["fee_net_paper_return"], 0.)
+        self.assertEqual(excluded["pending"]["entry_ts"], 61 * BAR)
+        with closing(sqlite3.connect(self.db)) as db:
+            events = [json.loads(row[0]) for row in
+                      db.execute("SELECT data FROM events ORDER BY seq")]
+        skipped = [e for e in events
+                   if e["type"] == "pre_freeze_candle_excluded"]
+        self.assertEqual(len(skipped), 1)
+        self.assertEqual(skipped[0]["candle_start"], 60 * BAR)
+        self.assertFalse(any(e["type"] == "completed_candle_mark"
+                             and e["candle_start"] == 60 * BAR for e in events))
+
+        eligible = self.run_step(62)["markets"]["BTC-USD"]
+        self.assertEqual(eligible["forward_bars"], 1)
+        self.assertEqual(eligible["orders"], 1)
+        self.assertEqual(eligible["q_updates"], 1)
+        self.assertFalse(eligible["promotion_authorized"])
+
+    def test_late_initialization_does_not_backfill_pre_freeze_bar(self):
+        self.manifest["frozen_at_unix"] = 60 * BAR + 600
+        self.save()
+        initial = self.run_step(61)["markets"]["BTC-USD"]
+        self.assertEqual(initial["forward_bars"], 0)
+        self.assertEqual(initial["orders"], 0)
+        self.assertEqual(initial["pending"]["entry_ts"], 62 * BAR)
+        next_observation = self.run_step(62)["markets"]["BTC-USD"]
+        self.assertEqual(next_observation["forward_bars"], 1)
+        self.assertEqual(next_observation["orders"], 0)
+
     def test_identical_observation_is_idempotent(self):
         self.run_step(60)
         once=self.run_step(62)
