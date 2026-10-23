@@ -19,6 +19,7 @@ AGGREGATE_BARS = 48
 STRATEGIES = ("bean_q", "trend_3d", "trend_7d", "breakout_7d", "volatility_guard")
 COST_MODEL = "coinbase_next_4h_open_taker60_spread10_v1"
 GENESIS = "0" * 64
+PERIOD = BAR * AGGREGATE_BARS
 
 
 def canonical(obj):
@@ -97,26 +98,28 @@ def to_4h(bars):
     return result
 
 
-def signal(history, policy):
-    """Only completed prior candles can inform an entry decision."""
+def signal(history, policy, period_seconds=PERIOD):
+    """Evaluate only prior completed closes, with real-time lookback windows."""
     if len(history) < 43:
         return 0
-    closes = [float(row["close"]) for row in history]
+    closes = [float(x["close"]) for x in history]
+    factor = PERIOD / period_seconds
+    f, m, n = max(2,round(6*factor)),max(3,round(18*factor)),max(5,round(42*factor))
     last = closes[-1]
-    fast = sum(closes[-6:]) / 6
-    mid = sum(closes[-18:]) / 18
-    slow = sum(closes[-42:]) / 42
+    fast, mid, slow = (sum(closes[-f:])/f, sum(closes[-m:])/m,
+                       sum(closes[-n:])/n)
     if policy == "trend_3d":
         return int(fast > mid and last > fast)
     if policy == "trend_7d":
         return int(mid > slow and last > mid)
     if policy == "breakout_7d":
-        return int(last > max(closes[-43:-1]))
+        return int(last > max(closes[-n-1:-1]))
     if policy == "volatility_guard":
-        changes = [math.log(closes[i] / closes[i-1])
-                   for i in range(len(closes)-17, len(closes))]
-        sd = math.sqrt(sum((x - sum(changes)/len(changes))**2
-                           for x in changes) / len(changes))
+        v = max(3,round(17*factor))
+        changes = [math.log(closes[i]/closes[i-1])
+                   for i in range(len(closes)-v,len(closes))]
+        avg = sum(changes)/len(changes)
+        sd = math.sqrt(sum((x-avg)**2 for x in changes)/len(changes))
         return int(mid > slow and last > mid and sd < .035)
     if policy == "cash":
         return 0
@@ -125,17 +128,18 @@ def signal(history, policy):
     raise ValueError("Unknown research policy")
 
 
-def bean_context(history):
-    """Trend and volatility regimes computed without a future candle."""
-    closes = [float(row["close"]) for row in history]
-    fast = sum(closes[-6:]) / 6
-    slow = sum(closes[-42:]) / 42
-    regime = "up" if fast > slow * 1.002 else "down" if fast < slow * .998 else "flat"
-    recent = [math.log(closes[i] / closes[i-1])
-              for i in range(len(closes)-12, len(closes))]
-    variance = sum(x*x for x in recent) / len(recent)
-    vol = "volatile" if math.sqrt(variance) > .018 else "calm"
-    return regime + "/" + vol
+def bean_context(history, period_seconds=PERIOD):
+    """A BEAN Q state with only observed prior prices."""
+    closes = [float(x["close"]) for x in history]
+    factor = PERIOD / period_seconds
+    f,n = max(2,round(6*factor)),max(5,round(42*factor))
+    fast,slow = sum(closes[-f:])/f,sum(closes[-n:])/n
+    regime = "up" if fast > slow*1.002 else "down" if fast < slow*.998 else "flat"
+    v = max(3,round(12*factor))
+    changes = [math.log(closes[i]/closes[i-1])
+               for i in range(len(closes)-v,len(closes))]
+    sigma = math.sqrt(sum(x*x for x in changes)/len(changes))
+    return regime + ("/volatile" if sigma>.018 else "/calm")
 
 
 def bean_action(q, context, prior_position):
@@ -149,7 +153,8 @@ def bean_action(q, context, prior_position):
 
 
 def simulate(rows, policy, start, end, *, fee_bps=60.0, spread_bps=10.0,
-             ledger=None, product=None, phase=None, initial_q=None):
+             ledger=None, product=None, phase=None, initial_q=None,
+             period_seconds=PERIOD):
     if fee_bps < 0 or spread_bps < 0 or fee_bps + spread_bps/2 >= 10000:
         raise ValueError("Invalid trading cost assumption")
     if not (43 <= start < end <= len(rows)):
@@ -169,18 +174,19 @@ def simulate(rows, policy, start, end, *, fee_bps=60.0, spread_bps=10.0,
     for i in range(start, end):
         now = rows[i]
         previous = rows[i-1]
-        if now["ts"] != previous["ts"] + BAR * AGGREGATE_BARS:
+        if now["ts"] != previous["ts"] + period_seconds:
             gap_count += 1
             if position:
                 return {"status": "DATA_GAP", "orders": orders, "gap_count": gap_count}
             prev_close = None
             continue
-        context = bean_context(rows[:i]) if policy == "bean_q" else None
-        target = bean_action(q, context, position) if context else signal(rows[:i], policy)
+        context = bean_context(rows[:i],period_seconds) if policy == "bean_q" else None
+        target = bean_action(q, context, position) if context else signal(rows[:i], policy,period_seconds)
         if prev_close is not None and position:
             equity *= now["open"] / prev_close
         prior_position = position
         if position != target:
+            equity_before_order = equity
             equity *= 1 - cost
             orders += 1
             if position and entry_equity is not None:
@@ -188,7 +194,7 @@ def simulate(rows, policy, start, end, *, fee_bps=60.0, spread_bps=10.0,
                 wins += int(equity > entry_equity)
                 entry_equity = None
             elif target:
-                entry_equity = equity
+                entry_equity = equity_before_order
             position = target
         if position:
             equity *= now["close"] / now["open"]
@@ -200,11 +206,13 @@ def simulate(rows, policy, start, end, *, fee_bps=60.0, spread_bps=10.0,
                                   ("cash", 0.0)):
                 after = int(action == "long")
                 fee = cost if after != prior_position else 0.0
-                reward_bps = ((1-fee) * (1+gross) - 1) * 10000
+                gap_multiplier = (now["open"]/prev_close
+                                  if prior_position and prev_close else 1.0)
+                reward_bps = (gap_multiplier*(1-fee)*(1+gross)-1)*10000
                 bucket[action] += .08 * (reward_bps - bucket[action])
             if ledger is not None:
                 ledger.append("bean_q_reward_update", product=product, phase=phase,
-                              observed_after_ts=now["ts"] + BAR * AGGREGATE_BARS,
+                              observed_after_ts=now["ts"] + period_seconds,
                               context=context, chosen_target=target,
                               scored_long_bps=round(bucket["long"], 7),
                               scored_cash_bps=round(bucket["cash"], 7))
@@ -212,7 +220,7 @@ def simulate(rows, policy, start, end, *, fee_bps=60.0, spread_bps=10.0,
         max_dd = max(max_dd, 1 - equity/peak)
         if ledger is not None:
             ledger.append("causal_decision", product=product, phase=phase,
-                          policy=policy, decision_ts=previous["ts"] + BAR*AGGREGATE_BARS,
+                          policy=policy, decision_ts=previous["ts"] + period_seconds,
                           execution_ts=now["ts"], target=target,
                           equity=round(equity, 10), orders=orders)
         prev_close = now["close"]
@@ -229,43 +237,46 @@ def simulate(rows, policy, start, end, *, fee_bps=60.0, spread_bps=10.0,
             "learner_q": q if policy == "bean_q" else None}
 
 
-def experiment(product, data, *, fee_bps=60.0, spread_bps=10.0):
+def experiment(product, data, *, fee_bps=60.0, spread_bps=10.0,
+               already_aggregated=False):
     """Train -> validation veto -> locked historical holdout; never live-promote."""
-    rows = to_4h(data)
+    rows = (sorted(data.values(), key=lambda x:x["ts"])
+            if already_aggregated else to_4h(data))
+    period = 21600 if already_aggregated else PERIOD
     if len(rows) < 180:
         return {"status": "INSUFFICIENT_HISTORY", "product": product,
-                "4h_bars": len(rows), "promotion_authorized": False}
+                "evaluated_bars": len(rows), "period_seconds": period, "promotion_authorized": False}
     cut1 = int(len(rows) * .55)
     cut2 = int(len(rows) * .75)
     if cut1 < 50 or cut2-cut1 < 20 or len(rows)-cut2 < 20:
         return {"status": "INSUFFICIENT_HISTORY", "product": product,
                 "4h_bars": len(rows), "promotion_authorized": False}
     ledger = Ledger()
-    ledger.append("preregister", schema="bean-profit-search-v1", product=product,
+    ledger.append("preregister", schema="bean-profit-search-v2", product=product,
                   fee_bps=fee_bps, spread_bps=spread_bps,
-                  aggregation_minutes=240, experts=STRATEGIES,
+                  aggregation_minutes=period//60, experts=STRATEGIES,
                   training_cutoff=rows[cut1]["ts"],
                   validation_cutoff=rows[cut2]["ts"])
     training = {p: simulate(rows, p, 43, cut1, fee_bps=fee_bps,
-                            spread_bps=spread_bps) for p in STRATEGIES}
+                            spread_bps=spread_bps, period_seconds=period) for p in STRATEGIES}
     ranked = sorted(STRATEGIES, key=lambda p:
                     (training[p].get("net_return", -float("inf")), p), reverse=True)
     champion = ranked[0]
     ledger.append("bean_train_expert", product=product, champion=champion,
                   ranking=[{"policy": p, "train": training[p]} for p in ranked])
     traced_train = simulate(rows, champion, 43, cut1, fee_bps=fee_bps,
-                            spread_bps=spread_bps, ledger=ledger,
+                            spread_bps=spread_bps, period_seconds=period, ledger=ledger,
                             product=product, phase="train")
     if traced_train["net_return"] != training[champion]["net_return"]:
         raise ValueError("BEAN ledger replay disagrees with training")
     validation = simulate(rows, champion, cut1, cut2, fee_bps=fee_bps,
-                          spread_bps=spread_bps, ledger=ledger,
+                          spread_bps=spread_bps, period_seconds=period, ledger=ledger,
                           product=product, phase="validation",
                           initial_q=traced_train.get("learner_q"))
     val_cash = simulate(rows, "cash", cut1, cut2,
-                        fee_bps=fee_bps, spread_bps=spread_bps)
+                        fee_bps=fee_bps, spread_bps=spread_bps, period_seconds=period)
     val_buy_hold = simulate(rows, "buy_hold", cut1, cut2,
-                            fee_bps=fee_bps, spread_bps=spread_bps)
+                            fee_bps=fee_bps, spread_bps=spread_bps, period_seconds=period)
     frozen = bool(training[champion]["status"] == "OK" and
                   training[champion]["net_return"] > 0 and
                   training[champion]["roundtrips"] >= 2 and
@@ -277,13 +288,13 @@ def experiment(product, data, *, fee_bps=60.0, spread_bps=10.0):
                   validation=validation, validation_cash=val_cash,
                   validation_buy_hold=val_buy_hold, eligible=frozen)
     test = simulate(rows, champion, cut2, len(rows),
-                    fee_bps=fee_bps, spread_bps=spread_bps,
+                    fee_bps=fee_bps, spread_bps=spread_bps, period_seconds=period,
                     ledger=ledger, product=product, phase="holdout",
                     initial_q=validation.get("learner_q"))
     cash = simulate(rows, "cash", cut2, len(rows),
-                    fee_bps=fee_bps, spread_bps=spread_bps)
+                    fee_bps=fee_bps, spread_bps=spread_bps, period_seconds=period)
     buy_hold = simulate(rows, "buy_hold", cut2, len(rows),
-                        fee_bps=fee_bps, spread_bps=spread_bps)
+                        fee_bps=fee_bps, spread_bps=spread_bps, period_seconds=period)
     historical_pass = bool(frozen and test["status"] == "OK" and
                            test["net_return"] > 0 and
                            test["net_return"] > cash["net_return"] and
@@ -292,7 +303,8 @@ def experiment(product, data, *, fee_bps=60.0, spread_bps=10.0):
                   holdout=test, holdout_cash=cash,
                   holdout_buy_hold=buy_hold, historical_pass=historical_pass,
                   promotion_authorized=False)
-    return {"status": "HISTORICAL_OOS_PASS" if historical_pass else "NOT_PROVEN",
+    return {"status": ("DATA_GAP" if test["status"] != "OK" else
+                       "HISTORICAL_OOS_PASS" if historical_pass else "NOT_PROVEN"),
             "product": product, "4h_bars": len(rows),
             "champion": champion, "training": training,
             "validation": validation, "holdout": test,
