@@ -1,6 +1,7 @@
 """BEAN prospective research tests: no wallet, future fills or fake forward P/L."""
 from __future__ import annotations
 import json
+from contextlib import closing
 from pathlib import Path
 import sqlite3
 import tempfile
@@ -82,7 +83,8 @@ class BeanProspectiveTests(unittest.TestCase):
 
     def test_sqlite_state_edit_fails_hash_integrity(self):
         self.run_step(60)
-        with sqlite3.connect(self.db) as db:
+        # sqlite3's transaction context does not close its handle on Windows.
+        with closing(sqlite3.connect(self.db)) as db, db:
             db.execute("UPDATE positions SET state='{}' WHERE product='BTC-USD'")
         with self.assertRaises(ValueError):
             self.run_step(62)
