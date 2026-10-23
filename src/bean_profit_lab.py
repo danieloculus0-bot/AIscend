@@ -62,7 +62,7 @@ class Ledger:
 
 
 def to_4h(bars):
-    """Build four-hour bars only from 48 complete, contiguous five-minute bars."""
+    """Build four-hour bars only from 48 complete five-minute observations."""
     groups = {}
     for ts, row in bars.items():
         ts = int(ts)
@@ -80,12 +80,10 @@ def to_4h(bars):
         good = True
         for _, bar in values:
             try:
-                item = {k: float(bar[k]) for k in ("open", "high", "low", "close", "volume")}
+                item = {k: float(bar[k]) for k in ("open", "close", "volume")}
                 if (not all(math.isfinite(v) for v in item.values()) or
-                        min(item["open"], item["high"], item["low"], item["close"]) <= 0 or
-                        item["volume"] < 0 or item["low"] > item["high"] or
-                        not item["low"] <= item["open"] <= item["high"] or
-                        not item["low"] <= item["close"] <= item["high"]):
+                        min(item["open"], item["close"]) <= 0 or
+                        item["volume"] < 0):
                     good = False
                     break
                 prices.append(item)
@@ -94,8 +92,6 @@ def to_4h(bars):
                 break
         if good:
             result.append({"ts": ts, "open": prices[0]["open"],
-                           "high": max(p["high"] for p in prices),
-                           "low": min(p["low"] for p in prices),
                            "close": prices[-1]["close"],
                            "volume": sum(p["volume"] for p in prices)})
     return result
