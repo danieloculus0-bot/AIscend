@@ -20,6 +20,10 @@ def candles(n=480, change=.0001):
 
 
 class BeanProfitLedgerTests(unittest.TestCase):
+    def test_us_entry_taker_baseline_is_currently_modeled(self):
+        self.assertEqual(lab.DEFAULT_TAKER_FEE_BPS, 90.0)
+        self.assertEqual(lab.COST_MODEL, "coinbase_next_4h_open_taker90_spread10_v2")
+
     def test_completed_bars_only(self):
         rows = lab.to_4h(candles())
         self.assertEqual(len(rows), 480)
@@ -33,7 +37,7 @@ class BeanProfitLedgerTests(unittest.TestCase):
         rows = lab.to_4h(candles(n=220, change=0))
         result = lab.simulate(rows, "buy_hold", 43, 100)
         self.assertAlmostEqual(result["net_return"],
-                               (1 - .0065)**2 - 1, places=7)
+                               (1 - .0095)**2 - 1, places=7)
         self.assertEqual(result["orders"], 2)
 
     def test_gap_in_owned_position_fails_instead_of_skipping_loss(self):
