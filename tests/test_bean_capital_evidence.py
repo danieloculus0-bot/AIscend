@@ -216,6 +216,37 @@ class AccountEvidenceTests(unittest.TestCase):
         self.assertEqual(p["status"], "UNVERIFIED")
         self.assertIsNone(p["realized_net_quote"])
 
+    def test_impossible_sell_rebate_cannot_fabricate_closed_profit(self):
+        # The BUY-side sanity check alone missed an enormous SELL rebate.
+        # Legitimate small negative maker fees remain accepted.
+        buy = fill(1, "BUY", 1, 10, "-0.01")
+        sell = fill(2, "SELL", 1, 20, "-21")
+        with self.assertRaisesRegex(ValueError, "commission exceeds"):
+            self.preserve(self.store, {"fills": [buy, sell], "complete": True},
+                          clock=lambda: 1000)
+        self.assertEqual(self.history(self.store, clock=lambda: 1001)
+                         ["fill_count_retained"], 0)
+
+    def test_small_sell_maker_rebate_remains_valid(self):
+        buy = fill(1, "BUY", 1, 10, "-0.01")
+        sell = fill(2, "SELL", 1, 20, "-0.02")
+        self.preserve(self.store, {"fills": [buy, sell], "complete": True},
+                      clock=lambda: 1000)
+        product = self.history(self.store, clock=lambda: 1001)
+        product = product["products"]["GROVE-USDC"]
+        self.assertEqual(product["status"], "VERIFIED_NET_CLOSED_TRADES")
+        self.assertAlmostEqual(product["realized_net_quote"], 10.03)
+
+    def test_position_basis_rejects_impossible_sell_rebate(self):
+        fills = [
+            fill(1, "BUY", 2, 10, "0", product="BTC-USD"),
+            fill(2, "SELL", 1, 20, "-21", product="BTC-USD"),
+        ]
+        result = rebuild_position_basis(
+            "BTC-USD", 1, fills, complete_history=True)
+        self.assertEqual(result["cost_basis_status"],
+                         "coinbase_fee_exceeds_notional")
+
     def test_coinbase_micro_quantities_preserve_exact_decimal_bytes(self):
         tiny = fill(1, "BUY", "0.00000000000000012345",
                     "12345.12345678987654321", "0.00000000000000000001")
@@ -400,7 +431,7 @@ class AccountEvidenceTests(unittest.TestCase):
     def test_position_basis_rejects_invalid_rebate_exceeding_lot_cost(self):
         fills = [fill(1, "BUY", 1, 100, "-101", product="BTC-USD")]
         result = rebuild_position_basis("BTC-USD", 1, fills, complete_history=True)
-        self.assertEqual(result["cost_basis_status"], "nonpositive_coinbase_lot_cost")
+        self.assertEqual(result["cost_basis_status"], "coinbase_fee_exceeds_notional")
 
     def test_position_basis_rejects_commissions_in_other_currency(self):
         fills = [fill(1, "BUY", 1, 100, "1", product="BTC-USD",
