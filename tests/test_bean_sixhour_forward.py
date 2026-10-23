@@ -31,7 +31,7 @@ class BeanProspectiveTests(unittest.TestCase):
             "schema":"aiscend.bean.sixhour.prospective.freeze.v1",
             "promotion_authorized":False,
             "frozen_at_unix":50*BAR+600,
-            "fee_bps_per_side":60,
+            "fee_bps_per_side":90,
             "spread_bps_roundtrip":10,
             "min_forward_completed_bars":120,
             "min_realized_roundtrips":5,
