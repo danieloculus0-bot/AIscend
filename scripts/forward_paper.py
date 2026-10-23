@@ -31,7 +31,7 @@ def main(argv=None):
         if args.output.exists():
             raise FileExistsError("Cannot overwrite an already frozen paper manifest")
         args.output.parent.mkdir(parents=True,exist_ok=True)
-        args.output.write_text(json.dumps(frozen,sort_keys=True,indent=2)+"\\n",
+        args.output.write_text(json.dumps(frozen,sort_keys=True,indent=2)+"\n",
                                encoding="utf-8")
         print("Frozen",len(frozen),"training-ranked Coinbase policies:",args.output)
         return 0
