@@ -94,7 +94,7 @@ def _history(raw, now, *, strict_features=True):
     return rows
 
 
-def _signal(db, candidate, state, rows, now):
+def _signal(db, candidate, state, rows, now, *, clock):
     if state.get("pending") or state["blocked"]:
         return
     policy = candidate["policy"]
@@ -105,10 +105,17 @@ def _signal(db, candidate, state, rows, now):
         context = None
         target = signal(rows, policy, BAR)
     entry_ts = (now // BAR + 1) * BAR
-    if entry_ts <= now or entry_ts <= state["frozen_at_unix"]:
+    # A public history request can cross the next candle open. Timestamp
+    # the completed decision, not the earlier clock sample before fetching.
+    selected_at = float(clock())
+    if not math.isfinite(selected_at) or selected_at < now:
+        raise ValueError("Invalid prospective signal observation clock")
+    if selected_at >= entry_ts:
+        return  # The planned entry already opened; never backdate a fill.
+    if entry_ts <= state["frozen_at_unix"]:
         raise ValueError("Cannot fill at an already-open historical candle")
     state["pending"] = {
-        "selected_at": now, "entry_ts": entry_ts,
+        "selected_at": selected_at, "entry_ts": entry_ts,
         "context": context, "target": target,
         "observed_cutoff": rows[-1]["ts"] + BAR,
     }
@@ -215,7 +222,8 @@ def inspect(manifest_path, db_path, *, clock=None, history_fetcher=None):
     if (not math.isfinite(fee) or not math.isfinite(spread)
             or fee < 0 or spread < 0 or fee + spread / 2 >= 10000):
         raise ValueError("Invalid prospective fee model")
-    now = int((clock or time.time)())
+    clock_fn = clock or time.time
+    now = int(clock_fn())
     if now <= manifest["frozen_at_unix"]:
         return {"status": "PRE_FREEZE", "promotion_authorized": False}
     db_path = Path(db_path)
@@ -298,7 +306,7 @@ def inspect(manifest_path, db_path, *, clock=None, history_fetcher=None):
                     if state["blocked"]:
                         break
             if not state["blocked"]:
-                _signal(db, candidate, state, rows, now)
+                _signal(db, candidate, state, rows, now, clock=clock_fn)
             net = state["equity_liquidatable"] - 1.
             passive = state["buy_hold_net"]
             qualifies = bool(
