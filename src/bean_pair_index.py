@@ -75,10 +75,11 @@ def parse(value, *, pattern=False):
         kind = pair_type(pair)
         if any(ord(c) < 32 or ord(c) > 126 for c in pair):
             raise ValueError("Only printable ASCII pairs permitted")
-        if not pattern and (" " in pair or kind != SLOTS[i][1]):
+        if not pattern and (" " in pair or kind is None):
             raise ValueError("Retained index needs eight complete typed pairs")
-        if pattern and kind is not None and kind != SLOTS[i][1]:
-            raise ValueError("Pattern pair type is inconsistent with slot")
+        # Syntax is location-independent: arbitrary typed pairs (including
+        # AA|bb|11|_\\|32) are legal in any position. Definitions, not the
+        # parser, determine whether a particular slot recognizes that key.
     return pairs
 
 
