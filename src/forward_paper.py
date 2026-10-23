@@ -100,10 +100,21 @@ def _db(conn):
     conn.execute("""CREATE TABLE IF NOT EXISTS paper_decisions (
         product TEXT NOT NULL, policy_sha TEXT NOT NULL,
         signal_ts INTEGER NOT NULL, observed_at REAL NOT NULL,
-        exit_ts INTEGER NOT NULL, state TEXT NOT NULL,
+        entry_ts INTEGER, exit_ts INTEGER NOT NULL, state TEXT NOT NULL,
         entry_price REAL, exit_price REAL, net_return REAL,
         reason TEXT NOT NULL DEFAULT '',
         PRIMARY KEY(product, policy_sha, signal_ts))""")
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(paper_decisions)")}
+    if "entry_ts" not in columns:
+        conn.execute("ALTER TABLE paper_decisions ADD COLUMN entry_ts INTEGER")
+    # Old entries were marked at an open that preceded signal observation.
+    # Quarantine those records rather than retaining misleading returns.
+    conn.execute(
+        "UPDATE paper_decisions SET state='NONCAUSAL_ENTRY',"
+        "entry_price=NULL,exit_price=NULL,net_return=NULL,"
+        "reason='entry_open_precedes_signal_observation' "
+        "WHERE state IN ('PENDING','SCORED') AND "
+        "(entry_ts IS NULL OR entry_ts<=observed_at OR entry_ts>=exit_ts)")
 
 
 def freeze(conn, *, product, policy, now, fee_bps, spread_bps):
@@ -150,21 +161,21 @@ def observe_and_score(*, manifest, db_path=None, fetcher=fetch_5m,
                               fee_bps=fee_bps,spread_bps=spread_bps)
             con.commit()
             pending = con.execute(
-                "SELECT signal_ts,exit_ts,observed_at FROM paper_decisions "
+                "SELECT signal_ts,entry_ts,exit_ts,observed_at FROM paper_decisions "
                 "WHERE product=? AND policy_sha=? AND state='PENDING' "
                 "ORDER BY signal_ts LIMIT 1", (product,identity)).fetchone()
             output = {"policy":policy, "status":"NO_SIGNAL"}
             if pending is not None:
-                signal_ts,exit_ts,observed_at = pending
+                signal_ts,entry_ts,exit_ts,observed_at = pending
                 if last_completed >= exit_ts:
                     # Need entry/exit OPEN candles. Exit bar must be completed
                     # when scoring to ensure no future access at observation.
-                    history = fetcher(product,signal_ts,exit_ts+BAR)
-                    required = range(signal_ts,exit_ts+BAR,BAR)
+                    history = fetcher(product,entry_ts,exit_ts+BAR)
+                    required = range(entry_ts,exit_ts+BAR,BAR)
                     try:
                         if any(t not in history for t in required):
                             raise ValueError("Missing candles during observed position")
-                        buy=float(history[signal_ts+BAR]["open"])
+                        buy=float(history[entry_ts]["open"])
                         sell=float(history[exit_ts]["open"])
                         if not all(math.isfinite(x) and x>0 for x in (buy,sell)):
                             raise ValueError("Invalid Coinbase paper fill price")
@@ -201,15 +212,29 @@ def observe_and_score(*, manifest, db_path=None, fetcher=fetch_5m,
                     # Freeze was observed before the entry candle exists.
                     if frozen_at > complete_at + BAR:
                         raise RuntimeError("Frozen policy timestamp is in the future")
-                    exit_ts=last_completed+(1+HORIZONS[policy])*BAR
-                    con.execute(
+                    # A signal observed inside this slot cannot fill at its
+                    # already elapsed opening price. Wait for the next open.
+                    entry_ts=complete_at+BAR
+                    exit_ts=entry_ts+HORIZONS[policy]*BAR
+                    cur=con.execute(
                         "INSERT OR IGNORE INTO paper_decisions "
-                        "(product,policy_sha,signal_ts,observed_at,exit_ts,state) "
-                        "VALUES(?,?,?,?,?,'PENDING')",
-                        (product,identity,last_completed,now,exit_ts))
+                        "(product,policy_sha,signal_ts,observed_at,entry_ts,exit_ts,state) "
+                        "VALUES(?,?,?,?,?,?,'PENDING')",
+                        (product,identity,last_completed,now,entry_ts,exit_ts))
                     con.commit()
-                    output={"policy":policy,"status":"PENDING",
-                            "signal_ts":last_completed,"exit_ts":exit_ts}
+                    if cur.rowcount:
+                        output={"policy":policy,"status":"PENDING",
+                                "signal_ts":last_completed,"entry_ts":entry_ts,
+                                "exit_ts":exit_ts}
+                    else:
+                        # A quarantined legacy record with this primary key
+                        # must never be reported as a fresh pending position.
+                        state=con.execute(
+                            "SELECT state FROM paper_decisions WHERE product=?"
+                            " AND policy_sha=? AND signal_ts=?",
+                            (product,identity,last_completed)).fetchone()
+                        output={"policy":policy,
+                                "status":state[0] if state else "NO_SIGNAL"}
             out["products"][product]=output
 
         summary = {}
