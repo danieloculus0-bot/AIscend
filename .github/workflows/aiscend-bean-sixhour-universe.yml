@@ -47,7 +47,7 @@ jobs:
       - run: python -m pip install -r requirements.txt
       - name: Research every catalog market using actual Coinbase 6-hour candles
         run: |
-          python -m src.bean_six_hour_universe --shards 8 --shard-index ${{ matrix.shard }} --days 90 --workers 3 --fee-bps 60 --root artifacts/bean-sixhour/ledgers --output artifacts/bean-sixhour/shard-${{ matrix.shard }}.json
+          python -m src.bean_six_hour_universe --shards 8 --shard-index ${{ matrix.shard }} --days 90 --workers 3 --fee-bps 90 --root artifacts/bean-sixhour/ledgers --output artifacts/bean-sixhour/shard-${{ matrix.shard }}.json
       - name: Verify market ledger chain evidence before upload
         run: |
           python - <<'PY'
