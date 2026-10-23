@@ -82,13 +82,13 @@ def _normalize_fill(raw):
             raise ValueError("Nonfinite Coinbase fill")
         if size <= 0 or price <= 0:
             raise ValueError("Invalid Coinbase fill size or price")
-        # Preserve legitimate signed maker rebates, but never allow an
-        # impossible commission to manufacture a large closed-trade profit.
-        if abs(fee) > size * price:
-            raise ValueError("Coinbase fill commission exceeds trade notional")
         # Coinbase maker rebates may legitimately be negative commission.
     except (KeyError, TypeError, ValueError, InvalidOperation, ArithmeticError):
         raise ValueError("Coinbase fill size, price or commission is incomplete")
+    # Preserve legitimate signed maker rebates, but never allow an
+    # impossible commission to manufacture a large closed-trade profit.
+    if abs(fee) > size * price:
+        raise ValueError("Coinbase fill commission exceeds trade notional")
     stamp = str(raw.get("trade_time") or "").strip()
     if not stamp:
         raise ValueError("Coinbase fill timestamp missing")
