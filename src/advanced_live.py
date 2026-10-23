@@ -390,15 +390,27 @@ class AdvancedSpotEngine:
             if not product_id or usd_rate <= 0:
                 continue
 
+            # The portfolio needs USD value, but a position's stop and
+            # Coinbase fill basis must use the SAME product quote currency.
+            # Using USD-marked units against a BTC/EUR-quoted entry can cause
+            # a false stop or conceal a real loss.
+            _, product_quote = self._split_product(product_id)
+            quote_mark = self._product_price(product_id, universe_by_product)
+            if quote_mark <= 0:
+                quote_usd_rate = self._usd_rate(
+                    product_quote, product_ids, universe_by_product)
+                if quote_usd_rate > 0:
+                    quote_mark = usd_rate / quote_usd_rate
             positions[product_id] = {
                 "qty": qty,
                 "available_qty": spendable_balances.get(currency, 0.0),
                 "avg_cost": None,
-                "mark_price": usd_rate,
+                "mark_price": quote_mark,
+                "mark_quote_currency": product_quote,
                 "cost_basis_status": "unverified_without_fills",
                 "base": currency,
             }
-            prices[product_id] = usd_rate
+            prices[product_id] = quote_mark
 
         net = sum(balance_values_usd.values())
         market_value = max(0.0, net - cash)
@@ -1212,6 +1224,13 @@ class AdvancedSpotEngine:
             mark = float(holding.get("mark_price") or
                          (snapshot.get("prices") or {}).get(product) or 0)
             peak_key = _position_meta_key("primary_peak:", product, scope)
+            # Earlier code persisted USD-marked peaks even for non-USD quote
+            # products. One-time unit migration must discard those peaks.
+            quote = self._split_product(product)[1]
+            peak_unit_key = _position_meta_key("primary_peak_unit:", product, scope)
+            if self.store.get_meta(peak_unit_key) != quote:
+                self.store.set_meta(peak_key, "0")
+                self.store.set_meta(peak_unit_key, quote)
             prior_peak = float(self.store.get_meta(peak_key) or "0")
             peak = max(prior_peak, mark) if math.isfinite(mark) and mark > 0 else prior_peak
             if peak > prior_peak:
