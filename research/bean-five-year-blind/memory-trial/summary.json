@@ -35,7 +35,8 @@
   "opportunities": 496,
   "real_bean_core_sha": "ca3d257b30cd6521688b215a370db8c9c515908e",
   "retention": {
-    "receipt_tip_sha256": "033451ecebbad558e104f46a1abbf1ecb8139a559d345bed3b914549c4f2f866",
+    "indexed_subset_pointers": 1984,
+    "receipt_tip_sha256": "124fc6b734b47b9eea96b4837c4121bda20f18dc04a5f9ecfaf589d2b061cb4d",
     "rows": 496
   },
   "schema": "aiscend.bean-memory-paired-five-year.v1",
