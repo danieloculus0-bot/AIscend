@@ -12,7 +12,9 @@ import time
 from .bean_rotation_economics import bridge_order, score_route
 
 POLICIES = ("trend", "breakout", "reversal")
-DEFAULT_TAKER_BPS = 60.0
+# Coinbase announced 0.90% entry-tier taker fees for U.S. Advanced on 2026-09-16.
+# This is a research/live selection FALLBACK only; authenticated tier wins.
+DEFAULT_TAKER_BPS = 90.0
 MAX_SIGNAL_AGE_SECONDS = 150.0
 ROTATION_MARGIN_BPS = 12.0
 TRAILING_DRAWDOWN_FRACTION = 0.08
