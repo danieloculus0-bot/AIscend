@@ -232,7 +232,7 @@ try:
             result={"trained":a.status(),"untrained":b.status()}
         else:
             raise ValueError("Unsupported BEAN worker command")
-        sys.stdout.write(json.dumps(result,sort_keys=True)+"\\n")
+        sys.stdout.write(json.dumps(result,sort_keys=True)+"\n")
         sys.stdout.flush()
 finally:
     a.close()
