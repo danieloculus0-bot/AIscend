@@ -80,6 +80,33 @@ class SubsetLedger:
           FOREIGN KEY(set_id) REFERENCES ref_sets(set_id),
           UNIQUE(parent_id,set_id,code,source_episode)
         );
+        CREATE TABLE IF NOT EXISTS character_types(
+          scope TEXT NOT NULL,
+          set_id TEXT NOT NULL,
+          slot INTEGER NOT NULL CHECK(slot BETWEEN 1 AND 8),
+          type_character TEXT NOT NULL,
+          meaning TEXT NOT NULL,
+          PRIMARY KEY(scope,slot,type_character),
+          FOREIGN KEY(set_id) REFERENCES ref_sets(set_id)
+        );
+        CREATE TABLE IF NOT EXISTS character_subsets(
+          scope TEXT NOT NULL,
+          slot INTEGER NOT NULL CHECK(slot BETWEEN 1 AND 8),
+          type_character TEXT NOT NULL,
+          subset_character TEXT NOT NULL,
+          meaning TEXT NOT NULL,
+          PRIMARY KEY(scope,slot,type_character,subset_character),
+          FOREIGN KEY(scope,slot,type_character)
+            REFERENCES character_types(scope,slot,type_character)
+        );
+        CREATE TRIGGER IF NOT EXISTS freeze_character_types_update
+          BEFORE UPDATE ON character_types BEGIN SELECT RAISE(ABORT,'immutable data type'); END;
+        CREATE TRIGGER IF NOT EXISTS freeze_character_types_delete
+          BEFORE DELETE ON character_types BEGIN SELECT RAISE(ABORT,'immutable data type'); END;
+        CREATE TRIGGER IF NOT EXISTS freeze_character_subsets_update
+          BEFORE UPDATE ON character_subsets BEGIN SELECT RAISE(ABORT,'immutable subset'); END;
+        CREATE TRIGGER IF NOT EXISTS freeze_character_subsets_delete
+          BEFORE DELETE ON character_subsets BEGIN SELECT RAISE(ABORT,'immutable subset'); END;
         CREATE INDEX IF NOT EXISTS nodes_children
           ON nodes(parent_id,set_id,available_at);
         CREATE INDEX IF NOT EXISTS nodes_source
