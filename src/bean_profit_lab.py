@@ -17,7 +17,8 @@ import time
 BAR = 300
 AGGREGATE_BARS = 48
 STRATEGIES = ("bean_q", "trend_3d", "trend_7d", "breakout_7d", "volatility_guard")
-COST_MODEL = "coinbase_next_4h_open_taker60_spread10_v1"
+DEFAULT_TAKER_FEE_BPS = 90.0
+COST_MODEL = "coinbase_next_4h_open_taker90_spread10_v2"
 GENESIS = "0" * 64
 PERIOD = BAR * AGGREGATE_BARS
 
@@ -152,7 +153,7 @@ def bean_action(q, context, prior_position):
                (switch_buffer if not prior_position else -switch_buffer))
 
 
-def simulate(rows, policy, start, end, *, fee_bps=60.0, spread_bps=10.0,
+def simulate(rows, policy, start, end, *, fee_bps=DEFAULT_TAKER_FEE_BPS, spread_bps=10.0,
              ledger=None, product=None, phase=None, initial_q=None,
              period_seconds=PERIOD):
     if fee_bps < 0 or spread_bps < 0 or fee_bps + spread_bps/2 >= 10000:
@@ -237,7 +238,7 @@ def simulate(rows, policy, start, end, *, fee_bps=60.0, spread_bps=10.0,
             "learner_q": q if policy == "bean_q" else None}
 
 
-def experiment(product, data, *, fee_bps=60.0, spread_bps=10.0,
+def experiment(product, data, *, fee_bps=DEFAULT_TAKER_FEE_BPS, spread_bps=10.0,
                already_aggregated=False):
     """Train -> validation veto -> locked historical holdout; never live-promote."""
     rows = (sorted(data.values(), key=lambda x:x["ts"])
@@ -327,7 +328,7 @@ def main(argv=None):
     parser.add_argument("--products", nargs="+", default=[
         "BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD", "AVAX-USD", "DOGE-USD"])
     parser.add_argument("--days", type=int, default=90)
-    parser.add_argument("--fee-bps", type=float, default=60.)
+    parser.add_argument("--fee-bps", type=float, default=DEFAULT_TAKER_FEE_BPS)
     parser.add_argument("--output", type=Path,
                         default=Path("artifacts/bean-profit-search.json"))
     args = parser.parse_args(argv)
