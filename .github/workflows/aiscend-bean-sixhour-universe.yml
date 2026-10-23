@@ -58,12 +58,19 @@ jobs:
           report=json.loads((folder/"shard-${{ matrix.shard }}.json").read_text())
           verified=0
           for product, result in report["products"].items():
-              if not result.get("ledger_tip"):
-                  continue
+              assert result.get("ledger_tip"), "Missing market receipt: "+product
               ledger=folder/"ledgers"/(product.replace("-","_")+".jsonl")
               events=[json.loads(line) for line in ledger.read_text().splitlines()]
+              assert events and events[-1]["type"]=="market_terminal", product
+              assert events[-1]["product"]==product, product
+              assert events[-1]["status"]==result["status"], product
+              assert events[-1]["promotion_authorized"] is False, product
               assert chain(events)==result["ledger_tip"], product
               verified+=1
+          assert verified==report["attempted"]==len(report["products"]), "Incomplete receipts"
+          expected={product.replace("-","_")+".jsonl" for product in report["products"]}
+          actual={path.name for path in (folder/"ledgers").glob("*.jsonl")}
+          assert actual==expected, "Extra or missing market ledgers"
           print(json.dumps({"shard": report["shard_index"],
                             "attempted": report["attempted"],
                             "verified_market_ledgers": verified,
