@@ -20,6 +20,7 @@ jobs:
       - name: Prove six-hour paper fills occur only AFTER committed future entries
         run: |
           python -m unittest discover -s tests -p 'test_bean_sixhour_forward.py' -v
+          python -m unittest discover -s tests -p 'test_bean_sixhour_persistence.py' -v
           python -m unittest discover -s tests -p 'test_bean_six_hour_universe.py' -v
           python -m py_compile src/bean_sixhour_forward.py
 
@@ -60,3 +61,22 @@ jobs:
           path: artifacts/bean-prospective/
           if-no-files-found: warn
           retention-days: 30
+
+  sqlite-cross-job-reopen:
+    needs: [initial-prospective-observation]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: bean-prospective-initial-ledger
+          path: restored
+      - name: Verify persisted SQLite ledger independently in a different CI job
+        run: |
+          python -m src.bean_sixhour_forward --manifest research/bean_frozen_prospective_20261023.json --db restored/state.sqlite3 --verify-only
+          python -m src.bean_sixhour_forward --manifest research/bean_frozen_prospective_20261023.json --db restored/state.sqlite3 --backup-to restored/verified-hot-backup.sqlite3
+          python -m src.bean_sixhour_forward --manifest research/bean_frozen_prospective_20261023.json --db restored/verified-hot-backup.sqlite3 --verify-only
