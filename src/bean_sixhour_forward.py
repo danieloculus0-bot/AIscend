@@ -250,7 +250,11 @@ def inspect(manifest_path, db_path, *, clock=None, history_fetcher=None):
                     history_fetcher(product, days=45, clock=lambda: now)
                     if history_fetcher else
                     fetch_history(product, days=45, clock=lambda: now))
-                rows = _history(raw, now, strict_features=state is None)
+                # Recheck feature-window continuity on EVERY observation. A public
+                # candle can disappear from a later API response even after
+                # initialization; silently shortening the lookback changes a
+                # frozen signal and could produce an unsupported paper fill.
+                rows = _history(raw, now, strict_features=True)
             except Exception as exc:
                 reports[product] = {
                     "status": "DATA_UNAVAILABLE",
