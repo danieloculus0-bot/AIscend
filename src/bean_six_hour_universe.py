@@ -74,19 +74,35 @@ def run_shard(*, shards=8, shard_index=0, days=90, fee_bps=60,
                     fetch_history(product, days=days, fetcher=fetcher))
             result = experiment(product, data, fee_bps=fee_bps,
                                 already_aggregated=True)
-            tip = result.get("ledger_tip")
-            if tip:
-                ledger = Ledger()
-                ledger.entries = result.pop("ledger_events")
-                ledger.tip = tip
-                if chain(ledger.entries) != tip:
-                    raise ValueError("BEAN ledger replay changed a hash")
-                ledger.save(root / (product.replace("-", "_") + ".jsonl"))
-            return product, result
         except Exception as exc:
-            return product, {"status": "DATA_UNAVAILABLE",
-                             "reason_type": type(exc).__name__,
-                             "promotion_authorized": False}
+            result = {"status": "DATA_UNAVAILABLE",
+                      "reason_type": type(exc).__name__,
+                      "promotion_authorized": False}
+
+        # Every attempted market receives a durable receipt, including missing
+        # candles, short histories and transport/analysis failures. Ledger
+        # corruption and write failures must NOT be disguised as data failures.
+        ledger = Ledger()
+        events = result.pop("ledger_events", None)
+        if events is not None:
+            ledger.entries = events
+            ledger.tip = result["ledger_tip"]
+            if chain(ledger.entries) != ledger.tip:
+                raise ValueError("BEAN ledger replay changed a hash")
+        else:
+            if result.get("ledger_tip"):
+                raise ValueError("BEAN result has a tip but no ledger events")
+            ledger.append("market_attempt", product=product, days=days,
+                          fee_bps=fee_bps, spread_bps=10,
+                          period_seconds=BAR, research_only=True)
+        ledger.append("market_terminal", product=product,
+                      status=result["status"],
+                      evaluated_bars=result.get("evaluated_bars"),
+                      reason_type=result.get("reason_type"),
+                      promotion_authorized=False)
+        result["ledger_tip"] = ledger.tip
+        ledger.save(root / (product.replace("-", "_") + ".jsonl"))
+        return product, result
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
         tasks = [executor.submit(analyze, product) for product in selected]
@@ -129,6 +145,11 @@ def aggregate(reports):
             all_results[product] = row
     if set(all_results) != set(first["catalog"]["eligible_quote_markets"]):
         raise ValueError("Missing market results in full BEAN universe")
+    if any(not isinstance(row.get("ledger_tip"), str) or
+           len(row["ledger_tip"]) != 64 or
+           any(char not in "0123456789abcdef" for char in row["ledger_tip"])
+           for row in all_results.values()):
+        raise ValueError("Missing or malformed market ledger receipt")
 
     # All opened holdouts are reported. NEVER retrospectively promote the
     # best one from a hundreds-market search as a validated live strategy.
