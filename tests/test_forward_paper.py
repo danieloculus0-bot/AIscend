@@ -8,6 +8,7 @@ import unittest
 
 from src.bean_five_minute import BAR
 from src.forward_paper import observe_and_score, freeze_training_candidates
+from scripts.forward_paper import main as forward_paper_cli_main
 
 MANIFEST=[{"product":"BTC-USD","policy":"trend",
            "training_only_frozen":True}]
@@ -62,7 +63,8 @@ class ForwardPaperTests(unittest.TestCase):
         signal=result["products"]["BTC-USD"]
         self.assertEqual(signal["status"],"PENDING")
         self.assertEqual(signal["signal_ts"],439*BAR)
-        self.assertEqual(signal["exit_ts"],512*BAR)
+        self.assertEqual(signal["entry_ts"],441*BAR)
+        self.assertEqual(signal["exit_ts"],513*BAR)
         self.assertTrue(all(end<=440*BAR for _,end in self.requests))
         self.assertEqual(result["scorecard"]["BTC-USD"]["scored_trades"],0)
         with closing(sqlite3.connect(self.path)) as db:
@@ -121,6 +123,68 @@ class ForwardPaperTests(unittest.TestCase):
         r=observe_and_score(manifest=MANIFEST,db_path=self.path,
                             fetcher=short,clock=lambda:440*BAR+1)
         self.assertEqual(r["products"]["BTC-USD"]["status"],"NO_SIGNAL")
+
+    def test_entry_follows_observation_even_at_end_of_current_slot(self):
+        now = 441*BAR-1
+        signal = observe_and_score(
+            manifest=MANIFEST, db_path=self.path, fetcher=self.fetch,
+            clock=lambda: now)["products"]["BTC-USD"]
+        self.assertEqual(signal["status"], "PENDING")
+        self.assertGreater(signal["entry_ts"], now)
+        self.assertEqual(signal["entry_ts"], 441*BAR)
+        # A past opening price must not enter the score calculation.
+        self.rows[440*BAR]["open"] = 0.000001
+        scored = self.simulate_tick(515)
+        self.assertEqual(scored["products"]["BTC-USD"]["status"],"SCORED")
+        with closing(sqlite3.connect(self.path)) as db:
+            entry,entry_ts,observed = db.execute(
+                "SELECT entry_price,entry_ts,observed_at FROM paper_decisions "
+                "WHERE state='SCORED'").fetchone()
+        self.assertGreater(entry_ts, observed)
+        self.assertEqual(entry, self.rows[441*BAR]["open"])
+
+    def test_existing_legacy_scores_are_quarantined_not_profitable(self):
+        self.simulate_tick(440)
+        with closing(sqlite3.connect(self.path)) as db:
+            db.execute(
+                "UPDATE paper_decisions SET entry_ts=NULL,state='SCORED',"
+                "entry_price=1,exit_price=100,net_return=99")
+            db.commit()
+        result = self.simulate_tick(515)
+        self.assertEqual(result["scorecard"]["BTC-USD"]["scored_trades"],0)
+        self.assertEqual(result["scorecard"]["BTC-USD"]["net_return"],0)
+        with closing(sqlite3.connect(self.path)) as db:
+            state,entry,ret=db.execute(
+                "SELECT state,entry_price,net_return FROM paper_decisions "
+                "WHERE signal_ts=?", (439*BAR,)).fetchone()
+        self.assertEqual(state,"NONCAUSAL_ENTRY")
+        self.assertIsNone(entry)
+        self.assertIsNone(ret)
+
+    def test_quarantined_same_slot_is_not_reported_as_new_position(self):
+        self.simulate_tick(440)
+        with closing(sqlite3.connect(self.path)) as db:
+            db.execute("UPDATE paper_decisions SET entry_ts=NULL")
+            db.commit()
+        result=self.simulate_tick(440)
+        self.assertEqual(result["products"]["BTC-USD"]["status"],"NONCAUSAL_ENTRY")
+        with closing(sqlite3.connect(self.path)) as db:
+            rows=db.execute("SELECT state FROM paper_decisions").fetchall()
+        self.assertEqual(rows,[("NONCAUSAL_ENTRY",)])
+
+    def test_freeze_manifest_cli_writes_parseable_newline_terminated_json(self):
+        aggregate=Path(self.folder.name)/"aggregate.json"
+        manifest=Path(self.folder.name)/"manifest.json"
+        aggregate.write_text(json.dumps({
+            "schema":"aiscend.universe_research_aggregate.v1",
+            "promotion_authorized":False,
+            "training_preselected":[{"product":"BTC-USD","policy":"trend"}]
+        }),encoding="utf-8")
+        self.assertEqual(forward_paper_cli_main([
+            "--freeze-aggregate",str(aggregate),"--output",str(manifest)]),0)
+        written=manifest.read_text(encoding="utf-8")
+        self.assertTrue(written.endswith("\n"))
+        self.assertEqual(json.loads(written)[0]["product"],"BTC-USD")
 
 
 if __name__=="__main__":
