@@ -324,5 +324,56 @@ class AdvancedTradeTests(unittest.TestCase):
         self.assertTrue(sell["success"])
 
 
+    def test_paginated_coinbase_accounts_include_second_page_and_sum_currency(self):
+        class PagedClient(FakeClient):
+            def __init__(self):
+                super().__init__()
+                self.account_calls = []
+            def get_accounts(self, **kwargs):
+                self.account_calls.append(kwargs)
+                if kwargs.get("cursor") == "more":
+                    return FakeResponse({"accounts": [
+                        {"currency": "USD",
+                         "available_balance": {"value": "40"}, "hold": {"value": "0"}},
+                        {"currency": "USDC",
+                         "available_balance": {"value": "4"}, "hold": {"value": "1"}},
+                    ], "has_next": False})
+                return FakeResponse({"accounts": [
+                    {"currency": "USDC",
+                     "available_balance": {"value": "6"}, "hold": {"value": "2"}},
+                ], "has_next": True, "cursor": "more"})
+        vault = FakeVault()
+        vault.fake_client = PagedClient()
+        status = AdvancedTradeSpot(vault).status()
+        values = {balance.currency: (balance.available, balance.hold)
+                  for balance in status.balances}
+        self.assertEqual(values["USD"], (Decimal("40"), Decimal("0")))
+        self.assertEqual(values["USDC"], (Decimal("10"), Decimal("3")))
+        self.assertEqual(len(vault.fake_client.account_calls), 2)
+
+    def test_accounts_missing_next_cursor_block_partial_wallet_view(self):
+        vault = FakeVault()
+        vault.fake_client.get_accounts = lambda **kwargs: FakeResponse({
+            "accounts": [], "has_next": True, "cursor": ""})
+        with self.assertRaisesRegex(RuntimeError, "cursor missing"):
+            AdvancedTradeSpot(vault).status()
+
+    def test_accounts_repeated_cursor_is_not_complete(self):
+        vault = FakeVault()
+        vault.fake_client.get_accounts = lambda **kwargs: FakeResponse({
+            "accounts": [], "has_next": True, "cursor": "same"})
+        with self.assertRaisesRegex(RuntimeError, "cursor repeated"):
+            AdvancedTradeSpot(vault).status()
+
+    def test_invalid_account_balance_does_not_mark_account_valid(self):
+        vault = FakeVault()
+        vault.fake_client.get_accounts = lambda **kwargs: FakeResponse({
+            "accounts": [{"currency": "USD",
+                          "available_balance": {"value": "NaN"},
+                          "hold": {"value": "0"}}], "has_next": False})
+        with self.assertRaisesRegex(RuntimeError, "nonfinite"):
+            AdvancedTradeSpot(vault).status()
+
+
 if __name__ == "__main__":
     unittest.main()
