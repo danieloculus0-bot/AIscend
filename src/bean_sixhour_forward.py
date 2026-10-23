@@ -16,6 +16,7 @@ import time
 
 from .bean_profit_lab import GENESIS, bean_action, bean_context, canonical, chain, signal
 from .bean_six_hour_universe import BAR, fetch_history
+from .core import app_data_dir
 
 
 def digest(value):
@@ -23,9 +24,18 @@ def digest(value):
 
 
 def _append(db, kind, *, product=None, state=None, **details):
-    events = [json.loads(row[0]) for row in
-              db.execute("SELECT data FROM events ORDER BY seq")]
-    entry = {"seq": len(events), "prev": chain(events), "type": kind, **details}
+    # Last tip and row count are updated in the SAME SQLite transaction as the
+    # event. A full hash-chain scan is performed by inspect() before any write.
+    # This makes thousands of observations O(N), rather than O(N**2).
+    tip_row = db.execute("SELECT v FROM meta WHERE k='ledger_tip'").fetchone()
+    seq_row = db.execute("SELECT v FROM meta WHERE k='ledger_count'").fetchone()
+    if tip_row is not None and seq_row is not None:
+        tip, sequence = tip_row[0], int(seq_row[0])
+    else:
+        events = [json.loads(row[0]) for row in
+                  db.execute("SELECT data FROM events ORDER BY seq")]
+        tip, sequence = chain(events), len(events)
+    entry = {"seq": sequence, "prev": tip, "type": kind, **details}
     if product is not None:
         entry["product"] = product
     if state is not None:
@@ -38,6 +48,10 @@ def _append(db, kind, *, product=None, state=None, **details):
     entry["hash"] = digest(entry)
     db.execute("INSERT INTO events(seq,data) VALUES(?,?)",
                (entry["seq"], canonical(entry)))
+    db.execute("INSERT INTO meta(k,v) VALUES('ledger_tip',?) "
+               "ON CONFLICT(k) DO UPDATE SET v=excluded.v", (entry["hash"],))
+    db.execute("INSERT INTO meta(k,v) VALUES('ledger_count',?) "
+               "ON CONFLICT(k) DO UPDATE SET v=excluded.v", (str(sequence + 1),))
     return entry["hash"]
 
 
@@ -45,6 +59,12 @@ def _verify(db):
     events = [json.loads(row[0]) for row in
               db.execute("SELECT data FROM events ORDER BY seq")]
     tip = chain(events)
+    anchor_tip = db.execute("SELECT v FROM meta WHERE k='ledger_tip'").fetchone()
+    anchor_count = db.execute("SELECT v FROM meta WHERE k='ledger_count'").fetchone()
+    if anchor_tip is not None and anchor_tip[0] != tip:
+        raise ValueError("SQLite BEAN ledger tip differs from recorded checkpoint")
+    if anchor_count is not None and int(anchor_count[0]) != len(events):
+        raise ValueError("SQLite BEAN ledger event count differs from checkpoint")
     last = {e["product"]: e["state_sha"]
             for e in events if "state_sha" in e}
     persisted = dict(db.execute("SELECT product,state FROM positions"))
@@ -182,7 +202,13 @@ def inspect(manifest_path, db_path, *, clock=None, history_fetcher=None):
     db_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_sha = digest(manifest)
 
-    with closing(sqlite3.connect(db_path)) as db, db:
+    with closing(sqlite3.connect(db_path, timeout=30.0)) as db, db:
+        db.execute("PRAGMA busy_timeout=30000")
+        db.execute("PRAGMA journal_mode=WAL")
+        db.execute("PRAGMA synchronous=FULL")
+        # Serialize competing Python terminals before verifying and appending.
+        # The lock and all ledger changes are committed or rolled back together.
+        db.execute("BEGIN IMMEDIATE")
         db.execute("CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY,v TEXT)")
         db.execute("CREATE TABLE IF NOT EXISTS positions("
                    "product TEXT PRIMARY KEY,state TEXT NOT NULL)")
