@@ -500,7 +500,11 @@ class AdvancedTradeSpot:
                 raise RuntimeError("Coinbase fill history returned invalid rows.")
             fills.extend(rows)
             next_cursor = str(response.get("cursor") or "")
+            if response.get("has_next") is False:
+                return {"fills": fills, "complete": True, "pages": len(seen_cursors) + 1}
             if not next_cursor:
+                if response.get("has_next") is True:
+                    raise RuntimeError("Coinbase fill pagination cursor missing.")
                 return {"fills": fills, "complete": True, "pages": len(seen_cursors) + 1}
             if next_cursor in seen_cursors:
                 raise RuntimeError("Coinbase fill pagination repeated a cursor.")
@@ -530,7 +534,11 @@ class AdvancedTradeSpot:
                 raise RuntimeError("Coinbase account fill history is malformed")
             fills.extend(rows)
             next_cursor = str(payload.get("cursor") or "")
+            if payload.get("has_next") is False:
+                return {"fills": fills, "complete": True, "pages": page + 1}
             if not next_cursor:
+                if payload.get("has_next") is True:
+                    raise RuntimeError("Coinbase account fill pagination cursor missing")
                 return {"fills": fills, "complete": True, "pages": page + 1}
             if next_cursor in seen:
                 raise RuntimeError("Coinbase account fill pagination repeated a cursor")
