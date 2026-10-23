@@ -1,5 +1,9 @@
 """Native 6h Coinbase market data and full-catalog BEAN ledger regressions."""
 import unittest
+import json
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
 from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlparse
 
@@ -71,6 +75,46 @@ class SixHourBeanUniverseTests(unittest.TestCase):
             universe.aggregate(reports[:1])
         with self.assertRaises(ValueError):
             universe.aggregate([reports[0],dict(reports[1],catalog_hash="changed")])
+
+    def test_every_market_attempt_has_a_hash_receipt(self):
+        products = ["AAA-USD", "BBB-USD", "CCC-USD", "DDD-USD"]
+        good = self.candles()
+        with_gap = dict(good)
+        with_gap.pop(110 * universe.BAR)
+        histories = {products[0]: good, products[1]: with_gap,
+                     products[2]: self.candles(count=30)}
+        def history(product, *, days):
+            if product not in histories:
+                raise TimeoutError("missing market history")
+            return histories[product]
+        with tempfile.TemporaryDirectory() as folder:
+            with patch.object(universe, "discover_public_spot",
+                              return_value={"eligible_quote_markets": products}):
+                report = universe.run_shard(shards=1, shard_index=0, workers=2,
+                    root=Path(folder), history_fetcher=history)
+            self.assertEqual(report["attempted"], 4)
+            self.assertEqual(report["products"][products[1]]["status"], "DATA_GAP")
+            self.assertEqual(report["products"][products[2]]["status"], "INSUFFICIENT_HISTORY")
+            self.assertEqual(report["products"][products[3]]["status"], "DATA_UNAVAILABLE")
+            for product, result in report["products"].items():
+                receipt = Path(folder) / (product.replace("-", "_") + ".jsonl")
+                events = [json.loads(line) for line in receipt.read_text().splitlines()]
+                self.assertEqual(chain(events), result["ledger_tip"])
+                self.assertEqual(events[-1]["type"], "market_terminal")
+                self.assertEqual(events[-1]["product"], product)
+                self.assertEqual(events[-1]["status"], result["status"])
+                self.assertFalse(events[-1]["promotion_authorized"])
+            self.assertEqual(universe.aggregate([report])["market_count"], 4)
+            with self.assertRaises(ValueError):
+                broken = dict(report, products={
+                    **report["products"], products[3]: {
+                        "status": "DATA_UNAVAILABLE", "promotion_authorized": False}})
+                universe.aggregate([broken])
+            with patch.object(universe, "discover_public_spot",
+                              return_value={"eligible_quote_markets": products}):
+                with self.assertRaises(FileExistsError):
+                    universe.run_shard(shards=1, shard_index=0, workers=2,
+                        root=Path(folder), history_fetcher=history)
 
     def test_full_universe_fails_closed_on_empty_or_bad_candles(self):
         with self.assertRaises(ValueError):
