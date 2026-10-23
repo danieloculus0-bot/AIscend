@@ -143,6 +143,28 @@ class ForwardPaperTests(unittest.TestCase):
         self.assertGreater(entry_ts, observed)
         self.assertEqual(entry, self.rows[441*BAR]["open"])
 
+    def test_slow_fetch_crossing_entry_open_never_creates_paper_fill(self):
+        # The initial clock is still inside the signal slot, but fetching
+        # historical bars takes us past the planned next-candle opening.
+        clock_value=[441*BAR-1]
+        def slow_fetch(product,start,end):
+            rows=self.fetch(product,start,end)
+            clock_value[0]=441*BAR+1
+            return rows
+        result=observe_and_score(
+            manifest=MANIFEST,db_path=self.path,fetcher=slow_fetch,
+            clock=lambda:clock_value[0])
+        decision=result["products"]["BTC-USD"]
+        self.assertEqual(decision["status"],"NONCAUSAL_ENTRY")
+        self.assertEqual(result["scorecard"]["BTC-USD"]["scored_trades"],0)
+        with closing(sqlite3.connect(self.path)) as db:
+            state,observed,entry,net=db.execute(
+                "SELECT state,observed_at,entry_ts,net_return "
+                "FROM paper_decisions").fetchone()
+        self.assertEqual(state,"NONCAUSAL_ENTRY")
+        self.assertGreaterEqual(observed,entry)
+        self.assertIsNone(net)
+
     def test_existing_legacy_scores_are_quarantined_not_profitable(self):
         self.simulate_tick(440)
         with closing(sqlite3.connect(self.path)) as db:
