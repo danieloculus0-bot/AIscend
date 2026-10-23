@@ -210,11 +210,16 @@ class AccountEvidenceTests(unittest.TestCase):
     def test_impossible_maker_rebate_cannot_create_verified_profit(self):
         buy = fill(1, "BUY", 1, 10, "-11")
         sell = fill(2, "SELL", 1, 20, "0")
-        self.preserve(self.store, {"fills": [buy, sell], "complete": True},
-                      clock=lambda: 1000)
-        p = self.history(self.store, clock=lambda: 1001)["products"]["GROVE-USDC"]
-        self.assertEqual(p["status"], "UNVERIFIED")
-        self.assertIsNone(p["realized_net_quote"])
+        # Reject the impossible fee at ingestion, before any fill is retained.
+        # The previous test expected a stored UNVERIFIED trade, contradicting
+        # the fail-closed commission validation added to _normalize_fill.
+        with self.assertRaisesRegex(ValueError, "commission exceeds trade notional"):
+            self.preserve(self.store, {"fills": [buy, sell], "complete": True},
+                          clock=lambda: 1000)
+        history = self.history(self.store, clock=lambda: 1001)
+        self.assertEqual(history["fill_count_retained"], 0)
+        self.assertFalse(history["history_fully_reconciled"])
+        self.assertEqual(history["products"], {})
 
     def test_impossible_sell_rebate_cannot_fabricate_closed_profit(self):
         # The BUY-side sanity check alone missed an enormous SELL rebate.
