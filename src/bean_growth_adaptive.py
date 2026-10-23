@@ -21,7 +21,7 @@ from .core import app_data_dir
 from .primary_strategy import DEFAULT_TAKER_BPS
 
 ACTIONS = ("momentum", "reversion", "trend_3", "buy_hold", "cash")
-PAPER_COST_MODEL = "taker60bps_held_gap_v2"
+PAPER_COST_MODEL = "taker60bps_held_gap_reward_v3"
 # Match the primary engine's conservative taker fallback per BUY/SELL leg.
 # Actual account fees can be higher; neither this model nor its rewards prove profit.
 MODEL_FEE = DEFAULT_TAKER_BPS / 10000.0
@@ -157,7 +157,13 @@ class BeanAdaptiveGrowthGate:
             prior_close = state["last_close"]
             held_gap_return = (opening / prior_close - 1.0) if (
                 held and prior_close is not None and prior_close > 0) else 0.0
-            state["equity"] *= (1 + held_gap_return) * (1 + realized)
+            equity_return = (1 + held_gap_return) * (1 + realized) - 1
+            state["equity"] *= 1 + equity_return
+            # The old Q reward ignored gaps even when a long policy stayed
+            # exposed, despite the paper equity correctly losing that money.
+            # A SELL cannot avoid the pre-open gap from the prior holding;
+            # do not incorrectly blame that gap on the new cash action.
+            policy_reward = equity_return if target else realized
             if state["equity"] <= 0:
                 raise ValueError("simulated paper capital exhausted")
             if transaction_cost:
@@ -169,12 +175,12 @@ class BeanAdaptiveGrowthGate:
             preferred_before = _choose(state, context, explore=False, seed=0)
             q = state["q"].setdefault(context, {})
             old = float(q.get(action, 0.0))
-            q[action] = old + LEARNING_RATE * (realized * 10000.0 - old)
+            q[action] = old + LEARNING_RATE * (policy_reward * 10000.0 - old)
             counts = state["visits"].setdefault(context, {})
             counts[action] = counts.get(action, 0) + 1
             trials = state.setdefault("win_trials", {}).setdefault(context, {})
             trials[action] = trials.get(action, 0) + 1
-            if realized > 0:
+            if policy_reward > 0:
                 wins = state.setdefault("wins", {}).setdefault(context, {})
                 wins[action] = wins.get(action, 0) + 1
             preferred_after = _choose(state, context, explore=False, seed=0)
@@ -186,7 +192,7 @@ class BeanAdaptiveGrowthGate:
                 state["last_behavior_revision"] = {
                     "bar": ts, "context": context,
                     "before": preferred_before, "after": preferred_after,
-                    "realized_reward_bps": round(realized * 10000, 4)}
+                    "realized_reward_bps": round(policy_reward * 10000, 4)}
             state["paper_bars"] += 1
             if state["bootstrapped"]:
                 state["forward_bars"] += 1
