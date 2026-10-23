@@ -1,5 +1,6 @@
 """Honest paper evidence import boundaries; real SpongeTD checked by CI."""
 from contextlib import closing
+import json
 from pathlib import Path
 import sqlite3
 import tempfile
@@ -68,6 +69,59 @@ class PaperCoreLearningContracts(unittest.TestCase):
             with self.assertRaises(ValueError):
                 learn_from_paper(core_dir=empty, paper_db=self.paper,
                                  learning_db=self.learn)
+
+    def _pending_shadow_case(self, *, committed_after_entry):
+        signal = self.signal + 90 * BAR
+        observed = signal + BAR + 1
+        entry = signal + 2 * BAR
+        exit_ts = entry + 72 * BAR
+        with closing(sqlite3.connect(self.paper)) as db:
+            sha = db.execute(
+                "SELECT policy_sha FROM frozen_policy "
+                "WHERE product=?", (self.product,)).fetchone()[0]
+            db.execute(
+                "INSERT INTO paper_decisions(product,policy_sha,signal_ts,"
+                "observed_at,entry_ts,exit_ts,state) "
+                "VALUES(?,?,?,?,?,?,'PENDING')",
+                (self.product,sha,signal,observed,entry,exit_ts))
+            db.commit()
+        advice = {"shadow_advice":[{
+            "product":self.product,"policy_sha":sha,
+            "signal_ts":signal,"entry_ts":entry,"action":"cash",
+            "q_updates":30
+        }]}
+        class Completed:
+            stdout = json.dumps(advice)
+        # First clock read is before the subprocess. Second is immediately
+        # before durable insertion, and must NEVER be backdated.
+        start = observed + 1
+        finish = entry + 1 if committed_after_entry else observed + 2
+        with patch("src.bean_core_paper_learning.core_identity",
+                   return_value={"sha":"f"*40,"source":"separate-real-core"}), patch(
+                   "src.bean_core_paper_learning.subprocess.run",
+                   return_value=Completed()):
+            times = iter((start,finish))
+            result = learn_from_paper(
+                core_dir=self.folder.name,paper_db=self.paper,
+                learning_db=self.learn,clock=lambda:next(times))
+        with closing(sqlite3.connect(self.paper)) as db:
+            stored = db.execute(
+                "SELECT observed_at,action FROM bean_paper_shadow "
+                "WHERE signal_ts=?",(signal,)).fetchone()
+        return result,stored,finish
+
+    def test_slow_bean_worker_cannot_backdate_prospective_choice(self):
+        result,stored,_ = self._pending_shadow_case(
+            committed_after_entry=True)
+        self.assertEqual(result["shadow_candidate_count"],1)
+        self.assertEqual(result["shadow_choices_committed_before_entry"],0)
+        self.assertIsNone(stored)
+
+    def test_timely_bean_worker_records_actual_commit_time(self):
+        result,stored,finish = self._pending_shadow_case(
+            committed_after_entry=False)
+        self.assertEqual(result["shadow_choices_committed_before_entry"],1)
+        self.assertEqual(stored,(finish,"cash"))
 
     def test_core_paper_receipts_are_only_sent_to_credential_free_worker(self):
         class Completed:
