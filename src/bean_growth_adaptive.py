@@ -73,6 +73,7 @@ def _fresh_state():
             "held": 0, "equity": 100.0, "peak": 100.0, "drawdown": 0.0,
             "q": {}, "visits": {}, "wins": {}, "win_trials": {}, "paper_bars": 0, "forward_bars": 0,
             "mock_trades": 0, "history_gaps": 0, "bootstrapped": False,
+            "equity_segment_restarts": 0,
             "strategy_changes": 0, "last_action": None,
             "behavior_revisions": 0, "forward_behavior_revisions": 0,
             "last_behavior_revision": None}
@@ -137,10 +138,9 @@ class BeanAdaptiveGrowthGate:
         if prior is not None and ts <= prior:
             return False
         if prior is not None and ts != prior + BAR:
-            state["history_gaps"] += 1
-            state["pending"] = None
-            state["last_close"] = None
-            state["recent_returns"] = []
+            # A missing bar may conceal a scheduled BUY or SELL fill. Never
+            # keep stale paper equity/held exposure while discarding its price.
+            raise ValueError("noncontiguous completed candle history")
         pending = state["pending"]
         if pending is not None:
             held = int(state["held"])
@@ -216,6 +216,14 @@ class BeanAdaptiveGrowthGate:
                                  if start <= ts < end and ts % BAR == 0)
             if len(valid_times) < 30 or valid_times[-1] != end - BAR:
                 raise ValueError("latest 5-minute market history incomplete")
+            # Only replay the latest contiguous suffix. A missing candle can
+            # hide an intended fill; do not score across an unknown interval.
+            breaks = [i for i in range(1, len(valid_times))
+                      if valid_times[i] - valid_times[i - 1] != BAR]
+            if breaks:
+                valid_times = valid_times[breaks[-1]:]
+            if len(valid_times) < 30:
+                raise ValueError("insufficient contiguous completed candles")
             with self._lock, self._db() as db:
                 row = db.execute("SELECT state FROM policy WHERE product=?", (market,)).fetchone()
                 state = json.loads(row["state"]) if row else _fresh_state()
@@ -230,6 +238,29 @@ class BeanAdaptiveGrowthGate:
                         (market, str(state.get("cost_model") or "legacy_fee_7bps"),
                          int(self.clock()), row["state"]))
                     state = _fresh_state()
+                # A persisted simulated position cannot be carried over an
+                # offline/history gap: its next-open fill is unknowable.
+                # Archive that equity segment and restart it, but RETAIN the
+                # Q table and reward evidence learned on completed bars.
+                prior_bar = state.get("last_bar")
+                if prior_bar is not None and prior_bar > valid_times[-1]:
+                    raise ValueError("persisted learning clock is ahead of candles")
+                if prior_bar is not None and prior_bar < valid_times[0] - BAR:
+                    db.execute(
+                        "INSERT OR IGNORE INTO policy_archive "
+                        "(product,model_version,archived_at,state) VALUES(?,?,?,?)",
+                        (market, "history_gap_after_" + str(prior_bar),
+                         int(self.clock()), json.dumps(state, sort_keys=True)))
+                    previous = state
+                    state = _fresh_state()
+                    for key in ("q", "visits", "wins", "win_trials",
+                                "behavior_revisions", "forward_behavior_revisions",
+                                "last_behavior_revision"):
+                        if key in previous:
+                            state[key] = previous[key]
+                    state["history_gaps"] = previous.get("history_gaps", 0) + 1
+                    state["equity_segment_restarts"] = (
+                        previous.get("equity_segment_restarts", 0) + 1)
                 initial = not state["bootstrapped"]
                 for ts in valid_times:
                     if state["last_bar"] is None or ts > state["last_bar"]:
@@ -262,6 +293,7 @@ class BeanAdaptiveGrowthGate:
                           "reward_updates": sum(sum(v.values()) for v in state["visits"].values()),
                           "forward_bars": state["forward_bars"],
                           "paper_equity": round(state["equity"], 6),
+                          "equity_segment_restarts": state.get("equity_segment_restarts", 0),
                           "paper_drawdown": round(state["drawdown"], 6),
                           "paper_trades": state["mock_trades"],
                           "strategy_changes": state["strategy_changes"],
@@ -300,6 +332,7 @@ class BeanAdaptiveGrowthGate:
                 "action_scores_bps": {k: round(float(v), 4)
                                      for k, v in state["q"].get(ctxt, {}).items()},
                 "paper_equity": round(state["equity"], 6),
+                "equity_segment_restarts": state.get("equity_segment_restarts", 0),
                 "paper_drawdown": round(state["drawdown"], 6),
                 "paper_trades": state["mock_trades"],
                 "observed_through": state["last_bar"],
