@@ -161,6 +161,25 @@ class ForwardPaperTests(unittest.TestCase):
         self.assertIsNone(entry)
         self.assertIsNone(ret)
 
+    def test_old_schema_is_migrated_without_trusting_historical_returns(self):
+        self.simulate_tick(440)
+        with closing(sqlite3.connect(self.path)) as db:
+            # Emulate an existing pre-repair on-disk ledger, with no entry_ts.
+            db.execute("ALTER TABLE paper_decisions DROP COLUMN entry_ts")
+            db.execute(
+                "UPDATE paper_decisions SET state='SCORED',"
+                "entry_price=1,exit_price=100,net_return=99")
+            db.commit()
+        self.simulate_tick(515)
+        with closing(sqlite3.connect(self.path)) as db:
+            columns={row[1] for row in db.execute("PRAGMA table_info(paper_decisions)")}
+            state,net=db.execute(
+                "SELECT state,net_return FROM paper_decisions "
+                "WHERE signal_ts=?", (439*BAR,)).fetchone()
+        self.assertIn("entry_ts",columns)
+        self.assertEqual(state,"NONCAUSAL_ENTRY")
+        self.assertIsNone(net)
+
     def test_quarantined_same_slot_is_not_reported_as_new_position(self):
         self.simulate_tick(440)
         with closing(sqlite3.connect(self.path)) as db:
