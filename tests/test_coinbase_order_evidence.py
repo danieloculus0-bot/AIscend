@@ -79,7 +79,8 @@ class OrderEvidenceTests(unittest.TestCase):
                 self.state="OPEN"
             def order_detail(self,order_id):
                 return {"order":{"order_id":order_id,"status":self.state,
-                                 "filled_size":"0.05" if self.state=="FILLED" else "0"}}
+                                 "filled_size":"0.05" if self.state=="FILLED" else "0",
+                                 "filled_value":"5.00" if self.state=="FILLED" else "0"}}
         with tempfile.TemporaryDirectory() as td:
             store=StateStore(Path(td)/"evidence.db")
             try:
@@ -141,6 +142,43 @@ class OrderEvidenceTests(unittest.TestCase):
             verified_order(detail,"123")["state"],
             "PARTIAL_FILL_REQUIRES_RECONCILIATION")
 
+
+
+    def test_malformed_or_absent_filled_value_cannot_verify_order(self):
+        for bad in (None, "NaN", "Infinity", "-1", "0", "invalid"):
+            with self.subTest(filled_value=bad):
+                order = {"order_id": "cb-123", "status": "FILLED",
+                         "filled_size": "0.125"}
+                if bad is not None:
+                    order["filled_value"] = bad
+                receipt = verified_order({"order": order}, "cb-123")
+                self.assertEqual(receipt["state"], "FILLED_EVIDENCE_INCOMPLETE")
+
+    def test_filled_order_missing_identity_cannot_verify(self):
+        order = {"status": "FILLED", "filled_size": "0.125",
+                 "filled_value": "12.50"}
+        self.assertEqual(verified_order({"order": order}, "cb-123")["state"],
+                         "UNVERIFIED")
+
+    def test_malformed_filled_value_keeps_original_client_order_id(self):
+        class BadFillRail:
+            def order_detail(self, order_id):
+                return {"order": {"order_id": order_id, "status": "FILLED",
+                                  "filled_size": "0.5", "filled_value": "NaN"}}
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "bad-fill.db")
+            try:
+                engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                engine.store, engine.rail = store, BadFillRail()
+                intent = ('{"order_id":"cb-123","client_order_id":"client-123",'
+                          '"product":"BTC-USD","side":"BUY"}')
+                store.set_meta("pending_coinbase_order", intent)
+                decision, status = engine._pending_order_decision()
+                self.assertEqual(status, "ORDER_AWAITING_VERIFICATION")
+                self.assertEqual(decision.action, "HOLD")
+                self.assertIn("client-123", store.get_meta("pending_coinbase_order"))
+            finally:
+                store.close()
 
 
 if __name__=="__main__":
