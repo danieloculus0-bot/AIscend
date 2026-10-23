@@ -138,6 +138,21 @@ class BeanProspectiveTests(unittest.TestCase):
         self.assertEqual(result["status"],"DATA_UNAVAILABLE")
         self.assertFalse(result["promotion_authorized"])
 
+    def test_retrieved_feature_gap_after_initialization_fails_closed(self):
+        # Coinbase can omit a previously seen candle from a later response.
+        # Even if all new candles are present, do not calculate signals from
+        # a shortened 44-bar lookback or create hypothetical fills.
+        initial = self.run_step(60)
+        missing = candles()
+        del missing[59 * BAR]  # Already seen; not a new-candle sequence gap.
+        withheld = self.run_step(62, missing)
+        self.assertEqual(withheld["markets"]["BTC-USD"]["status"],
+                         "DATA_UNAVAILABLE")
+        self.assertEqual(withheld["ledger_tip"], initial["ledger_tip"])
+        recovered = self.run_step(62)
+        self.assertGreater(recovered["markets"]["BTC-USD"]["forward_bars"], 0)
+        self.assertNotEqual(recovered["ledger_tip"], initial["ledger_tip"])
+
     def test_midstream_candle_gap_blocks_unrealized_paper_profit(self):
         self.run_step(60)
         history=candles()
