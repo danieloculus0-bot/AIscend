@@ -215,9 +215,10 @@ class SubsetLedger:
                 " FROM character_types t JOIN character_subsets s"
                 " ON t.scope=s.scope AND t.slot=s.slot"
                 " AND t.type_character=s.type_character"
-                " WHERE t.scope=? AND t.slot=? AND t.type_character=?"
-                " AND s.subset_character=?",
-                (scope,slot,typ,subset)).fetchone()
+                " WHERE t.scope IN (?,?) AND t.slot=? AND t.type_character=?"
+                " AND s.subset_character=?"
+                " ORDER BY CASE WHEN t.scope=? THEN 0 ELSE 1 END LIMIT 1",
+                (scope,self._scope(set_id,None),slot,typ,subset,scope)).fetchone()
             if row is None:
                 raise ValueError("Unknown type/subset code in slot "+str(slot))
             parts.append({"slot":slot,"type_character":typ,
