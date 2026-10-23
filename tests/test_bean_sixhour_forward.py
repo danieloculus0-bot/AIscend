@@ -68,8 +68,9 @@ class BeanProspectiveTests(unittest.TestCase):
         self.assertFalse(confirmed["promotion_authorized"])
 
     def test_candle_opened_before_freeze_never_counts_as_forward(self):
-        # Freeze happens inside candle 60. Its later close is still historical.
-        self.manifest["frozen_at_unix"] = 60 * BAR + 600
+        # Freeze happens inside candle 60, before the first observation.
+        # Its later close is still historical, not a forward bar.
+        self.manifest["frozen_at_unix"] = 60 * BAR + 300
         self.save()
         initial = self.run_step(60)["markets"]["BTC-USD"]
         self.assertEqual(initial["forward_bars"], 0)
