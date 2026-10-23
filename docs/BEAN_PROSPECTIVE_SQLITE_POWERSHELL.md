@@ -1,5 +1,11 @@
 # BEAN prospective SQLite ledger — Python / PowerShell
 
+The default manifest is `research/bean_frozen_prospective_20261023_fee90.json`.
+It starts a new paper ledger at the published U.S. Coinbase Advanced entry-level
+taker fee of 90 bps per side, plus the separately modeled 10 bps round-trip
+spread. The user's personal fee tier and realized spread/slippage remain unknown;
+reconcile actual fills before interpreting paper performance.
+
 This is a **paper-only**, observational SQLite database. It does not submit Coinbase
 orders, access private keys, approve promotion, or guarantee net profitability.
 
