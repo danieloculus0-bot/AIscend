@@ -136,6 +136,86 @@ class AccountEvidenceTests(unittest.TestCase):
         self.assertEqual(self.history(self.store, clock=lambda: 3000)["status"],
                          "UNVERIFIED_OR_STALE")
 
+    def test_fractional_coinbase_timestamps_do_not_reverse_buy_and_sell(self):
+        # Lexicographic ordering incorrectly puts '.500Z' before 'Z'.
+        buy = fill(1, "BUY", 2, 10, ".20")
+        sell = fill(2, "SELL", 1, 20, ".10")
+        buy["trade_time"] = "2026-10-21T12:00:00Z"
+        sell["trade_time"] = "2026-10-21T12:00:00.500Z"
+        self.preserve(self.store, {"fills": [sell, buy], "complete": True},
+                      clock=lambda: 1000)
+        p = self.history(self.store, clock=lambda: 1001)["products"]["GROVE-USDC"]
+        self.assertEqual(p["status"], "VERIFIED_NET_CLOSED_TRADES")
+        self.assertAlmostEqual(p["realized_net_quote"], 9.8)
+        basis = rebuild_position_basis(
+            "GROVE-USDC", 1, [sell, buy], complete_history=True)
+        self.assertEqual(basis["cost_basis_status"], "verified_coinbase_fills")
+        self.assertAlmostEqual(basis["avg_cost"], 10.1)
+
+    def test_fractional_timestamp_cannot_fabricate_pre_buy_sale_profit(self):
+        sell = fill(1, "SELL", 1, 20, ".10")
+        buy = fill(2, "BUY", 1, 10, ".10")
+        sell["trade_time"] = "2026-10-21T12:00:00Z"
+        buy["trade_time"] = "2026-10-21T12:00:00.500Z"
+        self.preserve(self.store, {"fills": [buy, sell], "complete": True},
+                      clock=lambda: 1000)
+        p = self.history(self.store, clock=lambda: 1001)["products"]["GROVE-USDC"]
+        self.assertEqual(p["status"], "UNVERIFIED")
+        self.assertIsNone(p["realized_net_quote"])
+        basis = rebuild_position_basis(
+            "GROVE-USDC", 1, [buy, sell], complete_history=True)
+        self.assertEqual(basis["cost_basis_status"],
+                         "sell_exceeds_recorded_buy_lots")
+
+    def test_timezone_offsets_and_nanoseconds_preserve_actual_fill_order(self):
+        buy = fill(1, "BUY", 2, 10, ".20")
+        sell = fill(2, "SELL", 1, 20, ".10")
+        buy["trade_time"] = "2026-10-21T12:00:00.000000001+02:00"
+        sell["trade_time"] = "2026-10-21T10:00:00.000000002Z"
+        self.preserve(self.store, {"fills": [sell, buy], "complete": True},
+                      clock=lambda: 1000)
+        p = self.history(self.store, clock=lambda: 1001)["products"]["GROVE-USDC"]
+        self.assertEqual(p["status"], "VERIFIED_NET_CLOSED_TRADES")
+        self.assertAlmostEqual(p["realized_net_quote"], 9.8)
+
+    def test_same_instant_opposite_sides_cannot_verify_closed_profit(self):
+        buy = fill(1, "BUY", 1, 10, ".10")
+        sell = fill(2, "SELL", 1, 20, ".10")
+        buy["trade_time"] = "2026-10-21T12:00:00.000000000Z"
+        sell["trade_time"] = "2026-10-21T12:00:00Z"
+        self.preserve(self.store, {"fills": [buy, sell], "complete": True},
+                      clock=lambda: 1000)
+        p = self.history(self.store, clock=lambda: 1001)["products"]["GROVE-USDC"]
+        self.assertEqual(p["status"], "UNVERIFIED")
+        basis = rebuild_position_basis(
+            "GROVE-USDC", 0, [buy, sell], complete_history=True)
+        self.assertEqual(basis["cost_basis_status"],
+                         "ambiguous_same_instant_coinbase_fills")
+
+    def test_missing_commission_or_invalid_timestamp_cannot_verify_cost(self):
+        missing = fill(1, "BUY", 1, 10, ".10")
+        missing.pop("commission")
+        self.assertEqual(rebuild_position_basis(
+            "GROVE-USDC", 1, [missing], complete_history=True
+        )["cost_basis_status"], "missing_coinbase_fill_commission")
+        with self.assertRaises(ValueError):
+            self.preserve(self.store, {"fills": [missing], "complete": True},
+                          clock=lambda: 1000)
+        invalid = fill(1, "BUY", 1, 10, ".10")
+        invalid["trade_time"] = "not-a-coinbase-timestamp"
+        with self.assertRaises(ValueError):
+            self.preserve(self.store, {"fills": [invalid], "complete": True},
+                          clock=lambda: 1000)
+
+    def test_impossible_maker_rebate_cannot_create_verified_profit(self):
+        buy = fill(1, "BUY", 1, 10, "-11")
+        sell = fill(2, "SELL", 1, 20, "0")
+        self.preserve(self.store, {"fills": [buy, sell], "complete": True},
+                      clock=lambda: 1000)
+        p = self.history(self.store, clock=lambda: 1001)["products"]["GROVE-USDC"]
+        self.assertEqual(p["status"], "UNVERIFIED")
+        self.assertIsNone(p["realized_net_quote"])
+
     def test_coinbase_micro_quantities_preserve_exact_decimal_bytes(self):
         tiny = fill(1, "BUY", "0.00000000000000012345",
                     "12345.12345678987654321", "0.00000000000000000001")
