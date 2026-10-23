@@ -145,6 +145,77 @@ class GrowthPolicyTests(unittest.TestCase):
         self.assertEqual(state["last_behavior_revision"]["before"], before)
         self.assertEqual(state["last_behavior_revision"]["after"], after)
 
+    def test_continuing_long_gap_updates_q_reward_as_well_as_equity(self):
+        # A long held across the bar boundary owns the gap. The Q learner
+        # must not report a zero reward while paper capital loses 10%.
+        for opening, gap_bps in ((90.0, -1000.0), (110.0, 1000.0)):
+            s = _fresh_state()
+            s["last_bar"] = 0
+            s["last_close"] = 100.0
+            s["held"] = 1
+            s["pending"] = {"context": "initial", "action": "buy_hold",
+                            "position": 1}
+            BeanAdaptiveGrowthGate._apply_bar(
+                s, {"open": opening, "close": opening}, BAR, "ETH-USD")
+            self.assertAlmostEqual(s["equity"], opening, places=8)
+            self.assertAlmostEqual(
+                s["q"]["initial"]["buy_hold"], .08 * gap_bps, places=8)
+            self.assertEqual(s["win_trials"]["initial"]["buy_hold"], 1)
+            self.assertEqual(
+                s["wins"].get("initial", {}).get("buy_hold", 0),
+                int(gap_bps > 0))
+
+    def test_cash_exit_not_penalized_for_gap_from_prior_long(self):
+        # A sell at the next open cannot undo the gap already suffered by
+        # the old position. Charge the cash action its SELL fee, not the gap.
+        s = _fresh_state()
+        s["last_bar"] = 0
+        s["last_close"] = 100.0
+        s["held"] = 1
+        s["pending"] = {"context": "initial", "action": "cash",
+                        "position": 0}
+        BeanAdaptiveGrowthGate._apply_bar(
+            s, {"open": 90.0, "close": 90.0}, BAR, "ETH-USD")
+        self.assertAlmostEqual(
+            s["equity"], 90.0 * (1 - MODEL_FEE), places=8)
+        self.assertAlmostEqual(
+            s["q"]["initial"]["cash"], -.08 * MODEL_FEE * 10000, places=8)
+
+    def test_pre_gap_reward_model_is_archived_before_relearning(self):
+        import json
+
+        end = 500 * BAR
+        bars = {ts: {"open": 100.0, "close": 100.0}
+                for ts in range(end - 280 * BAR, end, BAR)}
+        with tempfile.TemporaryDirectory() as temp:
+            gate = BeanAdaptiveGrowthGate(
+                path=Path(temp) / "policy.sqlite3",
+                fetcher=lambda _p, a, b: {
+                    t: v for t, v in bars.items() if a <= t < b},
+                clock=lambda: end + 10)
+            stale = _fresh_state()
+            stale["cost_model"] = "taker60bps_held_gap_v2"
+            stale["q"] = {"initial": {"buy_hold": 98765.0}}
+            with gate._db() as db:
+                db.execute("INSERT INTO policy(product,state) VALUES(?,?)",
+                           ("ETH-USD", json.dumps(stale)))
+            self.assertEqual(gate.assess("ETH-USD")["status"], "READY")
+            with gate._db() as db:
+                archived = db.execute(
+                    "SELECT state FROM policy_archive WHERE product=? AND "
+                    "model_version=?", ("ETH-USD",
+                    "taker60bps_held_gap_v2")).fetchone()
+                updated = db.execute(
+                    "SELECT state FROM policy WHERE product=?",
+                    ("ETH-USD",)).fetchone()
+            self.assertIsNotNone(archived)
+            self.assertEqual(
+                json.loads(archived["state"])["q"]["initial"]["buy_hold"],
+                98765.0)
+            self.assertNotEqual(
+                json.loads(updated["state"])["q"].get("initial", {}).get("buy_hold"),
+                98765.0)
+
     def test_mock_round_trip_fee_matches_live_order_cost_assumption(self):
         # The live primary engine starts with a 60 bps taker-cost estimate.
         # Seven-basis-point simulated transitions fabricate cheap turnover.
