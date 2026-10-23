@@ -41,6 +41,68 @@ class GrowthPolicyTests(unittest.TestCase):
             self.assertEqual(updated["reward_updates"], first["reward_updates"] + 1)
             self.assertEqual(updated["forward_bars"], 1)
 
+    def test_missing_bar_does_not_preserve_imaginary_held_equity(self):
+        state = _fresh_state()
+        state["last_bar"] = 0
+        state["last_close"] = 100.0
+        state["held"] = 1
+        state["pending"] = {"context": "initial", "action": "cash",
+                            "position": 0}
+        # The missing bar could have contained a SELL fill. No opening price
+        # or realized paper P/L can be inferred from the later candle.
+        with self.assertRaisesRegex(ValueError, "noncontiguous"):
+            BeanAdaptiveGrowthGate._apply_bar(
+                state, {"open": 50.0, "close": 50.0}, 3 * BAR, "ETH-USD")
+        self.assertEqual(state["last_bar"], 0)
+        self.assertEqual(state["equity"], 100.0)
+        self.assertEqual(state["paper_bars"], 0)
+
+    def test_short_contiguous_suffix_blocks_adoption(self):
+        end = 500 * BAR
+        bars = {t: {"open": 100.0, "close": 100.0}
+                for t in range(end - 280 * BAR, end, BAR)}
+        del bars[end - 15 * BAR]
+        with tempfile.TemporaryDirectory() as temp:
+            gate = BeanAdaptiveGrowthGate(
+                path=Path(temp) / "growth.sqlite3",
+                fetcher=lambda _p, a, b: {
+                    t: v for t, v in bars.items() if a <= t < b},
+                clock=lambda: end + 10)
+            report = gate.assess("ETH-USD")
+            self.assertEqual(report["status"], "DATA_UNAVAILABLE")
+            self.assertEqual(report["trade_effect"], "NONE")
+
+    def test_offline_gap_restarts_equity_but_retains_q_learning(self):
+        end = 500 * BAR
+        bars = {t: {"open": 100.0, "close": 100.0}
+                for t in range(end - 280 * BAR, end, BAR)}
+        now = [end + 10]
+        with tempfile.TemporaryDirectory() as temp:
+            gate = BeanAdaptiveGrowthGate(
+                path=Path(temp) / "growth.sqlite3",
+                fetcher=lambda _p, a, b: {
+                    t: v for t, v in bars.items() if a <= t < b},
+                clock=lambda: now[0])
+            before = gate.assess("ETH-USD")
+            self.assertEqual(before["status"], "READY")
+            prior_updates = before["reward_updates"]
+            new_end = end + 100 * BAR
+            # Five unavailable bars include the unknowable scheduled fill.
+            for t in range(end + 5 * BAR, new_end, BAR):
+                bars[t] = {"open": 50.0, "close": 50.0}
+            now[0] = new_end + 10
+            after = gate.assess("ETH-USD")
+            self.assertEqual(after["status"], "READY")
+            self.assertEqual(after["equity_segment_restarts"], 1)
+            self.assertGreater(after["reward_updates"], prior_updates)
+            self.assertLessEqual(after["paper_equity"], 100.0)
+            with gate._db() as db:
+                archive = db.execute(
+                    "SELECT state FROM policy_archive WHERE product=? AND "
+                    "model_version=?", ("ETH-USD",
+                    "history_gap_after_" + str(end - BAR))).fetchone()
+            self.assertIsNotNone(archive)
+
     def test_policy_writes_realized_reward_and_learns_only_later(self):
         s = _fresh_state()
         market = "ETH-USD"
