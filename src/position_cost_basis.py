@@ -36,12 +36,23 @@ def rebuild_position_basis(product: str, held_quantity, fills: list[dict],
             fee = Decimal(str(row.get("commission") or "0"))
             if not all(v.is_finite() for v in (size, price, fee)):
                 return unknown("nonfinite_coinbase_fill")
-            if size <= 0 or price <= 0 or fee < 0:
+            # Authenticated maker rebates can be negative commissions.
+            # Reject impossible lots, not the sign of a valid signed fee.
+            if size <= 0 or price <= 0:
                 return unknown("invalid_coinbase_fill")
+            quote = product.rpartition("-")[2].upper()
+            fee_currency = str(
+                row.get("commission_currency") or row.get("fee_currency") or quote
+            ).upper()
+            if fee_currency != quote:
+                return unknown("mismatched_coinbase_fee_currency")
             side = str(row.get("side") or "").upper()
             if side == "BUY":
+                lot_cost = size * price + fee
+                if lot_cost <= 0:
+                    return unknown("nonpositive_coinbase_lot_cost")
                 qty += size
-                cost += size * price + fee
+                cost += lot_cost
             elif side == "SELL":
                 if qty < size:
                     return unknown("sell_exceeds_recorded_buy_lots")
