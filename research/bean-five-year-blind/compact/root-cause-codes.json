@@ -1,0 +1,42 @@
+{
+  "disclaimer": "Post-exit diagnostic attribution only, not proven causes.",
+  "labels": [
+    {
+      "code": "01",
+      "definition": "Trade lost on underlying move before costs",
+      "label": "BAD_MARKET_MOVE",
+      "verdict": "bad"
+    },
+    {
+      "code": "02",
+      "definition": "Trade gained after estimated spread and fees",
+      "label": "GOOD_NET_TRADE",
+      "verdict": "good"
+    },
+    {
+      "code": "03",
+      "definition": "Positive gross trade became non-positive after costs",
+      "label": "BAD_COST_DRAG",
+      "verdict": "bad"
+    },
+    {
+      "code": "04",
+      "definition": "Cash avoided a negative hypothetical trade",
+      "label": "GOOD_CASH_AVOIDED_LOSS",
+      "verdict": "good"
+    },
+    {
+      "code": "05",
+      "definition": "Cash missed a positive hypothetical trade",
+      "label": "BAD_CASH_MISSED_GAIN",
+      "verdict": "bad"
+    },
+    {
+      "code": "06",
+      "definition": "No meaningful signed fee-net edge",
+      "label": "NEUTRAL_NO_EDGE",
+      "verdict": "neutral"
+    }
+  ],
+  "schema": "aiscend.bean.root-cause-ledger.v1"
+}

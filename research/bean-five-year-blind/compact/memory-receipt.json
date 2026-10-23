@@ -1,0 +1,27 @@
+{
+  "compact_receipt_sha256": "7a1be48f82a73638f9225ea0ed7209dde233327e41e8ee3dbb5221a3bbe462d6",
+  "decision_records": 496,
+  "github_commit_of_results": "performed_by_separate_ci_step",
+  "hierarchy_receipt_sha256": "cf7a63652b89d7f24f8642b691b5eb01937f4cac071d607ae1a5e6916dcf33cc",
+  "index_bytes_per_record": 16,
+  "inspection_nodes": 1984,
+  "layers": [
+    "signal",
+    "decision",
+    "outcome",
+    "root_cause"
+  ],
+  "net_pnl_usd": -700.8834,
+  "no_future_outcome_in_pre_entry_layers": true,
+  "raw_decisions_preserved": true,
+  "root_cause_codes_diagnostic_not_proven_causation": true,
+  "root_code_counts": {
+    "01": 79,
+    "02": 70,
+    "03": 18,
+    "04": 195,
+    "05": 134
+  },
+  "schema": "aiscend.bean.compressed-memory-export.v1",
+  "source_outcome_sha256": "8eef7dc8243d838433155fc2a22a36e00f7893c6d6f33a05e794503678737905"
+}
