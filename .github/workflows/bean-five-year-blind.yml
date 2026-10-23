@@ -5,6 +5,11 @@ on:
     branches: [main]
     paths:
       - scripts/bean_five_year_blind.py
+      - scripts/build_bean_memory.py
+      - src/bean_pair_index.py
+      - src/bean_memory_subsets.py
+      - src/bean_cause_ledger.py
+      - tests/test_bean_memory_subsets.py
       - tests/test_bean_five_year_blind.py
       - .github/workflows/bean-five-year-blind.yml
   workflow_dispatch:
@@ -34,6 +39,8 @@ jobs:
         run: git clone --depth 1 https://github.com/danieloculus0-bot/BEAN.git "$RUNNER_TEMP/bean-core"
       - name: Test blind temporal boundaries and market-file SHA integrity
         run: python -m unittest discover -s tests -p test_bean_five_year_blind.py -v
+      - name: Test compact memory type/subset and hierarchical retention
+        run: python -m unittest discover -s tests -p test_bean_memory_subsets.py -v
       - name: Verify frozen Coinbase dataset exists or download it once
         run: |
           if [ -s data/market/coinbase_btc_eth_daily_2021-10-22_2026-10-21.csv ] && \
@@ -47,6 +54,12 @@ jobs:
           python -m scripts.bean_five_year_blind --run \
             --core "$RUNNER_TEMP/bean-core" \
             --output artifacts/bean-five-year-blind-summary.json
+      - name: Build four-layer root-cause and type/subset memory from blind results
+        run: |
+          python -m scripts.build_bean_memory \
+            --source artifacts/bean-five-year-blind-summary-episodes.jsonl \
+            --summary artifacts/bean-five-year-blind-summary.json \
+            --output-dir artifacts/bean-memory-retention
       - name: Publish source data and full decision by decision immutable-chain evidence
         uses: actions/upload-artifact@v4
         with:
@@ -57,6 +70,7 @@ jobs:
             data/market/coinbase_btc_eth_daily_2021-10-22_2026-10-21.manifest.json
             artifacts/bean-five-year-blind-summary.json
             artifacts/bean-five-year-blind-summary-episodes.jsonl
+            artifacts/bean-memory-retention/
       - name: Version the downloaded historical index CSV on owner's PR branch
         run: |
           git config user.name "github-actions[bot]"
@@ -64,14 +78,17 @@ jobs:
           mkdir -p research/bean-five-year-blind
           cp artifacts/bean-five-year-blind-summary.json research/bean-five-year-blind/summary.json
           cp artifacts/bean-five-year-blind-summary-episodes.jsonl research/bean-five-year-blind/decisions.jsonl
+          mkdir -p research/bean-five-year-blind/compact
+          cp -R artifacts/bean-memory-retention/. research/bean-five-year-blind/compact/
           git add data/market/coinbase_btc_eth_daily_2021-10-22_2026-10-21.csv \
                   data/market/coinbase_btc_eth_daily_2021-10-22_2026-10-21.manifest.json \
                   research/bean-five-year-blind/summary.json \
-                  research/bean-five-year-blind/decisions.jsonl
+                  research/bean-five-year-blind/decisions.jsonl \
+                  research/bean-five-year-blind/compact/
           if git diff --cached --quiet; then
             echo "Already stored exactly this frozen dataset on GitHub"
           else
-            git commit -m "evidence: persist frozen five-year Coinbase index and blind BEAN decisions"
+            git commit -m "evidence: persist blind BEAN decisions and SHA-linked compact memory hierarchy"
             git push origin HEAD:integration/python-desktop-live-forward-paper-20261022
           fi
       - name: Publish honest research boundaries
