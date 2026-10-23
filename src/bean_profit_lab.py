@@ -243,6 +243,14 @@ def experiment(product, data, *, fee_bps=60.0, spread_bps=10.0,
     rows = (sorted(data.values(), key=lambda x:x["ts"])
             if already_aggregated else to_4h(data))
     period = 21600 if already_aggregated else PERIOD
+    # Reject any missing observation across the entire research window.
+    # Re-scanning only surviving candles could otherwise cherry-pick around
+    # missing losing periods, and invalidate chronological holdouts.
+    if any(rows[i]["ts"] != rows[i-1]["ts"] + period
+           for i in range(1, len(rows))):
+        return {"status": "DATA_GAP", "product": product,
+                "evaluated_bars": len(rows), "period_seconds": period,
+                "promotion_authorized": False}
     if len(rows) < 180:
         return {"status": "INSUFFICIENT_HISTORY", "product": product,
                 "evaluated_bars": len(rows), "period_seconds": period, "promotion_authorized": False}
@@ -250,7 +258,8 @@ def experiment(product, data, *, fee_bps=60.0, spread_bps=10.0,
     cut2 = int(len(rows) * .75)
     if cut1 < 50 or cut2-cut1 < 20 or len(rows)-cut2 < 20:
         return {"status": "INSUFFICIENT_HISTORY", "product": product,
-                "4h_bars": len(rows), "promotion_authorized": False}
+                "evaluated_bars": len(rows), "period_seconds": period,
+                "promotion_authorized": False}
     ledger = Ledger()
     ledger.append("preregister", schema="bean-profit-search-v2", product=product,
                   fee_bps=fee_bps, spread_bps=spread_bps,
