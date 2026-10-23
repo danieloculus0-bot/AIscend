@@ -65,6 +65,7 @@ class ActualDesktopIntegrationTests(unittest.TestCase):
             self.window.execution.blockSignals(False)
             self.window._switch_to_live("advanced")
             self.assertIsInstance(self.window.engine, AdvancedSpotEngine)
+            self.assertEqual(self.window.interval.value(), 300.0)
             self.assertEqual(self.window.positions.item(0, 2).text(),
                              "Unverified")
             self.assertFalse(self.window.mode.isEnabled())

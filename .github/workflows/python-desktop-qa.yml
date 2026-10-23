@@ -1,0 +1,55 @@
+name: Python Desktop Release Candidate
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: python-desktop-rc-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-desktop:
+    name: Python engine, Coinbase boundary and headless Qt
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install required Linux Qt runtime libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libegl1 libopengl0 libxcb-cursor0 libxkbcommon-x11-0
+      - name: Install actual Python desktop dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Compile actual Python sources
+        run: python -m compileall -q src scripts web_app.py main.py
+      - name: Full Python regression suite, including real adapter fakes
+        # Keep every test module, but isolate native Qt teardown from later
+        # threaded tests. A crash in any module still fails the entire job.
+        run: python -m scripts.python_desktop_suite
+      - name: Headless PySide6 desktop control and Advanced Spot smoke
+        run: python -m scripts.desktop_integration_check
+      - name: Explicit account-scoped Python and frozen paper regression gates
+        run: |
+          python -m unittest discover -s tests -p 'test_forward_paper.py' -v
+          python -m unittest discover -s tests -p 'test_python_desktop_guard.py' -v
+          python -m unittest discover -s tests -p 'test_integrated_real_advanced_toolchain.py' -v
+      - name: Report boundaries
+        run: |
+          echo "PYTHON_TESTS_ONLY=true"
+          echo "REAL_COINBASE_AUTHENTICATED=false"
+          echo "REAL_FILLS_VERIFIED=false"
+          echo "PROFITABILITY_PROVEN=false"
+          echo "LIVE_TRADING_AUTHORIZED=false"

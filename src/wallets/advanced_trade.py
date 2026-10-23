@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import hashlib
 from dataclasses import asdict, dataclass
 from decimal import Decimal
 from typing import Any
@@ -112,15 +113,30 @@ class AdvancedTradeVault:
         )
 
 
+class CoinbaseExplicitRejection(RuntimeError):
+    """Exchange explicitly stated the order was not accepted."""
+
+
+class CoinbaseSubmissionUnconfirmed(RuntimeError):
+    """Submission outcome unknown; caller must retain the idempotency record."""
+
+
 def require_accepted_order(response: dict[str, Any]) -> dict[str, Any]:
-    """An HTTP 200 is not proof Coinbase accepted an order."""
-    if not isinstance(response, dict) or response.get("success") is not True:
-        reason = ""
-        if isinstance(response, dict):
-            reason = str(response.get("error_response") or response.get("failure_reason")
-                         or response.get("message") or "unconfirmed order response")
-        raise RuntimeError(f"Coinbase order not confirmed accepted: {reason or 'unconfirmed response'}")
-    return response
+    """Separate an explicit reject from an ambiguous provider response.
+
+    Both are failures to confirm acceptance; only an explicit reject can
+    release the durable pending-order intent without reconciliation.
+    """
+    if isinstance(response, dict) and response.get("success") is True:
+        return response
+    reason = ""
+    if isinstance(response, dict):
+        reason = str(response.get("error_response") or response.get("failure_reason")
+                     or response.get("message") or "unconfirmed order response")
+    error = f"Coinbase order not confirmed accepted: {reason or 'unconfirmed response'}"
+    if isinstance(response, dict) and response.get("success") is False:
+        raise CoinbaseExplicitRejection(error)
+    raise CoinbaseSubmissionUnconfirmed(error)
 
 
 class AdvancedTradeSpot:
@@ -134,6 +150,21 @@ class AdvancedTradeSpot:
 
     def __init__(self, vault: AdvancedTradeVault | None = None) -> None:
         self.vault = vault or AdvancedTradeVault()
+
+    def account_scope_id(self) -> str | None:
+        """Opaque per-credential scope; key rotations start new evidence scopes.
+
+        Only call after authenticated Coinbase account status succeeds. Hash
+        the key identifier, never its secret or portfolio balance. Distinct
+        keys to one portfolio deliberately remain isolated until proven safe
+        to combine. This is a credential scope, not an account UUID.
+        """
+        credentials = self.vault._credentials()
+        if not credentials or not credentials[0].strip():
+            return None
+        return hashlib.sha256(
+            ("coinbase-advanced-key-v1:" + credentials[0].strip()).encode(
+                "utf-8")).hexdigest()
 
     @classmethod
     def validate_credentials(cls, api_key_id: str, api_key_secret: str):
@@ -364,6 +395,48 @@ class AdvancedTradeSpot:
             return None
         return float(value * Decimal("10000"))
 
+    def find_order_id_by_client_id(
+        self, *, product_id: str, client_order_id: str, max_pages: int = 10
+    ) -> str | None:
+        """Locate an uncertain submission without ever creating another order.
+
+        Coinbase's authenticated List Orders endpoint supports pagination.
+        A missing listing is NOT confirmation that a submission failed.
+        """
+        if not product_id or not client_order_id:
+            raise ValueError("Product and client order ID are required")
+        client = self.vault.client()
+        cursor = None
+        seen_cursors = set()
+        matched_ids = set()
+        for _ in range(max_pages):
+            kwargs = {"product_ids": [product_id.upper()], "limit": 100}
+            if cursor:
+                kwargs["cursor"] = cursor
+            response = self._dict(client.list_orders(**kwargs))
+            orders = response.get("orders")
+            if not isinstance(orders, list):
+                raise RuntimeError("Coinbase order history returned invalid data")
+            for order in orders:
+                if not isinstance(order, dict):
+                    continue
+                if (str(order.get("client_order_id") or "") == client_order_id
+                        and str(order.get("product_id") or "").upper()
+                        == product_id.upper()):
+                    found = str(order.get("order_id") or "")
+                    if found:
+                        matched_ids.add(found)
+            if len(matched_ids) > 1:
+                raise RuntimeError("Coinbase returned multiple orders for one client ID")
+            next_cursor = str(response.get("cursor") or "")
+            if response.get("has_next") is False or not next_cursor:
+                break
+            if next_cursor in seen_cursors:
+                raise RuntimeError("Coinbase order history repeated a cursor")
+            seen_cursors.add(next_cursor)
+            cursor = next_cursor
+        return next(iter(matched_ids)) if matched_ids else None
+
     def order_detail(self, order_id: str) -> dict[str, Any]:
         """Read an authenticated Coinbase order (not the submit ACK)."""
         if not order_id or not order_id.strip():
@@ -399,6 +472,35 @@ class AdvancedTradeSpot:
             cursor = next_cursor
         return {"fills": fills, "complete": False, "pages": max_pages}
 
+
+    def account_fills(self, *, max_pages: int = 30) -> dict[str, Any]:
+        """Read all accessible authenticated account fills, not only holdings.
+
+        A configured Coinbase account can have historical SOLD products that no
+        longer appear in balances. Pagination must finish before anyone calls
+        the account history complete. This makes no orders or transfers.
+        """
+        client = self.vault.client()
+        cursor = None
+        seen = set()
+        fills = []
+        for page in range(max_pages):
+            kwargs = {"limit": 100, "product_types": ["SPOT"]}
+            if cursor:
+                kwargs["cursor"] = cursor
+            payload = self._dict(client.get_fills(**kwargs))
+            rows = payload.get("fills")
+            if not isinstance(rows, list):
+                raise RuntimeError("Coinbase account fill history is malformed")
+            fills.extend(rows)
+            next_cursor = str(payload.get("cursor") or "")
+            if not next_cursor:
+                return {"fills": fills, "complete": True, "pages": page + 1}
+            if next_cursor in seen:
+                raise RuntimeError("Coinbase account fill pagination repeated a cursor")
+            seen.add(next_cursor)
+            cursor = next_cursor
+        return {"fills": fills, "complete": False, "pages": max_pages}
 
     def order_fills(self, order_id: str) -> dict[str, Any]:
         """Read actual execution fills/commissions, never a preview estimate."""

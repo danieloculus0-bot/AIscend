@@ -1,0 +1,121 @@
+name: Five-Year Blind BEAN Historical Research
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - scripts/bean_five_year_blind.py
+      - scripts/build_bean_memory.py
+      - scripts/bean_five_year_memory_trial.py
+      - tests/test_bean_memory_replay.py
+      - src/bean_pair_index.py
+      - src/bean_memory_subsets.py
+      - src/bean_cause_ledger.py
+      - tests/test_bean_memory_subsets.py
+      - tests/test_bean_five_year_blind.py
+      - .github/workflows/bean-five-year-blind.yml
+  workflow_dispatch:
+
+# Runs only for the owner's designated same-repo research branch.
+# Public market data only. No exchange credentials, wallet, or order APIs.
+permissions:
+  contents: write
+
+jobs:
+  blind-market-evidence:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == 'danieloculus0-bot/AIscend' &&
+      github.event.pull_request.head.ref == 'integration/python-desktop-live-forward-paper-20261022'
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - name: Check out owner-owned research branch
+        uses: actions/checkout@v4
+        with:
+          ref: integration/python-desktop-live-forward-paper-20261022
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Fetch separate actual BEAN Core
+        run: git clone --depth 1 https://github.com/danieloculus0-bot/BEAN.git "$RUNNER_TEMP/bean-core"
+      - name: Test blind temporal boundaries and market-file SHA integrity
+        run: python -m unittest discover -s tests -p test_bean_five_year_blind.py -v
+      - name: Test compact memory type/subset and hierarchical retention
+        run: python -m unittest discover -s tests -p test_bean_memory_subsets.py -v
+      - name: Test BEAN memory retrieval temporal isolation
+        run: python -m unittest discover -s tests -p test_bean_memory_replay.py -v
+      - name: Verify frozen Coinbase dataset exists or download it once
+        run: |
+          if [ -s data/market/coinbase_btc_eth_daily_2021-10-22_2026-10-21.csv ] && \
+             [ -s data/market/coinbase_btc_eth_daily_2021-10-22_2026-10-21.manifest.json ]; then
+            echo "Using existing pinned historical index; strict SHA and coverage validated by backtest."
+          else
+            python -m scripts.bean_five_year_blind --download
+          fi
+      - name: Run un-tuned five-year sequential BEAN Core blind experiment
+        run: |
+          python -m scripts.bean_five_year_blind --run \
+            --core "$RUNNER_TEMP/bean-core" \
+            --output artifacts/bean-five-year-blind-summary.json
+      - name: Build four-layer root-cause and type/subset memory from blind results
+        run: |
+          python -m scripts.build_bean_memory \
+            --source artifacts/bean-five-year-blind-summary-episodes.jsonl \
+            --summary artifacts/bean-five-year-blind-summary.json \
+            --output-dir artifacts/bean-memory-retention
+      - name: Replay two actual BEAN learning policies, one using chronological memory
+        run: |
+          python -m scripts.bean_five_year_memory_trial \
+            --data data/market/coinbase_btc_eth_daily_2021-10-22_2026-10-21.csv \
+            --core "$RUNNER_TEMP/bean-core" \
+            --output-dir artifacts/bean-five-year-memory-trial
+      - name: Publish source data and full decision by decision immutable-chain evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: bean-five-year-blind-coinbase-data-and-results
+          retention-days: 90
+          path: |
+            data/market/coinbase_btc_eth_daily_2021-10-22_2026-10-21.csv
+            data/market/coinbase_btc_eth_daily_2021-10-22_2026-10-21.manifest.json
+            artifacts/bean-five-year-blind-summary.json
+            artifacts/bean-five-year-blind-summary-episodes.jsonl
+            artifacts/bean-memory-retention/
+            artifacts/bean-five-year-memory-trial/
+      - name: Version the downloaded historical index CSV on owner's PR branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p research/bean-five-year-blind
+          cp artifacts/bean-five-year-blind-summary.json research/bean-five-year-blind/summary.json
+          cp artifacts/bean-five-year-blind-summary-episodes.jsonl research/bean-five-year-blind/decisions.jsonl
+          mkdir -p research/bean-five-year-blind/compact
+          cp -R artifacts/bean-memory-retention/. research/bean-five-year-blind/compact/
+          mkdir -p research/bean-five-year-blind/memory-trial
+          cp -R artifacts/bean-five-year-memory-trial/. research/bean-five-year-blind/memory-trial/
+          git add data/market/coinbase_btc_eth_daily_2021-10-22_2026-10-21.csv \
+                  data/market/coinbase_btc_eth_daily_2021-10-22_2026-10-21.manifest.json \
+                  research/bean-five-year-blind/summary.json \
+                  research/bean-five-year-blind/decisions.jsonl \
+                  research/bean-five-year-blind/compact/ \
+                  research/bean-five-year-blind/memory-trial/
+          # The application intentionally ignores *.sqlite3 globally.
+          # Force-add only credential-free, reproducible PUBLIC paper evidence
+          # databases; never force-add private desktop trading journals.
+          git add -f -- research/bean-five-year-blind/compact/cause-ledger.sqlite3 \
+                        research/bean-five-year-blind/compact/inspection-hierarchy.sqlite3 \
+                        research/bean-five-year-blind/memory-trial/experiences.sqlite3
+          if git diff --cached --quiet; then
+            echo "Already stored exactly this frozen dataset on GitHub"
+          else
+            git commit -m "evidence: persist compact BEAN memory trial and paired five-year decision receipts"
+            git push origin HEAD:integration/python-desktop-live-forward-paper-20261022
+          fi
+      - name: Publish honest research boundaries
+        run: |
+          echo "REAL_BEAN_CORE_USED=true"
+          echo "BLIND_CHRONOLOGICAL_TEST=true"
+          echo "SYNTHETIC_PRICES=false"
+          echo "MARKET_DATA=PUBLIC_COINBASE_SPOT_DAILY"
+          echo "SIMULATED_ORDERS_ONLY=true"
+          echo "REAL_PROFITABILITY_PROVEN=false"

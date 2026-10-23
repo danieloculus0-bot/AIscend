@@ -1,0 +1,243 @@
+{
+  "causal_boundary": "slots 1-5 before decision; slots 6-8 after exit",
+  "definition_policy": "versioned append-only; do not reassign codes",
+  "index_bytes": 16,
+  "no_claim_of_causal_root_proof": true,
+  "schema": "aiscend.bean.pair-index.v1",
+  "separator_bytes": 0,
+  "slots": [
+    {
+      "byte_offset": 0,
+      "field": "product",
+      "position": 1,
+      "references": [
+        {
+          "key": "AA",
+          "meaning": "BTC-USD",
+          "subset_character": "A",
+          "type_character": "A"
+        },
+        {
+          "key": "AB",
+          "meaning": "ETH-USD",
+          "subset_character": "B",
+          "type_character": "A"
+        }
+      ],
+      "type": "upper"
+    },
+    {
+      "byte_offset": 2,
+      "field": "momentum_7d",
+      "position": 2,
+      "references": [
+        {
+          "key": "aa",
+          "meaning": "down",
+          "subset_character": "a",
+          "type_character": "a"
+        },
+        {
+          "key": "ab",
+          "meaning": "flat",
+          "subset_character": "b",
+          "type_character": "a"
+        },
+        {
+          "key": "ac",
+          "meaning": "up",
+          "subset_character": "c",
+          "type_character": "a"
+        }
+      ],
+      "type": "lower"
+    },
+    {
+      "byte_offset": 4,
+      "field": "momentum_28d",
+      "position": 3,
+      "references": [
+        {
+          "key": "aa",
+          "meaning": "down",
+          "subset_character": "a",
+          "type_character": "a"
+        },
+        {
+          "key": "ab",
+          "meaning": "flat",
+          "subset_character": "b",
+          "type_character": "a"
+        },
+        {
+          "key": "ac",
+          "meaning": "up",
+          "subset_character": "c",
+          "type_character": "a"
+        }
+      ],
+      "type": "lower"
+    },
+    {
+      "byte_offset": 6,
+      "field": "momentum_84d",
+      "position": 4,
+      "references": [
+        {
+          "key": "aa",
+          "meaning": "down",
+          "subset_character": "a",
+          "type_character": "a"
+        },
+        {
+          "key": "ab",
+          "meaning": "flat",
+          "subset_character": "b",
+          "type_character": "a"
+        },
+        {
+          "key": "ac",
+          "meaning": "up",
+          "subset_character": "c",
+          "type_character": "a"
+        }
+      ],
+      "type": "lower"
+    },
+    {
+      "byte_offset": 8,
+      "field": "volatility_14d",
+      "position": 5,
+      "references": [
+        {
+          "key": "aa",
+          "meaning": "high",
+          "subset_character": "a",
+          "type_character": "a"
+        },
+        {
+          "key": "ab",
+          "meaning": "normal",
+          "subset_character": "b",
+          "type_character": "a"
+        }
+      ],
+      "type": "lower"
+    },
+    {
+      "byte_offset": 10,
+      "field": "action",
+      "position": 6,
+      "references": [
+        {
+          "key": "01",
+          "meaning": "cash",
+          "subset_character": "1",
+          "type_character": "0"
+        },
+        {
+          "key": "02",
+          "meaning": "trade",
+          "subset_character": "2",
+          "type_character": "0"
+        }
+      ],
+      "type": "numeric"
+    },
+    {
+      "byte_offset": 12,
+      "field": "root_cause_code",
+      "position": 7,
+      "references": [
+        {
+          "key": "01",
+          "meaning": "01",
+          "subset_character": "1",
+          "type_character": "0"
+        },
+        {
+          "key": "02",
+          "meaning": "02",
+          "subset_character": "2",
+          "type_character": "0"
+        },
+        {
+          "key": "03",
+          "meaning": "03",
+          "subset_character": "3",
+          "type_character": "0"
+        },
+        {
+          "key": "04",
+          "meaning": "04",
+          "subset_character": "4",
+          "type_character": "0"
+        },
+        {
+          "key": "05",
+          "meaning": "05",
+          "subset_character": "5",
+          "type_character": "0"
+        },
+        {
+          "key": "06",
+          "meaning": "06",
+          "subset_character": "6",
+          "type_character": "0"
+        }
+      ],
+      "type": "numeric"
+    },
+    {
+      "byte_offset": 14,
+      "field": "net_return_band",
+      "position": 8,
+      "references": [
+        {
+          "key": "01",
+          "meaning": "less_than_minus_5pct",
+          "subset_character": "1",
+          "type_character": "0"
+        },
+        {
+          "key": "02",
+          "meaning": "minus_5pct_to_minus_1pct",
+          "subset_character": "2",
+          "type_character": "0"
+        },
+        {
+          "key": "03",
+          "meaning": "minus_1pct_to_0pct",
+          "subset_character": "3",
+          "type_character": "0"
+        },
+        {
+          "key": "04",
+          "meaning": "zero",
+          "subset_character": "4",
+          "type_character": "0"
+        },
+        {
+          "key": "05",
+          "meaning": "0pct_to_1pct",
+          "subset_character": "5",
+          "type_character": "0"
+        },
+        {
+          "key": "06",
+          "meaning": "1pct_to_5pct",
+          "subset_character": "6",
+          "type_character": "0"
+        },
+        {
+          "key": "07",
+          "meaning": "greater_than_5pct",
+          "subset_character": "7",
+          "type_character": "0"
+        }
+      ],
+      "type": "numeric"
+    }
+  ],
+  "wildcard": "ASCII space (only in searches, never saved indexes)"
+}

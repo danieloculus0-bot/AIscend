@@ -61,6 +61,9 @@ class RotationTests(unittest.TestCase):
         learner = LearnedPolicy()
         result = evaluate_candidates(learner, self.snapshot(cash={"USDC": 25.0}))
         self.assertEqual(result["best_long"]["product"], "ALEO-USDC")
+        # Prospective conversion from paper reward to live choice must use
+        # the same 60-bps taker fallback, never the former hidden 7-bps value.
+        self.assertAlmostEqual(result["best_long"]["edge_bps"], 400 - 60 - 4 / 2)
         self.assertEqual(result["assessed_count"], 3)
         self.assertEqual(set(learner.calls),
                          {"ETH-USDC", "ALEO-USDC", "DIMO-USDC"})

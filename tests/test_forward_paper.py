@@ -1,0 +1,153 @@
+"""No real orders; test causal forward paper decisions with deterministic bars."""
+import json
+from contextlib import closing
+from pathlib import Path
+import sqlite3
+import tempfile
+import unittest
+
+from src.bean_five_minute import BAR
+from src.forward_paper import observe_and_score, freeze_training_candidates
+
+MANIFEST=[{"product":"BTC-USD","policy":"trend",
+           "training_only_frozen":True}]
+
+
+class ForwardPaperTests(unittest.TestCase):
+    def setUp(self):
+        self.folder=tempfile.TemporaryDirectory()
+        self.addCleanup(self.folder.cleanup)
+        self.path=Path(self.folder.name)/"paper.sqlite3"
+        self.times=[]
+        self.rows={}
+        for index in range(900):
+            ts=index*BAR
+            price=100*(1.0006**index)
+            self.rows[ts]={"open":price,"close":price*1.0002,"volume":100}
+            self.times.append(ts)
+        self.requests=[]
+        self.missing=set()
+    def fetch(self,product,start,end):
+        self.assertEqual(product,"BTC-USD")
+        self.requests.append((start,end))
+        return {t:v for t,v in self.rows.items()
+                if start<=t<end and t not in self.missing}
+    def simulate_tick(self,at,**kwargs):
+        return observe_and_score(
+            manifest=MANIFEST,db_path=self.path,fetcher=self.fetch,
+            clock=lambda:at*BAR+1,**kwargs)
+
+    def test_freeze_uses_training_rank_only_and_never_chooses_holdout_winner(self):
+        report={"schema":"aiscend.universe_research_aggregate.v1",
+                "promotion_authorized":False,
+                "training_preselected":[
+                    {"product":"BTC-USD","policy":"trend","train_return":.08,
+                     "holdout_return":-.50},
+                    {"product":"ETH-USDC","policy":"breakout","train_return":.07,
+                     "holdout_return":.99},
+                ]}
+        frozen=freeze_training_candidates(report,limit=2)
+        self.assertEqual(frozen[0]["product"],"BTC-USD")
+        self.assertEqual(frozen[0]["policy"],"trend")
+        self.assertEqual(frozen[1]["product"],"ETH-USDC")
+        self.assertTrue(all(x["training_only_frozen"] for x in frozen))
+        report["promotion_authorized"]=True
+        with self.assertRaises(ValueError):
+            freeze_training_candidates(report)
+
+    def test_signal_is_recorded_before_next_entry_bar_exists(self):
+        result=self.simulate_tick(440)
+        self.assertTrue(result["paper_only"])
+        self.assertFalse(result["promotion_authorized"])
+        signal=result["products"]["BTC-USD"]
+        self.assertEqual(signal["status"],"PENDING")
+        self.assertEqual(signal["signal_ts"],439*BAR)
+        self.assertEqual(signal["entry_ts"],441*BAR)
+        self.assertEqual(signal["exit_ts"],513*BAR)
+        self.assertGreater(signal["entry_ts"],440*BAR+1)
+        self.assertTrue(all(end<=440*BAR for _,end in self.requests))
+        self.assertEqual(result["scorecard"]["BTC-USD"]["scored_trades"],0)
+        with closing(sqlite3.connect(self.path)) as db:
+            row=db.execute(
+                "SELECT state,entry_price,net_return FROM paper_decisions").fetchone()
+        self.assertEqual(row[0],"PENDING")
+        self.assertIsNone(row[1])
+        self.assertIsNone(row[2])
+
+    def test_paper_reward_uses_future_open_not_already_open_bar(self):
+        self.simulate_tick(440)
+        # At 440*BAR+1, bar 440 OPEN has already happened. Its opening
+        # price must never appear as this strategy's acquired fill.
+        self.rows[440*BAR]["open"] = 0.01
+        self.rows[441*BAR]["open"] = 123.456
+        self.simulate_tick(515)
+        with closing(sqlite3.connect(self.path)) as db:
+            got=db.execute(
+                "SELECT observed_at,entry_ts,entry_price,exit_ts "
+                "FROM paper_decisions").fetchone()
+        self.assertLess(got[0], got[1])
+        self.assertEqual(got[1], 441*BAR)
+        self.assertEqual(got[2], 123.456)
+        self.assertEqual(got[3], 513*BAR)
+
+    def test_legacy_paper_ledger_with_time_leakage_fails_closed(self):
+        with closing(sqlite3.connect(self.path)) as db:
+            db.execute("CREATE TABLE paper_decisions("
+                       "product TEXT,policy_sha TEXT,signal_ts INTEGER,"
+                       "observed_at REAL,exit_ts INTEGER,state TEXT)")
+        with self.assertRaisesRegex(ValueError,"Legacy paper fills"):
+            self.simulate_tick(440)
+
+    def test_history_is_scored_only_after_exit_candle_completed(self):
+        self.simulate_tick(440)
+        before=self.simulate_tick(500)
+        self.assertEqual(before["products"]["BTC-USD"]["status"],"PENDING")
+        done=self.simulate_tick(515)
+        self.assertEqual(done["products"]["BTC-USD"]["status"],"SCORED")
+        self.assertEqual(done["scorecard"]["BTC-USD"]["scored_trades"],1)
+        self.assertGreater(done["scorecard"]["BTC-USD"]["net_return"],0)
+        self.assertFalse(done["scorecard"]["BTC-USD"]["candidate_validated"])
+        self.assertFalse(done["promotion_authorized"])
+
+    def test_gap_over_open_paper_position_is_not_profitable_trade(self):
+        self.simulate_tick(440)
+        self.missing.add(482*BAR)
+        done=self.simulate_tick(514)
+        self.assertEqual(done["products"]["BTC-USD"]["status"],"DATA_GAP")
+        self.assertEqual(done["scorecard"]["BTC-USD"]["net_return"],0)
+        self.assertEqual(done["scorecard"]["BTC-USD"]["scored_trades"],0)
+
+    def test_repeated_observation_in_same_slot_cannot_duplicate_signal(self):
+        self.simulate_tick(440)
+        self.simulate_tick(440)
+        with closing(sqlite3.connect(self.path)) as db:
+            n=db.execute("SELECT COUNT(*) FROM paper_decisions").fetchone()[0]
+        self.assertEqual(n,1)
+
+    def test_frozen_policy_cannot_change_or_be_retroactively_tuned(self):
+        self.simulate_tick(440)
+        with self.assertRaisesRegex(ValueError,"Frozen strategy"):
+            observe_and_score(
+                manifest=[{"product":"BTC-USD","policy":"breakout",
+                           "training_only_frozen":True}],
+                db_path=self.path,fetcher=self.fetch,
+                clock=lambda:441*BAR+1)
+        with self.assertRaisesRegex(ValueError,"cost assumptions"):
+            self.simulate_tick(441,fee_bps=25)
+        with self.assertRaises(ValueError):
+            observe_and_score(
+                manifest=[{"product":"BTC-USD","policy":"trend",
+                           "training_only_frozen":False}],
+                db_path=self.path,fetcher=self.fetch,
+                clock=lambda:441*BAR+1)
+
+    def test_no_signals_on_incomplete_initial_lookback(self):
+        short=lambda p,s,e:{t:v for t,v in self.rows.items()
+                            if 430*BAR<=t<e}
+        r=observe_and_score(manifest=MANIFEST,db_path=self.path,
+                            fetcher=short,clock=lambda:440*BAR+1)
+        self.assertEqual(r["products"]["BTC-USD"]["status"],"NO_SIGNAL")
+
+
+if __name__=="__main__":
+    unittest.main()

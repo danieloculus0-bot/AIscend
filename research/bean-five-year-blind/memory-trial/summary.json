@@ -1,0 +1,46 @@
+{
+  "actions": {
+    "control": {
+      "cash": 329,
+      "trade": 167
+    },
+    "memory": {
+      "cash": 398,
+      "trade": 98
+    }
+  },
+  "core_q_updates": {
+    "control": 496,
+    "memory": 496
+  },
+  "dataset_sha256": "58063c9b585cc9d96dc19087a664ab4f1d41eb2bf65402ceb5e2abe94915d676",
+  "fee_bps_each_side": 60.0,
+  "final_equity_usd": {
+    "always_cash": 1000.0,
+    "always_trade": 51.7821,
+    "control": 299.1166,
+    "memory": 452.5971
+  },
+  "historical_simulation_not_live_profitability_proof": true,
+  "initial_usd": 1000,
+  "leakage_assertion": "all memory queries exit_day < decision day",
+  "lookups_with_8plus_prior_examples": 467,
+  "memory_method": "SpongeTD Q margin + 0.35 * shrinkage weighted fee-net prior",
+  "net_return_pct": {
+    "always_cash": 0.0,
+    "always_trade": -94.8218,
+    "control": -70.0883,
+    "memory": -54.7403
+  },
+  "opportunities": 496,
+  "real_bean_core_sha": "ca3d257b30cd6521688b215a370db8c9c515908e",
+  "retention": {
+    "indexed_subset_pointers": 1984,
+    "receipt_tip_sha256": "124fc6b734b47b9eea96b4837c4121bda20f18dc04a5f9ecfaf589d2b061cb4d",
+    "rows": 496
+  },
+  "schema": "aiscend.bean-memory-paired-five-year.v1",
+  "selection_parameters_frozen_before_test": true,
+  "spread_bps": 10.0,
+  "true_trading_or_order_execution": false
+}

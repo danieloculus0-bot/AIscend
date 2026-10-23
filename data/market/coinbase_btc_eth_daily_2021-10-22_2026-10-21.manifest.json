@@ -1,0 +1,17 @@
+{
+  "actual_coinbase_orders": 0,
+  "cashflows_authenticated": false,
+  "csv_sha256": "58063c9b585cc9d96dc19087a664ab4f1d41eb2bf65402ceb5e2abe94915d676",
+  "products": [
+    "BTC-USD",
+    "ETH-USD"
+  ],
+  "range_end_exclusive": "2026-10-22",
+  "range_start_inclusive": "2021-10-22",
+  "request_granularity_seconds": 86400,
+  "requests_made": 22,
+  "rows": 3652,
+  "schema": "aiscend.bean.five-year-blind.v1.data.v1",
+  "source": "Coinbase Exchange public /products/{product}/candles",
+  "url_template": "https://api.exchange.coinbase.com/products/{product}/candles"
+}

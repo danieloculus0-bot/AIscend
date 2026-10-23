@@ -3,7 +3,8 @@ import unittest
 from decimal import Decimal
 from unittest.mock import patch
 
-from src.wallets.advanced_trade import AdvancedTradeSpot, AdvancedTradeVault, _ADVANCED_SERVICE
+from src.wallets.advanced_trade import (AdvancedTradeSpot, AdvancedTradeVault, _ADVANCED_SERVICE,
+    CoinbaseExplicitRejection, CoinbaseSubmissionUnconfirmed)
 
 
 class MemoryKeyring:
@@ -238,6 +239,56 @@ class AdvancedTradeTests(unittest.TestCase):
             {"error": "unknown response"})
         with self.assertRaisesRegex(RuntimeError, "not confirmed"):
             rail.market_buy("eth-usdc", Decimal("5"), "ambiguous")
+
+    def test_explicit_venue_rejection_is_distinguishable(self):
+        rail = AdvancedTradeSpot(FakeVault())
+        rail.vault.fake_client.market_order_sell = lambda **kw: FakeResponse(
+            {"success": False, "error_response": "NO_FUNDS"})
+        with self.assertRaises(CoinbaseExplicitRejection):
+            rail.market_sell("btc-usd", Decimal("1"), "reject-1")
+
+    def test_ambiguous_venue_response_does_not_claim_rejection(self):
+        rail = AdvancedTradeSpot(FakeVault())
+        rail.vault.fake_client.market_order_sell = lambda **kw: FakeResponse(
+            {"message": "gateway uncertain"})
+        with self.assertRaises(CoinbaseSubmissionUnconfirmed):
+            rail.market_sell("btc-usd", Decimal("1"), "unknown-1")
+        rail.vault.fake_client.market_order_buy = lambda **kw: FakeResponse(
+            {"message": "gateway uncertain"})
+        with self.assertRaises(CoinbaseSubmissionUnconfirmed):
+            rail.market_buy("btc-usd", Decimal("5"), "unknown-2")
+
+    def test_client_order_recovery_matches_exact_authenticated_identifier(self):
+        rail = AdvancedTradeSpot(FakeVault())
+        calls = []
+        def listing(**kw):
+            calls.append(kw)
+            if "cursor" not in kw:
+                return FakeResponse({
+                    "orders": [{"order_id": "wrong", "product_id": "GROVE-USDC",
+                                "client_order_id": "someone-else"}],
+                    "cursor": "next", "has_next": True,
+                })
+            return FakeResponse({
+                "orders": [{"order_id": "coinbase-actual-id",
+                            "product_id": "GROVE-USDC",
+                            "client_order_id": "aiscend-same-id"}],
+                "has_next": False,
+            })
+        rail.vault.fake_client.list_orders = listing
+        found = rail.find_order_id_by_client_id(
+            product_id="GROVE-USDC", client_order_id="aiscend-same-id")
+        self.assertEqual(found, "coinbase-actual-id")
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0]["product_ids"], ["GROVE-USDC"])
+        self.assertEqual(calls[1]["cursor"], "next")
+
+    def test_client_order_not_found_is_not_called_rejected(self):
+        rail = AdvancedTradeSpot(FakeVault())
+        rail.vault.fake_client.list_orders = lambda **kw: FakeResponse({
+            "orders": [], "has_next": False})
+        self.assertIsNone(rail.find_order_id_by_client_id(
+            product_id="GROVE-USDC", client_order_id="aiscend-unknown"))
 
     def test_preview_rejection_blocks_order(self):
         rail = AdvancedTradeSpot(FakeVault())

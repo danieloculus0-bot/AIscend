@@ -12,6 +12,7 @@ from .audit import AuditTrail
 from .bean import BeanMemory
 from .bean_policy import BeanPolicyGate
 from .bean_growth_rotation import evaluate_candidates
+from .bean_capital_evidence import evaluate_account, capital_snapshot
 from .bean_rotation_economics import (score_route, bridge_order,
                                       maturity_minutes, trade_cost_bps)
 from .position_cost_basis import rebuild_position_basis
@@ -25,10 +26,19 @@ from .game import score_game
 from .listing_sentinel import CoinbaseListingSentinel
 from .research import MarketResearch
 from .sentiment import HumanSignalResearch, HumanSignals
-from .wallets.advanced_trade import AdvancedTradeSpot, require_accepted_order
+from .wallets.advanced_trade import (AdvancedTradeSpot, require_accepted_order,
+                                     CoinbaseExplicitRejection)
 
 
 DOLLAR_ASSETS = {"USD", "USDC"}
+
+def _position_meta_key(prefix: str, product: str, scope: str | None) -> str:
+    """Partition lifecycle state by authenticated Coinbase key."""
+    if (not isinstance(scope, str) or len(scope) != 64
+            or any(c not in "0123456789abcdef" for c in scope)):
+        scope = "unverified"
+    return f"{prefix}{scope}:{product}"
+
 
 
 class AdvancedSpotEngine:
@@ -285,6 +295,17 @@ class AdvancedSpotEngine:
 
     def sync(self) -> dict[str, Any]:
         status = self.rail.status()
+        # status() must authenticate first. Never trust a key fingerprint as
+        # proof the key has permissions until the venue status call succeeds.
+        scope_reader = getattr(self.rail, "account_scope_id", None)
+        try:
+            authenticated_scope = scope_reader() if callable(scope_reader) else None
+        except Exception:
+            authenticated_scope = None
+        if (not isinstance(authenticated_scope, str)
+                or len(authenticated_scope) != 64
+                or any(c not in "0123456789abcdef" for c in authenticated_scope)):
+            authenticated_scope = None
         listing = self.listing_sentinel.poll()
         priority_products = [
             str(event.get("product") or "").upper()
@@ -381,10 +402,14 @@ class AdvancedSpotEngine:
 
         net = sum(balance_values_usd.values())
         market_value = max(0.0, net - cash)
-        start_text = self.store.get_meta("advanced_starting_value")
+        # Never reuse a previous Coinbase key's baseline after credentials
+        # change. The legacy unscoped value is not migrated automatically.
+        baseline_key = ("advanced_starting_value:" + authenticated_scope
+                        if authenticated_scope else "advanced_starting_value")
+        start_text = self.store.get_meta(baseline_key)
         if start_text is None and net > 0.01:
             start = net
-            self.store.set_meta("advanced_starting_value", f"{start:.10f}")
+            self.store.set_meta(baseline_key, f"{start:.10f}")
         elif start_text is not None:
             start = float(start_text)
         else:
@@ -434,6 +459,7 @@ class AdvancedSpotEngine:
             "valuation_complete": all(currency in balance_values_usd for currency in raw_balances),
             "unpriced_balances": {currency: qty for currency, qty in raw_balances.items() if currency not in balance_values_usd},
             "starting_cash": start,
+            "authenticated_scope": authenticated_scope,
             "positions": positions,
             "prices": prices,
             "returns": {
@@ -443,6 +469,8 @@ class AdvancedSpotEngine:
             "market_value": market_value,
             "net_liquidation": net,
             "pnl": (net - start) if start else 0.0,
+            "pnl_is_verified_trading_profit": False,
+            "pnl_semantics": "unadjusted_equity_change_since_first_observed_balance",
             "multiple": (net / start) if start else math.nan,
             "wallet_address": "Coinbase Advanced portfolio",
             "network": "coinbase-advanced",
@@ -470,6 +498,7 @@ class AdvancedSpotEngine:
             "bean": self.bean.snapshot(),
             "bean_policy": json.loads(self.store.get_meta("bean_policy_latest") or "{}"),
             "bean_growth": json.loads(self.store.get_meta("bean_growth_latest") or "{}"),
+            "bean_account": json.loads(self.store.get_meta("bean_account_latest") or "{}"),
             "market_radar": radar,
             "execution_rail": "coinbase-advanced",
         }
@@ -628,8 +657,20 @@ class AdvancedSpotEngine:
     def _taker_cost_bps(self) -> tuple[float, str]:
         """Use authenticated Coinbase fee tier; cache its source for 15 min."""
         now = time.time()
+        # Exchange fee rates belong to the authenticated key/portfolio.
+        # Never reuse a different Coinbase key's cheaper historical fee tier.
+        scope_reader = getattr(getattr(self, "rail", None), "account_scope_id", None)
         try:
-            saved = json.loads(self.store.get_meta("bean_fee_tier") or "{}")
+            scope = scope_reader() if callable(scope_reader) else None
+        except Exception:
+            scope = None
+        usable = (isinstance(scope, str) and len(scope) == 64
+                  and all(c in "0123456789abcdef" for c in scope))
+        if not usable:
+            return 60.0, "unverified_account_fee_fallback"
+        meta_key = "bean_fee_tier:" + scope
+        try:
+            saved = json.loads(self.store.get_meta(meta_key) or "{}")
         except (ValueError, TypeError):
             saved = {}
         if now - float(saved.get("checked_at") or 0.0) < 900:
@@ -642,7 +683,7 @@ class AdvancedSpotEngine:
             pass
         bps = float(rate) if rate is not None else 60.0
         source = "coinbase_account_fee_tier" if rate is not None else "conservative_estimate"
-        self.store.set_meta("bean_fee_tier", json.dumps({
+        self.store.set_meta(meta_key, json.dumps({
             "bps": bps, "source": source, "checked_at": now}))
         return bps, source
 
@@ -810,7 +851,9 @@ class AdvancedSpotEngine:
                               or "ORDER_ACCEPTED_UNVERIFIED")
                     self.store.set_meta(key, "0")
                 except Exception as exc:
-                    status = "EXECUTION_ERROR"
+                    status = ("ORDER_SUBMISSION_UNKNOWN"
+                              if self.store.get_meta("pending_coinbase_order")
+                              else "EXECUTION_ERROR")
                     decision = Decision("SELL", held_product, 1.0,
                                         rationale + f" Execution failed: {exc}")
                 self.store.add_decision(decision, status)
@@ -854,7 +897,9 @@ class AdvancedSpotEngine:
                 status = (self.store.get_meta("last_coinbase_submission_state")
                               or "ORDER_ACCEPTED_UNVERIFIED")
             except Exception as exc:
-                status = "EXECUTION_ERROR"
+                status = ("ORDER_SUBMISSION_UNKNOWN"
+                              if self.store.get_meta("pending_coinbase_order")
+                              else "EXECUTION_ERROR")
                 decision = Decision("HOLD", None, 0.0,
                                     rationale + f" Conversion failed: {exc}")
             self.store.add_decision(decision, status)
@@ -873,7 +918,9 @@ class AdvancedSpotEngine:
             status = (self.store.get_meta("last_coinbase_submission_state")
                               or "ORDER_ACCEPTED_UNVERIFIED")
         except Exception as exc:
-            status = "EXECUTION_ERROR"
+            status = ("ORDER_SUBMISSION_UNKNOWN"
+                              if self.store.get_meta("pending_coinbase_order")
+                              else "EXECUTION_ERROR")
             decision = Decision("BUY", product, 1.0,
                                 rationale + f" Execution failed: {exc}")
         self.store.add_decision(decision, status)
@@ -945,7 +992,7 @@ class AdvancedSpotEngine:
                 "submitted_at": time.time()}))
         return state, observation
 
-    def _pending_order_decision(self):
+    def _pending_order_decision(self, scope=None):
         """Reconcile accepted but unverified orders before placing another."""
         raw = self.store.get_meta("pending_coinbase_order")
         if not raw:
@@ -954,9 +1001,27 @@ class AdvancedSpotEngine:
         order_id = str(pending.get("order_id") or "")
         product = str(pending.get("product") or "")
         if not order_id:
-            return Decision("HOLD", None, 0.0,
-                "A prior Coinbase submission was accepted without an order ID. "
-                "Manual Coinbase order-history reconciliation is required."), "ORDER_AWAITING_VERIFICATION"
+            finder = getattr(self.rail, "find_order_id_by_client_id", None)
+            if callable(finder):
+                try:
+                    order_id = finder(
+                        product_id=product,
+                        client_order_id=str(pending.get("client_order_id") or ""),
+                    ) or ""
+                except Exception as exc:
+                    return Decision("HOLD", None, 0.0,
+                        "Authenticated Coinbase client-order lookup failed: "
+                        f"{type(exc).__name__}: {exc}. The original submission "
+                        "remains unresolved and no retry will be sent."), "ORDER_AWAITING_VERIFICATION"
+                if order_id:
+                    pending["order_id"] = order_id
+                    self.store.set_meta("pending_coinbase_order",
+                                        json.dumps(pending))
+            if not order_id:
+                return Decision("HOLD", None, 0.0,
+                    "Coinbase submission outcome remains unknown. No matching "
+                    "order has been verified by client order ID; automatic "
+                    "trading is paused until it can be reconciled."), "ORDER_AWAITING_VERIFICATION"
         getter = getattr(self.rail, "order_detail", None)
         if not callable(getter):
             return Decision("HOLD", None, 0.0,
@@ -978,9 +1043,13 @@ class AdvancedSpotEngine:
                 if str(pending.get("side") or "").upper() in {"BUY", "SELL"}:
                     for prefix in ("primary_peak:", "primary_fill_basis:",
                                    "primary_fill_basis_checked_at:"):
-                        self.store.set_meta(prefix + product, "")
+                        self.store.set_meta(
+                            _position_meta_key(prefix, product,
+                                               scope), "")
                 if str(pending.get("side") or "").upper() == "SELL":
-                    self.store.set_meta("primary_maturity_at:" + product, "0")
+                    self.store.set_meta(
+                        _position_meta_key("primary_maturity_at:", product,
+                                           scope), "0")
                 # Final receipt is appended separately from the original
                 # submitted-order audit; never retroactively rewrite history.
                 try:
@@ -1019,7 +1088,18 @@ class AdvancedSpotEngine:
         BEAN's hypothesis/reward research is separate and may be compared with
         this durable plan after execution. One confirmed order leg per cycle.
         """
-        pending = self._pending_order_decision()
+        scope = snapshot.get("authenticated_scope")
+        if callable(getattr(getattr(self, "rail", None), "account_scope_id", None)) and not scope:
+            decision = Decision(
+                "HOLD", None, 0.0,
+                "Coinbase account identity unverified; live trading paused.")
+            self.store.add_decision(decision, "ACCOUNT_SCOPE_UNVERIFIED")
+            self.store.set_meta("primary_trade_plan_latest", json.dumps({
+                "decision": "HOLD", "execution_status": "ACCOUNT_SCOPE_UNVERIFIED",
+                "order_attempted": False, "decision_reason": decision.rationale,
+                "evaluated_at": time.time()}))
+            return self.sync()
+        pending = self._pending_order_decision(scope=scope)
         if pending is not None:
             decision, status = pending
             self.store.add_decision(decision, status)
@@ -1029,6 +1109,21 @@ class AdvancedSpotEngine:
                 "execution_status": status, "order_attempted": False,
                 "blocker": "coinbase_fill_reconciliation"}))
             return self.sync()
+        # The REAL account and completed authenticated trade ledger are
+        # consulted before learned BUY candidates are ranked. The first
+        # observed bankroll is not confused with original deposited capital.
+        try:
+            account_evidence = evaluate_account(
+                self.store, snapshot, getattr(self, "rail", None))
+        except Exception as exc:
+            account_evidence = {
+                "capital": capital_snapshot(snapshot),
+                "execution": {"status": "UNAVAILABLE", "products": {}},
+                "read_status": "ACCOUNT_EVIDENCE_ERROR:" + type(exc).__name__,
+                "realized_account_profit_verified": False,
+            }
+        self.store.set_meta("bean_account_latest",
+                            json.dumps(account_evidence, sort_keys=True))
         fee_bps, fee_source = self._taker_cost_bps()
         # Actual BEAN Q feedback now competes for live funded allocation.
         # Its selected long/cash signals are not merely advisory telemetry.
@@ -1038,14 +1133,16 @@ class AdvancedSpotEngine:
             try:
                 cursor = int(self.store.get_meta("bean_rotation_cursor") or "0")
                 learned_plan = evaluate_candidates(
-                    self.growth_gate, snapshot, cursor=cursor)
+                    self.growth_gate, snapshot, cursor=cursor,
+                    account_history=account_evidence)
                 self.store.set_meta(
                     "bean_rotation_cursor", str(learned_plan["next_cursor"]))
             except Exception as exc:
                 learned_error = f"{type(exc).__name__}: {exc}"
         learned_rows = (learned_plan or {}).get("evaluated") or []
         plan = select_plan(
-            snapshot, taker_bps=fee_bps, learned_candidates=learned_rows)
+            snapshot, taker_bps=fee_bps, learned_candidates=learned_rows,
+            account_history=account_evidence)
         learned_by_product = {
             str(row.get("product") or ""): row for row in learned_rows}
         positions = snapshot.get("positions") or {}
@@ -1073,6 +1170,15 @@ class AdvancedSpotEngine:
         plan["bean_role"] = "q_policy_live_candidate_and_cash_exit"
         plan["bean_assessed_count"] = (learned_plan or {}).get("assessed_count", 0)
         plan["bean_live_signals"] = len(learned_rows)
+        plan["account_capital_evidence"] = account_evidence["capital"]
+        plan["authenticated_trade_history"] = {
+            "status": account_evidence["execution"].get("status"),
+            "read_status": account_evidence["read_status"],
+            "fill_count_retained": account_evidence["execution"].get("fill_count_retained", 0),
+            "products": account_evidence["execution"].get("products", {}),
+            "realized_account_profit_verified": False,
+            "account_scope_verified": account_evidence.get("account_scope_verified", False),
+        }
         plan["bean_error"] = learned_error
         plan["order_attempted"] = False
         plan["holding_reviews"] = {}
@@ -1094,7 +1200,7 @@ class AdvancedSpotEngine:
                               holding.get("qty", 0)) or 0)
             if available <= 0:
                 continue
-            key = "primary_maturity_at:" + product
+            key = _position_meta_key("primary_maturity_at:", product, scope)
             deadline = float(self.store.get_meta(key) or "0")
             if not deadline:
                 rows = (snapshot.get("asset_universe") or {}).get("scored") or []
@@ -1107,7 +1213,7 @@ class AdvancedSpotEngine:
             # Observe a real high-water mark on every trading cycle.
             mark = float(holding.get("mark_price") or
                          (snapshot.get("prices") or {}).get(product) or 0)
-            peak_key = "primary_peak:" + product
+            peak_key = _position_meta_key("primary_peak:", product, scope)
             prior_peak = float(self.store.get_meta(peak_key) or "0")
             peak = max(prior_peak, mark) if math.isfinite(mark) and mark > 0 else prior_peak
             if peak > prior_peak:
@@ -1116,8 +1222,8 @@ class AdvancedSpotEngine:
             # Reconstruct cost using authenticated Coinbase execution fills.
             # If transfers, missing history or incomplete pages prevent matching
             # the current balance, the basis is marked unknown, not invented.
-            basis_key = "primary_fill_basis:" + product
-            check_key = "primary_fill_basis_checked_at:" + product
+            basis_key = _position_meta_key("primary_fill_basis:", product, scope)
+            check_key = _position_meta_key("primary_fill_basis_checked_at:", product, scope)
             basis = json.loads(self.store.get_meta(basis_key) or "{}")
             last_checked = float(self.store.get_meta(check_key) or "0")
             fill_reader = getattr(getattr(self, "rail", None), "position_fills", None)
@@ -1175,7 +1281,9 @@ class AdvancedSpotEngine:
                         self.store.set_meta(basis_key, "")
                         self.store.set_meta(check_key, "0")
                 except Exception as exc:
-                    status = "EXECUTION_ERROR"
+                    status = ("ORDER_SUBMISSION_UNKNOWN"
+                              if self.store.get_meta("pending_coinbase_order")
+                              else "EXECUTION_ERROR")
                     decision = Decision("SELL", product, 1.0,
                                         rationale + f" Execution failed: {exc}")
                 return write(decision, status)
@@ -1217,7 +1325,9 @@ class AdvancedSpotEngine:
                 status = (self.store.get_meta("last_coinbase_submission_state")
                           or "ORDER_ACCEPTED_UNVERIFIED")
             except Exception as exc:
-                status = "EXECUTION_ERROR"
+                status = ("ORDER_SUBMISSION_UNKNOWN"
+                          if self.store.get_meta("pending_coinbase_order")
+                          else "EXECUTION_ERROR")
                 decision = Decision("HOLD", None, 0.0,
                                     rationale + f" Conversion failed: {exc}")
             return write(decision, status)
@@ -1232,14 +1342,18 @@ class AdvancedSpotEngine:
         try:
             status = self._execute_buy(decision, snapshot) or "ORDER_ACCEPTED_UNVERIFIED"
             if status in {"FILLED_VERIFIED", "ORDER_ACCEPTED_UNVERIFIED"}:
-                self.store.set_meta("primary_maturity_at:" + product,
+                self.store.set_meta(_position_meta_key("primary_maturity_at:", product, scope),
                                     str(now + 60 * winner["maturity_minutes"]))
                 if status == "FILLED_VERIFIED":
                     for prefix in ("primary_peak:", "primary_fill_basis:",
                                    "primary_fill_basis_checked_at:"):
-                        self.store.set_meta(prefix + product, "")
+                        self.store.set_meta(_position_meta_key(prefix, product, scope), "")
         except Exception as exc:
-            status = "EXECUTION_ERROR"
+            # Transport failures and ambiguous provider responses may have
+            # placed an order. Make unresolved state visible, never "failed".
+            status = ("ORDER_SUBMISSION_UNKNOWN"
+                      if self.store.get_meta("pending_coinbase_order")
+                      else "EXECUTION_ERROR")
             decision = Decision("BUY", product, 1.0,
                                 decision.rationale + f" Execution failed: {exc}")
         return write(decision, status)
@@ -1276,20 +1390,18 @@ class AdvancedSpotEngine:
         try:
             order = self.rail.market_buy(
                 product_id, spend, client_order_id=client_order_id)
-        except RuntimeError as exc:
-            if str(exc).startswith("Coinbase order not confirmed accepted:"):
-                self.store.set_meta("pending_coinbase_order", "")
+        except CoinbaseExplicitRejection:
+            # Coinbase explicitly rejected the order; no possible accepted fill.
+            self.store.set_meta("pending_coinbase_order", "")
+            self.store.set_meta("last_coinbase_submission_state", "VENUE_REJECTED")
             raise
+        # All other transport, SDK and unconfirmed-response failures retain
+        # the previously recorded client_order_id. We cannot safely retry.
         try:
             require_accepted_order(order)
-        except RuntimeError:
-            # Explicit venue rejection is final. Leaving its pre-submission
-            # intent pending freezes trading despite having no accepted order.
-            # Ambiguous/noncommittal responses remain pending for investigation.
-            if isinstance(order, dict) and order.get("success") is False:
-                self.store.set_meta("pending_coinbase_order", "")
-                self.store.set_meta(
-                    "last_coinbase_submission_state", "VENUE_REJECTED")
+        except CoinbaseExplicitRejection:
+            self.store.set_meta("pending_coinbase_order", "")
+            self.store.set_meta("last_coinbase_submission_state", "VENUE_REJECTED")
             raise
         result_state, evidence = self._check_or_track_submission(
             order, product=product_id, side="BUY", client_id=client_order_id)
@@ -1362,20 +1474,18 @@ class AdvancedSpotEngine:
         try:
             order = self.rail.market_sell(
                 product_id, qty, client_order_id=client_order_id)
-        except RuntimeError as exc:
-            if str(exc).startswith("Coinbase order not confirmed accepted:"):
-                self.store.set_meta("pending_coinbase_order", "")
+        except CoinbaseExplicitRejection:
+            # Coinbase explicitly rejected the order; no possible accepted fill.
+            self.store.set_meta("pending_coinbase_order", "")
+            self.store.set_meta("last_coinbase_submission_state", "VENUE_REJECTED")
             raise
+        # All other transport, SDK and unconfirmed-response failures retain
+        # the previously recorded client_order_id. We cannot safely retry.
         try:
             require_accepted_order(order)
-        except RuntimeError:
-            # Explicit venue rejection is final. Leaving its pre-submission
-            # intent pending freezes trading despite having no accepted order.
-            # Ambiguous/noncommittal responses remain pending for investigation.
-            if isinstance(order, dict) and order.get("success") is False:
-                self.store.set_meta("pending_coinbase_order", "")
-                self.store.set_meta(
-                    "last_coinbase_submission_state", "VENUE_REJECTED")
+        except CoinbaseExplicitRejection:
+            self.store.set_meta("pending_coinbase_order", "")
+            self.store.set_meta("last_coinbase_submission_state", "VENUE_REJECTED")
             raise
         result_state, evidence = self._check_or_track_submission(
             order, product=product_id, side="SELL", client_id=client_order_id)
