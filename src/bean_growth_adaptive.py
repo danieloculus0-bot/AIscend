@@ -281,8 +281,11 @@ class BeanAdaptiveGrowthGate:
                 ctxt = _features(state["recent_returns"])
                 adopted = _choose(state, ctxt, explore=False, seed=0)
                 target = _position(adopted, state["recent_returns"])
-                enough = state["paper_bars"] >= MIN_HISTORY
                 samples = int(state.get("win_trials", {}).get(ctxt, {}).get(adopted, 0))
+                # A global bar count is not evidence for the chosen policy in
+                # the current regime. Require direct observed rewards.
+                enough = (state["paper_bars"] >= MIN_HISTORY and
+                          samples >= MIN_FORWARD_BARS)
                 won = int(state.get("wins", {}).get(ctxt, {}).get(adopted, 0))
                 result = {"status": "READY" if enough else "WARMING_UP",
                           "paper_cost_model": PAPER_COST_MODEL,
