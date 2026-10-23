@@ -36,6 +36,7 @@ SPREAD_BPS = 10.0
 LOOKBACK = 84
 STEP = 7
 HOLD = 7
+ENTRY_DELAY = 2  # The already-open bar after a completed signal cannot fill.
 SCHEMA = "aiscend.bean.five-year-blind.v1"
 FIELDS = ("product", "date", "open", "high", "low", "close", "volume")
 
@@ -302,7 +303,7 @@ def blind_run(path, core_dir, output):
         try:
             for i in steps:
                 decision_day = dates[i]
-                entry_day = dates[i+1]
+                entry_day = dates[i+ENTRY_DELAY]
                 exit_day = dates[i+HOLD]
                 if not decision_day < entry_day < exit_day:
                     raise AssertionError("Noncausal trade window")
@@ -316,7 +317,7 @@ def blind_run(path, core_dir, output):
                         "cmd": "choose", "episode": episode, "state": state})
                     row = {
                         "episode": episode, "product": p,
-                        "decision_time_utc": decision_day.isoformat() + "T23:59:59Z",
+                        "decision_time_utc": (decision_day + timedelta(days=1)).isoformat() + "T00:00:01Z",
                         "last_feature_date": decision_day.isoformat(),
                         "entry_date": entry_day.isoformat(),
                         "exit_date": exit_day.isoformat(),
@@ -374,7 +375,7 @@ def blind_run(path, core_dir, output):
         finally:
             bridge.close()
 
-    first_entry = dates[steps[0]+1]
+    first_entry = dates[steps[0]+ENTRY_DELAY]
     last_exit = dates[steps[-1]+HOLD]
     buy_hold = {}
     for p in PRODUCTS:
@@ -392,7 +393,8 @@ def blind_run(path, core_dir, output):
         "decision_start": dates[steps[0]].isoformat(),
         "decision_end": dates[steps[-1]].isoformat(),
         "days": count, "model_lookback_days": LOOKBACK,
-        "stride_days": STEP, "simulated_holding_days": HOLD-1,
+        "stride_days": STEP, "entry_delay_bars": ENTRY_DELAY,
+        "simulated_holding_days": HOLD-ENTRY_DELAY,
         "fee_bps_each_side": FEE_BPS, "spread_bps": SPREAD_BPS,
         "initial_usd": 1000.0, "equal_initial_sleeves": True,
         "opportunities": len(records), "live_orders": 0,
