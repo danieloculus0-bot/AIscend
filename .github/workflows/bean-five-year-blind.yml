@@ -6,6 +6,8 @@ on:
     paths:
       - scripts/bean_five_year_blind.py
       - scripts/build_bean_memory.py
+      - scripts/bean_five_year_memory_trial.py
+      - tests/test_bean_memory_replay.py
       - src/bean_pair_index.py
       - src/bean_memory_subsets.py
       - src/bean_cause_ledger.py
@@ -41,6 +43,8 @@ jobs:
         run: python -m unittest discover -s tests -p test_bean_five_year_blind.py -v
       - name: Test compact memory type/subset and hierarchical retention
         run: python -m unittest discover -s tests -p test_bean_memory_subsets.py -v
+      - name: Test BEAN memory retrieval temporal isolation
+        run: python -m unittest discover -s tests -p test_bean_memory_replay.py -v
       - name: Verify frozen Coinbase dataset exists or download it once
         run: |
           if [ -s data/market/coinbase_btc_eth_daily_2021-10-22_2026-10-21.csv ] && \
@@ -60,6 +64,12 @@ jobs:
             --source artifacts/bean-five-year-blind-summary-episodes.jsonl \
             --summary artifacts/bean-five-year-blind-summary.json \
             --output-dir artifacts/bean-memory-retention
+      - name: Replay two actual BEAN learning policies, one using chronological memory
+        run: |
+          python -m scripts.bean_five_year_memory_trial \
+            --data data/market/coinbase_btc_eth_daily_2021-10-22_2026-10-21.csv \
+            --core "$RUNNER_TEMP/bean-core" \
+            --output-dir artifacts/bean-five-year-memory-trial
       - name: Publish source data and full decision by decision immutable-chain evidence
         uses: actions/upload-artifact@v4
         with:
@@ -71,6 +81,7 @@ jobs:
             artifacts/bean-five-year-blind-summary.json
             artifacts/bean-five-year-blind-summary-episodes.jsonl
             artifacts/bean-memory-retention/
+            artifacts/bean-five-year-memory-trial/
       - name: Version the downloaded historical index CSV on owner's PR branch
         run: |
           git config user.name "github-actions[bot]"
@@ -80,20 +91,24 @@ jobs:
           cp artifacts/bean-five-year-blind-summary-episodes.jsonl research/bean-five-year-blind/decisions.jsonl
           mkdir -p research/bean-five-year-blind/compact
           cp -R artifacts/bean-memory-retention/. research/bean-five-year-blind/compact/
+          mkdir -p research/bean-five-year-blind/memory-trial
+          cp -R artifacts/bean-five-year-memory-trial/. research/bean-five-year-blind/memory-trial/
           git add data/market/coinbase_btc_eth_daily_2021-10-22_2026-10-21.csv \
                   data/market/coinbase_btc_eth_daily_2021-10-22_2026-10-21.manifest.json \
                   research/bean-five-year-blind/summary.json \
                   research/bean-five-year-blind/decisions.jsonl \
-                  research/bean-five-year-blind/compact/
+                  research/bean-five-year-blind/compact/ \
+                  research/bean-five-year-blind/memory-trial/
           # The application intentionally ignores *.sqlite3 globally.
           # Force-add only credential-free, reproducible PUBLIC paper evidence
           # databases; never force-add private desktop trading journals.
           git add -f -- research/bean-five-year-blind/compact/cause-ledger.sqlite3 \
-                        research/bean-five-year-blind/compact/inspection-hierarchy.sqlite3
+                        research/bean-five-year-blind/compact/inspection-hierarchy.sqlite3 \
+                        research/bean-five-year-blind/memory-trial/experiences.sqlite3
           if git diff --cached --quiet; then
             echo "Already stored exactly this frozen dataset on GitHub"
           else
-            git commit -m "evidence: persist blind BEAN decisions and SHA-linked compact memory hierarchy"
+            git commit -m "evidence: persist compact BEAN memory trial and paired five-year decision receipts"
             git push origin HEAD:integration/python-desktop-live-forward-paper-20261022
           fi
       - name: Publish honest research boundaries
