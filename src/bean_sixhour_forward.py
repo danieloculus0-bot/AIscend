@@ -123,6 +123,17 @@ def _score(db, candidate, state, row):
         _append(db, "data_gap", product=candidate["product"], state=state,
                 expected_ts=state["last_seen_ts"] + BAR, observed_ts=ts)
         return
+    # A candle opened before the immutable freeze is historical, even when
+    # it closes after the freeze. Advance the chronological anchor without
+    # counting it toward the forward gate, fees, P/L or BEAN Q rewards.
+    if ts < state["frozen_at_unix"]:
+        state["last_seen_ts"] = ts
+        state["last_close"] = float(row["close"])
+        _append(db, "pre_freeze_candle_excluded",
+                product=candidate["product"], state=state,
+                candle_start=ts, observed_after_ts=ts + BAR,
+                frozen_at=state["frozen_at_unix"])
+        return
     opening, close = float(row["open"]), float(row["close"])
     cost = state["cost"]
     was_held = state["held"]
