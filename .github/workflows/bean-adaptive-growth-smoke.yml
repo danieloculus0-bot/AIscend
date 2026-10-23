@@ -35,8 +35,13 @@ jobs:
         run: python -m unittest discover -s tests -p test_bean_growth_live_adoption.py -v
       - name: Confirm cross-market rotation reaches exchange execution adapters
         run: python -m unittest discover -s tests -p test_bean_growth_rotation.py -v
-      - name: Run complete Python regression suite
-        run: python -m unittest discover -s tests -v
+      - name: Run complete Python regression suite in isolated test modules
+        # Match Python Desktop RC: every test module runs, but native Qt teardown
+        # cannot crash unrelated later tests in a shared interpreter.
+        # Any failing or crashing module still fails the workflow.
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m scripts.python_desktop_suite
       - name: Exercise isolated Qt desktop integration
         env:
           QT_QPA_PLATFORM: offscreen
