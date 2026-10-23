@@ -231,6 +231,10 @@ def simulate(rows, policy, start, end, *, fee_bps=DEFAULT_TAKER_FEE_BPS, spread_
         roundtrips += 1
         if entry_equity is not None:
             wins += int(equity > entry_equity)
+        # Include the final liquidation fee in peak-to-trough risk.
+        # A flat market still loses both sides of the modeled trade.
+        peak = max(peak, equity)
+        max_dd = max(max_dd, 1 - equity / peak)
     return {"status": "OK", "net_return": round(equity-1, 8),
             "drawdown": round(max_dd, 8), "orders": orders,
             "roundtrips": roundtrips, "wins": wins, "gap_count": gap_count,
