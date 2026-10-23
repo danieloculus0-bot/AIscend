@@ -133,6 +133,10 @@ _BEAN_WORKER = r"""
 import hashlib,json,sys
 from bean.learning.runtime import LearningRuntime
 from bean.optimization.sponge_td import OBJECTIVE
+RULE_ID="aiscend.paper-feedback.historical-trade.v2"
+def receipt_checkpoint_sha(rows):
+    raw=json.dumps(rows,sort_keys=True,separators=(",",":"),allow_nan=False).encode()
+    return hashlib.sha256(RULE_ID.encode()+b"\\x00"+raw).hexdigest()
 payload=json.load(sys.stdin)
 records=payload["records"]
 pending=payload["pending"]
@@ -142,9 +146,18 @@ try:
     history=service.policy.journal.events(OBJECTIVE)
     if history:
         quality=history[-1]["quality"]
-        actual=hashlib.sha256(json.dumps(records[:prior],sort_keys=True,
-            separators=(",",":"),allow_nan=False).encode()).hexdigest()
-        if (prior>len(records) or quality["receipt_sha256"]!=actual):
+        actual=receipt_checkpoint_sha(records[:prior])
+        if prior>len(records):
+            raise ValueError("Previously checkpointed paper evidence shortened")
+        if quality["receipt_sha256"]!=actual:
+            # Check if this checkpoint was generated before the historical
+            # trade-only feedback repair. Never silently restore its zero-Q
+            # cash-tie learning state under the new learning rule.
+            legacy=hashlib.sha256(json.dumps(records[:prior],sort_keys=True,
+                separators=(",",":"),allow_nan=False).encode()).hexdigest()
+            if quality["receipt_sha256"]==legacy:
+                raise ValueError("Legacy zero-feedback BEAN checkpoint; "
+                                 "use a NEW paper learning SQLite database")
             raise ValueError("Previously checkpointed paper evidence changed")
     elif prior:
         raise ValueError("Missing original checkpoint evidence")
@@ -169,8 +182,7 @@ try:
         learned+=1
     checkpoint=None
     if len(records)>=30 and service.policy.steps-(history[-1]["steps"] if history else 0)>=30:
-        digest=hashlib.sha256(json.dumps(records[:service.policy.steps],
-            sort_keys=True,separators=(",",":"),allow_nan=False).encode()).hexdigest()
+        digest=receipt_checkpoint_sha(records[:service.policy.steps])
         # 0 vs 0 is deliberately non-promotable. A separate, blind
         # forward evaluation must establish real performance improvement.
         checkpoint=service.checkpoint(
