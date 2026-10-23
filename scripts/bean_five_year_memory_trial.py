@@ -24,7 +24,7 @@ from scripts.bean_five_year_blind import (
     FEE_BPS, HOLD, LOOKBACK, PRODUCTS, SPREAD_BPS, START, STEP,
     canon, digest, fee_net, load, signal_state,
 )
-from src.bean_pair_index import encode_prefix, encode
+from src.bean_pair_index import encode_prefix, encode, REFERENCES, SLOTS
 from src.bean_cause_ledger import classify, CODES
 
 SCHEMA = "aiscend.bean-memory-paired-five-year.v1"
@@ -33,6 +33,23 @@ MIN_EXPERIENCES = 8
 SIMILARITY_FLOOR = 2
 MAX_CANDIDATES = 64
 MEMORY_WEIGHT = 0.35
+
+# Four independently indexed pair lookups, then a bounded intersection/rank.
+# SQLite only returns candidates sharing >=2 of 4 signaled feature pairs.
+# No full historical experience objects are loaded into Python.
+FLAG_OFFSETS = (2, 4, 6, 8)
+FLAG_QUERY = (
+    " SELECT memory_seq FROM memory_flags"
+    " WHERE product=? AND slot=? AND pair=? AND exit_day<?"
+)
+PRIOR_SQL = (
+    "SELECT m.*, COUNT(*) AS overlap FROM memories AS m JOIN ("
+    + " UNION ALL ".join(FLAG_QUERY for _ in FLAG_OFFSETS)
+    + ") AS flagged ON flagged.memory_seq=m.seq"
+    " GROUP BY m.seq HAVING COUNT(*)>=?"
+    " ORDER BY overlap DESC,m.seq DESC LIMIT ?"
+)
+
 
 # Separate worker: true BEAN Core LearningRuntime for BOTH arms.
 # Memory retrieval is strictly from host's dated ledger, never from prices.
@@ -128,6 +145,19 @@ class RetentionLedger:
             evidence_sha TEXT NOT NULL,
             prior_sha TEXT NOT NULL, receipt_sha TEXT NOT NULL UNIQUE)""")
         self.db.execute("CREATE INDEX memory_by_date ON memories(product,exit_day)")
+        # An inverted index: 4 short feature-pair pointers per experience.
+        # All inserts share one transaction, so entries never outlive their
+        # parent receipt or appear without their outcome.
+        self.db.execute("""CREATE TABLE memory_flags(
+            memory_seq INTEGER NOT NULL REFERENCES memories(seq),
+            product TEXT NOT NULL,
+            slot INTEGER NOT NULL CHECK(slot BETWEEN 1 AND 4),
+            pair TEXT NOT NULL CHECK(length(pair)=2),
+            exit_day TEXT NOT NULL,
+            PRIMARY KEY(memory_seq,slot))""")
+        self.db.execute(
+            "CREATE INDEX flag_lookup ON memory_flags"
+            "(product,slot,pair,exit_day,memory_seq)")
         self.tip="GENESIS"
 
     def add(self, *, episode, product, state, action, decision_day, exit_day,
@@ -154,24 +184,23 @@ class RetentionLedger:
                     "seq","episode","product","decision_day","exit_day",
                     "code","prefix","diagnostic","action","net_bps",
                     "evidence_sha","prior_sha"))+(sha,))
+            self.db.executemany(
+                "INSERT INTO memory_flags"
+                "(memory_seq,product,slot,pair,exit_day) VALUES(?,?,?,?,?)",
+                [(n,product,slot,idx[offset:offset+2],exit_day)
+                 for slot,offset in enumerate(FLAG_OFFSETS,1)])
         self.tip=sha
         return receipt|{"receipt_sha":sha}
 
     def prior(self, *, product, state, as_of):
         """Only exited before as_of. Never read current or later outcomes."""
         index=encode_prefix(product,state)
-        all_rows=self.db.execute(
-            "SELECT * FROM memories WHERE product=? AND exit_day<?"
-            " ORDER BY exit_day DESC,seq DESC",
-            (product,as_of)).fetchall()
-        choices=[]
-        for r in all_rows:
-            same=sum(index[p:p+2]==r["prefix"][p:p+2]
-                     for p in (2,4,6,8))
-            if same >= SIMILARITY_FLOOR:
-                choices.append((same,dict(r)))
-        choices.sort(key=lambda t:(-t[0],-t[1]["seq"]))
-        chosen=choices[:MAX_CANDIDATES]
+        params=[]
+        for slot,offset in enumerate(FLAG_OFFSETS,1):
+            params.extend((product,slot,index[offset:offset+2],as_of))
+        params.extend((SIMILARITY_FLOOR,MAX_CANDIDATES))
+        matched=self.db.execute(PRIOR_SQL,params).fetchall()
+        chosen=[(r["overlap"],dict(r)) for r in matched]
         count=len(chosen)
         if count:
             total=sum(r["net_bps"]*(m/4) for m,r in chosen)
@@ -188,6 +217,14 @@ class RetentionLedger:
                 r["diagnostic"] for _,r in chosen).items())),
             "query_index_prefix":index,
             "query_snapshot_tip":self.tip,
+            "retrieval_strategy":"sqlite_four_pair_inverted_index",
+            "flagged_subsets":[{
+                "slot":i+2,
+                "field":SLOTS[i+1][0],
+                "pair":index[offset:offset+2],
+                "meaning":REFERENCES[SLOTS[i+1][0]][index[offset:offset+2]],
+            } for i,offset in enumerate(FLAG_OFFSETS)],
+            "candidate_rows_returned":count,
             "latest_matched_exit_day":max(
                 (r["exit_day"] for _,r in chosen),default=None),
             "as_of":as_of,
@@ -206,7 +243,19 @@ class RetentionLedger:
             if payload["decision_day"]>=payload["exit_day"]:
                 raise ValueError("Memory outcome precedes decision")
             tip=actual
-        return {"rows":len(rows),"receipt_tip_sha256":tip}
+            flags=self.db.execute(
+                "SELECT slot,pair,exit_day,product FROM memory_flags"
+                " WHERE memory_seq=? ORDER BY slot",(i,)).fetchall()
+            if len(flags)!=4 or any(
+                    f["slot"]!=slot or f["pair"]!=payload["prefix"][offset:offset+2]
+                    or f["exit_day"]!=payload["exit_day"]
+                    or f["product"]!=payload["product"]
+                    for slot,(offset,f) in enumerate(zip(FLAG_OFFSETS,flags),1)):
+                raise ValueError("Corrupt or missing inverted feature pointer")
+        if self.db.execute("SELECT COUNT(*) FROM memory_flags").fetchone()[0]!=4*len(rows):
+            raise ValueError("Orphan or duplicate feature pointers")
+        return {"rows":len(rows),"receipt_tip_sha256":tip,
+                "indexed_subset_pointers":4*len(rows)}
 
     def export(self, path):
         rows=self.db.execute("SELECT * FROM memories ORDER BY seq").fetchall()
