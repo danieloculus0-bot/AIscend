@@ -103,7 +103,7 @@ def evaluate_candidates(growth_gate, snapshot, *, limit=EVALUATION_BATCH, cursor
         # future-profit forecast. Use it only to rank competing policies.
         # Q rewards reflect past paper execution costs; a NEW funded order
         # must also clear a prospective taker fee and half the live spread.
-        # Keep the 60-bps fallback consistent with AdvancedSpotEngine.
+        # Keep the fallback consistent with AdvancedSpotEngine.
         cost_bps = max(0.0, spread) * .5 + DEFAULT_TAKER_BPS
         edge = adjusted_reward - cost_bps if exposure else 0.0
         results.append({
