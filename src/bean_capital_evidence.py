@@ -12,6 +12,8 @@ import json
 import math
 import time
 
+from .position_cost_basis import coinbase_fill_time_key
+
 
 def _money(value):
     try:
@@ -86,6 +88,7 @@ def _normalize_fill(raw):
     stamp = str(raw.get("trade_time") or "").strip()
     if not stamp:
         raise ValueError("Coinbase fill timestamp missing")
+    coinbase_fill_time_key({"trade_time": stamp})
     # A provider fee can only be subtracted from quote-denominated P&L when
     # its denomination is explicitly confirmed.
     # Coinbase Markets trading rule 1.91 charges Advanced spot fees in
@@ -179,7 +182,17 @@ def execution_history(store, *, account_scope, fresh_seconds=900, clock=time.tim
             store.conn.execute(
                 "SELECT evidence FROM bean_account_fills WHERE account_scope=?",
                 (scope,)).fetchall()]
-    rows.sort(key=lambda x: (x["trade_time"], x["fill_id"]))
+    try:
+        rows.sort(key=lambda x: (coinbase_fill_time_key(x), x["fill_id"]))
+    except (ValueError, TypeError, OverflowError):
+        return {
+            "status": "UNVERIFIED_OR_STALE",
+            "last_full_provider_read_at": last,
+            "fill_count_retained": len(rows),
+            "history_fully_reconciled": False,
+            "products": {}, "recent_trades": [],
+            "note": "Stored Coinbase fill timestamp is invalid; closed P/L cannot be verified.",
+        }
     result = {
         "status": "COMPLETE" if fresh else "UNVERIFIED_OR_STALE",
         "last_full_provider_read_at": last,
@@ -196,8 +209,14 @@ def execution_history(store, *, account_scope, fresh_seconds=900, clock=time.tim
                                    "realized_quote_pnl": Decimal("0"),
                                    "sold_cost": Decimal("0")})
     invalid = set()
+    sides_by_instant = {}
     for row in rows:
         p = row["product"]
+        instant = coinbase_fill_time_key(row)
+        previous_side = sides_by_instant.setdefault((p, instant), row["side"])
+        if previous_side != row["side"]:
+            invalid.add(p)
+            continue
         q = p.rsplit("-", 1)[1]
         # Missing or differently denominated fees invalidate *net* evidence
         # on that product; other products may still have reconciled histories.
@@ -207,7 +226,11 @@ def execution_history(store, *, account_scope, fresh_seconds=900, clock=time.tim
         size, price, fee = (Decimal(row[key]) for key in ("size", "price", "fee"))
         units, cost = balances[p]
         if row["side"] == "BUY":
-            balances[p] = [units + size, cost + size * price + fee]
+            lot_cost = size * price + fee
+            if lot_cost <= 0:
+                invalid.add(p)
+                continue
+            balances[p] = [units + size, cost + lot_cost]
             continue
         if size > units or units <= 0:
             invalid.add(p)
