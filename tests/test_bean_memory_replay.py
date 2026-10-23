@@ -56,6 +56,74 @@ class MemoryBlindTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.ledger.validate()
 
+    def test_query_uses_pair_subsets_and_translation_layer(self):
+        for i in range(10):
+            self.add(i)
+        report=self.ledger.prior(
+            product="BTC-USD",state=self.state,as_of="2020-01-20")
+        self.assertEqual(report["retrieval_strategy"],
+                         "sqlite_four_pair_inverted_index")
+        self.assertEqual(report["candidate_rows_returned"],10)
+        self.assertEqual(report["reference_codes"],{"02":10})
+        self.assertEqual(report["flagged_subsets"][0]["field"],"momentum_7d")
+        self.assertEqual(report["flagged_subsets"][0]["meaning"],"up")
+        self.assertEqual(len(report["flagged_subsets"]),4)
+        self.assertEqual(self.ledger.validate()["indexed_subset_pointers"],40)
+        # Confirm SQLite's query planner uses the composite inverted index.
+        plan=self.ledger.db.execute(
+            "EXPLAIN QUERY PLAN SELECT memory_seq FROM memory_flags "
+            "WHERE product=? AND slot=? AND pair=? AND exit_day<?",
+            ("BTC-USD",1,"ac","2020-01-20")).fetchall()
+        self.assertTrue(any("flag_lookup" in row["detail"] for row in plan))
+
+    def test_index_lookup_equals_original_full_history_scan(self):
+        states=[
+            self.state,
+            {**self.state,"momentum_7d":"flat"},
+            {**self.state,"momentum_7d":"down","volatility_14d":"high"},
+        ]
+        # Comparable experiences have overlapping variable pairs.
+        for i in range(10):
+            state=states[i%3]
+            self.ledger.add(
+                episode="var:"+str(i),product="BTC-USD",state=state,
+                action="trade",decision_day="2020-01-01",
+                exit_day=f"2020-01-{i+2:02d}",net_return=(i-3)/100,
+                gross_return=(i-3)/100+.013,evidence_sha="a"*64)
+        from src.bean_pair_index import encode_prefix
+        from scripts.bean_five_year_memory_trial import (
+            MAX_CANDIDATES, SIMILARITY_FLOOR)
+        for query in states:
+            for cutoff in ("2020-01-05","2020-01-20"):
+                index=encode_prefix("BTC-USD",query)
+                legacy=[]
+                for r in self.ledger.db.execute(
+                        "SELECT * FROM memories WHERE product=? AND exit_day<?",
+                        ("BTC-USD",cutoff)):
+                    matches=sum(
+                        index[off:off+2]==r["prefix"][off:off+2]
+                        for off in (2,4,6,8))
+                    if matches>=SIMILARITY_FLOOR:
+                        legacy.append((matches,r))
+                legacy.sort(key=lambda x:(-x[0],-x[1]["seq"]))
+                legacy=legacy[:MAX_CANDIDATES]
+                expected={r["diagnostic"] for _,r in legacy}
+                report=self.ledger.prior(
+                    product="BTC-USD",state=query,as_of=cutoff)
+                self.assertEqual(report["count"],len(legacy))
+                self.assertEqual(set(report["reference_codes"]),expected)
+                self.assertEqual(report["latest_matched_exit_day"],
+                                 max((r["exit_day"] for _,r in legacy),
+                                     default=None))
+
+    def test_corrupted_subset_pointer_is_rejected(self):
+        self.add(1)
+        self.ledger.db.execute(
+            "UPDATE memory_flags SET pair='aa' "
+            "WHERE memory_seq=1 AND slot=1")
+        with self.assertRaisesRegex(ValueError,"feature pointer"):
+            self.ledger.validate()
+
     def test_bounded_retrieval_never_crosses_products(self):
         for i in range(10):
             self.add(i)
