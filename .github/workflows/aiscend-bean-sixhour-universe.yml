@@ -1,0 +1,116 @@
+name: BEAN Full-Coinbase Six-Hour Profit Search
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '11 */6 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bean-sixhour-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test-research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Python research dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Check BEAN causal Q ledger and native six-hour data reader
+        run: |
+          python -m unittest discover -s tests -p 'test_bean_profit_lab.py' -v
+          python -m unittest discover -s tests -p 'test_bean_six_hour_universe.py' -v
+          python -m py_compile src/bean_six_hour_universe.py src/bean_profit_lab.py
+
+  research:
+    needs: [test-research]
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        shard: [0,1,2,3,4,5,6,7]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - name: Research every catalog market using actual Coinbase 6-hour candles
+        run: |
+          python -m src.bean_six_hour_universe --shards 8 --shard-index ${{ matrix.shard }} --days 90 --workers 3 --fee-bps 60 --root artifacts/bean-sixhour/ledgers --output artifacts/bean-sixhour/shard-${{ matrix.shard }}.json
+      - name: Verify market ledger chain evidence before upload
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from src.bean_profit_lab import chain
+          folder=Path("artifacts/bean-sixhour")
+          report=json.loads((folder/"shard-${{ matrix.shard }}.json").read_text())
+          verified=0
+          for product, result in report["products"].items():
+              if not result.get("ledger_tip"):
+                  continue
+              ledger=folder/"ledgers"/(product.replace("-","_")+".jsonl")
+              events=[json.loads(line) for line in ledger.read_text().splitlines()]
+              assert chain(events)==result["ledger_tip"], product
+              verified+=1
+          print(json.dumps({"shard": report["shard_index"],
+                            "attempted": report["attempted"],
+                            "verified_market_ledgers": verified,
+                            "status_counts": report["status_counts"]}))
+          PY
+      - name: Preserve all wins, failures and the hash-chained evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bean-sixhour-shard-${{ matrix.shard }}
+          path: artifacts/bean-sixhour/
+          if-no-files-found: warn
+          retention-days: 30
+
+  aggregate:
+    if: always()
+    needs: [research]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bean-sixhour-shard-*
+          path: research-results
+          merge-multiple: true
+      - name: Reconcile every market and report negative results too
+        run: |
+          python -m src.bean_six_hour_universe --aggregate research-results/shard-*.json --output bean-sixhour-scoreboard.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path("bean-sixhour-scoreboard.json").read_text())
+          assert r["promotion_authorized"] is False
+          print("BEAN fee-net 6h historical status",r["status_counts"])
+          leaders=[(k,v["holdout_net"],v["champion"])
+                   for k,v in r["markets"].items()
+                   if v["status"]=="HISTORICAL_OOS_PASS"]
+          print("Historical positives, NOT independently forward validated:",leaders)
+          PY
+      - name: Preserve total-universe scoreboard
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bean-sixhour-complete-scoreboard
+          path: bean-sixhour-scoreboard.json
+          if-no-files-found: warn
+          retention-days: 30
