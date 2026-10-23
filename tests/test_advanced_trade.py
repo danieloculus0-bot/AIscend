@@ -365,6 +365,29 @@ class AdvancedTradeTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "cursor repeated"):
             AdvancedTradeSpot(vault).status()
 
+    def test_fill_history_missing_required_cursor_is_not_complete(self):
+        vault = FakeVault()
+        vault.fake_client.get_fills = lambda **kwargs: FakeResponse({
+            "fills": [], "has_next": True, "cursor": ""})
+        rail = AdvancedTradeSpot(vault)
+        with self.assertRaisesRegex(RuntimeError, "cursor missing"):
+            rail.account_fills()
+        with self.assertRaisesRegex(RuntimeError, "cursor missing"):
+            rail.position_fills("BTC-USD")
+
+    def test_explicit_final_fill_page_does_not_request_spurious_cursor(self):
+        vault = FakeVault()
+        calls = []
+        def final_page(**kwargs):
+            calls.append(kwargs)
+            return FakeResponse({
+                "fills": [], "has_next": False, "cursor": "stale-next"})
+        vault.fake_client.get_fills = final_page
+        rail = AdvancedTradeSpot(vault)
+        self.assertTrue(rail.account_fills()["complete"])
+        self.assertTrue(rail.position_fills("BTC-USD")["complete"])
+        self.assertEqual(len(calls), 2)
+
     def test_invalid_account_balance_does_not_mark_account_valid(self):
         vault = FakeVault()
         vault.fake_client.get_accounts = lambda **kwargs: FakeResponse({
