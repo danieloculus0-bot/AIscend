@@ -257,8 +257,43 @@ class GrowthPolicyTests(unittest.TestCase):
                 json.loads(updated["state"])["q"].get("initial", {}).get("buy_hold"),
                 98765.0)
 
+    def test_previous_60bps_reward_model_is_archived_before_90bps_learning(self):
+        import json
+
+        end = 500 * BAR
+        bars = {ts: {"open": 100.0, "close": 100.0}
+                for ts in range(end - 280 * BAR, end, BAR)}
+        with tempfile.TemporaryDirectory() as folder:
+            gate = BeanAdaptiveGrowthGate(
+                path=Path(folder) / "policy.sqlite3",
+                fetcher=lambda _p, start, stop: {
+                    ts: row for ts, row in bars.items() if start <= ts < stop},
+                clock=lambda: end + 10)
+            prior = _fresh_state()
+            prior["cost_model"] = "taker60bps_held_gap_reward_v3"
+            prior["q"] = {"initial": {"buy_hold": 99999.0}}
+            with gate._db() as db:
+                db.execute("INSERT INTO policy(product,state) VALUES(?,?)",
+                           ("ETH-USD", json.dumps(prior)))
+            result = gate.assess("ETH-USD")
+            self.assertEqual(result["status"], "READY")
+            self.assertEqual(result["paper_taker_fee_bps"], 90.0)
+            with gate._db() as db:
+                archived = db.execute(
+                    "SELECT state FROM policy_archive WHERE product=? AND model_version=?",
+                    ("ETH-USD", "taker60bps_held_gap_reward_v3")).fetchone()
+                current = db.execute(
+                    "SELECT state FROM policy WHERE product=?",
+                    ("ETH-USD",)).fetchone()
+            self.assertIsNotNone(archived)
+            self.assertEqual(
+                json.loads(archived["state"])["q"]["initial"]["buy_hold"], 99999.0)
+            updated = json.loads(current["state"])
+            self.assertEqual(updated["cost_model"], "taker90bps_held_gap_reward_v4")
+            self.assertNotEqual(updated["q"].get("initial", {}).get("buy_hold"), 99999.0)
+
     def test_mock_round_trip_fee_matches_live_order_cost_assumption(self):
-        # The live primary engine starts with a 60 bps taker-cost estimate.
+        # The US entry-tier fallback is 90 bps; paid account tiers may differ.
         # Seven-basis-point simulated transitions fabricate cheap turnover.
         self.assertAlmostEqual(MODEL_FEE, DEFAULT_TAKER_BPS / 10000)
         s = _fresh_state()
