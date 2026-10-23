@@ -4,11 +4,11 @@ Experimental noncustodial small-bankroll autonomous crypto trading application w
 
 ## Current build state
 
-**Reviewed:** 2026-10-20 · **Main:** `57282db74599` · **Stage:** experimental/beta.
+**Reviewed:** 2026-10-22 · **Stage:** experimental/beta. Do not infer live profitability or completed Coinbase fills from green CI.
 
-- [Windows Build](https://github.com/danieloculus0-bot/AIscend/actions/runs/39489692368) — **Passed** at inspected `main`.
-
-Consult [live Actions](https://github.com/danieloculus0-bot/AIscend/actions) before treating any build as release-ready.
+- [Current GitHub Actions](https://github.com/danieloculus0-bot/AIscend/actions) show the actual current-commit verification results.
+- The Windows desktop exposes a synthetic sandbox, Base smart-wallet execution and Coinbase Advanced spot execution.
+- The Coinbase Advanced engine handles funded orders, authentication, pending-order reconciliation, and persistent diagnostics. BEAN Core itself is a separate advisory integration; the local adaptive Q policy can contribute executable signals on Advanced.
 
 ## Working implementation
 
@@ -18,7 +18,18 @@ Consult [live Actions](https://github.com/danieloculus0-bot/AIscend/actions) bef
 
 ## Install and verification
 
-For local Windows setup and paper/synthetic launch instructions, consult the [full archived README](docs/archive/README_2026-10-20_before_refresh.md). Code entry points include `main.py` (live-capable desktop launch) and `web_app.py` (research/dashboard). Run the test suite before using a live connection.
+For local Windows setup and paper/synthetic launch instructions, consult the [full archived README](docs/archive/README_2026-10-20_before_refresh.md). Code entry points include `main.py` (live-capable desktop launch) and `web_app.py` (research/dashboard).
+
+On the installed Windows checkout, **do a read-only Coinbase Advanced preflight before running funded autonomy**:
+
+```powershell
+cd C:\Users\Daniel\AIscend
+git pull --ff-only
+.\.venv\Scripts\python.exe -m scripts.live_preflight
+.\.venv\Scripts\python.exe main.py
+```
+
+Preflight performs authenticated status reads and checks the local order journal. It **never places trades**. Exit code 0 means the read-only readiness checks passed; code 2 means it reported a blocker. A green preflight does not prove an exchange fill. Inspect [live trading diagnostics](http://127.0.0.1:8000/api/trading-diagnostics) from the locally running web dashboard when available. No public web endpoint should be exposed without the app's access controls.
 
 ## Known limitations
 
