@@ -85,6 +85,11 @@ jobs:
                   research/bean-five-year-blind/summary.json \
                   research/bean-five-year-blind/decisions.jsonl \
                   research/bean-five-year-blind/compact/
+          # The application intentionally ignores *.sqlite3 globally.
+          # Force-add only credential-free, reproducible PUBLIC paper evidence
+          # databases; never force-add private desktop trading journals.
+          git add -f -- research/bean-five-year-blind/compact/cause-ledger.sqlite3 \
+                        research/bean-five-year-blind/compact/inspection-hierarchy.sqlite3
           if git diff --cached --quiet; then
             echo "Already stored exactly this frozen dataset on GitHub"
           else
