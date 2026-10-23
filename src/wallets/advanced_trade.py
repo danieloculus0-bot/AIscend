@@ -112,15 +112,30 @@ class AdvancedTradeVault:
         )
 
 
+class CoinbaseExplicitRejection(RuntimeError):
+    """Exchange explicitly stated the order was not accepted."""
+
+
+class CoinbaseSubmissionUnconfirmed(RuntimeError):
+    """Submission outcome unknown; caller must retain the idempotency record."""
+
+
 def require_accepted_order(response: dict[str, Any]) -> dict[str, Any]:
-    """An HTTP 200 is not proof Coinbase accepted an order."""
-    if not isinstance(response, dict) or response.get("success") is not True:
-        reason = ""
-        if isinstance(response, dict):
-            reason = str(response.get("error_response") or response.get("failure_reason")
-                         or response.get("message") or "unconfirmed order response")
-        raise RuntimeError(f"Coinbase order not confirmed accepted: {reason or 'unconfirmed response'}")
-    return response
+    """Separate an explicit reject from an ambiguous provider response.
+
+    Both are failures to confirm acceptance; only an explicit reject can
+    release the durable pending-order intent without reconciliation.
+    """
+    if isinstance(response, dict) and response.get("success") is True:
+        return response
+    reason = ""
+    if isinstance(response, dict):
+        reason = str(response.get("error_response") or response.get("failure_reason")
+                     or response.get("message") or "unconfirmed order response")
+    error = f"Coinbase order not confirmed accepted: {reason or 'unconfirmed response'}"
+    if isinstance(response, dict) and response.get("success") is False:
+        raise CoinbaseExplicitRejection(error)
+    raise CoinbaseSubmissionUnconfirmed(error)
 
 
 class AdvancedTradeSpot:
@@ -363,6 +378,48 @@ class AdvancedTradeSpot:
         if not value.is_finite() or value < 0:
             return None
         return float(value * Decimal("10000"))
+
+    def find_order_id_by_client_id(
+        self, *, product_id: str, client_order_id: str, max_pages: int = 10
+    ) -> str | None:
+        """Locate an uncertain submission without ever creating another order.
+
+        Coinbase's authenticated List Orders endpoint supports pagination.
+        A missing listing is NOT confirmation that a submission failed.
+        """
+        if not product_id or not client_order_id:
+            raise ValueError("Product and client order ID are required")
+        client = self.vault.client()
+        cursor = None
+        seen_cursors = set()
+        matched_ids = set()
+        for _ in range(max_pages):
+            kwargs = {"product_ids": [product_id.upper()], "limit": 100}
+            if cursor:
+                kwargs["cursor"] = cursor
+            response = self._dict(client.list_orders(**kwargs))
+            orders = response.get("orders")
+            if not isinstance(orders, list):
+                raise RuntimeError("Coinbase order history returned invalid data")
+            for order in orders:
+                if not isinstance(order, dict):
+                    continue
+                if (str(order.get("client_order_id") or "") == client_order_id
+                        and str(order.get("product_id") or "").upper()
+                        == product_id.upper()):
+                    found = str(order.get("order_id") or "")
+                    if found:
+                        matched_ids.add(found)
+            if len(matched_ids) > 1:
+                raise RuntimeError("Coinbase returned multiple orders for one client ID")
+            next_cursor = str(response.get("cursor") or "")
+            if response.get("has_next") is False or not next_cursor:
+                break
+            if next_cursor in seen_cursors:
+                raise RuntimeError("Coinbase order history repeated a cursor")
+            seen_cursors.add(next_cursor)
+            cursor = next_cursor
+        return next(iter(matched_ids)) if matched_ids else None
 
     def order_detail(self, order_id: str) -> dict[str, Any]:
         """Read an authenticated Coinbase order (not the submit ACK)."""
