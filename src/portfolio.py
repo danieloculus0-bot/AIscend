@@ -97,7 +97,7 @@ def choose_execution_rail(
         # Fixed spread/volume/score vetoes here would silently bypass it.
         advanced_buy = (advanced_score > 0.0 and
                         (quote_cash > 0.0 or bridged_cash) and
-                        (not tradable or product_id in tradable))
+                        ("tradable_products" not in advanced or product_id in tradable))
 
     if base_buy and advanced_buy:
         return "advanced" if advanced_score > base_score else "base"
