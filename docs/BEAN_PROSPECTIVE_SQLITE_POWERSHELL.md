@@ -3,7 +3,7 @@
 The default manifest is `research/bean_frozen_prospective_20261023_fee90.json`.
 It starts a new paper ledger at the published U.S. Coinbase Advanced entry-level
 taker fee of 90 bps per side, plus the separately modeled 10 bps round-trip
-spread. The user's personal fee tier and realized spread/slippage remain unknown;
+spread. The user's personal fee tier and realized spread/slippage remain unknown, and 10 bps is an explicit fixed research assumption rather than an observed execution cost;
 reconcile actual fills before interpreting paper performance.
 
 This is a **paper-only**, observational SQLite database. It does not submit Coinbase
