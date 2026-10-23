@@ -1,0 +1,73 @@
+name: Five-Year Blind BEAN Historical Research
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - scripts/bean_five_year_blind.py
+      - tests/test_bean_five_year_blind.py
+      - .github/workflows/bean-five-year-blind.yml
+  workflow_dispatch:
+
+# Runs only for the owner's designated same-repo research branch.
+# Public market data only. No exchange credentials, wallet, or order APIs.
+permissions:
+  contents: write
+
+jobs:
+  blind-market-evidence:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == 'danieloculus0-bot/AIscend' &&
+      github.event.pull_request.head.ref == 'integration/python-desktop-live-forward-paper-20261022'
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - name: Check out owner-owned research branch
+        uses: actions/checkout@v4
+        with:
+          ref: integration/python-desktop-live-forward-paper-20261022
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Fetch separate actual BEAN Core
+        run: git clone --depth 1 https://github.com/danieloculus0-bot/BEAN.git "$RUNNER_TEMP/bean-core"
+      - name: Test blind temporal boundaries and market-file SHA integrity
+        run: python -m unittest discover -s tests -p test_bean_five_year_blind.py -v
+      - name: Download 1826 days of public Coinbase spot BTC and ETH candles
+        run: python -m scripts.bean_five_year_blind --download
+      - name: Run un-tuned five-year sequential BEAN Core blind experiment
+        run: |
+          python -m scripts.bean_five_year_blind --run \
+            --core "$RUNNER_TEMP/bean-core" \
+            --output artifacts/bean-five-year-blind-summary.json
+      - name: Publish source data and full decision by decision immutable-chain evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: bean-five-year-blind-coinbase-data-and-results
+          retention-days: 90
+          path: |
+            data/market/coinbase_btc_eth_daily_2021-10-22_2026-10-21.csv
+            data/market/coinbase_btc_eth_daily_2021-10-22_2026-10-21.manifest.json
+            artifacts/bean-five-year-blind-summary.json
+            artifacts/bean-five-year-blind-summary-episodes.jsonl
+      - name: Version the downloaded historical index CSV on owner's PR branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/market/coinbase_btc_eth_daily_2021-10-22_2026-10-21.csv \
+                  data/market/coinbase_btc_eth_daily_2021-10-22_2026-10-21.manifest.json
+          if git diff --cached --quiet; then
+            echo "Already stored exactly this frozen dataset on GitHub"
+          else
+            git commit -m "data: freeze Coinbase BTC/ETH 5-year blind research dataset"
+            git push origin HEAD:integration/python-desktop-live-forward-paper-20261022
+          fi
+      - name: Publish honest research boundaries
+        run: |
+          echo "REAL_BEAN_CORE_USED=true"
+          echo "BLIND_CHRONOLOGICAL_TEST=true"
+          echo "SYNTHETIC_PRICES=false"
+          echo "MARKET_DATA=PUBLIC_COINBASE_SPOT_DAILY"
+          echo "SIMULATED_ORDERS_ONLY=true"
+          echo "REAL_PROFITABILITY_PROVEN=false"
