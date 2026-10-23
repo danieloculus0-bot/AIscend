@@ -49,8 +49,73 @@ class FeeScopeTests(unittest.TestCase):
                 engine.store = store
                 engine.rail = FakeFeeRail(None, 0)
                 self.assertEqual(engine._taker_cost_bps(),
-                                 (60.0, "unverified_account_fee_fallback"))
+                                 (90.0, "unverified_account_fee_fallback"))
                 self.assertEqual(engine.rail.calls, 0)
+            finally:
+                store.close()
+
+
+    def test_missing_authenticated_tier_uses_current_entry_fee(self):
+        with tempfile.TemporaryDirectory() as folder:
+            store = StateStore(Path(folder) / "advanced.db")
+            try:
+                engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                engine.store = store
+                engine.rail = FakeFeeRail("e" * 64, None)
+                self.assertEqual(
+                    engine._taker_cost_bps(), (90.0, "conservative_estimate"))
+                self.assertEqual(engine.rail.calls, 1)
+            finally:
+                store.close()
+
+    def test_old_estimated_60bps_cache_cannot_underprice_new_orders(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as folder:
+            store = StateStore(Path(folder) / "advanced.db")
+            try:
+                engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                engine.store = store
+                engine.rail = FakeFeeRail("e" * 64, None)
+                store.set_meta("bean_fee_tier:" + "e" * 64,
+                               '{"bps":60,"source":"conservative_estimate","checked_at":1000}')
+                with patch("src.advanced_live.time.time", return_value=1001):
+                    self.assertEqual(engine._taker_cost_bps()[0], 90.0)
+                self.assertEqual(engine.rail.calls, 1)
+            finally:
+                store.close()
+
+    def test_invalid_or_future_cache_cannot_fabricate_zero_fee(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as folder:
+            store = StateStore(Path(folder) / "advanced.db")
+            try:
+                engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                engine.store = store
+                engine.rail = FakeFeeRail("f" * 64, None)
+                for bps, checked_at in (("NaN", 1000), (-50, 1000),
+                                        (25, 5000), ("invalid", 1000)):
+                    with self.subTest(bps=bps, checked_at=checked_at):
+                        store.set_meta("bean_fee_tier:" + "f" * 64,
+                                       '{"bps":' + (
+                                           '"' + bps + '"' if isinstance(bps, str)
+                                           else str(bps)) +
+                                       ',"source":"coinbase_account_fee_tier","checked_at":' +
+                                       str(checked_at) + '}')
+                        with patch("src.advanced_live.time.time", return_value=1001):
+                            self.assertEqual(engine._taker_cost_bps()[0], 90.0)
+            finally:
+                store.close()
+
+    def test_authenticated_discount_below_fallback_is_honored(self):
+        with tempfile.TemporaryDirectory() as folder:
+            store = StateStore(Path(folder) / "advanced.db")
+            try:
+                engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                engine.store = store
+                engine.rail = FakeFeeRail("a" * 64, 35)
+                self.assertEqual(engine._taker_cost_bps()[0], 35)
+                self.assertEqual(engine._taker_cost_bps()[0], 35)
+                self.assertEqual(engine.rail.calls, 1)
             finally:
                 store.close()
 

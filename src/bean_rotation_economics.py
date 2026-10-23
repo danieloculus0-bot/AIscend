@@ -8,6 +8,10 @@ from __future__ import annotations
 
 from math import isfinite
 
+# Coinbase Advanced US entry-tier taker rate announced September 16, 2026.
+# Used only when no authenticated account-specific tier is available.
+DEFAULT_TAKER_BPS = 90.0
+
 
 def maturity_minutes(row: dict) -> int:
     """Provisional horizon from observed multi-timeframe price persistence."""
@@ -28,7 +32,7 @@ def trade_cost_bps(spread_bps: float, taker_fee_bps: float) -> float:
     return max(0.0, taker_fee_bps) + max(0.0, spread_bps) * 0.5
 
 
-def score_route(candidate: dict, *, taker_fee_bps: float = 60.0,
+def score_route(candidate: dict, *, taker_fee_bps: float = DEFAULT_TAKER_BPS,
                 bridge: bool = False, incumbent_spread_bps: float = 0.0,
                 selling_incumbent: bool = False,
                 bridge_spread_bps: float = 0.0) -> dict:
