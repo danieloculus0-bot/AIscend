@@ -16,6 +16,18 @@ class PrimaryPolicyTests(unittest.TestCase):
         self.assertEqual({i["strategy"] for i in x},{"trend","breakout"})
         self.assertTrue(all(i["gross_projection_bps"]>0 for i in x))
 
+    def test_explicit_empty_tradability_blocks_funded_buy(self):
+        # Authenticated Coinbase returned zero market-order-ready products.
+        # An empty allowlist is not equivalent to an absent research field.
+        snap = {"asset_universe": {"scored": [row("ALEO-USDC")]},
+                "tradable_products": [], "cash_by_quote": {"USDC": 25.0},
+                "positions": {}}
+        denied = select_plan(snap)
+        self.assertIsNone(denied["winner"])
+        self.assertEqual(denied["skipped"]["untradable"], 1)
+        del snap["tradable_products"]
+        self.assertIsNotNone(select_plan(snap)["winner"])
+
     def test_tradable_cross_quote_position_can_fund_opportunity(self):
         snap={"asset_universe":{"scored":[row("ALEO-USD"),
                                              row("GROVE-USDC",r5=-.02,r1=-.05,r6=-.1)]},
