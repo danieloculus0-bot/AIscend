@@ -272,6 +272,15 @@ def summarize(db, *, capital, train_count, holdout_count, q):
         "paired_mean_bean_minus_price_action_usd": round(
             statistics.mean(deltas), 4),
         "paired_bean_beats_price_action": sum(x > 0 for x in deltas),
+        "bean_holdout_total_orders": sum(
+            r[5] for r in rows if r[2] == "bean_frozen"),
+        "bean_net_alpha_over_cash_mean_usd": round(
+            modes["bean_frozen"]["mean_end_usd"] - capital, 4),
+        "trading_skill_demonstrated": (
+            modes["bean_frozen"]["mean_trades"] > 0
+            and modes["bean_frozen"]["mean_end_usd"] > capital
+            and modes["bean_frozen"]["mean_end_usd"]
+                > modes["price_action"]["mean_end_usd"]),
         "adopt_for_live_trading": False,
         "limitation": "Actual BEAN adaptive Q updates only on TRAINING synthetic "
                       "candles. Frozen Q and conventional price action get the "
