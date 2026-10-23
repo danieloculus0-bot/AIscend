@@ -56,7 +56,7 @@ def _verify(db):
     return tip
 
 
-def _history(raw, now):
+def _history(raw, now, *, strict_features=True):
     end = now // BAR * BAR
     rows = sorted((dict(r) for r in raw.values()
                    if int(r["ts"]) + BAR <= end),
@@ -68,7 +68,7 @@ def _history(raw, now):
             raise ValueError("Invalid six-hour Coinbase candle")
     if len(rows) < 44 or rows[-1]["ts"] != end - BAR:
         raise ValueError("Current completed six-hour candle missing")
-    if any(rows[i]["ts"] != rows[i-1]["ts"] + BAR
+    if strict_features and any(rows[i]["ts"] != rows[i-1]["ts"] + BAR
            for i in range(len(rows)-43, len(rows))):
         raise ValueError("Missing required contiguous feature history")
     return rows
@@ -213,7 +213,7 @@ def inspect(manifest_path, db_path, *, clock=None, history_fetcher=None):
                     history_fetcher(product, days=45, clock=lambda: now)
                     if history_fetcher else
                     fetch_history(product, days=45, clock=lambda: now))
-                rows = _history(raw, now)
+                rows = _history(raw, now, strict_features=state is None)
             except Exception as exc:
                 reports[product] = {
                     "status": "DATA_UNAVAILABLE",
