@@ -28,8 +28,11 @@ def verified_order(detail: dict[str, Any] | None, order_id: str) -> dict[str, An
         order = {}
     status = str(order.get("status") or order.get("order_status") or "UNKNOWN").upper()
     venue_id = str(order.get("order_id") or order.get("orderId") or "")
-    if venue_id and venue_id != order_id:
-        return {"state": "UNVERIFIED", "reason": "Order detail ID mismatch",
+    # A response without the requested venue identity cannot settle a
+    # durable pending order. Never interpret it as proof of fill or zero fill.
+    if not venue_id or venue_id != order_id:
+        return {"state": "UNVERIFIED",
+                "reason": "Order detail ID missing or mismatched",
                 "venue_status": status}
     raw_qty = order.get("filled_size")
     if raw_qty is None:
@@ -55,10 +58,19 @@ def verified_order(detail: dict[str, Any] | None, order_id: str) -> dict[str, An
          filled_value >= 0 and
          (quantity is None or quantity != 0 or filled_value == 0))
     )
-    if status == "FILLED" and known_quantity and quantity > 0:
+    if status == "FILLED":
+        # Quantity alone is not enough to establish a complete execution.
+        # A malformed, zero or missing quote amount must retain the client ID
+        # and block any dependent resubmission pending reconciliation.
+        if (not known_quantity or quantity <= 0 or not value_consistent
+                or filled_value is None or filled_value <= 0):
+            return {"state": "FILLED_EVIDENCE_INCOMPLETE", "order_id": order_id,
+                    "venue_status": status,
+                    "reason": "FILLED status lacks consistent positive quantity "
+                              "and quote-value evidence; preserve pending intent"}
         return {"state": "FILLED_VERIFIED", "order_id": order_id,
                 "venue_status": status, "filled_size": str(quantity),
-                "filled_value": order.get("filled_value"),
+                "filled_value": str(filled_value),
                 "average_filled_price": order.get("average_filled_price"),
                 "total_fees": order.get("total_fees"),
                 "evidence": "coinbase_authenticated_order_detail"}
