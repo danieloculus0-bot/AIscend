@@ -21,6 +21,9 @@ def evaluate_candidates(growth_gate, snapshot, *, limit=EVALUATION_BATCH, cursor
     universe = snapshot.get("asset_universe") or {}
     ranked = universe.get("scored") or universe.get("buy_top") or universe.get("top") or []
     tradable = set(snapshot.get("tradable_products") or ())
+    # An explicit empty list from the authenticated account is a deny-all,
+    # not permission to assess arbitrary markets for funded allocation.
+    tradability_scoped = "tradable_products" in snapshot
     positions = snapshot.get("positions") or {}
     execution = (account_history or {}).get("execution") or {}
     completed = execution.get("status") == "COMPLETE"
@@ -34,7 +37,7 @@ def evaluate_candidates(growth_gate, snapshot, *, limit=EVALUATION_BATCH, cursor
     for item in ordered:
         product = str(item.get("product") or "").upper()
         if (not product or product in seen or
-                (tradable and product not in tradable) or
+                (tradability_scoped and product not in tradable) or
                 not product.endswith(("-USD", "-USDC"))):
             continue
         eligible.append((product, item))
@@ -54,7 +57,7 @@ def evaluate_candidates(growth_gate, snapshot, *, limit=EVALUATION_BATCH, cursor
     seen = {product for product, _ in candidates}
     # Explicitly evaluate owned assets even if absent from the scanner.
     for product in positions:
-        if product not in seen and (not tradable or product in tradable):
+        if product not in seen and (not tradability_scoped or product in tradable):
             candidates.append((product, {"product": product}))
             seen.add(product)
 
