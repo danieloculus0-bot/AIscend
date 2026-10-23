@@ -68,6 +68,23 @@ class FiveMinuteTests(unittest.TestCase):
                              "Forward paper, next-bar open fills, modeled costs")
             self.assertEqual(FastPaperBook(path=path, fetcher=candles).status()["orders"], 1)
 
+    def test_future_or_unaligned_end_cannot_fabricate_forward_samples(self):
+        with tempfile.TemporaryDirectory() as td:
+            now = [1000*BAR+60]
+            book = FastPaperBook(path=Path(td)/"paper.db",
+                                 fetcher=candles, clock=lambda: now[0])
+            self.assertTrue(book.enqueue({
+                "id":"future-guard","ordinal":1,"state":"AUTO_SELECTED",
+                "report":{"candidate":["momentum",6,0.003,3],
+                          "pairs":["BTC-USD","ETH-USD"]}}))
+            with self.assertRaisesRegex(ValueError, "future"):
+                book.step(end=1001*BAR)
+            with self.assertRaisesRegex(ValueError, "unaligned"):
+                book.step(end=1000*BAR+1)
+            self.assertEqual(book.status()["samples"],0)
+            self.assertEqual(book.status()["orders"],0)
+            self.assertEqual(book.step(end=1000*BAR)["samples"],1)
+
     def test_legacy_pending_without_observation_time_cannot_backfill(self):
         with tempfile.TemporaryDirectory() as td:
             path=Path(td)/"paper.db"
