@@ -143,9 +143,93 @@ class SubsetLedger:
                             (set_id, description))
         return set_id
 
+
+    @staticmethod
+    def _scope(set_id, parent_id):
+        if not isinstance(set_id, str) or not _SET.fullmatch(set_id):
+            raise ValueError("Invalid reference-table name")
+        return set_id + ":" + (parent_id if parent_id is not None else "ROOT")
+
+    def define_type(self, *, set_id, slot, character, meaning, parent_id=None):
+        """One character identifies a type, scoped by set, parent and slot."""
+        from .bean_pair_index import pair_type
+        if (type(slot) is not int or not 1 <= slot <= 8
+                or not isinstance(character,str) or len(character)!=1
+                or character==" " or pair_type(character*2) is None
+                or not isinstance(meaning,str) or not meaning.strip()):
+            raise ValueError("Invalid data type definition")
+        scope=self._scope(set_id,parent_id)
+        if not self.db.execute("SELECT 1 FROM ref_sets WHERE set_id=?",
+                               (set_id,)).fetchone():
+            raise ValueError("Reference table is not defined")
+        if parent_id is not None and not self.db.execute(
+                "SELECT 1 FROM nodes WHERE node_id=?",
+                (parent_id,)).fetchone():
+            raise ValueError("Parent node is not defined")
+        prev=self.db.execute(
+            "SELECT meaning FROM character_types WHERE scope=? AND slot=?"
+            " AND type_character=?",(scope,slot,character)).fetchone()
+        if prev:
+            if prev["meaning"]!=meaning:
+                raise ValueError("A data type cannot be redefined")
+            return character
+        with self.db:
+            self.db.execute("INSERT INTO character_types VALUES(?,?,?,?,?)",
+                            (scope,set_id,slot,character,meaning))
+        return character
+
+    def define_subset(self, *, set_id, slot, code, meaning, parent_id=None):
+        """Second character selects a subset of the first-character type."""
+        validate_code(code)
+        if (len(code)!=2 or type(slot) is not int or not 1 <= slot <= 8
+                or not isinstance(meaning,str) or not meaning.strip()):
+            raise ValueError("Invalid subset pair")
+        scope=self._scope(set_id,parent_id)
+        typ,subset=code
+        if not self.db.execute(
+                "SELECT 1 FROM character_types WHERE scope=? AND slot=?"
+                " AND type_character=?",(scope,slot,typ)).fetchone():
+            raise ValueError("Declare the data type before its subset")
+        prev=self.db.execute(
+            "SELECT meaning FROM character_subsets WHERE scope=? AND slot=?"
+            " AND type_character=? AND subset_character=?",
+            (scope,slot,typ,subset)).fetchone()
+        if prev:
+            if prev["meaning"]!=meaning:
+                raise ValueError("A subset cannot be redefined")
+            return code
+        with self.db:
+            self.db.execute("INSERT INTO character_subsets VALUES(?,?,?,?,?)",
+                            (scope,slot,typ,subset,meaning))
+        return code
+
+    def decode(self, *, set_id, code, parent_id=None):
+        """Resolve a series of typed pairs without inventing semantics."""
+        validate_code(code)
+        scope=self._scope(set_id,parent_id)
+        parts=[]
+        for slot,i in enumerate(range(0,len(code),2),1):
+            typ,subset=code[i:i+2]
+            row=self.db.execute(
+                "SELECT t.meaning AS type_meaning,s.meaning AS subset_meaning"
+                " FROM character_types t JOIN character_subsets s"
+                " ON t.scope=s.scope AND t.slot=s.slot"
+                " AND t.type_character=s.type_character"
+                " WHERE t.scope=? AND t.slot=? AND t.type_character=?"
+                " AND s.subset_character=?",
+                (scope,slot,typ,subset)).fetchone()
+            if row is None:
+                raise ValueError("Unknown type/subset code in slot "+str(slot))
+            parts.append({"slot":slot,"type_character":typ,
+                          "subset_character":subset,
+                          "type_meaning":row["type_meaning"],
+                          "subset_meaning":row["subset_meaning"]})
+        return parts
+
     def add(self, *, set_id, code, meaning, stage, available_at,
             evidence_sha256, source_episode, parent_id=None):
         validate_code(code)
+        self.decode(set_id=set_id,code=code,parent_id=parent_id)
         at = utc_time(available_at)
         if (stage not in STAGES or not isinstance(meaning, str)
                 or not meaning.strip() or len(meaning) > 500
