@@ -49,6 +49,16 @@ class BeanProfitLedgerTests(unittest.TestCase):
         self.assertAlmostEqual(result["drawdown"], expected, places=7)
         self.assertAlmostEqual(result["drawdown"], -result["net_return"], places=7)
 
+    def test_interim_peak_uses_liquidation_value_not_gross_close(self):
+        rows = lab.to_4h(candles(n=220, change=0))
+        # Price doubles intrabar and gaps back to its starting level.
+        # Both the peak and trough must be valued net of the sell fee.
+        rows[60]["close"] = 200.
+        result = lab.simulate(rows, "buy_hold", 43, 100)
+        self.assertEqual(result["status"], "OK")
+        self.assertAlmostEqual(result["net_return"], -(1 - .9905 ** 2), places=7)
+        self.assertAlmostEqual(result["drawdown"], .5, places=7)
+
     def test_gap_in_owned_position_fails_instead_of_skipping_loss(self):
         rows = lab.to_4h(candles(n=220))
         del rows[100]
