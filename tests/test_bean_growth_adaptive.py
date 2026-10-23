@@ -41,6 +41,47 @@ class GrowthPolicyTests(unittest.TestCase):
             self.assertEqual(updated["reward_updates"], first["reward_updates"] + 1)
             self.assertEqual(updated["forward_bars"], 1)
 
+    def test_selected_policy_requires_its_own_context_samples(self):
+        import json
+
+        end = 500 * BAR
+        bars = {t: {"open": 100.0, "close": 100.0}
+                for t in range(end - 280 * BAR, end, BAR)}
+        context = _features([.01] * 12)
+        with tempfile.TemporaryDirectory() as temp:
+            gate = BeanAdaptiveGrowthGate(
+                path=Path(temp) / "policy.sqlite3",
+                fetcher=lambda _p, a, b: {
+                    t: v for t, v in bars.items() if a <= t < b},
+                clock=lambda: end + 10)
+            state = _fresh_state()
+            state["last_bar"] = end - BAR
+            state["last_close"] = 100.0
+            state["recent_returns"] = [.01] * 12
+            state["bootstrapped"] = True
+            state["paper_bars"] = 200
+            state["q"] = {context: {"buy_hold": 50.0}}
+            state["visits"] = {context: {"buy_hold": 5}}
+            state["win_trials"] = {context: {"buy_hold": 5}}
+            with gate._db() as db:
+                db.execute("INSERT INTO policy(product,state) VALUES(?,?)",
+                           ("ETH-USD", json.dumps(state)))
+            first = gate.assess("ETH-USD")
+            self.assertEqual(first["learned_strategy"], "buy_hold")
+            self.assertEqual(first["observed_samples"], 5)
+            self.assertEqual(first["status"], "WARMING_UP")
+            self.assertEqual(first["trade_effect"], "NONE")
+            self.assertEqual(first["reward_updates"], 5)
+            state["win_trials"][context]["buy_hold"] = 6
+            state["visits"][context]["buy_hold"] = 6
+            with gate._db() as db:
+                db.execute("UPDATE policy SET state=? WHERE product=?",
+                           (json.dumps(state), "ETH-USD"))
+            second = gate.assess("ETH-USD")
+            self.assertEqual(second["status"], "READY")
+            self.assertEqual(second["trade_effect"], "ADOPTED_LONG_CASH")
+            self.assertEqual(second["observed_samples"], 6)
+
     def test_missing_bar_does_not_preserve_imaginary_held_equity(self):
         state = _fresh_state()
         state["last_bar"] = 0
