@@ -1,0 +1,62 @@
+name: BEAN Frozen Prospective Paper Ledger
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prospective-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - name: Prove six-hour paper fills occur only AFTER committed future entries
+        run: |
+          python -m unittest discover -s tests -p 'test_bean_sixhour_forward.py' -v
+          python -m unittest discover -s tests -p 'test_bean_six_hour_universe.py' -v
+          python -m py_compile src/bean_sixhour_forward.py
+
+  initial-prospective-observation:
+    needs: [prospective-contract]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - name: Make immutable first observation of frozen candidates only from public Coinbase candles
+        run: |
+          mkdir -p artifacts/bean-prospective
+          python -m src.bean_sixhour_forward --manifest research/bean_frozen_prospective_20261023.json --db artifacts/bean-prospective/state.sqlite3 --output artifacts/bean-prospective/first-observation.json
+      - name: Verify no initial retroactive paper profits or live promotion
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path("artifacts/bean-prospective/first-observation.json").read_text())
+          assert r["promotion_authorized"] is False
+          for m in r.get("markets",{}).values():
+              assert not m["promotion_authorized"]
+              if m["status"] == "COLLECTING":
+                  assert m["orders"] == 0
+                  assert m["forward_bars"] == 0
+                  assert m["fee_net_paper_return"] == 0
+          print({p: r["markets"][p]["status"] for p in r["markets"]})
+          PY
+      - name: Preserve actual first-event SQLite ledger and sanitized proof
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bean-prospective-initial-ledger
+          path: artifacts/bean-prospective/
+          if-no-files-found: warn
+          retention-days: 30
