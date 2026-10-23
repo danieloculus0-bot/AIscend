@@ -432,7 +432,7 @@ def main(argv=None):
     import argparse
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, default=Path(
-        "research/bean_frozen_prospective_20261023.json"))
+        "research/bean_frozen_prospective_20261023_fee90.json"))
     parser.add_argument("--db", type=Path, default=None,
                         help="Optional override. By default, persist in LocalAppData.")
     parser.add_argument("--output", type=Path,
