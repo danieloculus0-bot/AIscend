@@ -83,6 +83,20 @@ def parse(value, *, pattern=False):
     return pairs
 
 
+def character_components(pair):
+    """First character = data-type reference; second = subset reference.
+
+    A pair's alphabet must be homogeneous (AA, bb, 01, -/).
+    Meaning is resolved from its SCOPE and SLOT definition tables, not
+    assumed from the characters alone. Spaces can occur in query patterns.
+    """
+    kind = pair_type(pair)
+    return {"data_type_character": pair[0],
+            "subset_character": pair[1],
+            "character_class": kind,
+            "is_query_pattern": " " in pair}
+
+
 def matches(pattern, value):
     query = parse(pattern, pattern=True)
     stored = parse(value)
@@ -152,8 +166,9 @@ def reference_document():
             "position":index,
             "byte_offset":2*(index-1),
             "field":name, "type":kind,
-            "references":[{"key":key,"meaning":meaning} for key,meaning
-                          in sorted(REFERENCES[name].items())],
+            "references":[{"key":key,"type_character":key[0],
+                           "subset_character":key[1],"meaning":meaning}
+                          for key,meaning in sorted(REFERENCES[name].items())],
         })
     return {
         "schema":SCHEMA,"slots":slots,
