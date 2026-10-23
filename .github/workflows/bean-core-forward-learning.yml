@@ -23,6 +23,13 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_forward_paper.py' -v
       - name: Train true BEAN Core SpongeTD using disposable offline fixture outcomes
         run: python -m scripts.bean_core_paper_smoke --core "$RUNNER_TEMP/bean-core"
+      - name: Compare real BEAN before and after learning on heldout synthetic market regimes
+        run: python -m scripts.bean_core_bridge_benchmark --core "$RUNNER_TEMP/bean-core" --output artifacts/bean-core-bridge-benchmark.json
+      - name: Publish reproducible paired learning scorecard
+        uses: actions/upload-artifact@v4
+        with:
+          name: bean-core-paired-synthetic-learning-benchmark
+          path: artifacts/bean-core-bridge-benchmark.json
       - name: Verify no live trading claims
         run: |
           echo "BEAN_CORE_REAL=true"
