@@ -306,15 +306,154 @@ def inspect(manifest_path, db_path, *, clock=None, history_fetcher=None):
         }
 
 
+def persistent_db_path():
+    """Persistent local Python application state, never an ephemeral CI artifact."""
+    return app_data_dir() / "bean-sixhour-prospective.sqlite3"
+
+
+def verify_database(manifest_path, db_path):
+    """Read-only SQLite health check, frozen-policy identity and ledger replay."""
+    target = Path(db_path)
+    if not target.is_file():
+        raise FileNotFoundError("BEAN prospective SQLite ledger has not been initialized")
+    expected = digest(json.loads(Path(manifest_path).read_text(encoding="utf-8")))
+    # mode=ro prevents accidentally creating or modifying the paper ledger.
+    with closing(sqlite3.connect(target.resolve().as_uri() + "?mode=ro",
+                                 uri=True, timeout=30.0)) as db:
+        check = db.execute("PRAGMA integrity_check").fetchone()
+        if check is None or check[0] != "ok":
+            raise ValueError("SQLite integrity_check failed")
+        meta = db.execute("SELECT v FROM meta WHERE k='manifest_sha'").fetchone()
+        if meta is None or meta[0] != expected:
+            raise ValueError("SQLite BEAN ledger manifest mismatch")
+        tip = _verify(db)
+        event_count = db.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+        states = {}
+        for product, encoded in db.execute("SELECT product,state FROM positions"):
+            state = json.loads(encoded)
+            states[product] = {
+                "last_completed_candle": state["last_seen_ts"],
+                "forward_bars": state["forward_bars"],
+                "orders": state["orders"],
+                "roundtrips": state["roundtrips"],
+                "q_updates": state["q_updates"],
+                "blocked": state.get("blocked"),
+                "pending_entry_at": (state.get("pending") or {}).get("entry_ts"),
+            }
+        return {
+            "status": "LEDGER_VERIFIED", "db": str(target),
+            "events": event_count, "ledger_tip": tip,
+            "manifest_sha": expected, "markets": states,
+            "promotion_authorized": False,
+        }
+
+
+def backup_database(manifest_path, db_path, destination):
+    """Use SQLite's online backup API, not a raw copy of an active WAL file."""
+    original = verify_database(manifest_path, db_path)
+    destination = Path(destination)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    # Exclusive reservation: a second worker cannot silently overwrite proof.
+    with destination.open("xb"):
+        pass
+    try:
+        with closing(sqlite3.connect(Path(db_path).resolve().as_uri() +
+                                     "?mode=ro", uri=True)) as source:
+            with closing(sqlite3.connect(destination)) as target:
+                source.backup(target)
+        restored = verify_database(manifest_path, destination)
+        if restored["ledger_tip"] != original["ledger_tip"]:
+            raise ValueError("SQLite backup ledger does not match original")
+        checksum = hashlib.sha256(destination.read_bytes()).hexdigest()
+        destination.with_suffix(destination.suffix + ".sha256").write_text(
+            checksum + "  " + destination.name + "\n", encoding="ascii")
+        return {"status": "BACKUP_VERIFIED", "path": str(destination),
+                "sha256": checksum, "ledger_tip": restored["ledger_tip"],
+                "events": restored["events"], "promotion_authorized": False}
+    except Exception:
+        destination.unlink(missing_ok=True)
+        raise
+
+
+def watch(manifest_path, db_path, *, backup_dir=None,
+          clock=None, sleep=None, observer=None, max_cycles=None,
+          reporter=None):
+    """Run a persistent six-hour paper observer in a dedicated Python shell.
+
+    Each cycle calls the SAME SQLite database. Offline time is not invented;
+    saved pending signals and verified positions survive process restarts.
+    """
+    clock = clock or time.time
+    sleep = sleep or time.sleep
+    observer = observer or inspect
+    reporter = reporter or print
+    backup_dir = Path(backup_dir) if backup_dir is not None else None
+    previous_tip = None
+    count = 0
+    while max_cycles is None or count < max_cycles:
+        report = observer(manifest_path, db_path, clock=clock)
+        reporter(json.dumps(report, sort_keys=True))
+        count += 1
+        tip = report.get("ledger_tip")
+        if backup_dir is not None and tip and tip != previous_tip:
+            archive = backup_dir / ("bean-ledger-" + tip[:16] + ".sqlite3")
+            if archive.exists():
+                existing = verify_database(manifest_path, archive)
+                if existing["ledger_tip"] != tip:
+                    raise ValueError("Existing backup does not match event hash")
+            else:
+                backup_database(manifest_path, db_path, archive)
+        previous_tip = tip
+        if max_cycles is not None and count >= max_cycles:
+            break
+        now = float(clock())
+        next_close = (int(now) // BAR + 1) * BAR + 120
+        # Missing exchange data merits a bounded retry; otherwise wait for the
+        # next newly completed six-hour candle, not a stale-data re-run storm.
+        unavailable = any(v.get("status") == "DATA_UNAVAILABLE"
+                          for v in report.get("markets", {}).values())
+        until = min(next_close, now + 300) if unavailable else next_close
+        sleep(max(1.0, until - now))
+    return count
+
+
 def main(argv=None):
     import argparse
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--manifest", type=Path, required=True)
-    parser.add_argument("--db", type=Path, default=Path(
-        "artifacts/bean-sixhour-prospective.sqlite3"))
-    parser.add_argument("--output", type=Path)
+    parser.add_argument("--manifest", type=Path, default=Path(
+        "research/bean_frozen_prospective_20261023.json"))
+    parser.add_argument("--db", type=Path, default=None,
+                        help="Optional override. By default, persist in LocalAppData.")
+    parser.add_argument("--output", type=Path,
+                        help="One-shot JSON report file (not the SQLite ledger)")
+    actions = parser.add_mutually_exclusive_group()
+    actions.add_argument("--watch", action="store_true",
+                         help="Observe new completed six-hour candles continuously")
+    actions.add_argument("--verify-only", action="store_true",
+                         help="Verify existing SQLite state without market requests")
+    actions.add_argument("--backup-to", type=Path,
+                         help="Create and verify a SQLite backup without market requests")
     args = parser.parse_args(argv)
-    result = inspect(args.manifest, args.db)
+    db_path = args.db or persistent_db_path()
+
+    if args.watch:
+        if args.output:
+            parser.error("--output is for one-shot observation, not --watch")
+        print("BEAN prospective Python ledger:", db_path, flush=True)
+        print("No orders or wallet operations; Ctrl+C stops the observer.",
+              flush=True)
+        try:
+            watch(args.manifest, db_path,
+                  backup_dir=app_data_dir() / "bean-ledger-backups")
+        except KeyboardInterrupt:
+            print("BEAN observer stopped; SQLite records retained.")
+        return 0
+    if args.verify_only:
+        result = verify_database(args.manifest, db_path)
+    elif args.backup_to:
+        result = backup_database(args.manifest, db_path, args.backup_to)
+    else:
+        result = inspect(args.manifest, db_path)
     encoded = json.dumps(result, indent=2, sort_keys=True)
     print(encoded)
     if args.output:
