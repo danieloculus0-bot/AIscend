@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlparse
 
 from src import bean_six_hour_universe as universe
-from src.bean_profit_lab import experiment, chain
+from src.bean_profit_lab import experiment, chain, Ledger
 from src.universe_research import shard_for
 
 
@@ -61,12 +61,18 @@ class SixHourBeanUniverseTests(unittest.TestCase):
     def test_full_aggregation_requires_identical_catalog_and_all_shards(self):
         products = ["AAA-USD", "BBB-USD", "CCC-USD", "DDD-USD"]
         catalog = {"eligible_quote_markets": products}
+        def market_row(product):
+            ledger = Ledger()
+            ledger.append("market_terminal", product=product,
+                          status="NOT_PROVEN", promotion_authorized=False)
+            return {"status": "NOT_PROVEN", "promotion_authorized": False,
+                    "ledger_tip": ledger.tip}
         reports = []
         for shard in range(2):
             reports.append({"shards":2,"shard_index":shard,
                 "catalog_hash":"frozen-hash","catalog":catalog,
                 "days":90,"fee_bps":60,"spread_bps":10,
-                "products":{p:{"status":"NOT_PROVEN","promotion_authorized":False}
+                "products":{p:market_row(p)
                             for p in products if shard_for(p,2)==shard}})
         combined = universe.aggregate(reports)
         self.assertEqual(combined["market_count"], 4)
