@@ -4,12 +4,16 @@ Only disposable synthetic fixture data is used here to prove integration,
 replay idempotence, Q-value changes, and tampering detection.
 """
 import argparse
+import json
+import os
+import subprocess
+import sys
 from contextlib import closing
 from pathlib import Path
 import sqlite3
 import tempfile
 
-from src.bean_core_paper_learning import learn_from_paper
+from src.bean_core_paper_learning import learn_from_paper, paper_receipts, _digest
 from src.bean_five_minute import BAR
 from src.forward_paper import _db, freeze
 
@@ -90,6 +94,40 @@ def run(core_dir):
             clock=lambda:exit_ts+BAR+1)
         assert after["available_scored_paper_trades"]==31,after
         assert after["q_updates"]==31 and after["durable_q_updates"]==30,after
+        # Reproduce the obsolete cash-tie checkpoint using the REAL old
+        # uncredited zero-reward Q behavior. Corrected learning must refuse
+        # this old state rather than silently treating it as trained.
+        legacy_db = Path(folder) / "legacy-cash-tie.sqlite3"
+        legacy_script = """
+import json,sys
+from bean.learning.runtime import LearningRuntime
+payload=json.load(sys.stdin)
+core=LearningRuntime(payload["db"],actions=("trade","cash"),seed=17)
+try:
+    for _ in range(30):
+        core.policy.learn(
+            core.scoped("aiscend-paper",{"product":"BTC-USD","policy":"trend"}),
+            1,0.0,None,True)
+    core.checkpoint(baseline=0.0,candidate=0.0,samples=30,
+                    evaluation_sha256=payload["digest"])
+finally:
+    core.close()
+"""
+        subprocess.run(
+            [sys.executable, "-c", legacy_script],
+            input=json.dumps({"db": str(legacy_db),
+                              "digest": _digest(paper_receipts(paper)[:30])}),
+            text=True, capture_output=True, check=True,
+            env={"PYTHONPATH": str(Path(core_dir).resolve()),
+                 "PATH": os.environ.get("PATH", "")}, timeout=30)
+        try:
+            learn_from_paper(core_dir=core_dir, paper_db=paper,
+                             learning_db=legacy_db)
+        except subprocess.CalledProcessError as error:
+            assert "Legacy zero-feedback BEAN checkpoint" in error.stderr, error.stderr
+        else:
+            raise AssertionError("Invalid old BEAN learning state was reused")
+
         with closing(sqlite3.connect(paper)) as db:
             db.execute(
                 "UPDATE paper_decisions SET entry_price=110,"
