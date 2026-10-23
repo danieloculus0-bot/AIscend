@@ -1,11 +1,22 @@
 import unittest
 
 from src.bean_rotation_economics import (
-    score_route, bridge_order, maturity_minutes, trade_cost_bps,
+    score_route, bridge_order, maturity_minutes, trade_cost_bps, DEFAULT_TAKER_BPS,
 )
 
 
 class EconomicRotationTests(unittest.TestCase):
+    def test_default_route_cost_uses_current_us_taker_fallback(self):
+        from src.primary_strategy import DEFAULT_TAKER_BPS as PRIMARY_FALLBACK
+        self.assertEqual(DEFAULT_TAKER_BPS, 90.0)
+        self.assertEqual(PRIMARY_FALLBACK, DEFAULT_TAKER_BPS)
+        route = score_route({"reward_bps": 10.0, "spread_bps": 0.0,
+                             "return_5m": 0.01})
+        self.assertEqual(route["total_route_cost_bps"], 180.0)
+        discounted = score_route({"reward_bps": 10.0, "spread_bps": 0.0,
+                                  "return_5m": 0.01}, taker_fee_bps=35)
+        self.assertEqual(discounted["total_route_cost_bps"], 70.0)
+
     def test_quote_bridge_only_when_listed(self):
         products = ["USDC-USD", "ALEO-USD"]
         self.assertEqual(
