@@ -27,6 +27,10 @@ this interface.
 6. On restart BEAN verifies its previous checkpoint's receipt-prefix digest;
    changed or shortened historical evidence is rejected. Recent updates that
    have not reached checkpoint quorum are replayed, not represented as durable.
+   The corrected historical trade-feedback rule is part of the SHA checkpoint
+   identity. Checkpoints from the old zero-reward cash-tie logic are refused.
+   Preserve the previous journal for audit and choose a NEW
+   `--bean-learn-db` filename rather than reusing invalid Q memory.
 
 The initial retrospective replay of older paper trades is **learning data,
 not a forward performance claim**. Only choices committed before future paper
@@ -77,6 +81,26 @@ The local SQLite files default to
 do **not** point them at the live Coinbase execution/order-journal database.
 Existing paper ledgers using the invalid already-open-bar entry model
 are rejected, not silently migrated to apparently profitable results.
+
+## Paired, fee-net synthetic learning comparison
+
+Run the actual separate BEAN Core through the AIscend bridge with a fixed
+untrained comparator, 60 simulated training receipts and two distinct
+40-opportunity heldout regimes:
+
+```bash
+python -m scripts.bean_core_bridge_benchmark --core ../BEAN --output synthetic-scorecard.json --holdout 40
+```
+
+The harness commits both policies' shadow decisions before injecting each
+simulated future fill. The training-only price pattern is deliberately
+predictable. A reversed-price regime checks for brittle learning or drift.
+Returns include 60 bps taker fee per side and modeled 10 bps spread;
+every 40-opportunity score starts at hypothetical equity 1.0. CI publishes
+the JSON scorecard artifact. These are constructed fixture prices, NOT
+market observations, and **cannot** establish historical or prospective
+Coinbase profitability. The independent always-cash comparator remains
+important even when BEAN outperforms untrained BEAN.
 
 ## Verification and reality checks
 
