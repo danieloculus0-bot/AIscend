@@ -12,6 +12,7 @@ by this test. Real-time elapsed market observation is NOT simulated here.
 from __future__ import annotations
 
 import argparse
+import csv
 from contextlib import closing
 import hashlib
 import json
@@ -122,6 +123,7 @@ def run_case(core_dir, *, regime, opportunities=40):
             raise AssertionError("BEAN did not retain 60 real-core training updates")
 
         decisions = []
+        previous_digest = "GENESIS"
         equity = {"trained": 1.0, "untrained": 1.0, "all_cash": 1.0}
         action_counts = {"trained": {"trade": 0, "cash": 0},
                          "untrained": {"trade": 0, "cash": 0}}
@@ -161,13 +163,29 @@ def run_case(core_dir, *, regime, opportunities=40):
                                 ("trained", trained_action)):
                 action_counts[arm][action] += 1
                 equity[arm] *= 1 + (realized if action == "trade" else 0.0)
-            decisions.append({
-                "sample": i, "product": product,
-                "signal_ts": signal, "entry_ts": entry,
+            row = {
+                "regime": regime,
+                "sample": i + 1, "product": product,
+                "signal_ts": signal, "observation_ts": observed,
+                "entry_ts": entry, "exit_price": float(exit_price),
+                "entry_price": 100.0,
+                "fee_bps_per_side": COST_FEE_BPS,
+                "spread_bps": COST_SPREAD_BPS,
                 "untrained_before_entry": baseline_action,
                 "trained_before_entry": trained_action,
+                "trained_q_updates_before": trained_status["q_updates"],
+                "untrained_q_updates_before": baseline_status["q_updates"],
                 "synthetic_fee_net_trade_return": round(realized, 10),
-            })
+                "untrained_running_net_pct": round(100*(equity["untrained"]-1), 6),
+                "trained_running_net_pct": round(100*(equity["trained"]-1), 6),
+                "prior_event_digest": previous_digest,
+            }
+            # The displayed ledger includes each pre-entry decision and
+            # subsequent simulated result. Each row commits the prior digest.
+            row["event_sha256"] = hashlib.sha256(json.dumps(
+                row, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+            previous_digest = row["event_sha256"]
+            decisions.append(row)
 
         # Ingest final scored result; verify checkpoint still covers original
         # evidence and new outcomes without retroactively editing decisions.
@@ -195,6 +213,8 @@ def run_case(core_dir, *, regime, opportunities=40):
             "checkpoint_durable": final["durable_checkpoint"],
             "holdout_decision_sha256": hashlib.sha256(json.dumps(
                 decisions, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+            "decision_trace_tip_sha256": previous_digest,
+            "decision_trace": decisions,
             "prospective_elapsed_market_test": False,
             "live_coinbase_verified": False,
             "out_of_sample_real_profitability_proven": False,
@@ -231,6 +251,16 @@ def main(argv=None):
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(encoded, encoding="utf-8")
+        rows = [row for case in report["cases"]
+                for row in case["decision_trace"]]
+        csv_path = args.output.with_name(args.output.stem + "-episodes.csv")
+        with csv_path.open("w", newline="", encoding="utf-8") as stream:
+            writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
+            writer.writeheader()
+            writer.writerows(rows)
+        if len(rows) != 2 * args.holdout:
+            raise AssertionError("Incomplete published per-episode evidence")
+        print("Published raw synthetic decision ledger:", csv_path)
 
 
 if __name__ == "__main__":
