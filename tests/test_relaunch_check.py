@@ -11,8 +11,9 @@ SHA = "a" * 40
 
 
 class FakeRunner:
-    def __init__(self, *, dirty=False, tests_ok=True):
+    def __init__(self, *, dirty=False, untracked=False, tests_ok=True):
         self.dirty = dirty
+        self.untracked = untracked
         self.tests_ok = tests_ok
         self.calls = []
 
@@ -22,7 +23,8 @@ class FakeRunner:
             return SimpleNamespace(returncode=0, stdout=SHA + "\n", stderr="")
         if command[:2] == ["git", "status"]:
             return SimpleNamespace(returncode=0,
-                                   stdout=" M src/advanced_live.py\n" if self.dirty else "",
+                                   stdout=(" M src/advanced_live.py\n" if self.dirty else
+                                           "?? src/unreviewed_override.py\n" if self.untracked else ""),
                                    stderr="")
         if "unittest" in command:
             return SimpleNamespace(returncode=0 if self.tests_ok else 1,
@@ -71,6 +73,18 @@ class RelaunchGateTests(unittest.TestCase):
         self.assertIn("LOCAL_SOURCE_HAS_UNCOMMITTED_CHANGES",
                       result["blockers"])
         self.assertEqual(len(runner.calls), 2)
+
+    def test_untracked_python_source_blocks_before_coinbase_query(self):
+        runner = FakeRunner(untracked=True)
+        result = verify_installation(
+            expected_sha=SHA, root=self.root, runner=runner,
+            inspector=lambda **_kwargs: self.fail(
+                "No authenticated requests with untracked Python source"))
+        self.assertFalse(result["revision_verified"])
+        self.assertFalse(result["release_check_passed"])
+        self.assertIn("LOCAL_SOURCE_HAS_UNCOMMITTED_CHANGES", result["blockers"])
+        self.assertEqual(len(runner.calls), 2)
+        self.assertIn("--untracked-files=normal", runner.calls[1])
 
     def test_failed_local_regression_blocks_before_coinbase_query(self):
         runner = FakeRunner(tests_ok=False)
