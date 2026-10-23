@@ -147,8 +147,8 @@ class BeanAdaptiveGrowthGate:
             target = int(pending["position"])
             transaction_cost = MODEL_FEE if held != target else 0.0
             # The action selected after the previous completed bar can only
-            # trade at THIS bar's open. Attribute today's open-to-close reward
-            # (and any trading fee) to it, not the unknowable overnight gap.
+            # trade at THIS bar's open. Its open-to-close reward is causal;
+            # any gap owned by an existing long is accounted for below.
             intrabar_return = (close / opening - 1.0) if target else 0.0
             realized = (1 - transaction_cost) * (1 + intrabar_return) - 1
             # But a position already held over the bar boundary owns the
