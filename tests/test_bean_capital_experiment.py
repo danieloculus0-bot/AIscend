@@ -38,6 +38,13 @@ class BeanCapitalExperimentTests(unittest.TestCase):
             self.assertGreater(result["ledger_verification"]["verified_events"],
                                expected)
             self.assertFalse(result["adopt_for_live_trading"])
+            self.assertIn("bean_holdout_total_orders", result)
+            self.assertIn("bean_net_alpha_over_cash_mean_usd", result)
+            self.assertEqual(result["trading_skill_demonstrated"],
+                             result["bean_holdout_total_orders"] > 0
+                             and result["scoreboard"]["bean_frozen"]["mean_end_usd"] > 1000
+                             and result["scoreboard"]["bean_frozen"]["mean_end_usd"]
+                                 > result["scoreboard"]["price_action"]["mean_end_usd"])
             self.assertEqual(result["exchange_orders"], 0)
             self.assertFalse(result["historical_coinbase_prices_used"])
             self.assertEqual(result["initial_bankroll_usd_per_run"], 1000)
