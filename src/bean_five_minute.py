@@ -162,7 +162,15 @@ class FastPaperBook:
         return True
 
     def step(self, *, end=None):
-        end = int(self.clock() // BAR * BAR) if end is None else int(end)
+        now = float(self.clock())
+        if not math.isfinite(now):
+            raise ValueError("Invalid forward-paper observation clock")
+        completed_end = int(now // BAR) * BAR
+        end = completed_end if end is None else int(end)
+        # An explicit test/replay boundary must never let forward-paper
+        # accounting read candles that have not completed in real time.
+        if end % BAR or end > completed_end:
+            raise ValueError("Forward-paper end is unaligned or in the future")
         with self._lock, self._connect() as db:
             row = db.execute("SELECT * FROM paper WHERE state='ACTIVE' "
                              "ORDER BY created ASC LIMIT 1").fetchone()
