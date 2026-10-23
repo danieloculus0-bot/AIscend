@@ -49,12 +49,14 @@ def verify_installation(*, expected_sha: str, root: Path | None = None,
         ) or not actual.startswith(required):
             result["blockers"].append("LOCAL_CODE_DIFFERS_FROM_REVIEWED_RELEASE")
             return result
-        state = run(["git", "status", "--porcelain", "--untracked-files=no"],
+        state = run(["git", "status", "--porcelain", "--untracked-files=normal"],
                     cwd=workdir, capture_output=True, text=True,
                     timeout=15, check=False)
         if state.returncode:
             result["blockers"].append("LOCAL_WORKTREE_STATUS_FAILED")
             return result
+        # Include untracked, non-ignored files: a stray Python module can
+        # shadow reviewed code while git rev-parse still reports the right SHA.
         if state.stdout.strip():
             result["blockers"].append("LOCAL_SOURCE_HAS_UNCOMMITTED_CHANGES")
             return result
