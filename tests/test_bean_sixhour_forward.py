@@ -74,6 +74,32 @@ class BeanProspectiveTests(unittest.TestCase):
         self.assertGreaterEqual(confirmed["forward_bars"],2)
         self.assertFalse(confirmed["promotion_authorized"])
 
+    def test_fetch_crossing_entry_open_cannot_backdate_paper_signal(self):
+        times = iter([61 * BAR - 1, 61 * BAR + 5])
+        initial = inspect(
+            self.path, self.db, clock=lambda: next(times),
+            history_fetcher=lambda _product, **_kw: candles(),
+        )
+        first = initial["markets"]["BTC-USD"]
+        self.assertIsNone(first["pending"])
+        self.assertEqual(first["orders"], 0)
+        with closing(sqlite3.connect(self.db)) as db:
+            types = [json.loads(row[0])["type"] for row in
+                     db.execute("SELECT data FROM events ORDER BY seq")]
+        self.assertNotIn("preentry_signal", types)
+        next_slot = self.run_step(61)["markets"]["BTC-USD"]
+        self.assertEqual(next_slot["pending"]["entry_ts"], 62 * BAR)
+        self.assertEqual(next_slot["orders"], 0)
+
+    def test_signal_timestamp_is_sampled_after_history_fetch(self):
+        times = iter([60 * BAR + 600, 60 * BAR + 700])
+        result = inspect(
+            self.path, self.db, clock=lambda: next(times),
+            history_fetcher=lambda _product, **_kw: candles(),
+        )["markets"]["BTC-USD"]
+        self.assertEqual(result["pending"]["selected_at"], 60 * BAR + 700)
+        self.assertEqual(result["pending"]["entry_ts"], 61 * BAR)
+
     def test_candle_opened_before_freeze_never_counts_as_forward(self):
         # Freeze happens inside candle 60, before the first observation.
         # Its later close is still historical, not a forward bar.
