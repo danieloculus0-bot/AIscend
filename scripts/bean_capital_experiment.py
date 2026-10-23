@@ -10,6 +10,7 @@ selects actions or authorizes an order. No Coinbase credentials or order APIs.
 from __future__ import annotations
 
 import argparse
+from contextlib import closing
 import hashlib
 import json
 import math
@@ -290,7 +291,7 @@ def summarize(db, *, capital, train_count, holdout_count, q):
 
 
 def verify_ledger(path):
-    with sqlite3.connect(path) as db:
+    with closing(sqlite3.connect(path)) as db:
         rows = db.execute(
             "SELECT episode, initial_usd, ending_usd, last_event_sha "
             "FROM evaluations ORDER BY episode").fetchall()
@@ -338,7 +339,7 @@ def experiment(*, db_path, report_path, seed=26010, train_seeds=24,
         raise FileExistsError("Never overwrite previous experiment evidence")
     db_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(db_path) as db:
+    with closing(sqlite3.connect(db_path)) as db:
         db.execute("PRAGMA journal_mode=DELETE")
         db.execute("PRAGMA synchronous=FULL")
         prepare(db)
