@@ -216,14 +216,24 @@ def observe_and_score(*, manifest, db_path=None, fetcher=fetch_5m,
                     # already elapsed opening price. Wait for the next open.
                     entry_ts=complete_at+BAR
                     exit_ts=entry_ts+HORIZONS[policy]*BAR
+                    # A slow network fetch or signal evaluation can cross the
+                    # planned opening. Record the actual decision time, not
+                    # the clock sampled before the fetch, and never backfill.
+                    observed_at=float(clock())
+                    if not math.isfinite(observed_at):
+                        raise ValueError("Invalid signal observation clock")
+                    causal=observed_at < entry_ts
+                    state="PENDING" if causal else "NONCAUSAL_ENTRY"
+                    reason="" if causal else "entry_open_precedes_signal_observation"
                     cur=con.execute(
                         "INSERT OR IGNORE INTO paper_decisions "
-                        "(product,policy_sha,signal_ts,observed_at,entry_ts,exit_ts,state) "
-                        "VALUES(?,?,?,?,?,?,'PENDING')",
-                        (product,identity,last_completed,now,entry_ts,exit_ts))
+                        "(product,policy_sha,signal_ts,observed_at,entry_ts,exit_ts,state,reason) "
+                        "VALUES(?,?,?,?,?,?,?,?)",
+                        (product,identity,last_completed,observed_at,entry_ts,exit_ts,
+                         state,reason))
                     con.commit()
                     if cur.rowcount:
-                        output={"policy":policy,"status":"PENDING",
+                        output={"policy":policy,"status":state,
                                 "signal_ts":last_completed,"entry_ts":entry_ts,
                                 "exit_ts":exit_ts}
                     else:
