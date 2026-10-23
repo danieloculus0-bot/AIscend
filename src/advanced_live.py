@@ -18,7 +18,7 @@ from .bean_rotation_economics import (score_route, bridge_order,
 from .position_cost_basis import rebuild_position_basis
 from .primary_strategy import (
     select_plan, proposals, exit_reason, incumbent_hold_net_bps,
-    ROTATION_MARGIN_BPS,
+    ROTATION_MARGIN_BPS, DEFAULT_TAKER_BPS,
 )
 from .coinbase_order_evidence import accepted_order_id, verified_order
 from .core import Decision, StateStore
@@ -667,10 +667,12 @@ class AdvancedSpotEngine:
         }
 
     def _taker_cost_bps(self) -> tuple[float, str]:
-        """Use authenticated Coinbase fee tier; cache its source for 15 min."""
+        """Prefer authenticated Coinbase taker fees; never trust stale estimates.
+
+        DEFAULT_TAKER_BPS models the US entry-level spot rate, not a
+        guarantee about this account, trading tier, or specific market.
+        """
         now = time.time()
-        # Exchange fee rates belong to the authenticated key/portfolio.
-        # Never reuse a different Coinbase key's cheaper historical fee tier.
         scope_reader = getattr(getattr(self, "rail", None), "account_scope_id", None)
         try:
             scope = scope_reader() if callable(scope_reader) else None
@@ -679,22 +681,36 @@ class AdvancedSpotEngine:
         usable = (isinstance(scope, str) and len(scope) == 64
                   and all(c in "0123456789abcdef" for c in scope))
         if not usable:
-            return 60.0, "unverified_account_fee_fallback"
+            return DEFAULT_TAKER_BPS, "unverified_account_fee_fallback"
         meta_key = "bean_fee_tier:" + scope
         try:
             saved = json.loads(self.store.get_meta(meta_key) or "{}")
-        except (ValueError, TypeError):
-            saved = {}
-        if now - float(saved.get("checked_at") or 0.0) < 900:
-            return float(saved.get("bps", 60.0)), str(saved.get("source", "estimate"))
+            age = now - float(saved.get("checked_at") or 0.0)
+            cached_bps = float(saved["bps"])
+            cached_source = str(saved.get("source", "estimate"))
+            # Cache must not perpetuate the pre-September 2026 fallback.
+            # An authenticated lower fee tier is legitimate, however.
+            if (0 <= age < 900 and math.isfinite(cached_bps)
+                    and 0 <= cached_bps < 10000
+                    and (cached_source == "coinbase_account_fee_tier"
+                         or cached_bps >= DEFAULT_TAKER_BPS)):
+                return cached_bps, cached_source
+        except (ValueError, KeyError, TypeError, OverflowError, AttributeError):
+            pass
         rate = None
         try:
             getter = getattr(getattr(self, "rail", None), "taker_fee_bps", None)
             rate = getter() if callable(getter) else None
+            bps = float(rate) if rate is not None else None
+            if bps is not None and (
+                    not math.isfinite(bps) or bps < 0 or bps >= 10000):
+                bps = None
         except Exception:
-            pass
-        bps = float(rate) if rate is not None else 60.0
-        source = "coinbase_account_fee_tier" if rate is not None else "conservative_estimate"
+            bps = None
+        if bps is None:
+            bps, source = DEFAULT_TAKER_BPS, "conservative_estimate"
+        else:
+            source = "coinbase_account_fee_tier"
         self.store.set_meta(meta_key, json.dumps({
             "bps": bps, "source": source, "checked_at": now}))
         return bps, source

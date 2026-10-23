@@ -21,9 +21,9 @@ from .core import app_data_dir
 from .primary_strategy import DEFAULT_TAKER_BPS
 
 ACTIONS = ("momentum", "reversion", "trend_3", "buy_hold", "cash")
-PAPER_COST_MODEL = "taker60bps_held_gap_reward_v3"
+PAPER_COST_MODEL = "taker90bps_held_gap_reward_v4"
 # Match the primary engine's conservative taker fallback per BUY/SELL leg.
-# Actual account fees can be higher; neither this model nor its rewards prove profit.
+# Actual account/pair fees can differ; neither this model nor rewards prove profit.
 MODEL_FEE = DEFAULT_TAKER_BPS / 10000.0
 LEARNING_RATE = .08
 PAPER_EXPLORATION = .12
