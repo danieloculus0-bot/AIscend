@@ -34,8 +34,14 @@ jobs:
         run: git clone --depth 1 https://github.com/danieloculus0-bot/BEAN.git "$RUNNER_TEMP/bean-core"
       - name: Test blind temporal boundaries and market-file SHA integrity
         run: python -m unittest discover -s tests -p test_bean_five_year_blind.py -v
-      - name: Download 1826 days of public Coinbase spot BTC and ETH candles
-        run: python -m scripts.bean_five_year_blind --download
+      - name: Verify frozen Coinbase dataset exists or download it once
+        run: |
+          if [ -s data/market/coinbase_btc_eth_daily_2021-10-22_2026-10-21.csv ] && \
+             [ -s data/market/coinbase_btc_eth_daily_2021-10-22_2026-10-21.manifest.json ]; then
+            echo "Using existing pinned historical index; strict SHA and coverage validated by backtest."
+          else
+            python -m scripts.bean_five_year_blind --download
+          fi
       - name: Run un-tuned five-year sequential BEAN Core blind experiment
         run: |
           python -m scripts.bean_five_year_blind --run \
@@ -55,12 +61,17 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p research/bean-five-year-blind
+          cp artifacts/bean-five-year-blind-summary.json research/bean-five-year-blind/summary.json
+          cp artifacts/bean-five-year-blind-summary-episodes.jsonl research/bean-five-year-blind/decisions.jsonl
           git add data/market/coinbase_btc_eth_daily_2021-10-22_2026-10-21.csv \
-                  data/market/coinbase_btc_eth_daily_2021-10-22_2026-10-21.manifest.json
+                  data/market/coinbase_btc_eth_daily_2021-10-22_2026-10-21.manifest.json \
+                  research/bean-five-year-blind/summary.json \
+                  research/bean-five-year-blind/decisions.jsonl
           if git diff --cached --quiet; then
             echo "Already stored exactly this frozen dataset on GitHub"
           else
-            git commit -m "data: freeze Coinbase BTC/ETH 5-year blind research dataset"
+            git commit -m "evidence: persist frozen five-year Coinbase index and blind BEAN decisions"
             git push origin HEAD:integration/python-desktop-live-forward-paper-20261022
           fi
       - name: Publish honest research boundaries
