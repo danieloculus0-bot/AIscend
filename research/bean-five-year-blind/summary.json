@@ -1,0 +1,145 @@
+{
+  "bean_cash_choices": 329,
+  "bean_core_sha": "ca3d257b30cd6521688b215a370db8c9c515908e",
+  "bean_final_q_updates": 496,
+  "bean_trade_choices": 167,
+  "blinding": "external_evaluator_only;BEAN_worker_receives_past_state_then_delayed_reward",
+  "checkpoint_count": 16,
+  "checkpoint_tips": [
+    {
+      "journal_tip": "6c429dd69f8bef441f9c155e5f64117efd607043ac1735d29cfbd712c0d0eed7",
+      "promotable": false,
+      "receipt_sha256": "9ec90157f5711d018005732beddedb9a85fec41585d2e7065d3fd00a205d8431",
+      "samples": 30
+    },
+    {
+      "journal_tip": "2bed706c71ec6b308198d909bc86818669d3551b1768249082f4001ed5d3d363",
+      "promotable": false,
+      "receipt_sha256": "a593fcce3e9f0ed0636ceabf2f59a46b276f3691e6bbe77bdb03dc09ea136fbd",
+      "samples": 60
+    },
+    {
+      "journal_tip": "430256a978ad95172d359be5b2ccd8229b93c039764a220aa7b928b8653b7883",
+      "promotable": false,
+      "receipt_sha256": "e2bdf317096330a1d01a3761eaee12f480471b814588939aae7dff6fdd3e0a71",
+      "samples": 90
+    },
+    {
+      "journal_tip": "1030e90c71e92f00db37f0ba61e37bdffa5c3602d9ce76ed47bd0fee3e97a6bb",
+      "promotable": false,
+      "receipt_sha256": "e7207d768fc4b2454d699e00b987e3ec49b37f3ce323cf93d4f4cdce32a40c6c",
+      "samples": 120
+    },
+    {
+      "journal_tip": "5a444a09e3afef49b4dd5182689475e3bbf89e5234cec83d78195c0a8bb12886",
+      "promotable": false,
+      "receipt_sha256": "6739c8295406e8f86d29162c581969caa3c333971a484cfb046ee92bb5d81c13",
+      "samples": 150
+    },
+    {
+      "journal_tip": "032fff1706b255e682a5b0c50ae3edf4ddd28ad73e53d21943e16d0d326101b7",
+      "promotable": false,
+      "receipt_sha256": "262d11a642322c9935645bc14d569097a675bedb5505e148444d224349cbc29e",
+      "samples": 180
+    },
+    {
+      "journal_tip": "d20c6a5a9fd29faf768a31e5458ea3af14dfabdf681b294d2dd6232055265fe9",
+      "promotable": false,
+      "receipt_sha256": "b110051d5018d5fc55419ae0e31a02a276dd63035be5ede0ab7b4e7c80aef9a7",
+      "samples": 210
+    },
+    {
+      "journal_tip": "98dacc6c520e93e7711bd904c2195ce0876e812ff6da88b87b449953e02a8d46",
+      "promotable": false,
+      "receipt_sha256": "123e98b1d5740cfe3b7f97300dd1acd11de881246c8313c3130e5a16da03f5a6",
+      "samples": 240
+    },
+    {
+      "journal_tip": "ba2dc55f15364508b3c91eae7f2d83f450027ab2c9e603658a9b6d2408d8afeb",
+      "promotable": false,
+      "receipt_sha256": "ba034ee6d8aca982f4cde6f26fe0b817717d7353ffbaafbdbdd2a9a00d927459",
+      "samples": 270
+    },
+    {
+      "journal_tip": "2ecc077b89f112e21f84a1512d2d3cd15f4455bd7291f973bac9781fd5ddead5",
+      "promotable": false,
+      "receipt_sha256": "506c8a37e3f526d638052a643ec214c4ed8ed7c2844c78dbeda1783e8380ad39",
+      "samples": 300
+    },
+    {
+      "journal_tip": "99f5b209c8cf88179d1a12f3daa30e4177ab242e970c032899c49675eca3eb2b",
+      "promotable": false,
+      "receipt_sha256": "c72be61e9e39fed5ab55baac36cb0930fd0fb61c21ece79b55f94c96fc9c9621",
+      "samples": 330
+    },
+    {
+      "journal_tip": "1a4a063e7eb0ee671e80f5bfa9765723887dc95d09275ccb8f33e011deca5ed2",
+      "promotable": false,
+      "receipt_sha256": "47217e353630dba2cfad2af965541bdd604553a58a3364a6c679041c1c421aa6",
+      "samples": 360
+    },
+    {
+      "journal_tip": "a4b58aa782f23f7df69ef6bab4394195f65a0be521808d8f28e226b11a332f56",
+      "promotable": false,
+      "receipt_sha256": "16a21f6a155738d682c3850793355d2855a278aa5be9adc463fa93f0903a3656",
+      "samples": 390
+    },
+    {
+      "journal_tip": "aa3dd34f77b89f23315e383eb21580248df2ef49a9706e723ccf07e0a86244d1",
+      "promotable": false,
+      "receipt_sha256": "511f61634870c9690d8ddde13c0ae697113fa5cc7d86e4ce56ada2313ee7ea67",
+      "samples": 420
+    },
+    {
+      "journal_tip": "161288ee152b2b119e36cb8b669f495e06597a91714e4d3e99a7d62b19e654ac",
+      "promotable": false,
+      "receipt_sha256": "cc41f6967de913b07dbe3e050b2b4ac43e0aeedbc15be7db57a8079874556605",
+      "samples": 450
+    },
+    {
+      "journal_tip": "cca4e9f4594486e293b218d9716c5465a04a3d6b235904d7ade885c63521e14b",
+      "promotable": false,
+      "receipt_sha256": "48f47256a3a58b15fa9d4e90a2cc0110c34201c1c8c553143e0bc81812339a6e",
+      "samples": 480
+    }
+  ],
+  "coinbase_account_verified": false,
+  "dataset_sha256": "58063c9b585cc9d96dc19087a664ab4f1d41eb2bf65402ceb5e2abe94915d676",
+  "dataset_source": "Coinbase Exchange public /products/{product}/candles",
+  "days": 1826,
+  "decision_end": "2026-10-09",
+  "decision_start": "2022-01-14",
+  "entry_delay_bars": 2,
+  "equal_initial_sleeves": true,
+  "event_tip_sha256": "8eef7dc8243d838433155fc2a22a36e00f7893c6d6f33a05e794503678737905",
+  "fee_bps_each_side": 60.0,
+  "fees_modelled_not_venue_fills": true,
+  "final_equity_usd": {
+    "always_cash": 1000.0,
+    "always_trade": 51.7821,
+    "bean": 299.1166,
+    "buy_hold": 1302.2653,
+    "untrained": 68.6097
+  },
+  "from": "2021-10-22",
+  "initial_usd": 1000.0,
+  "learned_policy_was_used_in_live_trading": false,
+  "live_orders": 0,
+  "model_lookback_days": 84,
+  "net_return_pct": {
+    "always_cash": 0.0,
+    "always_trade": -94.8218,
+    "bean": -70.0883,
+    "buy_hold": 30.2265,
+    "untrained": -93.139
+  },
+  "opportunities": 496,
+  "parameters_not_tuned_on_holdout": true,
+  "profitability_independently_proven": false,
+  "schema": "aiscend.bean.five-year-blind.v1",
+  "sequential_outcomes_not_hidden_from_evaluator": true,
+  "simulated_holding_days": 5,
+  "spread_bps": 10.0,
+  "stride_days": 7,
+  "through": "2026-10-21"
+}
