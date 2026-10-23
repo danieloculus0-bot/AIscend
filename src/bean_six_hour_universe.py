@@ -20,6 +20,7 @@ from .bean_profit_lab import experiment, Ledger, chain
 
 BAR = 21600
 MAX_CANDLES = 280
+DEFAULT_TAKER_FEE_BPS = 90.0
 
 
 def fetch_history(product, *, days=90, fetcher=_get_json, clock=None):
@@ -54,7 +55,7 @@ def fetch_history(product, *, days=90, fetcher=_get_json, clock=None):
     return out
 
 
-def run_shard(*, shards=8, shard_index=0, days=90, fee_bps=60,
+def run_shard(*, shards=8, shard_index=0, days=90, fee_bps=DEFAULT_TAKER_FEE_BPS,
               fetcher=_get_json, history_fetcher=None, root=None, workers=3):
     if not 1 <= shards <= 64 or not 0 <= shard_index < shards:
         raise ValueError("Invalid full-universe shard")
@@ -155,7 +156,7 @@ def main(argv=None):
     parser.add_argument("--shards", type=int, default=8)
     parser.add_argument("--shard-index", type=int, default=0)
     parser.add_argument("--days", type=int, default=90)
-    parser.add_argument("--fee-bps", type=float, default=60.)
+    parser.add_argument("--fee-bps", type=float, default=DEFAULT_TAKER_FEE_BPS)
     parser.add_argument("--workers", type=int, default=3)
     parser.add_argument("--root", type=Path, default=Path("artifacts/bean-sixhour"))
     parser.add_argument("--output", type=Path,
