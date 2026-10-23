@@ -219,6 +219,7 @@ class AdvancedLiveTests(unittest.TestCase):
             a = "a" * 64
             b = "b" * 64
             store.set_meta(f"primary_peak:{a}:{product}", "99")
+            store.set_meta(f"primary_peak_unit:{a}:{product}", "USDC")
             store.set_meta(f"primary_maturity_at:{a}:{product}", "1")
             store.set_meta(f"primary_fill_basis:{a}:{product}", json.dumps({
                 "cost_basis_status": "verified_coinbase_fills", "avg_cost": 1.5}))
@@ -646,6 +647,63 @@ class AdvancedLiveTests(unittest.TestCase):
             self.assertEqual(row["status"], "EXECUTION_ERROR")
             self.assertIn("preview rejected", row["rationale"])
             store.close()
+
+
+    def test_non_dollar_position_mark_uses_quote_units_and_migrates_legacy_peak(self):
+        from src.primary_strategy import exit_reason
+
+        class EuroRail(FakeRail):
+            def account_scope_id(self):
+                return "c" * 64
+            def status(self):
+                return AdvancedTradeStatus(
+                    configured=True,
+                    balances=(AdvancedBalance("MEME", Decimal("10"), Decimal("0")),),
+                    tradable_spot_products=3,
+                    product_ids=("MEME-EUR", "BTC-EUR", "BTC-USD"),
+                )
+            def product(self, product_id):
+                return {"product_id": product_id, "price": {
+                    "MEME-EUR": "0.20", "BTC-EUR": "50000", "BTC-USD": "55000"
+                }[product_id]}
+
+        class EuroUniverse:
+            def collect(self, priority_products=None):
+                return {"available": True, "scored": [
+                    {"product": "MEME-EUR", "price": 0.20,
+                     "spread_bps": 5, "return_5m": 0,
+                     "return_1h": 0, "return_6h": 0}
+                ], "top": [], "errors": []}
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "quote.db")
+            try:
+                rail = EuroRail()
+                engine = AdvancedSpotEngine(
+                    store, rail=rail, asset_universe=EuroUniverse(),
+                    listing_sentinel=FakeListingSentinel(),
+                    human_researcher=FakeHumanResearch())
+                snap = engine.sync()
+                self.assertAlmostEqual(snap["positions"]["MEME-EUR"]["mark_price"], 0.20)
+                self.assertEqual(snap["positions"]["MEME-EUR"]["mark_quote_currency"], "EUR")
+                self.assertAlmostEqual(snap["balance_values_usd"]["MEME"], 2.20)
+                self.assertEqual(exit_reason(
+                    "MEME-EUR", snap, current_mark_price=0.20,
+                    verified_entry_price=0.23), "verified_entry_loss_limit")
+
+                peak_key = "primary_peak:" + "c"*64 + ":MEME-EUR"
+                unit_key = "primary_peak_unit:" + "c"*64 + ":MEME-EUR"
+                store.set_meta(peak_key, "99")
+                no_entry = {"routes": [], "examined": 0,
+                            "candidate_signals": 0, "costed_routes": 0,
+                            "skipped": {}}
+                with patch("src.advanced_live.select_plan", return_value=no_entry), \
+                     patch("src.advanced_live.exit_reason", return_value=None):
+                    engine._primary_trade_step(snap)
+                self.assertEqual(store.get_meta(unit_key), "EUR")
+                self.assertEqual(store.get_meta(peak_key), "0.2")
+            finally:
+                store.close()
 
 
 if __name__ == "__main__":
