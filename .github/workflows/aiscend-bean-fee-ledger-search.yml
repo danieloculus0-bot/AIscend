@@ -1,0 +1,114 @@
+name: BEAN Fee-Net Ledger Strategy Search
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-and-ledger-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test Q learning, chronology, fee model and ledger hashes offline
+        run: python -m unittest discover -s tests -p 'test_bean_profit_lab.py' -v
+      - name: Verify module compiles
+        run: python -m py_compile src/bean_profit_lab.py
+
+  historical-experts:
+    needs: [source-and-ledger-tests]
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        product: [BTC-USD, ETH-USD, SOL-USD, XRP-USD, AVAX-USD, DOGE-USD, ADA-USD, LINK-USD, LTC-USD, BCH-USD, UNI-USD, AAVE-USD]
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fetch actual public Coinbase 5m candles and run locked 90-day experiment
+        run: |
+          mkdir -p artifacts
+          python -m src.bean_profit_lab --days 90 --fee-bps 60 --products ${{ matrix.product }} --output artifacts/bean-${{ matrix.product }}.json
+      - name: Independently rehash BEAN Q reward and order-decision ledger
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from src.bean_profit_lab import chain
+          result = next(Path("artifacts").glob("bean-*.json"))
+          summary = json.loads(result.read_text())
+          for name, report in summary["reports"].items():
+              assert report["promotion_authorized"] is False
+              if "ledger_tip" in report:
+                  ledger = Path("artifacts") / (name.replace("-", "_") + "-bean-ledger.jsonl")
+                  events = [json.loads(row) for row in ledger.read_text().splitlines()]
+                  assert chain(events) == report["ledger_tip"]
+                  assert any(e["type"] == "freeze_before_holdout" for e in events)
+              print(name, report["status"], "ledger_tip", report.get("ledger_tip"))
+          PY
+      - name: Preserve successes, failures and SHA-256 chain evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bean-fee-ledger-${{ matrix.product }}
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 30
+
+  complete-scoreboard:
+    if: always()
+    needs: [historical-experts]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bean-fee-ledger-*
+          path: evaluated
+          merge-multiple: true
+      - name: Create complete research scorecard without retroactive winner promotion
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          sources = sorted(Path("evaluated").glob("bean-*.json"))
+          statuses = {}
+          for source in sources:
+              item = json.loads(source.read_text())
+              for product, report in item["reports"].items():
+                  statuses[product] = {
+                      "status": report["status"],
+                      "champion": report.get("champion"),
+                      "holdout": report.get("holdout"),
+                      "holdout_cash": report.get("holdout_cash"),
+                      "holdout_buy_hold": report.get("holdout_buy_hold"),
+                      "ledger_tip": report.get("ledger_tip"),
+                  }
+          expected = {"BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD",
+                      "AVAX-USD", "DOGE-USD", "ADA-USD", "LINK-USD",
+                      "LTC-USD", "BCH-USD", "UNI-USD", "AAVE-USD"}
+          out = {"schema": "bean-historical-fee-net-scoreboard-v1",
+                 "expected": len(expected), "covered": len(statuses),
+                 "reports": statuses,
+                 "promotion_authorized": False}
+          Path("bean-research-scoreboard.json").write_text(json.dumps(out, indent=2, sort_keys=True))
+          print(json.dumps({p: d["status"] for p, d in statuses.items()}, sort_keys=True))
+          if set(statuses) != expected:
+              raise SystemExit("Missing markets: " + str(sorted(expected - set(statuses))))
+          PY
+      - name: Upload objective report even when no profitable edge is proven
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bean-profit-search-scoreboard
+          path: bean-research-scoreboard.json
+          retention-days: 30
