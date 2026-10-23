@@ -38,7 +38,7 @@ jobs:
       - name: Fetch actual public Coinbase 5m candles and run locked 90-day experiment
         run: |
           mkdir -p artifacts
-          python -m src.bean_profit_lab --days 90 --fee-bps 60 --products ${{ matrix.product }} --output artifacts/bean-${{ matrix.product }}.json
+          python -m src.bean_profit_lab --days 90 --fee-bps 90 --products ${{ matrix.product }} --output artifacts/bean-${{ matrix.product }}.json
       - name: Independently rehash BEAN Q reward and order-decision ledger
         run: |
           python - <<'PY'
