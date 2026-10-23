@@ -8,6 +8,7 @@ from src.bean_capital_evidence import (
     capital_snapshot, evaluate_account, execution_history, preserve_fills,
 )
 from src.bean_growth_rotation import evaluate_candidates
+from src.position_cost_basis import rebuild_position_basis
 from src.core import StateStore
 from src.wallets.advanced_trade import AdvancedTradeSpot
 
@@ -308,6 +309,24 @@ class AccountEvidenceTests(unittest.TestCase):
                          {"limit": 100, "product_types": ["SPOT"]})
         self.assertEqual(vault.instance.calls[1]["cursor"], "next")
         self.assertFalse(rail.account_fills(max_pages=1)["complete"])
+
+
+    def test_verified_position_basis_accepts_signed_quote_maker_rebates(self):
+        fills = [fill(1, "BUY", 1, 100, "-0.01", product="BTC-USD")]
+        result = rebuild_position_basis("BTC-USD", 1, fills, complete_history=True)
+        self.assertEqual(result["cost_basis_status"], "verified_coinbase_fills")
+        self.assertAlmostEqual(result["avg_cost"], 99.99)
+
+    def test_position_basis_rejects_invalid_rebate_exceeding_lot_cost(self):
+        fills = [fill(1, "BUY", 1, 100, "-101", product="BTC-USD")]
+        result = rebuild_position_basis("BTC-USD", 1, fills, complete_history=True)
+        self.assertEqual(result["cost_basis_status"], "nonpositive_coinbase_lot_cost")
+
+    def test_position_basis_rejects_commissions_in_other_currency(self):
+        fills = [fill(1, "BUY", 1, 100, "1", product="BTC-USD",
+                      currency="BTC")]
+        result = rebuild_position_basis("BTC-USD", 1, fills, complete_history=True)
+        self.assertEqual(result["cost_basis_status"], "mismatched_coinbase_fee_currency")
 
 
 if __name__ == "__main__":
