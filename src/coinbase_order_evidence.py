@@ -30,7 +30,8 @@ def verified_order(detail: dict[str, Any] | None, order_id: str) -> dict[str, An
     venue_id = str(order.get("order_id") or order.get("orderId") or "")
     # A response without the requested venue identity cannot settle a
     # durable pending order. Never interpret it as proof of fill or zero fill.
-    if not venue_id or venue_id != order_id:
+    terminal = {"FILLED", "FAILED", "REJECTED", "CANCELLED", "EXPIRED"}
+    if (venue_id and venue_id != order_id) or (not venue_id and status in terminal):
         return {"state": "UNVERIFIED",
                 "reason": "Order detail ID missing or mismatched",
                 "venue_status": status}
