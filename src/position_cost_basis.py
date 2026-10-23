@@ -68,6 +68,8 @@ def rebuild_position_basis(product: str, held_quantity, fills: list[dict],
             # Reject impossible lots, not the sign of a valid signed fee.
             if size <= 0 or price <= 0:
                 return unknown("invalid_coinbase_fill")
+            if abs(fee) > size * price:
+                return unknown("coinbase_fee_exceeds_notional")
             quote = product.rpartition("-")[2].upper()
             fee_currency = str(
                 row.get("commission_currency") or row.get("fee_currency") or quote
