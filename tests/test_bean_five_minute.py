@@ -1,3 +1,6 @@
+import json
+import sqlite3
+from contextlib import closing
 import tempfile
 import unittest
 from pathlib import Path
@@ -52,12 +55,58 @@ class FiveMinuteTests(unittest.TestCase):
             now[0] += BAR
             second = book.step(end=1001*BAR)
             self.assertEqual(second["status"], "ACTIVE")
-            self.assertEqual(second["orders"], 1)
-            self.assertEqual(second["held"], "ETH-USD")
-            self.assertGreaterEqual(second["samples"], 2)
-            self.assertEqual(second["source"],
+            # The candle opened before the first decision was recorded.
+            self.assertEqual(second["orders"], 0)
+            self.assertIsNone(second["held"])
+            now[0] += BAR
+            third = book.step(end=1002*BAR)
+            self.assertEqual(third["status"], "ACTIVE")
+            self.assertEqual(third["orders"], 1)
+            self.assertEqual(third["held"], "ETH-USD")
+            self.assertGreaterEqual(third["samples"], 3)
+            self.assertEqual(third["source"],
                              "Forward paper, next-bar open fills, modeled costs")
             self.assertEqual(FastPaperBook(path=path, fetcher=candles).status()["orders"], 1)
+
+    def test_future_or_unaligned_end_cannot_fabricate_forward_samples(self):
+        with tempfile.TemporaryDirectory() as td:
+            now = [1000*BAR+60]
+            book = FastPaperBook(path=Path(td)/"paper.db",
+                                 fetcher=candles, clock=lambda: now[0])
+            self.assertTrue(book.enqueue({
+                "id":"future-guard","ordinal":1,"state":"AUTO_SELECTED",
+                "report":{"candidate":["momentum",6,0.003,3],
+                          "pairs":["BTC-USD","ETH-USD"]}}))
+            with self.assertRaisesRegex(ValueError, "future"):
+                book.step(end=1001*BAR)
+            with self.assertRaisesRegex(ValueError, "unaligned"):
+                book.step(end=1000*BAR+1)
+            self.assertEqual(book.status()["samples"],0)
+            self.assertEqual(book.status()["orders"],0)
+            self.assertEqual(book.step(end=1000*BAR)["samples"],1)
+
+    def test_legacy_pending_without_observation_time_cannot_backfill(self):
+        with tempfile.TemporaryDirectory() as td:
+            path=Path(td)/"paper.db"
+            now=[1000*BAR+60]
+            book=FastPaperBook(path=path,fetcher=candles,clock=lambda:now[0])
+            book.enqueue({"id":"legacy","ordinal":1,"state":"AUTO_SELECTED",
+                          "report":{"candidate":["momentum",6,0.003,3],
+                                    "pairs":["BTC-USD","ETH-USD"]}})
+            first=book.step(end=1000*BAR)
+            self.assertIsNotNone(first["pending"])
+            with closing(sqlite3.connect(path)) as db:
+                raw=db.execute("SELECT data FROM paper WHERE id='legacy'").fetchone()[0]
+                legacy=json.loads(raw)
+                legacy.pop("pending_recorded_at",None)
+                db.execute("UPDATE paper SET data=? WHERE id='legacy'",
+                           (json.dumps(legacy),))
+                db.commit()
+            now[0]+=BAR
+            second=book.step(end=1001*BAR)
+            self.assertEqual(second["orders"],0)
+            self.assertIsNone(second["held"])
+            self.assertGreater(second["pending_recorded_at"],1000*BAR)
 
     def test_missing_market_bar_is_not_synthetic_profit(self):
         with tempfile.TemporaryDirectory() as td:

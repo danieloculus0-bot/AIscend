@@ -18,9 +18,13 @@ from pathlib import Path
 
 from .bean_five_minute import BAR, fetch_5m
 from .core import app_data_dir
+from .primary_strategy import DEFAULT_TAKER_BPS
 
 ACTIONS = ("momentum", "reversion", "trend_3", "buy_hold", "cash")
-MODEL_FEE = .0007
+PAPER_COST_MODEL = "taker60bps_held_gap_reward_v3"
+# Match the primary engine's conservative taker fallback per BUY/SELL leg.
+# Actual account fees can be higher; neither this model nor its rewards prove profit.
+MODEL_FEE = DEFAULT_TAKER_BPS / 10000.0
 LEARNING_RATE = .08
 PAPER_EXPLORATION = .12
 MIN_HISTORY = 12
@@ -63,11 +67,13 @@ def _choose(state, context, *, explore, seed):
 
 
 def _fresh_state():
-    return {"schema": "aiscend.bean.growth.v1", "last_bar": None,
+    return {"schema": "aiscend.bean.growth.v2", "cost_model": PAPER_COST_MODEL,
+            "last_bar": None,
             "last_close": None, "recent_returns": [], "pending": None,
             "held": 0, "equity": 100.0, "peak": 100.0, "drawdown": 0.0,
             "q": {}, "visits": {}, "wins": {}, "win_trials": {}, "paper_bars": 0, "forward_bars": 0,
             "mock_trades": 0, "history_gaps": 0, "bootstrapped": False,
+            "equity_segment_restarts": 0,
             "strategy_changes": 0, "last_action": None,
             "behavior_revisions": 0, "forward_behavior_revisions": 0,
             "last_behavior_revision": None}
@@ -89,6 +95,10 @@ class BeanAdaptiveGrowthGate:
         self._lock = threading.RLock()
         with self._db() as db:
             db.execute("CREATE TABLE IF NOT EXISTS policy (product TEXT PRIMARY KEY, state TEXT NOT NULL)")
+            db.execute("CREATE TABLE IF NOT EXISTS policy_archive ("
+                       "product TEXT NOT NULL, model_version TEXT NOT NULL, "
+                       "archived_at INTEGER NOT NULL, state TEXT NOT NULL, "
+                       "PRIMARY KEY (product, model_version))")
 
 
     @contextmanager
@@ -128,17 +138,32 @@ class BeanAdaptiveGrowthGate:
         if prior is not None and ts <= prior:
             return False
         if prior is not None and ts != prior + BAR:
-            state["history_gaps"] += 1
-            state["pending"] = None
-            state["last_close"] = None
-            state["recent_returns"] = []
+            # A missing bar may conceal a scheduled BUY or SELL fill. Never
+            # keep stale paper equity/held exposure while discarding its price.
+            raise ValueError("noncontiguous completed candle history")
         pending = state["pending"]
         if pending is not None:
             held = int(state["held"])
             target = int(pending["position"])
             transaction_cost = MODEL_FEE if held != target else 0.0
-            realized = target * (close / opening - 1.0) - transaction_cost
-            state["equity"] *= (1 + realized)
+            # The action selected after the previous completed bar can only
+            # trade at THIS bar's open. Its open-to-close reward is causal;
+            # any gap owned by an existing long is accounted for below.
+            intrabar_return = (close / opening - 1.0) if target else 0.0
+            realized = (1 - transaction_cost) * (1 + intrabar_return) - 1
+            # But a position already held over the bar boundary owns the
+            # price movement from previous CLOSE to current OPEN. Omitting
+            # this gap fabricated paper equity after a jump or crash.
+            prior_close = state["last_close"]
+            held_gap_return = (opening / prior_close - 1.0) if (
+                held and prior_close is not None and prior_close > 0) else 0.0
+            equity_return = (1 + held_gap_return) * (1 + realized) - 1
+            state["equity"] *= 1 + equity_return
+            # The old Q reward ignored gaps even when a long policy stayed
+            # exposed, despite the paper equity correctly losing that money.
+            # A SELL cannot avoid the pre-open gap from the prior holding;
+            # do not incorrectly blame that gap on the new cash action.
+            policy_reward = equity_return if target else realized
             if state["equity"] <= 0:
                 raise ValueError("simulated paper capital exhausted")
             if transaction_cost:
@@ -150,12 +175,12 @@ class BeanAdaptiveGrowthGate:
             preferred_before = _choose(state, context, explore=False, seed=0)
             q = state["q"].setdefault(context, {})
             old = float(q.get(action, 0.0))
-            q[action] = old + LEARNING_RATE * (realized * 10000.0 - old)
+            q[action] = old + LEARNING_RATE * (policy_reward * 10000.0 - old)
             counts = state["visits"].setdefault(context, {})
             counts[action] = counts.get(action, 0) + 1
             trials = state.setdefault("win_trials", {}).setdefault(context, {})
             trials[action] = trials.get(action, 0) + 1
-            if realized > 0:
+            if policy_reward > 0:
                 wins = state.setdefault("wins", {}).setdefault(context, {})
                 wins[action] = wins.get(action, 0) + 1
             preferred_after = _choose(state, context, explore=False, seed=0)
@@ -167,7 +192,7 @@ class BeanAdaptiveGrowthGate:
                 state["last_behavior_revision"] = {
                     "bar": ts, "context": context,
                     "before": preferred_before, "after": preferred_after,
-                    "realized_reward_bps": round(realized * 10000, 4)}
+                    "realized_reward_bps": round(policy_reward * 10000, 4)}
             state["paper_bars"] += 1
             if state["bootstrapped"]:
                 state["forward_bars"] += 1
@@ -197,9 +222,51 @@ class BeanAdaptiveGrowthGate:
                                  if start <= ts < end and ts % BAR == 0)
             if len(valid_times) < 30 or valid_times[-1] != end - BAR:
                 raise ValueError("latest 5-minute market history incomplete")
+            # Only replay the latest contiguous suffix. A missing candle can
+            # hide an intended fill; do not score across an unknown interval.
+            breaks = [i for i in range(1, len(valid_times))
+                      if valid_times[i] - valid_times[i - 1] != BAR]
+            if breaks:
+                valid_times = valid_times[breaks[-1]:]
+            if len(valid_times) < 30:
+                raise ValueError("insufficient contiguous completed candles")
             with self._lock, self._db() as db:
                 row = db.execute("SELECT state FROM policy WHERE product=?", (market,)).fetchone()
                 state = json.loads(row["state"]) if row else _fresh_state()
+                if row and state.get("cost_model") != PAPER_COST_MODEL:
+                    # Old Q values learned with a 7-bps fee and missing
+                    # inter-bar returns cannot be relabeled as 60-bps returns.
+                    # Archive them for evidence, then replay available bars
+                    # under the corrected model before adopting decisions.
+                    db.execute(
+                        "INSERT OR IGNORE INTO policy_archive "
+                        "(product,model_version,archived_at,state) VALUES(?,?,?,?)",
+                        (market, str(state.get("cost_model") or "legacy_fee_7bps"),
+                         int(self.clock()), row["state"]))
+                    state = _fresh_state()
+                # A persisted simulated position cannot be carried over an
+                # offline/history gap: its next-open fill is unknowable.
+                # Archive that equity segment and restart it, but RETAIN the
+                # Q table and reward evidence learned on completed bars.
+                prior_bar = state.get("last_bar")
+                if prior_bar is not None and prior_bar > valid_times[-1]:
+                    raise ValueError("persisted learning clock is ahead of candles")
+                if prior_bar is not None and prior_bar < valid_times[0] - BAR:
+                    db.execute(
+                        "INSERT OR IGNORE INTO policy_archive "
+                        "(product,model_version,archived_at,state) VALUES(?,?,?,?)",
+                        (market, "history_gap_after_" + str(prior_bar),
+                         int(self.clock()), json.dumps(state, sort_keys=True)))
+                    previous = state
+                    state = _fresh_state()
+                    for key in ("q", "visits", "wins", "win_trials",
+                                "behavior_revisions", "forward_behavior_revisions",
+                                "last_behavior_revision"):
+                        if key in previous:
+                            state[key] = previous[key]
+                    state["history_gaps"] = previous.get("history_gaps", 0) + 1
+                    state["equity_segment_restarts"] = (
+                        previous.get("equity_segment_restarts", 0) + 1)
                 initial = not state["bootstrapped"]
                 for ts in valid_times:
                     if state["last_bar"] is None or ts > state["last_bar"]:
@@ -214,10 +281,15 @@ class BeanAdaptiveGrowthGate:
                 ctxt = _features(state["recent_returns"])
                 adopted = _choose(state, ctxt, explore=False, seed=0)
                 target = _position(adopted, state["recent_returns"])
-                enough = state["paper_bars"] >= MIN_HISTORY
                 samples = int(state.get("win_trials", {}).get(ctxt, {}).get(adopted, 0))
+                # A global bar count is not evidence for the chosen policy in
+                # the current regime. Require direct observed rewards.
+                enough = (state["paper_bars"] >= MIN_HISTORY and
+                          samples >= MIN_FORWARD_BARS)
                 won = int(state.get("wins", {}).get(ctxt, {}).get(adopted, 0))
                 result = {"status": "READY" if enough else "WARMING_UP",
+                          "paper_cost_model": PAPER_COST_MODEL,
+                          "paper_taker_fee_bps": round(MODEL_FEE * 10000, 4),
                           "mode": mode, "product": market,
                           "trade_effect": "ADOPTED_LONG_CASH" if enough else "NONE",
                           "learning_source": "completed_public_coinbase_5m_candles",
@@ -230,6 +302,7 @@ class BeanAdaptiveGrowthGate:
                           "reward_updates": sum(sum(v.values()) for v in state["visits"].values()),
                           "forward_bars": state["forward_bars"],
                           "paper_equity": round(state["equity"], 6),
+                          "equity_segment_restarts": state.get("equity_segment_restarts", 0),
                           "paper_drawdown": round(state["drawdown"], 6),
                           "paper_trades": state["mock_trades"],
                           "strategy_changes": state["strategy_changes"],
@@ -268,6 +341,7 @@ class BeanAdaptiveGrowthGate:
                 "action_scores_bps": {k: round(float(v), 4)
                                      for k, v in state["q"].get(ctxt, {}).items()},
                 "paper_equity": round(state["equity"], 6),
+                "equity_segment_restarts": state.get("equity_segment_restarts", 0),
                 "paper_drawdown": round(state["drawdown"], 6),
                 "paper_trades": state["mock_trades"],
                 "observed_through": state["last_bar"],

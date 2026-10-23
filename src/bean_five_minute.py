@@ -45,9 +45,18 @@ def fetch_5m(product, start, end):
         if not isinstance(row, (list, tuple)) or len(row) < 6:
             continue
         ts, op, cl = int(row[0]), float(row[3]), float(row[4])
+        try:
+            volume = float(row[5])
+        except (TypeError, ValueError, OverflowError):
+            volume = float("nan")
         if (start <= ts < end and ts % BAR == 0 and
                 math.isfinite(op) and math.isfinite(cl) and op > 0 and cl > 0):
-            out[ts] = {"open": op, "close": cl}
+            candle = {"open": op, "close": cl}
+            # Retain authentic Coinbase base-asset volume for research.
+            # Invalid observations stay missing, never synthetic.
+            if math.isfinite(volume) and volume >= 0:
+                candle["volume"] = volume
+            out[ts] = candle
     return out
 
 
@@ -136,7 +145,8 @@ class FastPaperBook:
         now = float(self.clock())
         data = {"candidate": candidate, "pairs": pairs,
                 "experiment": selected.get("ordinal"), "last_bar": None,
-                "pending": None, "held": None, "units": 0.0,
+                "pending": None, "pending_recorded_at": None,
+                "held": None, "units": 0.0,
                 "cash": CAPITAL, "equity": CAPITAL, "peak": CAPITAL,
                 "drawdown": 0.0, "orders": 0, "samples": 0,
                 "first_btc": None, "last_target": None,
@@ -152,7 +162,15 @@ class FastPaperBook:
         return True
 
     def step(self, *, end=None):
-        end = int(self.clock() // BAR * BAR) if end is None else int(end)
+        now = float(self.clock())
+        if not math.isfinite(now):
+            raise ValueError("Invalid forward-paper observation clock")
+        completed_end = int(now // BAR) * BAR
+        end = completed_end if end is None else int(end)
+        # An explicit test/replay boundary must never let forward-paper
+        # accounting read candles that have not completed in real time.
+        if end % BAR or end > completed_end:
+            raise ValueError("Forward-paper end is unaligned or in the future")
         with self._lock, self._connect() as db:
             row = db.execute("SELECT * FROM paper WHERE state='ACTIVE' "
                              "ORDER BY created ASC LIMIT 1").fetchone()
@@ -166,6 +184,7 @@ class FastPaperBook:
             # real-time trade. Mark the gap and keep the paper position.
             if data["last_bar"] is not None and last-data["last_bar"] != BAR:
                 data["pending"] = None
+                data["pending_recorded_at"] = None
                 data["last_bar"] = last
                 data["last_error"] = "Missing forward candle interval; no paper fill credited"
                 db.execute("UPDATE paper SET data=?,updated=? WHERE id=?",
@@ -188,7 +207,16 @@ class FastPaperBook:
                 # Previous close's target can fill at this candle's opening,
                 # never at a previously observed bar's price.
                 pending = data["pending"]
-                if pending != data["held"] and data["last_bar"] is not None:
+                recorded_at = data.get("pending_recorded_at")
+                # The current completed candle opened before this step. Only
+                # an earlier, persisted signal can use that opening price.
+                # Missing timestamps on legacy ledgers fail closed.
+                causal_open = (
+                    isinstance(recorded_at, (int, float))
+                    and math.isfinite(recorded_at)
+                    and recorded_at < last)
+                if (pending != data["held"] and data["last_bar"] is not None
+                        and causal_open):
                     if data["held"] is not None:
                         data["cash"] += data["units"]*candle[data["held"]]["open"]*(1-COST)
                         data["orders"] += 1
@@ -207,8 +235,15 @@ class FastPaperBook:
                 btc_close = candle["BTC-USD"]["close"]
                 data["btc_return"] = round(
                     btc_close/data["first_btc"]*(1-COST)**2-1, 6)
-                data["pending"] = _choose(bars, len(bars), data["pairs"], data["candidate"])
-                data["last_target"] = data["pending"]
+                target = _choose(bars, len(bars), data["pairs"], data["candidate"])
+                if (target != data["pending"]
+                        or data.get("pending_recorded_at") is None):
+                    observed_at = float(self.clock())
+                    if not math.isfinite(observed_at):
+                        raise ValueError("Invalid paper signal observation clock")
+                    data["pending_recorded_at"] = observed_at
+                data["pending"] = target
+                data["last_target"] = target
                 data["last_bar"] = last
                 data["last_error"] = None
                 data["samples"] += 1

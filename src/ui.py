@@ -41,6 +41,7 @@ from .wallets.advanced_trade import AdvancedTradeSpot, AdvancedTradeVault
 from .bean_growth_adaptive import BeanAdaptiveGrowthGate
 from .bean_strategy_lab import BeanStrategyLab
 from .wallets.cdp_wallet import CdpWallet, CredentialVault
+from scripts.live_preflight import inspect_advanced
 
 APP_NAME = os.getenv("AUTOCAPITAL_APP_NAME", "Autonomous Capital Lab")
 
@@ -53,6 +54,7 @@ class StatCard(QFrame):
         layout.setContentsMargins(16, 12, 16, 12)
         caption = QLabel(title.upper())
         caption.setObjectName("statCaption")
+        self.caption = caption
         self.value = QLabel("--")
         self.value.setObjectName("statValue")
         layout.addWidget(caption)
@@ -240,6 +242,10 @@ class MainWindow(QMainWindow):
         self.bean_result.setWordWrap(True)
         self.bean_result.setObjectName("beanResult")
         school_layout.addWidget(self.bean_result)
+        self.bean_account = QLabel("BEAN account: authenticated trade history not yet observed")
+        self.bean_account.setWordWrap(True)
+        self.bean_account.setObjectName("hint")
+        school_layout.addWidget(self.bean_account)
         right.addWidget(school)
 
         positions_title = QLabel("POSITIONS")
@@ -503,6 +509,33 @@ class MainWindow(QMainWindow):
             self.engine.set_decider(OpenAICompatibleDecider(endpoint, model))
 
     def start_autonomy(self) -> None:
+        if self.selected_network() == "advanced":
+            if not isinstance(self.engine, AdvancedSpotEngine):
+                QMessageBox.critical(
+                    self, "Coinbase preflight blocked",
+                    "Coinbase Advanced was selected but its Python engine is not active.")
+                return
+            # This is the actual Qt Start button, not a separate instructions
+            # page. A read-only venue/journal check MUST pass before first
+            # funded autonomous execution. Never make a trade as a test.
+            try:
+                report = inspect_advanced(
+                    vault=self.engine.rail.vault,
+                    rail=self.engine.rail,
+                    db_path=self.store.path,
+                    require_history=True)
+            except Exception as exc:
+                QMessageBox.critical(
+                    self, "Coinbase preflight blocked",
+                    f"Read-only Coinbase verification failed: {type(exc).__name__}.")
+                return
+            if not report.get("execution_ready"):
+                blockers = ", ".join(report.get("blockers") or ["UNVERIFIED"])
+                QMessageBox.critical(
+                    self, "Coinbase preflight blocked",
+                    "Autonomous trading was not started.\n\n" + blockers +
+                    "\n\nRun python -m scripts.live_preflight to inspect details.")
+                return
         try:
             self.configure_decider()
         except Exception as exc:
@@ -575,9 +608,34 @@ class MainWindow(QMainWindow):
         snap = self.engine.snapshot()
         self.net_card.value.setText(f"${snap['net_liquidation']:.4f}")
         self.cash_card.value.setText(f"${snap['cash']:.4f}")
+        verified_profit = snap.get("pnl_is_verified_trading_profit", True)
+        self.pnl_card.caption.setText(
+            "PROFIT / LOSS" if verified_profit else "EQUITY CHANGE*")
+        self.pnl_card.caption.setToolTip(
+            "" if verified_profit else
+            "Change since the first observed account balance; deposits, "
+            "withdrawals and transfers are not reconciled. Not trading profit.")
         self.pnl_card.value.setText(f"${snap['pnl']:+.4f}")
         self.multiple_card.value.setText(f"{snap['multiple']:.3f}x")
         self.bankroll.setValue(max(0.0, float(snap["starting_cash"])))
+        account = snap.get("bean_account") or {}
+        capital = account.get("capital") or {}
+        history = account.get("execution") or {}
+        if isinstance(self.engine, AdvancedSpotEngine):
+            start = capital.get("starting_equity_usd")
+            current = capital.get("current_equity_usd")
+            def dollar(value):
+                return f"${float(value):,.2f}" if value is not None else "unverified"
+            self.bean_account.setText(
+                "BEAN account | starting observed: " + dollar(start) +
+                " | current: " + dollar(current) +
+                " | authenticated fills: " +
+                str(history.get("fill_count_retained", 0)) +
+                " | history: " + str(history.get("status", "not observed")) +
+                " | account profit: NOT RECONCILED")
+        else:
+            self.bean_account.setText(
+                "BEAN account: real Coinbase trade history not applicable to this mode")
 
         pos = snap["positions"]
         prices = snap["prices"]

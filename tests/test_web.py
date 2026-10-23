@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 from src.core import StateStore
-from web_app import _loop_lock, _loop_state, _run_once, app
+from web_app import _loop_lock, _loop_state, _run_once, _runner, _stop_event, app
 
 
 class WebAppTests(unittest.TestCase):
@@ -343,6 +343,49 @@ class WebAppTests(unittest.TestCase):
         self.assertIn(b"TRY AGAIN", body)
         self.assertIn(b"No approval required", body)
         self.assertNotIn(b"APPROVE CANDIDATE FOR REVIEW", body)
+
+    def test_unattended_runner_stops_after_repeated_execution_failures(self):
+        _stop_event.clear()
+        try:
+            with (patch("web_app._run_once", side_effect=RuntimeError(
+                    "Coinbase request failed")) as run,
+                  patch.object(_stop_event, "wait", return_value=False),
+                  patch.object(_stop_event, "is_set",
+                               side_effect=[False] * 6 + [True])):
+                _runner("base", 0, "advanced")
+            self.assertEqual(run.call_count, 5)
+            self.assertFalse(_loop_state["running"])
+            self.assertEqual(_loop_state["consecutive_errors"], 5)
+            self.assertEqual(_loop_state["stop_reason"],
+                             "CONSECUTIVE_CYCLE_FAILURES")
+            self.assertIn("Coinbase request failed", _loop_state["last_error"])
+        finally:
+            _stop_event.clear()
+
+    def test_successful_cycle_resets_unattended_failure_count(self):
+        _stop_event.clear()
+        outputs = [RuntimeError("temporary"),
+                   RuntimeError("temporary"),
+                   {"active_rail": "advanced", "decision": {"action": "HOLD",
+                                                            "status": "HELD"}},
+                   RuntimeError("temporary")]
+        def cycle(_network, _rail):
+            result = outputs.pop(0)
+            if isinstance(result, Exception):
+                raise result
+            return result
+        try:
+            with (patch("web_app._run_once", side_effect=cycle) as run,
+                  patch.object(_stop_event, "wait", return_value=False),
+                  patch.object(_stop_event, "is_set",
+                               side_effect=[False] * 4 + [True])):
+                _runner("base", 0, "advanced")
+            self.assertEqual(run.call_count, 4)
+            self.assertEqual(_loop_state["consecutive_errors"], 1)
+            self.assertNotEqual(_loop_state.get("stop_reason"),
+                                "CONSECUTIVE_CYCLE_FAILURES")
+        finally:
+            _stop_event.clear()
 
     def test_start_refuses_silent_rail_switch_while_runner_is_active(self):
         with _loop_lock:

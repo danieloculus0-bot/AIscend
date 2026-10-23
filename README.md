@@ -20,17 +20,20 @@ Experimental noncustodial small-bankroll autonomous crypto trading application w
 
 For local Windows setup and paper/synthetic launch instructions, consult the [full archived README](docs/archive/README_2026-10-20_before_refresh.md). Code entry points include `main.py` (live-capable desktop launch) and `web_app.py` (research/dashboard).
 
-On the installed Windows checkout, **do a read-only Coinbase Advanced preflight before running funded autonomy**:
+Before restarting funded autonomy on Windows, use the **reviewed, CI-tested release commit**, not an unmerged `main` checkout. PR code is not installed by `git pull` while the PR remains open. Get the reviewed 40-character commit SHA from the green [GitHub Actions](https://github.com/danieloculus0-bot/AIscend/actions) run.
+
+From a clean, locally checked-out copy of that exact commit, using the installed Python virtual environment:
 
 ```powershell
-cd C:\Users\Daniel\AIscend
-git pull --ff-only
-.\.venv\Scripts\python.exe -m scripts.live_preflight
-.\.venv\Scripts\python.exe main.py
+git rev-parse HEAD
+.\.venv\Scripts\python.exe -m scripts.relaunch_check --expected-sha <REVIEWED_40_CHARACTER_SHA>
 ```
 
-Preflight performs authenticated status reads and checks the local order journal. It **never places trades**. Exit code 0 means the read-only readiness checks passed; code 2 means it reported a blocker. A green preflight does not prove an exchange fill. Inspect [live trading diagnostics](http://127.0.0.1:8000/api/trading-diagnostics) from the locally running web dashboard when available. No public web endpoint should be exposed without the app's access controls.
+The gate checks the local Git revision and worktree, runs the full installed Python regression suite, then queries authenticated Coinbase account and read-only product-size rules and inspects the existing order journal. It **does not start trading, transfer money, submit an order, or remove an unresolved client-order ID**. Exit code 0 means these *specific* local gates passed, not that a profitable strategy or a real fill was demonstrated. Exit code 2 means relaunch remains blocked. If an order is unresolved, reconcile it explicitly instead of bypassing the blocker.
 
+Only after the gate passes and the installed commit is reviewed should the operator deliberately run `python main.py`, select the live execution rail and start autonomy. The desktop defaults to synthetic. Monitor venue fills, fees, balances and drawdowns. The unattended web runner now stops after five consecutive failed cycles rather than retrying forever.
+
+For a standalone read-only account/journal diagnostic, run `python -m scripts.live_preflight`. The locally running web dashboard also exposes `/api/trading-diagnostics`. Do not publicly expose web trading controls.
 ## Known limitations
 
 - Green research CI and Windows packaging are **not** proof of realized returns, validated fills or unattended trading safety.

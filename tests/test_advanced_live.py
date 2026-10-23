@@ -1,7 +1,9 @@
+import json
 import tempfile
 import unittest
 from decimal import Decimal
 from pathlib import Path
+from unittest.mock import patch
 
 from src.advanced_live import AdvancedSpotEngine
 from src.core import StateStore
@@ -165,6 +167,103 @@ class FakeUniverse:
 
 
 class AdvancedLiveTests(unittest.TestCase):
+    def test_authentication_key_switch_resets_starting_equity_baseline(self):
+        class ScopedRail(FakeRail):
+            scope = "a" * 64
+            def account_scope_id(self):
+                return self.scope
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "advanced.db")
+            rail = ScopedRail()
+            engine = AdvancedSpotEngine(
+                store, rail=rail, asset_universe=FakeUniverse(),
+                listing_sentinel=FakeListingSentinel(),
+                human_researcher=FakeHumanResearch(),
+            )
+            account_a = engine.sync()
+            self.assertEqual(account_a["starting_cash"], 25.0)
+            self.assertEqual(account_a["authenticated_scope"], "a" * 64)
+            rail.scope = "b" * 64
+            rail.usdc = Decimal("80")
+            account_b = engine.sync()
+            self.assertEqual(account_b["starting_cash"], 80.0)
+            self.assertEqual(account_b["authenticated_scope"], "b" * 64)
+            rail.scope = "a" * 64
+            restored = engine.sync()
+            self.assertEqual(restored["starting_cash"], 25.0)
+            self.assertNotEqual(restored["starting_cash"], account_b["starting_cash"])
+            self.assertEqual(
+                store.get_meta("advanced_starting_value:" + "a"*64), "25.0000000000")
+            self.assertEqual(
+                store.get_meta("advanced_starting_value:" + "b"*64), "80.0000000000")
+            store.close()
+
+    def test_live_position_state_isolated_between_coinbase_keys(self):
+        class ScopedRail(FakeRail):
+            scope = "a" * 64
+
+            def account_scope_id(self):
+                return self.scope
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "advanced.db")
+            rail = ScopedRail()
+            rail.aleo = Decimal("3")
+            engine = AdvancedSpotEngine(
+                store, rail=rail, asset_universe=FakeUniverse(),
+                listing_sentinel=FakeListingSentinel(),
+                human_researcher=FakeHumanResearch(),
+            )
+            product = "ALEO-USDC"
+            a = "a" * 64
+            b = "b" * 64
+            store.set_meta(f"primary_peak:{a}:{product}", "99")
+            store.set_meta(f"primary_peak_unit:{a}:{product}", "USDC")
+            store.set_meta(f"primary_maturity_at:{a}:{product}", "1")
+            store.set_meta(f"primary_fill_basis:{a}:{product}", json.dumps({
+                "cost_basis_status": "verified_coinbase_fills", "avg_cost": 1.5}))
+            store.set_meta(f"primary_fill_basis_checked_at:{a}:{product}", "9999999999")
+
+            no_entry = {"routes": [], "examined": 0, "candidate_signals": 0,
+                        "costed_routes": 0, "skipped": {}}
+            with patch("src.advanced_live.select_plan", return_value=no_entry), \
+                 patch("src.advanced_live.exit_reason", return_value=None):
+                engine._primary_trade_step(engine.sync())
+                first = json.loads(store.get_meta("primary_trade_plan_latest"))
+                self.assertEqual(first["holding_reviews"][product]["observed_peak"], 99)
+                self.assertEqual(first["holding_reviews"][product]["entry_price"], 1.5)
+                rail.scope = b
+                engine._primary_trade_step(engine.sync())
+                second = json.loads(store.get_meta("primary_trade_plan_latest"))
+                self.assertEqual(second["holding_reviews"][product]["observed_peak"], 2.0)
+                self.assertIsNone(second["holding_reviews"][product]["entry_price"])
+                self.assertFalse(second["holding_reviews"][product]["deadline_reached"])
+            self.assertEqual(store.get_meta(f"primary_peak:{a}:{product}"), "99")
+            self.assertEqual(store.get_meta(f"primary_peak:{b}:{product}"), "2.0")
+            self.assertIsNone(store.get_meta("primary_peak:" + product))
+            self.assertFalse(rail.buys)
+            store.close()
+
+    def test_unverified_coinbase_scope_blocks_live_order_submission(self):
+        class UnidentifiedRail(FakeRail):
+            def account_scope_id(self):
+                return None
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "advanced.db")
+            rail = UnidentifiedRail()
+            engine = AdvancedSpotEngine(
+                store, rail=rail, asset_universe=FakeUniverse(),
+                listing_sentinel=FakeListingSentinel(),
+                human_researcher=FakeHumanResearch(),
+            )
+            engine.step()
+            self.assertFalse(rail.buys)
+            self.assertEqual(
+                store.latest_decisions(1)[0]["status"], "ACCOUNT_SCOPE_UNVERIFIED")
+            store.close()
+
     def test_hourly_bean_exam_cannot_veto_advanced_opportunity(self):
         class BeanDisagrees:
             def assess(self):
@@ -548,6 +647,63 @@ class AdvancedLiveTests(unittest.TestCase):
             self.assertEqual(row["status"], "EXECUTION_ERROR")
             self.assertIn("preview rejected", row["rationale"])
             store.close()
+
+
+    def test_non_dollar_position_mark_uses_quote_units_and_migrates_legacy_peak(self):
+        from src.primary_strategy import exit_reason
+
+        class EuroRail(FakeRail):
+            def account_scope_id(self):
+                return "c" * 64
+            def status(self):
+                return AdvancedTradeStatus(
+                    configured=True,
+                    balances=(AdvancedBalance("MEME", Decimal("10"), Decimal("0")),),
+                    tradable_spot_products=3,
+                    product_ids=("MEME-EUR", "BTC-EUR", "BTC-USD"),
+                )
+            def product(self, product_id):
+                return {"product_id": product_id, "price": {
+                    "MEME-EUR": "0.20", "BTC-EUR": "50000", "BTC-USD": "55000"
+                }[product_id]}
+
+        class EuroUniverse:
+            def collect(self, priority_products=None):
+                return {"available": True, "scored": [
+                    {"product": "MEME-EUR", "price": 0.20,
+                     "spread_bps": 5, "return_5m": 0,
+                     "return_1h": 0, "return_6h": 0}
+                ], "top": [], "errors": []}
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "quote.db")
+            try:
+                rail = EuroRail()
+                engine = AdvancedSpotEngine(
+                    store, rail=rail, asset_universe=EuroUniverse(),
+                    listing_sentinel=FakeListingSentinel(),
+                    human_researcher=FakeHumanResearch())
+                snap = engine.sync()
+                self.assertAlmostEqual(snap["positions"]["MEME-EUR"]["mark_price"], 0.20)
+                self.assertEqual(snap["positions"]["MEME-EUR"]["mark_quote_currency"], "EUR")
+                self.assertAlmostEqual(snap["balance_values_usd"]["MEME"], 2.20)
+                self.assertEqual(exit_reason(
+                    "MEME-EUR", snap, current_mark_price=0.20,
+                    verified_entry_price=0.23), "verified_entry_loss_limit")
+
+                peak_key = "primary_peak:" + "c"*64 + ":MEME-EUR"
+                unit_key = "primary_peak_unit:" + "c"*64 + ":MEME-EUR"
+                store.set_meta(peak_key, "99")
+                no_entry = {"routes": [], "examined": 0,
+                            "candidate_signals": 0, "costed_routes": 0,
+                            "skipped": {}}
+                with patch("src.advanced_live.select_plan", return_value=no_entry), \
+                     patch("src.advanced_live.exit_reason", return_value=None):
+                    engine._primary_trade_step(snap)
+                self.assertEqual(store.get_meta(unit_key), "EUR")
+                self.assertEqual(store.get_meta(peak_key), "0.2")
+            finally:
+                store.close()
 
 
 if __name__ == "__main__":
