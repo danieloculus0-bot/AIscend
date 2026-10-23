@@ -231,7 +231,8 @@ def learn_from_paper(*, core_dir, paper_db, learning_db,
     identity = core_identity(core_dir)
     receipts = paper_receipts(paper_db)
     import time
-    now = float((clock or time.time)())
+    time_source = clock or time.time
+    now = float(time_source())
     pending = paper_pending(paper_db, now=now)
     learning_db = Path(learning_db).resolve()
     if learning_db == Path(paper_db).resolve():
@@ -253,8 +254,14 @@ def learn_from_paper(*, core_dir, paper_db, learning_db,
     written = 0
     with closing(sqlite3.connect(paper_db, timeout=15)) as db:
         for item in shadows:
+            # The BEAN subprocess may take longer than the remaining time
+            # before entry. Never backdate its decision to the timestamp
+            # captured BEFORE inference, which would fabricate causality.
+            committed_at = float(time_source())
             if (item["action"] not in ("trade","cash") or
-                    item["entry_ts"] <= now):
+                    not math.isfinite(committed_at) or
+                    committed_at >= item["entry_ts"] or
+                    committed_at < now):
                 continue
             with db:
                 cur = db.execute(
@@ -262,7 +269,7 @@ def learn_from_paper(*, core_dir, paper_db, learning_db,
                     "(product,policy_sha,signal_ts,observed_at,action,core_sha,q_updates)"
                     " VALUES(?,?,?,?,?,?,?)",
                     (item["product"],item["policy_sha"],item["signal_ts"],
-                     now,item["action"],identity["sha"],item["q_updates"]))
+                     committed_at,item["action"],identity["sha"],item["q_updates"]))
                 written += cur.rowcount
     return {
         "schema": SCHEMA, "core_sha": identity["sha"],
