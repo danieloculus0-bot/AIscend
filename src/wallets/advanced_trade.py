@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import hashlib
 from dataclasses import asdict, dataclass
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 import keyring
@@ -201,7 +201,35 @@ class AdvancedTradeSpot:
 
     def status(self) -> AdvancedTradeStatus:
         client = self.vault.client()
-        accounts_raw = self._dict(client.get_accounts())
+        # Coinbase accounts are cursor-paginated. Reading one page can hide
+        # funded wallets and silently misstate available capital.
+        account_rows: list[dict[str, Any]] = []
+        cursor = None
+        seen_cursors: set[str] = set()
+        for _ in range(200):
+            payload = self._dict(
+                client.get_accounts(cursor=cursor) if cursor else client.get_accounts()
+            )
+            page_rows = payload.get("accounts")
+            if not isinstance(page_rows, list) or any(
+                not isinstance(row, dict) for row in page_rows
+            ):
+                raise RuntimeError("Coinbase accounts returned malformed page data")
+            account_rows.extend(page_rows)
+            next_cursor = str(payload.get("cursor") or "").strip()
+            if payload.get("has_next") is False:
+                break
+            if not next_cursor:
+                if payload.get("has_next") is True:
+                    raise RuntimeError("Coinbase account pagination cursor missing")
+                break
+            if next_cursor in seen_cursors:
+                raise RuntimeError("Coinbase account pagination cursor repeated")
+            seen_cursors.add(next_cursor)
+            cursor = next_cursor
+        else:
+            raise RuntimeError("Coinbase account pagination limit exceeded")
+
         products_raw = self._dict(
             client.get_products(
                 get_all_products=True,
@@ -209,8 +237,10 @@ class AdvancedTradeSpot:
             )
         )
 
-        balances: list[AdvancedBalance] = []
-        for item in accounts_raw.get("accounts") or []:
+        # Multiple Coinbase wallets can have the same currency. Aggregate
+        # them rather than overwriting one balance during desktop valuation.
+        totals: dict[str, tuple[Decimal, Decimal]] = {}
+        for item in account_rows:
             available = item.get("available_balance") or {}
             hold = item.get("hold") or {}
             currency = str(
@@ -221,17 +251,23 @@ class AdvancedTradeSpot:
             ).upper()
             if not currency:
                 continue
-            available_value = Decimal(str(available.get("value") or "0"))
-            hold_value = Decimal(str(hold.get("value") or "0"))
-            if available_value == 0 and hold_value == 0:
-                continue
-            balances.append(
-                AdvancedBalance(
-                    currency=currency,
-                    available=available_value,
-                    hold=hold_value,
-                )
-            )
+            try:
+                available_value = Decimal(str(available.get("value") or "0"))
+                hold_value = Decimal(str(hold.get("value") or "0"))
+            except (InvalidOperation, TypeError, ValueError) as exc:
+                raise RuntimeError("Coinbase account balance is malformed") from exc
+            if (not available_value.is_finite() or not hold_value.is_finite()
+                    or available_value < 0 or hold_value < 0):
+                raise RuntimeError("Coinbase account balance is nonfinite or negative")
+            previous_available, previous_hold = totals.get(
+                currency, (Decimal("0"), Decimal("0")))
+            totals[currency] = (previous_available + available_value,
+                                previous_hold + hold_value)
+        balances = [
+            AdvancedBalance(currency=currency, available=amount, hold=hold_amount)
+            for currency, (amount, hold_amount) in totals.items()
+            if amount > 0 or hold_amount > 0
+        ]
 
         product_ids: list[str] = []
         for item in products_raw.get("products") or []:
