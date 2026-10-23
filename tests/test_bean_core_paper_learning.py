@@ -86,7 +86,9 @@ class PaperCoreLearningContracts(unittest.TestCase):
         self.assertIn("records", kwargs["input"])
         self.assertNotIn("api_key", kwargs["input"].lower())
         self.assertNotIn("ADVANCED_TRADE_API_KEY", kwargs["env"])
-        self.assertEqual(kwargs["env"]["PYTHONPATH"], str(self.folder.name))
+        # Windows runners may use equivalent long and 8.3 short temp paths.
+        # Verify the actual checkout directory, not its textual spelling.
+        self.assertTrue(Path(kwargs["env"]["PYTHONPATH"]).samefile(self.folder.name))
 
 
 if __name__ == "__main__":
