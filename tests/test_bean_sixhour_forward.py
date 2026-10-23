@@ -160,13 +160,22 @@ class BeanProspectiveTests(unittest.TestCase):
         self.assertGreater(recovered["markets"]["BTC-USD"]["forward_bars"], 0)
         self.assertNotEqual(recovered["ledger_tip"], initial["ledger_tip"])
 
-    def test_midstream_candle_gap_blocks_unrealized_paper_profit(self):
-        self.run_step(60)
-        history=candles()
-        del history[61*BAR]
-        result=self.run_step(63,history)["markets"]["BTC-USD"]
-        self.assertEqual(result["status"],"DATA_GAP")
+    def test_midstream_candle_gap_withholds_paper_profit_until_recovered(self):
+        first = self.run_step(60)
+        history = candles()
+        del history[61 * BAR]
+        withheld = self.run_step(63, history)
+        result = withheld["markets"]["BTC-USD"]
+        # The strict feature-window guard now rejects an incomplete source
+        # before changing the immutable ledger, rather than permanently
+        # blocking the market on a possibly temporary Coinbase omission.
+        self.assertEqual(result["status"], "DATA_UNAVAILABLE")
         self.assertFalse(result["promotion_authorized"])
+        self.assertEqual(withheld["ledger_tip"], first["ledger_tip"])
+        recovered = self.run_step(63)
+        self.assertEqual(recovered["markets"]["BTC-USD"]["status"], "COLLECTING")
+        self.assertGreater(recovered["markets"]["BTC-USD"]["forward_bars"], 0)
+        self.assertNotEqual(recovered["ledger_tip"], first["ledger_tip"])
 
     def test_historical_results_do_not_create_prospective_return(self):
         # Frozen candidate's prior historical win does not count as earned
