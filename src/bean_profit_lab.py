@@ -217,8 +217,11 @@ def simulate(rows, policy, start, end, *, fee_bps=DEFAULT_TAKER_FEE_BPS, spread_
                               context=context, chosen_target=target,
                               scored_long_bps=round(bucket["long"], 7),
                               scored_cash_bps=round(bucket["cash"], 7))
-        peak = max(peak, equity)
-        max_dd = max(max_dd, 1 - equity/peak)
+        # Mark open exposure at the fee-net amount available on liquidation,
+        # not at a gross close that cannot be realized without a sell fee.
+        liquidation_mark = equity * (1 - cost) if position else equity
+        peak = max(peak, liquidation_mark)
+        max_dd = max(max_dd, 1 - liquidation_mark / peak)
         if ledger is not None:
             ledger.append("causal_decision", product=product, phase=phase,
                           policy=policy, decision_ts=previous["ts"] + period_seconds,
