@@ -29,7 +29,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: bean-core-paired-synthetic-learning-benchmark
-          path: artifacts/bean-core-bridge-benchmark.json
+          path: |
+            artifacts/bean-core-bridge-benchmark.json
+            artifacts/bean-core-bridge-benchmark-episodes.csv
       - name: Verify no live trading claims
         run: |
           echo "BEAN_CORE_REAL=true"
