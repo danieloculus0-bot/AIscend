@@ -36,7 +36,9 @@ jobs:
       - name: Compile actual Python sources
         run: python -m compileall -q src scripts web_app.py main.py
       - name: Full Python regression suite, including real adapter fakes
-        run: python -m unittest discover -s tests -v
+        # Keep every test module, but isolate native Qt teardown from later
+        # threaded tests. A crash in any module still fails the entire job.
+        run: python -m scripts.python_desktop_suite
       - name: Headless PySide6 desktop control and Advanced Spot smoke
         run: python -m scripts.desktop_integration_check
       - name: Explicit account-scoped Python and frozen paper regression gates
