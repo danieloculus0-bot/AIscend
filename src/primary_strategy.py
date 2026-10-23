@@ -165,6 +165,9 @@ def select_plan(snapshot: dict, *, taker_bps=DEFAULT_TAKER_BPS,
     ranked.extend(item for product, item in learned_by_product.items()
                   if product not in present and item.get("target_exposure"))
     tradable = set(snapshot.get("tradable_products") or ())
+    # An explicit empty authenticated tradability list means no market is
+    # executable. Only an absent field permits unscoped research fixtures.
+    tradability_scoped = "tradable_products" in snapshot
     held = snapshot.get("positions") or {}
     cash = snapshot.get("cash_by_quote") or {}
     valuations = snapshot.get("balance_values_usd") or {}
@@ -182,7 +185,7 @@ def select_plan(snapshot: dict, *, taker_bps=DEFAULT_TAKER_BPS,
             diag["skipped"]["stale_signal"] += 1
             continue
         product = str(row.get("product") or "").upper()
-        if tradable and product not in tradable:
+        if tradability_scoped and product not in tradable:
             diag["skipped"]["untradable"] += 1
             continue
         if verified_loss_lockout(account_history, product):
