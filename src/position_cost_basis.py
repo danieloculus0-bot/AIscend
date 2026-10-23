@@ -6,6 +6,30 @@ quantity matches the authenticated asset balance and the fill history is complet
 from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
+from datetime import datetime, timezone
+import re
+
+
+_RFC3339 = re.compile(
+    r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:\d{2})$"
+)
+
+
+def coinbase_fill_time_key(row: dict) -> tuple[int, int]:
+    """Sort Coinbase RFC3339 fills by actual UTC instant, retaining nanoseconds.
+
+    Plain text sorting reverses whole-second 'Z' and fractional '.xxxZ'
+    timestamps, potentially turning an unmatched SELL into fake closed profit.
+    """
+    stamp = str(row.get("trade_time") or "").strip()
+    match = _RFC3339.fullmatch(stamp)
+    if match is None:
+        raise ValueError("Invalid Coinbase fill timestamp")
+    whole, fraction, offset = match.groups()
+    instant = datetime.fromisoformat(whole + ("+00:00" if offset == "Z" else offset))
+    seconds = int(instant.astimezone(timezone.utc).timestamp())
+    nanos = int((fraction or "0").ljust(9, "0"))
+    return seconds, nanos
 
 
 def rebuild_position_basis(product: str, held_quantity, fills: list[dict],
@@ -20,10 +44,12 @@ def rebuild_position_basis(product: str, held_quantity, fills: list[dict],
         target = Decimal(str(held_quantity))
         if not target.is_finite() or target < 0:
             return unknown("invalid_held_quantity")
-        rows = sorted(fills, key=lambda row: str(row.get("trade_time") or ""))
+        rows = sorted(fills, key=lambda row: (coinbase_fill_time_key(row),
+                                             str(row.get("entry_id") or row.get("trade_id") or "")))
         qty = Decimal("0")
         cost = Decimal("0")
         seen = set()
+        sides_by_instant = {}
         for row in rows:
             if str(row.get("product_id") or "").upper() != product.upper():
                 return unknown("mismatched_coinbase_fill_product")
@@ -33,7 +59,9 @@ def rebuild_position_basis(product: str, held_quantity, fills: list[dict],
             seen.add(fill_id)
             size = Decimal(str(row["size"]))
             price = Decimal(str(row["price"]))
-            fee = Decimal(str(row.get("commission") or "0"))
+            if row.get("commission") in (None, ""):
+                return unknown("missing_coinbase_fill_commission")
+            fee = Decimal(str(row["commission"]))
             if not all(v.is_finite() for v in (size, price, fee)):
                 return unknown("nonfinite_coinbase_fill")
             # Authenticated maker rebates can be negative commissions.
@@ -47,6 +75,10 @@ def rebuild_position_basis(product: str, held_quantity, fills: list[dict],
             if fee_currency != quote:
                 return unknown("mismatched_coinbase_fee_currency")
             side = str(row.get("side") or "").upper()
+            instant = coinbase_fill_time_key(row)
+            earlier_side = sides_by_instant.setdefault(instant, side)
+            if earlier_side != side:
+                return unknown("ambiguous_same_instant_coinbase_fills")
             if side == "BUY":
                 lot_cost = size * price + fee
                 if lot_cost <= 0:
