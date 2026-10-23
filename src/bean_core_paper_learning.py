@@ -155,8 +155,13 @@ try:
             episode_id="paper-"+str(i),domain="aiscend-paper",
             state={"product":item["product"],"policy":item["policy"]},
             location_ref={"product":item["product"],"policy":item["policy"]},
+            # Retrospective paper receipts are TRADES with known fee-net
+            # results, not a free choice between a trade and cash. Letting
+            # cash win a zero-Q tie trains on zero reward forever and hides
+            # the known paper outcome. Prospective choices remain locked to
+            # their precommitted trade/cash action and its observed reward.
             legal_actions=([item["committed_action"]]
-                           if item.get("committed_action") else ["trade","cash"]))
+                           if item.get("committed_action") else ["trade"]))
         action=choice["action"]
         reward=10000.0*item["net_return"] if action=="trade" else 0.0
         service.feedback(episode_id="paper-"+str(i),reward=reward,done=True)
