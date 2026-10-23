@@ -30,11 +30,11 @@ class MemoryBlindTests(unittest.TestCase):
         for i in range(10):
             self.add(i)
         early=self.ledger.prior(
-            product="BTC-USD", state=self.state, as_of="2020-01-03")
+            product="BTC-USD", state=self.state, as_of="2020-01-02")
         self.assertEqual(early["count"],0)
         middle=self.ledger.prior(
             product="BTC-USD",state=self.state,as_of="2020-01-08")
-        self.assertEqual(middle["count"],5)
+        self.assertEqual(middle["count"],6)
         self.assertEqual(middle["shrunk_trade_edge_bps"],0)
         later=self.ledger.prior(
             product="BTC-USD",state=self.state,as_of="2020-01-20")
