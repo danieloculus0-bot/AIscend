@@ -1,4 +1,5 @@
 """Regression coverage for BEAN's paired, durable, research-only capital lab."""
+from contextlib import closing
 import json
 import sqlite3
 import tempfile
@@ -49,7 +50,7 @@ class BeanCapitalExperimentTests(unittest.TestCase):
             self.assertFalse(result["historical_coinbase_prices_used"])
             self.assertEqual(result["initial_bankroll_usd_per_run"], 1000)
             self.assertTrue(report_path.exists())
-            with sqlite3.connect(db_path) as db:
+            with closing(sqlite3.connect(db_path)) as db:
                 self.assertEqual(db.execute(
                     "SELECT COUNT(*) FROM training").fetchone()[0], 8)
                 pairs = db.execute(
@@ -71,10 +72,11 @@ class BeanCapitalExperimentTests(unittest.TestCase):
             report_path = Path(folder) / "evidence.json"
             experiment(db_path=db_path, report_path=report_path,
                        train_seeds=1, holdout_seeds=1, periods=151)
-            with sqlite3.connect(db_path) as db:
+            with closing(sqlite3.connect(db_path)) as db:
                 db.execute(
                     "UPDATE events SET payload='{}' WHERE rowid="
                     "(SELECT MIN(rowid) FROM events)")
+                db.commit()
             with self.assertRaisesRegex(AssertionError, "SHA-256"):
                 verify_ledger(db_path)
 
@@ -84,7 +86,7 @@ class BeanCapitalExperimentTests(unittest.TestCase):
             # Create matching input ledgers without using any exchange provider.
             for j, tail in enumerate(([1] * 169, [3] * 169)):
                 db_path = Path(folder) / f"eval{j}.sqlite3"
-                with sqlite3.connect(db_path) as db:
+                with closing(sqlite3.connect(db_path)) as db:
                     from scripts.bean_capital_experiment import prepare
                     prepare(db)
                     prices = [1.0, 1.01, *tail]
@@ -93,7 +95,7 @@ class BeanCapitalExperimentTests(unittest.TestCase):
                         prices=prices, q={}, capital=1000,
                         fee_bps=60, spread_bps=10, slippage_bps=5)
                     db.commit()
-                with sqlite3.connect(db_path) as db:
+                with closing(sqlite3.connect(db_path)) as db:
                     decision = db.execute(
                         "SELECT payload FROM events WHERE type='DECISION' "
                         "ORDER BY seq LIMIT 1").fetchone()[0]
