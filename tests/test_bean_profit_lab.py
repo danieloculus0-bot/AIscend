@@ -40,6 +40,15 @@ class BeanProfitLedgerTests(unittest.TestCase):
                                (1 - .0095)**2 - 1, places=7)
         self.assertEqual(result["orders"], 2)
 
+    def test_flat_market_drawdown_includes_final_liquidation_fee(self):
+        rows = lab.to_4h(candles(n=220, change=0))
+        result = lab.simulate(rows, "buy_hold", 43, 100)
+        expected = 1 - (1 - (90 + 10 / 2) / 10000) ** 2
+        self.assertEqual(result["status"], "OK")
+        self.assertEqual(result["orders"], 2)
+        self.assertAlmostEqual(result["drawdown"], expected, places=7)
+        self.assertAlmostEqual(result["drawdown"], -result["net_return"], places=7)
+
     def test_gap_in_owned_position_fails_instead_of_skipping_loss(self):
         rows = lab.to_4h(candles(n=220))
         del rows[100]
