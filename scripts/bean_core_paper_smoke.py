@@ -75,7 +75,10 @@ def run(core_dir):
             proof=db.execute(
                 "SELECT action,observed_at FROM bean_paper_shadow "
                 "WHERE signal_ts=?",(signal,)).fetchone()
-            assert proof and proof[0] in ("trade","cash")
+            # Every historical paper outcome was net-negative. The real
+            # learner must prefer cash after learning, not merely count
+            # thirty zero-reward Q updates.
+            assert proof and proof[0] == "cash", proof
             assert observed < proof[1] < entry_ts,proof
             net=(101.0/100.0)*(1-0.0065)**2-1
             db.execute(
