@@ -8,6 +8,7 @@ import argparse
 from collections import Counter
 import hashlib
 import json
+from statistics import median
 from pathlib import Path
 import sqlite3
 
@@ -74,17 +75,46 @@ def aggregate(catalog_file, shard_files, db_path, summary_path):
     counts = dict(sorted(Counter(r["status"] for r in results.values()).items()))
     leaders = sorted(
         ({"product":p,"net_return":r["net_return"],
+          "no_memory_net_return":r["no_memory_net_return"],
+          "learning_incremental_return":r["learning_incremental_return"],
+          "learned_more_than_no_memory":r["learning_outperformed_no_memory"],
           "benchmark":r["continuous_buy_hold_return"],
           "folds":r["fold_count"],"won_vs_benchmark":
               r["net_return"] > r["continuous_buy_hold_return"]}
          for p,r in results.items()
          if r["status"] == "HISTORICAL_WALKFORWARD_RESEARCH"),
         key=lambda x:(-x["net_return"],x["product"]))
+    learning_improvements = [r["learning_incremental_return"] for r in leaders]
+    learning_results = {
+        "cohort": len(leaders),
+        "memory_better": sum(x > 0 for x in learning_improvements),
+        "memory_worse": sum(x < 0 for x in learning_improvements),
+        "memory_tied": sum(x == 0 for x in learning_improvements),
+        "memory_positive_after_costs": sum(r["net_return"] > 0 for r in leaders),
+        "no_memory_positive_after_costs": sum(
+            r["no_memory_net_return"] > 0 for r in leaders),
+        "memory_positive_and_beat_buy_hold": sum(
+            r["net_return"] > max(0., r["benchmark"]) for r in leaders),
+        "no_memory_positive_and_beat_buy_hold": sum(
+            r["no_memory_net_return"] > max(0., r["benchmark"]) for r in leaders),
+        "median_memory_net_return":median(r["net_return"] for r in leaders)
+            if leaders else None,
+        "median_no_memory_net_return":median(
+            r["no_memory_net_return"] for r in leaders) if leaders else None,
+        "median_incremental_return":median(learning_improvements)
+            if leaders else None,
+        "method": "Same consecutive holdout folds, public actual OHLCV, "
+                  "same candidate rules and modeled fees; Q memory versus "
+                  "fresh trailing-training-only rule selection. Neither arm "
+                  "uses overlapping stored experiment recall. "
+                  "This is historical ablation, not future profitability.",
+    }
     summary = {
         "schema": "aiscend.bean.five_year.universe.aggregate.v1",
         "catalog_hash": catalog_hash,
         "catalog_size": len(products), "attempted_count": len(results),
         "shards": count, "status_counts": counts,
+        "learning_ablation":learning_results,
         "research_rankings_only": leaders,
         "outcomes_saved": audit["outcome_count"],
         "full_experiments_saved": len(audit["experiments"]),
@@ -100,6 +130,7 @@ def aggregate(catalog_file, shard_files, db_path, summary_path):
     print(json.dumps({"catalog_size":len(products),
                       "status_counts":counts,"stored":audit["outcome_count"],
                       "research_winners":sum(x["won_vs_benchmark"] for x in leaders),
+                      "learning_ablation":learning_results,
                       "promotion_authorized":False},sort_keys=True))
     return summary
 
