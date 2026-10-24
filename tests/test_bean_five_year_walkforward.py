@@ -76,6 +76,40 @@ class FiveYearWalkforwardTests(unittest.TestCase):
         self.assertEqual(report["history_status"],"PARTIAL")
         self.assertFalse(report["promotion_authorized"])
 
+    def test_research_does_not_cherry_pick_longest_past_run(self):
+        # Historical gap follows a huge old run; only 180 current bars remain.
+        raw=synthetic(2600,shape="waves")
+        raw.pop(2400*BAR)
+        fetched={"product":"TEST-USD", "data":raw, "expected_bars":2600,
+                 "received_bars":2599, "end":2600*BAR}
+        result=evaluate_product_history(fetched)
+        self.assertEqual(result["history_status"],"PARTIAL")
+        self.assertEqual(result["status"],"INSUFFICIENT_HISTORY")
+        self.assertEqual(result["longest_run_bars"],2400)
+        self.assertEqual(result["selected_recent_run_bars"],199)
+        self.assertEqual(result["research_segment_selection"],
+                         "latest_contiguous_tail_only_v2")
+        self.assertFalse(result["promotion_authorized"])
+
+    def test_older_segment_never_substituted_for_missing_latest_candle(self):
+        raw=synthetic(2600,shape="waves")
+        raw.pop(2599*BAR)
+        fetched={"product":"TEST-USD", "data":raw, "expected_bars":2600,
+                 "received_bars":2599, "end":2600*BAR}
+        result=evaluate_product_history(fetched)
+        self.assertEqual(result["status"],"INSUFFICIENT_HISTORY")
+        self.assertEqual(result["reason"],"RECENT_CANDLE_DATA_MISSING")
+        self.assertEqual(result["history_status"],"PARTIAL")
+
+    def test_current_recent_contiguous_market_keeps_actual_simulation(self):
+        raw=synthetic(2350,shape="waves")
+        fetched={"product":"TEST-USD", "data":raw, "expected_bars":2350,
+                 "received_bars":2350, "end":2350*BAR}
+        result=evaluate_product_history(fetched)
+        self.assertEqual(result["status"],"HISTORICAL_WALKFORWARD_RESEARCH")
+        self.assertEqual(result["history_status"],"COMPLETE")
+        self.assertEqual(result["selected_recent_run_bars"],2350)
+
     def test_too_few_candles_is_normal(self):
         report=walkforward(synthetic(800))
         self.assertEqual(report["status"],"INSUFFICIENT_HISTORY")
