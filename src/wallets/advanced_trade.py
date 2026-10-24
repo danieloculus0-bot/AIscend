@@ -102,10 +102,21 @@ class AdvancedTradeVault:
                 pass
             os.environ.pop(key, None)
 
-    def client(self, timeout: int = 10) -> RESTClient:
+    def client(self, timeout: int = 10, *, expected_scope: str | None = None) -> RESTClient:
         credentials = self._credentials()
         if credentials is None:
             raise RuntimeError("Coinbase Advanced Trade is not configured.")
+        # Bind the authenticated account identity to the exact credentials
+        # captured for this HTTP client, not a separate earlier vault read.
+        if expected_scope is not None:
+            captured_scope = hashlib.sha256(
+                ("coinbase-advanced-key-v1:" + credentials[0].strip()).encode("utf-8")
+            ).hexdigest()
+            if captured_scope != expected_scope:
+                raise RuntimeError(
+                    "Coinbase credentials changed since the authenticated account "
+                    "snapshot; no order was submitted."
+                )
         return RESTClient(
             api_key=credentials[0],
             api_secret=credentials[1],
@@ -578,20 +589,24 @@ class AdvancedTradeSpot:
             raise RuntimeError("Coinbase market buy preview is missing")
         return preview
 
-    def market_buy(self, product_id: str, quote_size: Decimal, client_order_id: str) -> dict[str, Any]:
+    def market_buy(self, product_id: str, quote_size: Decimal, client_order_id: str, *, expected_scope: str | None = None) -> dict[str, Any]:
         if quote_size <= 0:
             raise ValueError("quote_size must be positive")
-        response = self.vault.client().market_order_buy(
+        client = (self.vault.client(expected_scope=expected_scope)
+                  if expected_scope is not None else self.vault.client())
+        response = client.market_order_buy(
             client_order_id=client_order_id,
             product_id=product_id.upper(),
             quote_size=str(quote_size),
         )
         return require_accepted_order(self._dict(response))
 
-    def market_sell(self, product_id: str, base_size: Decimal, client_order_id: str) -> dict[str, Any]:
+    def market_sell(self, product_id: str, base_size: Decimal, client_order_id: str, *, expected_scope: str | None = None) -> dict[str, Any]:
         if base_size <= 0:
             raise ValueError("base_size must be positive")
-        response = self.vault.client().market_order_sell(
+        client = (self.vault.client(expected_scope=expected_scope)
+                  if expected_scope is not None else self.vault.client())
+        response = client.market_order_sell(
             client_order_id=client_order_id,
             product_id=product_id.upper(),
             base_size=str(base_size),
