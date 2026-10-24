@@ -1,0 +1,9 @@
+{
+  "schema": "aiscend.bean.selection_lock.v1",
+  "protocol_sha256": "72c78aacefd5d0a9c48f7d784fe45e564d02f86cde5f6fdab3095678318952c8",
+  "selected_id": "td-7",
+  "selected_validation_return": 0.2325728838579202,
+  "checkpoint_weights_sha256": "ec5e4fe9313ef1d587486c2927e39ff416bb790c4793b1d5d4889dc22e8d0e5b",
+  "all_development_sha256": "11f059c7b8be506cb3ecaedb930d923b8c9106834c599cc1bd7c21ed284836c5",
+  "holdout_opened": false
+}
