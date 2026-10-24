@@ -4,10 +4,15 @@ on:
     paths:
       - 'src/bean_strategy_curriculum.py'
       - 'src/bean_curriculum_worker.py'
+      - 'src/bean_strategy_coach.py'
+      - 'src/bean_mentor_worker.py'
       - 'scripts/collect_strategy_candles.py'
       - 'scripts/bean_strategy_policy.py'
+      - 'scripts/consolidate_bean_mentor_feedback.py'
       - 'tests/test_bean_strategy_curriculum.py'
+      - 'tests/test_bean_strategy_coach.py'
       - 'research/bean_strategy_curriculum_20261024/**'
+      - 'research/bean_mentor_comparison_20261024/**'
       - '.github/workflows/bean-strategy-curriculum.yml'
   workflow_dispatch:
 permissions:
@@ -29,8 +34,10 @@ jobs:
       - name: Future rejection, pattern transfer, fee accounting and real gradients
         env:
           BEAN_CORE_DIR: core-bean
-        run: python -m unittest tests.test_bean_strategy_curriculum -v
+        run: python -m unittest tests.test_bean_strategy_curriculum tests.test_bean_strategy_coach -v
       - name: Recover selected policy and an earlier retained training budget
         run: |
           python -m scripts.bean_strategy_policy --directory research/bean_strategy_curriculum_20261024 --core-dir core-bean --as-of 2026-10-25T00:00:00Z
           python -m scripts.bean_strategy_policy --directory research/bean_strategy_curriculum_20261024 --core-dir core-bean --policy-id fold-0-seed-7-updates-256 --as-of 2026-10-25T00:00:00Z
+          python -m scripts.bean_strategy_policy --directory research/bean_mentor_comparison_20261024 --core-dir core-bean --policy-id coached_advantage --as-of 2026-10-25T00:00:00Z
+          python -m scripts.bean_strategy_policy --directory research/bean_mentor_comparison_20261024 --core-dir core-bean --policy-id consolidated_after_feedback --as-of 2026-10-25T00:00:00Z

@@ -39,7 +39,9 @@ def verify(directory,core_dir,policy_id,as_of):
     with tempfile.TemporaryDirectory(prefix='bean-curriculum-recover-') as temp:
         path=Path(temp)/'policy.sqlite3';path.write_bytes(gzip.decompress(raw));journal=Journal(path)
         try:
-            rows=[x for x in journal.events(OBJECTIVE) if x['online_weights_sha256']==item['state']['weights_sha256'] and x['updates']==item['state']['updates']]
+            objective=item.get('objective',OBJECTIVE)
+            if objective not in (OBJECTIVE,'aiscend.mentor.unscored_training.v1'):raise ValueError('Unsupported retained learning objective')
+            rows=[x for x in journal.events(objective) if x['online_weights_sha256']==item['state']['weights_sha256'] and x['updates']==item['state']['updates']]
             if not rows:raise ValueError('Checkpoint is absent from retained SHA Journal')
             row=rows[-1]
             if row['metadata']['knowledge_cutoff']!=int(utc_seconds(item['knowledge_cutoff'])):raise ValueError('Retained knowledge cutoff changed')
@@ -49,7 +51,7 @@ def verify(directory,core_dir,policy_id,as_of):
             if item.get('diagnostic_vector'):
                 with torch.no_grad():values={'values':model.online(torch.tensor([model.encode(item['diagnostic_vector'])],dtype=torch.float32)).tolist()}
                 comparison=compare_predictions(values,item['diagnostic_values'])
-            return {'policy_id':policy_id,'module':type(model).__module__,'knowledge_cutoff':item['knowledge_cutoff'],'updates':model.updates,'frames':model.frames,'replay_entries':len(model.replay),'weights_sha256':model.weights_digest(),'optimizer_recovered':bool(model.optimizer.state),'diagnostic_values_match':comparison is not None,'prediction_recovery':comparison,'economic_qualification':item['economic_qualification'],'live_orders':False}
+            return {'policy_id':policy_id,'module':type(model).__module__,'knowledge_cutoff':item['knowledge_cutoff'],'updates':model.updates,'frames':model.frames,'replay_entries':len(model.replay),'weights_sha256':model.weights_digest(),'optimizer_recovered':bool(model.optimizer.state),'diagnostic_values_match':True if comparison is not None else None,'prediction_recovery':comparison,'economic_qualification':item['economic_qualification'],'live_orders':False}
         finally:journal.close()
 
 def main():
