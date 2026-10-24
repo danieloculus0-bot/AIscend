@@ -5,6 +5,7 @@ restarts. Rule changes are recommendations for research only, never orders.
 """
 from __future__ import annotations
 
+from contextlib import contextmanager
 import hashlib
 import math
 import json
@@ -24,10 +25,21 @@ def _canonical(value):
 
 
 class PublishedRuleLearner:
+    @contextmanager
+    def _connect(self):
+        # sqlite3 context management commits but DOES NOT close. Explicit
+        # close is mandatory for Windows clean-checkout and test cleanup.
+        db = sqlite3.connect(self.path, timeout=30)
+        try:
+            with db:
+                yield db
+        finally:
+            db.close()
+
     def __init__(self, path):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with sqlite3.connect(self.path) as db:
+        with self._connect() as db:
             db.execute("""CREATE TABLE IF NOT EXISTS freezes (
                 product TEXT PRIMARY KEY,
                 freeze_ts INTEGER NOT NULL, frozen_rule TEXT NOT NULL,
@@ -39,7 +51,7 @@ class PublishedRuleLearner:
                 PRIMARY KEY (product,last_ts))""")
 
     def frozen(self, product):
-        with sqlite3.connect(self.path) as db:
+        with self._connect() as db:
             saved = db.execute(
                 "SELECT frozen_rule FROM freezes WHERE product=?",
                 (str(product).upper(),)).fetchone()
@@ -72,7 +84,7 @@ class PublishedRuleLearner:
         rule = tuple(frozen_rule or ("donchian_20_10",))
         if rule not in RULES:
             raise ValueError("UNKNOWN_RULE")
-        with sqlite3.connect(self.path, timeout=30) as db:
+        with self._connect() as db:
             db.execute("BEGIN IMMEDIATE")
             saved = db.execute(
                 "SELECT freeze_ts,frozen_rule,last_ts,evidence "
@@ -156,7 +168,7 @@ class PublishedRuleLearner:
 
     def audit(self, product):
         """Check that all saved forward snapshots remain linked and unmodified."""
-        with sqlite3.connect(self.path) as db:
+        with self._connect() as db:
             rows = db.execute(
                 "SELECT prev_sha,event_sha,evidence FROM observations "
                 "WHERE product=? ORDER BY last_ts", (product.upper(),)).fetchall()
