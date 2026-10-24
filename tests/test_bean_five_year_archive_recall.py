@@ -1,4 +1,5 @@
 """Persistent BEAN tests: archive every market and recall without future leakage."""
+from contextlib import closing
 import json
 import math
 from pathlib import Path
@@ -94,8 +95,9 @@ class BeanFiveYearArchiveRecallTests(unittest.TestCase):
     def test_old_db_changes_are_detected_before_recall(self):
         with tempfile.TemporaryDirectory() as folder:
             prod, old, db, catalog, summary = prepare(folder)
-            with sqlite3.connect(db) as con:
-                con.execute("UPDATE events SET event_json='{}' WHERE sequence=0")
+            with closing(sqlite3.connect(db)) as con:
+                with con:
+                    con.execute("UPDATE events SET event_json='{}' WHERE sequence=0")
             with self.assertRaisesRegex(ValueError, "BEAN_EVENT_REPLAY_CHANGED"):
                 recall_prior(db, product=prod,
                              before_ts=old["ledger"][0]["end"]+BAR)
