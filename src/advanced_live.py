@@ -1042,7 +1042,10 @@ class AdvancedSpotEngine:
                            "reason": "No order-detail lookup on this rail"}
         else:
             try:
-                observation = verified_order(getter(order_id), order_id)
+                detail = (getter(order_id, expected_scope=account_scope)
+                          if isinstance(self.rail, AdvancedTradeSpot) and account_scope
+                          else getter(order_id))
+                observation = verified_order(detail, order_id)
             except Exception as exc:
                 observation = {"state": "ORDER_ACCEPTED_UNVERIFIED",
                                "order_id": order_id,
@@ -1056,7 +1059,9 @@ class AdvancedSpotEngine:
             filler = getattr(self.rail, "order_fills", None)
             if callable(filler):
                 try:
-                    details = filler(order_id)
+                    details = (filler(order_id, expected_scope=account_scope)
+                               if isinstance(self.rail, AdvancedTradeSpot) and account_scope
+                               else filler(order_id))
                     fills = details.get("fills") or []
                     observation["fill_records_count"] = len(fills)
                     observation["fill_commissions"] = [
@@ -1137,10 +1142,13 @@ class AdvancedSpotEngine:
             finder = getattr(self.rail, "find_order_id_by_client_id", None)
             if callable(finder):
                 try:
-                    order_id = finder(
-                        product_id=product,
-                        client_order_id=str(pending.get("client_order_id") or ""),
-                    ) or ""
+                    lookup_kwargs = {
+                        "product_id": product,
+                        "client_order_id": str(pending.get("client_order_id") or ""),
+                    }
+                    if isinstance(self.rail, AdvancedTradeSpot) and scope:
+                        lookup_kwargs["expected_scope"] = scope
+                    order_id = finder(**lookup_kwargs) or ""
                 except Exception as exc:
                     return Decision("HOLD", None, 0.0,
                         "Authenticated Coinbase client-order lookup failed: "
@@ -1164,7 +1172,10 @@ class AdvancedSpotEngine:
         if scope_changed():
             return changed_scope_hold()
         try:
-            observed = verified_order(getter(order_id), order_id)
+            detail = (getter(order_id, expected_scope=scope)
+                      if isinstance(self.rail, AdvancedTradeSpot) and scope
+                      else getter(order_id))
+            observed = verified_order(detail, order_id)
         except Exception as exc:
             observed = {"state": "ORDER_ACCEPTED_UNVERIFIED",
                         "reason": f"{type(exc).__name__}: {exc}"}
