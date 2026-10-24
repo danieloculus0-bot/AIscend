@@ -6,6 +6,7 @@ restarts. Rule changes are recommendations for research only, never orders.
 from __future__ import annotations
 
 import hashlib
+import math
 import json
 from pathlib import Path
 import sqlite3
@@ -63,6 +64,10 @@ class PublishedRuleLearner:
             return {"status": "DATA_UNAVAILABLE",
                     "reason": "NO_CURRENT_COMPLETED_CANDLE",
                     "promotion_authorized": False}
+        modeled_cost = (float(fee_bps)+float(spread_bps)/2)/10000
+        if (not math.isfinite(modeled_cost) or not 0 <= modeled_cost < 1
+                or fee_bps < 0 or spread_bps < 0):
+            raise ValueError("INVALID_COST")
         product = str(product).upper().strip()
         rule = tuple(frozen_rule or ("donchian_20_10",))
         if rule not in RULES:
@@ -75,7 +80,8 @@ class PublishedRuleLearner:
             if saved is None:
                 freeze_at = rows[-1]["ts"]
                 record = {"status": "FROZEN", "frozen_rule": list(rule),
-                          "freeze_ts": freeze_at, "observed_forward_bars": 0,
+                          "freeze_ts": freeze_at, "fee_bps": fee_bps,
+                          "spread_bps": spread_bps, "observed_forward_bars": 0,
                           "learned_rule": None, "promotion_authorized": False}
                 db.execute(
                     "INSERT INTO freezes(product,freeze_ts,frozen_rule,last_ts,evidence) "
@@ -85,6 +91,10 @@ class PublishedRuleLearner:
                 return record
             freeze_ts, frozen, last_ts, stored = saved
             frozen = tuple(json.loads(frozen))
+            original = json.loads(stored)
+            if (float(original["fee_bps"]) != float(fee_bps)
+                    or float(original["spread_bps"]) != float(spread_bps)):
+                raise ValueError("FROZEN_COST_MODEL_MISMATCH")
             # No retroactive switching after freeze, even if caller changes it.
             if frozen_rule is not None and rule != frozen:
                 raise ValueError("FROZEN_RULE_MISMATCH")
@@ -107,14 +117,20 @@ class PublishedRuleLearner:
                                   spread_bps=spread_bps)
                 outcomes.append({"rule": list(config), **result})
             passive = _passive(rows, forward_start, len(rows), costs)
-            valid = [r for r in outcomes
-                     if r["roundtrips"] >= 2 and r["net_return"] > max(0., passive)]
+            # Paper-learning needs a meaningful prospective sample, not two
+            # lucky five-minute decisions after deployment.
+            enough_forward = len(rows)-index-1 >= 120
+            valid = [r for r in outcomes if enough_forward
+                     and r["roundtrips"] >= 3
+                     and r["net_return"] > max(0., passive)]
             learned = (max(valid, key=lambda r: (
                 r["net_return"]-.4*r["max_drawdown"], r["net_return"]))["rule"]
                        if valid else None)
             report = {"status": "FORWARD_PAPER_OBSERVED",
                       "frozen_rule": list(frozen),
-                      "freeze_ts": freeze_ts, "observed_forward_bars": len(rows)-index-1,
+                      "freeze_ts": freeze_ts, "fee_bps": fee_bps,
+                      "spread_bps": spread_bps,
+                      "observed_forward_bars": len(rows)-index-1,
                       "first_forward_bar": rows[forward_start]["ts"],
                       "last_forward_bar": rows[-1]["ts"],
                       "outcomes": outcomes,
