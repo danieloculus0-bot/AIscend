@@ -9,12 +9,53 @@ import numpy as np
 from scripts.collect_strategy_candles import parse_archive,seconds
 from scripts.bean_strategy_policy import compare_predictions
 from src.bean_strategy_curriculum import ACTIONS,Account,Candles,CandleWorker,Features,PatternMemory,experience,select
+from src.bean_training_batches import digest_chunks
 
 def data():
     rng=np.random.default_rng(41);p=100*np.exp(np.cumsum(rng.normal(.001,.02,(440,3)),axis=0));o=p*.995
     return Candles(('BTCUSDT','ETHUSDT','ADAUSDT'),np.arange(440)*86400,{'open':o,'high':p*1.02,'low':o*.98,'close':p,'volume':np.full_like(p,1e6)},'a'*64)
 
 class CurriculumTests(unittest.TestCase):
+    def test_curriculum_digests_all_examples_in_bounded_cohorts(self):
+        # Exact source-sized mock: train on the FIRST 256 experiences before
+        # all later observations could evict them from a 4096-row replay.
+        class Worker:
+            def __init__(self):
+                self.frames = 0
+                self.updates = 0
+                self.first_train_frames = None
+                self.awaiting_train = False
+
+            def call(self, op, **kw):
+                if op == 'status':
+                    return {'frames': self.frames, 'updates': self.updates}
+                if op == 'teach':
+                    if self.awaiting_train:
+                        raise AssertionError('Untrained batch was overwritten')
+                    self.frames += len(kw['experiences'])
+                    self.awaiting_train = True
+                    return {'frames': self.frames}
+                if op == 'train':
+                    if not self.awaiting_train or self.frames < 64:
+                        raise AssertionError('No eligible replay')
+                    if self.first_train_frames is None:
+                        self.first_train_frames = self.frames
+                    self.updates = kw['updates']
+                    self.awaiting_train = False
+                    return {'updates': self.updates}
+                raise AssertionError(op)
+
+        w = Worker()
+        receipt = digest_chunks(w, list(range(47520)),
+                                field='experiences', updates=256,
+                                batch_size=256, transitions_per_item=1)
+        self.assertEqual(receipt['transitions'], 47520)
+        self.assertEqual(w.updates, 256)
+        self.assertEqual(w.first_train_frames, 256)
+        self.assertEqual(receipt['cohort_count'], 186)
+        self.assertEqual(receipt['receipts'][-1]['items_through'], 47520)
+
+
     def test_portable_prediction_check_requires_same_action_and_bounded_error(self):
         c=compare_predictions({'values':[[1.,2.0000001]]},{'values':[[1.,2.]]})
         self.assertTrue(c['same_greedy_action']);self.assertFalse(c['values_exactly_equal'])
