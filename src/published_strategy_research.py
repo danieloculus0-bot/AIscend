@@ -237,7 +237,11 @@ def evaluate(raw, *, fee_bps=DEFAULT_FEE_BPS, spread_bps=DEFAULT_SPREAD_BPS,
 
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--product", action="append", required=True)
+    p.add_argument("--product", action="append")
+    p.add_argument("--all-products", action="store_true",
+                   help="Research the entire public spot catalog in deterministic shards")
+    p.add_argument("--shards", type=int, default=8)
+    p.add_argument("--shard-index", type=int, default=0)
     p.add_argument("--days", type=int, default=270)
     p.add_argument("--learn", action="store_true",
                    help="Persist strictly future observations in local SQLite; no orders")
@@ -247,6 +251,17 @@ def main(argv=None):
                    default=Path("artifacts/published-strategy-research.json"))
     args = p.parse_args(argv)
     fixed_clock = int(time.time()//BAR)*BAR
+    if args.all_products:
+        if args.product or not 1 <= args.shards <= 64 or not 0 <= args.shard_index < args.shards:
+            p.error("Use --all-products alone with valid --shards/--shard-index")
+        from .universe_research import discover_public_spot, shard_for
+        catalog = discover_public_spot()["eligible_quote_markets"]
+        products = [name for name in catalog
+                    if shard_for(name, args.shards) == args.shard_index]
+    else:
+        if not args.product:
+            p.error("Specify --product or --all-products")
+        products = sorted(set(p.upper() for p in args.product))
     reports = {}
     learner = None
     if args.learn:
@@ -254,7 +269,7 @@ def main(argv=None):
         from .core import app_data_dir
         learner = PublishedRuleLearner(args.ledger or
                     (app_data_dir() / "published-strategy-learning.sqlite3"))
-    for product in sorted(set(p.upper() for p in args.product)):
+    for product in products:
         try:
             data = fetch_public_ohlcv(product, days=args.days,
                                       clock=lambda: fixed_clock)
@@ -277,7 +292,10 @@ def main(argv=None):
                                 "reason": type(exc).__name__,
                                 "promotion_authorized": False}
     result = {"schema": "aiscend.published.strategy.research.v1",
-              "as_of": fixed_clock, "research_only": True,
+              "as_of": fixed_clock, "attempted_count": len(products),
+              "shards": args.shards if args.all_products else None,
+              "shard_index": args.shard_index if args.all_products else None,
+              "research_only": True,
               "promotion_authorized": False, "markets": reports}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, sort_keys=True,
