@@ -294,14 +294,26 @@ class AdvancedSpotEngine:
         return fused, context, human_score, human_weight
 
     def sync(self) -> dict[str, Any]:
-        status = self.rail.status()
-        # status() must authenticate first. Never trust a key fingerprint as
-        # proof the key has permissions until the venue status call succeeds.
+        # Snapshot identity must cover the authenticated account read itself.
+        # If credentials rotate while status() paginates wallets, attributing
+        # the old balances to the new key would defeat the pre-order scope
+        # check and could size an order against the wrong account.
         scope_reader = getattr(self.rail, "account_scope_id", None)
+        try:
+            scope_before = scope_reader() if callable(scope_reader) else None
+        except Exception:
+            scope_before = None
+        status = self.rail.status()
+        # A fingerprint alone is not authentication: status() must succeed.
         try:
             authenticated_scope = scope_reader() if callable(scope_reader) else None
         except Exception:
             authenticated_scope = None
+        if callable(scope_reader) and scope_before != authenticated_scope:
+            raise RuntimeError(
+                "Coinbase credential identity changed during authenticated "
+                "account snapshot; balances discarded and trading paused."
+            )
         if (not isinstance(authenticated_scope, str)
                 or len(authenticated_scope) != 64
                 or any(c not in "0123456789abcdef" for c in authenticated_scope)):
