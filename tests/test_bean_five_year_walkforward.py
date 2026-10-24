@@ -119,10 +119,15 @@ class FiveYearWalkforwardTests(unittest.TestCase):
     def test_learning_on_off_same_candles_same_fees_and_frozen_choices(self):
         report=walkforward(synthetic(2350,shape="waves"), product="TEST-USD")
         self.assertEqual(report["fold_count"],len(report["folds"]))
+        self.assertEqual(report["q_weight_predeclared"],
+                         [0., .25, 1., 2., 4.])
         learned=baseline=1.
+        trial = {str(w):1. for w in report["q_weight_predeclared"]}
         for fold in report["folds"]:
             learned*=1+fold["fee_net_return"]
             baseline*=1+fold["no_memory_fee_net_return"]
+            for name in trial:
+                trial[name]*=1+fold["q_weight_research"][name]["net_return"]
             self.assertIn("no_memory_winner",fold)
             self.assertIn("baseline_training_scores",fold)
             self.assertEqual(len(fold["all_rule_test_results_after_close"]),7)
@@ -137,6 +142,13 @@ class FiveYearWalkforwardTests(unittest.TestCase):
                                learned-baseline,places=6)
         self.assertEqual(report["learning_outperformed_no_memory"],
                          learned>baseline)
+        for name, value in trial.items():
+            self.assertAlmostEqual(report["q_weight_research_only"][name],
+                                   value-1,places=6)
+        self.assertAlmostEqual(report["q_weight_research_only"]["0.0"],
+                               report["no_memory_net_return"],places=7)
+        self.assertAlmostEqual(report["q_weight_research_only"]["0.25"],
+                               report["net_return"],places=7)
         records=report["ledger"]
         locked=[r for r in records
                 if r["type"]=="locked_before_test_window"]
