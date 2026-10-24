@@ -15,6 +15,12 @@ Run from the same Python source checkout and environment used for python main.py
 
 This command uses ONLY public Coinbase OHLCV candles and writes artifacts/published-strategy-research.json.
 
+To test the complete *public* Coinbase USD/USDC spot catalog rather than a short whitelist, run one deterministic shard at a time; for eight shards, use shard-index 0 through 7:
+
+    python -m src.published_strategy_research --all-products --shards 8 --shard-index 0 --days 270
+
+Public listings do not imply the owner's authenticated account can place orders. PARTIAL and INSUFFICIENT_HISTORY outcomes are normal and never artificially promoted. This command can make many public HTTP requests over a large catalog. Do not run the eight shards concurrently unless respecting Coinbase rate limits.
+
 Training selects a candidate using only the first 70% of genuine contiguous six-hour candles, reserving the last 30% as untouched historical holdout. Hypothetical entries and exits fill at NEXT six-hour OPEN; modeled fees are 90 bps per side plus 10 bps round-trip spread, with a higher-cost stress case. Real user fees, realized slippage and order-book depth remain unknown. No automatic promotion.
 
 PARTIAL and INSUFFICIENT_HISTORY are normal research outcomes. Historical OOS_PASS is a historical label, NOT verified future profitability.
