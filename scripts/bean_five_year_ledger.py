@@ -70,12 +70,36 @@ def store_report(db_path, report):
             event_json TEXT NOT NULL,
             PRIMARY KEY (experiment_sha,sequence),
             FOREIGN KEY (experiment_sha) REFERENCES experiments(experiment_sha))""")
+        db.execute("""CREATE TABLE IF NOT EXISTS market_outcomes (
+            outcome_sha TEXT PRIMARY KEY,
+            product TEXT NOT NULL,
+            status TEXT NOT NULL,
+            report TEXT NOT NULL,
+            saved_at INTEGER NOT NULL)""")
         db.commit()
         db.execute("BEGIN IMMEDIATE")
         for product, record in sorted(report.get("markets", {}).items()):
-            if record.get("status") != "HISTORICAL_WALKFORWARD_RESEARCH":
-                outcomes.append({"product": product, "status": record.get("status"),
-                                 "stored": False})
+            # Retain *all* attempts. Failed fetches, gaps and young markets
+            # are valid evidence, not reasons to omit the asset from BEAN memory.
+            status = record.get("status")
+            if not isinstance(status, str) or not status:
+                raise ValueError("MISSING_RESEARCH_STATUS")
+            encoded_outcome = canonical(record)
+            outcome_sha = hashlib.sha256(
+                (product + "\n" + encoded_outcome).encode()).hexdigest()
+            prior_outcome = db.execute(
+                "SELECT report FROM market_outcomes WHERE outcome_sha=?",
+                (outcome_sha,)).fetchone()
+            if prior_outcome is not None and prior_outcome[0] != encoded_outcome:
+                raise ValueError("IMMUTABLE_OUTCOME_REPLAY_MISMATCH")
+            if prior_outcome is None:
+                db.execute("INSERT INTO market_outcomes VALUES (?,?,?,?,?)",
+                           (outcome_sha, product, status, encoded_outcome,
+                            int(time.time())))
+            if status != "HISTORICAL_WALKFORWARD_RESEARCH":
+                outcomes.append({"product": product, "status": status,
+                                 "outcome_sha": outcome_sha,
+                                 "stored": prior_outcome is None})
                 continue
             sha = validate_experiment(product, record)
             prior = db.execute("SELECT report FROM experiments WHERE experiment_sha=?",
@@ -127,7 +151,19 @@ def audit_db(db_path):
                              "folds":record["fold_count"],
                              "net_return":record["net_return"],
                              "benchmark":record["fold_rebalanced_buy_hold_return"]})
+        outcomes = db.execute(
+            "SELECT outcome_sha,product,status,report FROM market_outcomes").fetchall()
+        for sha, product, status, encoded in outcomes:
+            if (hashlib.sha256((product + "\n" + encoded).encode()).hexdigest()
+                    != sha or json.loads(encoded).get("status") != status):
+                raise ValueError("BEAN_RESEARCH_OUTCOME_CHANGED")
+        # Every full experiment is also indexed as a market outcome.
+        outcome_keys = {(p, enc) for _, p, _, enc in outcomes}
+        if any((p, payload) not in outcome_keys for p, payload in db.execute(
+                   "SELECT product,report FROM experiments")):
+            raise ValueError("MISSING_EXPERIMENT_OUTCOME")
     return {"status":"LEDGER_VERIFIED","experiments":verified,
+            "outcome_count":len(outcomes),
             "promotion_authorized":False}
 
 
