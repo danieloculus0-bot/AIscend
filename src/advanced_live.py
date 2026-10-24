@@ -989,18 +989,23 @@ class AdvancedSpotEngine:
         if not callable(getattr(self.rail, "order_detail", None)):
             # Mock rails are not authenticated Coinbase and have no reconciliation.
             return
-        # Direct execution callers and overlapping desktop cycles must not
-        # overwrite an unresolved client order id, even if the higher-level
-        # strategy gate has already checked the pending receipt.
-        if self.store.get_meta("pending_coinbase_order"):
-            raise RuntimeError(
-                "Unresolved Coinbase order intent already exists; "
-                "refusing to replace its idempotency key")
-        self.store.set_meta("pending_coinbase_order", json.dumps({
+        # Claim the one unresolved-order slot atomically across multiple
+        # desktop instances or Python processes. A get-then-set check could
+        # race and permanently overwrite the first accepted client's ID.
+        receipt = json.dumps({
             "order_id": None, "client_order_id": client_id,
             "product": product, "side": side,
             "account_scope": account_scope,
-            "submitted_at": time.time(), "state": "SUBMISSION_OUTCOME_UNKNOWN"}))
+            "submitted_at": time.time(), "state": "SUBMISSION_OUTCOME_UNKNOWN"})
+        with self.store.conn:
+            claimed = self.store.conn.execute(
+                "INSERT INTO meta(key,value) VALUES('pending_coinbase_order',?) "
+                "ON CONFLICT(key) DO UPDATE SET value=excluded.value "
+                "WHERE meta.value=''", (receipt,))
+            if claimed.rowcount != 1:
+                raise RuntimeError(
+                    "Unresolved Coinbase order intent already exists; "
+                    "refusing to replace its idempotency key")
 
     def _check_or_track_submission(self, order: dict[str, Any],
                                    *, product: str, side: str,
