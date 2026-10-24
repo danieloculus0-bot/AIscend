@@ -5,6 +5,8 @@ on:
     paths:
       - "scripts/bean_five_year_walkforward.py"
       - "tests/test_bean_five_year_walkforward.py"
+      - "scripts/bean_five_year_ledger.py"
+      - "tests/test_bean_five_year_ledger.py"
       - ".github/workflows/bean-five-year-walkforward.yml"
       - "src/published_strategy_research.py"
   workflow_dispatch:
@@ -21,9 +23,15 @@ jobs:
           python-version: '3.12'
       - name: Verify causal walk-forward regressions
         run: python -m unittest discover -s tests -p "test_bean_five_year_walkforward.py" -v
+      - name: Verify BEAN persistent ledger and replay regressions
+        run: python -m unittest discover -s tests -p "test_bean_five_year_ledger.py" -v
       - name: Research five actual calendar years of Coinbase public candles
         run: |
           python -m scripts.bean_five_year_walkforward --product BTC-USD --product ETH-USD --product SOL-USD --years 5 --output artifacts/bean-5y-walkforward.json --bridge-snapshot artifacts/bean-5y-bridge-snapshot.json
+      - name: Save research decisions and BEAN Q lessons for later replay
+        run: |
+          python -m scripts.bean_five_year_ledger --report artifacts/bean-5y-walkforward.json --db artifacts/bean-5y-learning.sqlite3
+          python -m scripts.bean_five_year_ledger --audit-only --db artifacts/bean-5y-learning.sqlite3
       - name: Checkout actual BEAN Core for independent advisory review
         run: git clone --depth 1 https://github.com/danieloculus0-bot/BEAN.git "$RUNNER_TEMP/bean-core"
       - name: Submit five-year result summary to BEAN Core advisory bridge
@@ -37,6 +45,7 @@ jobs:
           name: bean-five-year-walkforward-${{ github.run_number }}
           path: |
             artifacts/bean-5y-walkforward.json
+            artifacts/bean-5y-learning.sqlite3
             artifacts/bean-5y-bridge-snapshot.json
             artifacts/bean-5y-bean-core-advisory.json
           retention-days: 30
