@@ -21,7 +21,7 @@ from .core import app_data_dir
 from .primary_strategy import DEFAULT_TAKER_BPS
 
 ACTIONS = ("momentum", "reversion", "trend_3", "buy_hold", "cash")
-PAPER_COST_MODEL = "taker90bps_held_gap_reward_v4"
+PAPER_COST_MODEL = "taker90bps_forward_context_reward_v5"
 # Match the primary engine's conservative taker fallback per BUY/SELL leg.
 # Actual account/pair fees can differ; neither this model nor rewards prove profit.
 MODEL_FEE = DEFAULT_TAKER_BPS / 10000.0
@@ -71,7 +71,8 @@ def _fresh_state():
             "last_bar": None,
             "last_close": None, "recent_returns": [], "pending": None,
             "held": 0, "equity": 100.0, "peak": 100.0, "drawdown": 0.0,
-            "q": {}, "visits": {}, "wins": {}, "win_trials": {}, "paper_bars": 0, "forward_bars": 0,
+            "q": {}, "visits": {}, "wins": {}, "win_trials": {},
+            "forward_win_trials": {}, "paper_bars": 0, "forward_bars": 0,
             "mock_trades": 0, "history_gaps": 0, "bootstrapped": False,
             "equity_segment_restarts": 0,
             "strategy_changes": 0, "last_action": None,
@@ -180,6 +181,11 @@ class BeanAdaptiveGrowthGate:
             counts[action] = counts.get(action, 0) + 1
             trials = state.setdefault("win_trials", {}).setdefault(context, {})
             trials[action] = trials.get(action, 0) + 1
+            if state["bootstrapped"]:
+                # Historical bootstrap teaches Q but cannot qualify an
+                # adopted strategy for prospective live exposure.
+                forward = state.setdefault("forward_win_trials", {}).setdefault(context, {})
+                forward[action] = forward.get(action, 0) + 1
             if policy_reward > 0:
                 wins = state.setdefault("wins", {}).setdefault(context, {})
                 wins[action] = wins.get(action, 0) + 1
@@ -231,13 +237,18 @@ class BeanAdaptiveGrowthGate:
             if len(valid_times) < 30:
                 raise ValueError("insufficient contiguous completed candles")
             with self._lock, self._db() as db:
+                # Two Python desktop instances have distinct in-process locks.
+                # Reserve the SQLite write slot BEFORE reading the previous
+                # Q state, otherwise both can replay stale state and overwrite
+                # the other's newly completed rewards.
+                db.execute("BEGIN IMMEDIATE")
                 row = db.execute("SELECT state FROM policy WHERE product=?", (market,)).fetchone()
                 state = json.loads(row["state"]) if row else _fresh_state()
                 if row and state.get("cost_model") != PAPER_COST_MODEL:
-                    # Old Q values learned with a 7-bps fee and missing
-                    # inter-bar returns cannot be relabeled as 60-bps returns.
-                    # Archive them for evidence, then replay available bars
-                    # under the corrected model before adopting decisions.
+                    # Reward cost and forward-evidence models are versioned.
+                    # Archive previously learned scores; historical bootstrap
+                    # samples cannot masquerade as independently observed
+                    # forward evidence for funded policy adoption.
                     db.execute(
                         "INSERT OR IGNORE INTO policy_archive "
                         "(product,model_version,archived_at,state) VALUES(?,?,?,?)",
@@ -284,8 +295,13 @@ class BeanAdaptiveGrowthGate:
                 samples = int(state.get("win_trials", {}).get(ctxt, {}).get(adopted, 0))
                 # A global bar count is not evidence for the chosen policy in
                 # the current regime. Require direct observed rewards.
+                forward_samples = int(state.get("forward_win_trials", {})
+                                      .get(ctxt, {}).get(adopted, 0))
+                # Require observed rewards AFTER the historical bootstrap for
+                # this exact selected action and market regime.
                 enough = (state["paper_bars"] >= MIN_HISTORY and
-                          samples >= MIN_FORWARD_BARS)
+                          samples >= MIN_FORWARD_BARS and
+                          forward_samples >= MIN_FORWARD_BARS)
                 won = int(state.get("wins", {}).get(ctxt, {}).get(adopted, 0))
                 result = {"status": "READY" if enough else "WARMING_UP",
                           "paper_cost_model": PAPER_COST_MODEL,
@@ -296,6 +312,10 @@ class BeanAdaptiveGrowthGate:
                           "learned_strategy": adopted, "target_exposure": target,
                           "allow_buy": bool(target),
                           "observed_samples": samples,
+                          "observed_forward_samples": forward_samples,
+                          "adoption_evidence": (
+                              "POST_BOOTSTRAP_CONTEXT_ACTION_SAMPLES" if enough
+                              else "NOT_YET_POST_BOOTSTRAP_VERIFIED"),
                           "observed_win_rate": (won / samples) if samples else None,
                           "probability_note": "observed simulated bar win frequency, not calibrated future odds",
                           "observed_through": state["last_bar"],
@@ -328,8 +348,19 @@ class BeanAdaptiveGrowthGate:
             state = json.loads(row["state"])
             ctxt = _features(state["recent_returns"])
             adopted = _choose(state, ctxt, explore=False, seed=0)
+            direct = int(state.get("win_trials", {}).get(ctxt, {}).get(adopted, 0))
+            observed = int(state.get("forward_win_trials", {})
+                           .get(ctxt, {}).get(adopted, 0))
+            ready = (state.get("cost_model") == PAPER_COST_MODEL
+                     and state.get("paper_bars", 0) >= MIN_HISTORY
+                     and direct >= MIN_FORWARD_BARS
+                     and observed >= MIN_FORWARD_BARS)
             markets.append({
                 "product": row["product"],
+                "adoption_status": "READY" if ready else "WARMING_UP",
+                "selected_action_observed_samples": direct,
+                "selected_action_forward_samples": observed,
+                "paper_model": state.get("cost_model"),
                 "forward_bars": state["forward_bars"],
                 "reward_updates": sum(sum(v.values()) for v in state["visits"].values()),
                 "behavior_revisions": state.get("behavior_revisions", 0),
