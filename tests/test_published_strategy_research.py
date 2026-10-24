@@ -1,7 +1,11 @@
 """Offline tests of published systematic crypto rule adaptations."""
+import json
+import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 from src.published_strategy_research import (
-    BAR, RULES, _signal, evaluate, fetch_public_ohlcv,
+    BAR, RULES, _signal, evaluate, fetch_public_ohlcv, main,
     normalize, simulate, WARMUP,
 )
 
@@ -127,6 +131,25 @@ class PublishedRuleResearchTests(unittest.TestCase):
         rows[300].update(open=9999., high=10001.,
                          low=9998., close=10000.)
         self.assertEqual(prior, _signal(rows, 299, ("donchian_20_10",)))
+
+    def test_public_catalog_shard_research_does_not_contact_wallet(self):
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder)/"published.json"
+            catalog = {"eligible_quote_markets": ["BTC-USD", "ETH-USD", "SOL-USD"]}
+            shard = lambda product, total: 1 if product == "ETH-USD" else 0
+            with patch("src.universe_research.discover_public_spot",
+                       return_value=catalog), \
+                 patch("src.universe_research.shard_for",
+                       side_effect=shard), \
+                 patch("src.published_strategy_research.fetch_public_ohlcv",
+                       return_value=series()):
+                self.assertEqual(main(["--all-products", "--shards", "2",
+                                       "--shard-index", "0", "--days", "270",
+                                       "--output", str(output)]), 0)
+            report = json.loads(output.read_text())
+            self.assertEqual(set(report["markets"]), {"BTC-USD", "SOL-USD"})
+            self.assertEqual(report["attempted_count"], 2)
+            self.assertFalse(report["promotion_authorized"])
 
     def test_reject_infinite_cost(self):
         with self.assertRaisesRegex(ValueError, "INVALID_COST"):
