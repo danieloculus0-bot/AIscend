@@ -390,6 +390,29 @@ class AccountEvidenceTests(unittest.TestCase):
         self.assertEqual(report["execution"]["status"],"UNVERIFIED_ACCOUNT_SCOPE")
         self.assertEqual(report["execution"]["fill_count_retained"],0)
 
+    def test_key_rotation_during_fill_read_never_misattributed_to_prior_scope(self):
+        class RotatingReader:
+            def __init__(self, rows):
+                self.rows = rows
+                self.scope = SCOPE_A
+            def account_scope_id(self):
+                return self.scope
+            def account_fills(self):
+                # The response belongs to B, even though the initial
+                # authenticated snapshot and history scope belonged to A.
+                self.scope = SCOPE_B
+                return {"fills": self.rows, "complete": True}
+
+        report = evaluate_account(
+            self.store, self.snap, RotatingReader(self.fills),
+            clock=lambda: 1000)
+        self.assertEqual(report["read_status"], "HISTORY_READ_FAILED:RuntimeError")
+        self.assertEqual(report["execution"]["status"], "UNVERIFIED_OR_STALE")
+        self.assertFalse(report["execution"]["history_fully_reconciled"])
+        self.assertEqual(self.history(self.store, clock=lambda: 1001)["fill_count_retained"], 0)
+        self.assertEqual(self.store.conn.execute(
+            "SELECT COUNT(*) FROM bean_account_fills").fetchone()[0], 0)
+
     def test_broken_fill_reader_reports_problem_without_inventing_fills(self):
         class Broken:
             def account_scope_id(self):
