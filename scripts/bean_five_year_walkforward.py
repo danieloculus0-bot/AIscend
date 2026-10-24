@@ -26,7 +26,7 @@ TRAIN_BARS = 1460                  # 365 days on 6h bars
 TEST_BARS = 360                    # 90-day sealed test windows
 FIRST_TEST = WARMUP + TRAIN_BARS   # warm-up cannot be training performance
 MAX_CANDLES = 280
-MODEL = "five_year_six_hour_walkforward_bean_q_v1"
+MODEL = "five_year_six_hour_walkforward_bean_q_vs_no_memory_v2"
 
 
 def fetch_five_year(product, *, years=5, fetcher=_get_json, clock=None):
