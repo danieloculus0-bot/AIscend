@@ -58,6 +58,24 @@ class BeanProspectiveTests(unittest.TestCase):
             self.run_step(60)
         self.assertFalse(self.db.exists())
 
+    def test_buy_hold_benchmark_starts_before_first_strategy_entry(self):
+        # First forward candle is completed before the pending strategy entry.
+        # Buy-and-hold must include this bar rather than start at the trade.
+        self.run_step(60)
+        before_entry = self.run_step(61)["markets"]["BTC-USD"]
+        self.assertEqual(before_entry["orders"], 0)
+        self.assertEqual(before_entry["forward_bars"], 1)
+        data = candles()
+        opening = data[60 * BAR]["open"]
+        cost = (90 + 10 / 2) / 10000
+        expected_first = data[60 * BAR]["close"] / opening * (1 - cost)**2 - 1
+        self.assertAlmostEqual(before_entry["buy_hold_net"], expected_first, places=7)
+
+        after_entry = self.run_step(62)["markets"]["BTC-USD"]
+        expected_second = data[61 * BAR]["close"] / opening * (1 - cost)**2 - 1
+        self.assertEqual(after_entry["orders"], 1)
+        self.assertAlmostEqual(after_entry["buy_hold_net"], expected_second, places=7)
+
     def test_prospective_entry_is_never_filled_at_open_before_signal(self):
         first = self.run_step(60)["markets"]["BTC-USD"]
         self.assertEqual(first["orders"],0)
