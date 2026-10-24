@@ -150,7 +150,9 @@ def audit_db(db_path):
             verified.append({"experiment_sha":sha,"product":product,
                              "folds":record["fold_count"],
                              "net_return":record["net_return"],
-                             "benchmark":record["continuous_buy_hold_return"]})
+                             "benchmark":record.get("continuous_buy_hold_return"),
+                             "legacy_fold_benchmark":record.get(
+                                 "fold_rebalanced_buy_hold_return")})
         outcomes = db.execute(
             "SELECT outcome_sha,product,status,report FROM market_outcomes").fetchall()
         for sha, product, status, encoded in outcomes:
