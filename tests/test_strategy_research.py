@@ -1,4 +1,5 @@
 import unittest
+from inspect import signature
 from unittest.mock import patch
 
 from src.bean_five_minute import BAR, fetch_5m
@@ -20,6 +21,10 @@ def fixture(n=1100, *, trend=.001):
 
 
 class ResearchEvidenceTests(unittest.TestCase):
+    def test_default_fee_model_is_current_us_entry_taker_baseline(self):
+        self.assertEqual(signature(simulate).parameters["fee_bps"].default, 90.0)
+        self.assertEqual(signature(validate).parameters["fee_bps"].default, 90.0)
+
     def test_all_policies_evaluated_with_chronological_holdout(self):
         result=validate(fixture())
         self.assertIn(result["champion"],RESEARCH_POLICIES)
