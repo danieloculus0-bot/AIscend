@@ -954,6 +954,31 @@ class AdvancedSpotEngine:
         self.store.add_decision(decision, status)
         return self.sync()
 
+    def _require_snapshot_order_scope(self, snapshot: dict[str, Any]) -> None:
+        """Reject a trade if credentials changed after the authenticated sync.
+
+        A read-only account snapshot and its balances must not authorize an
+        order sent with a different Coinbase credential. Mock rails without
+        credential-scoping remain usable for offline execution tests.
+        """
+        reader = getattr(self.rail, "account_scope_id", None)
+        if not callable(reader):
+            return
+        expected = snapshot.get("authenticated_scope")
+        try:
+            current = reader()
+        except Exception as exc:
+            raise RuntimeError(
+                "Coinbase credential identity could not be rechecked before order"
+            ) from exc
+        if (not isinstance(expected, str) or len(expected) != 64
+                or any(c not in "0123456789abcdef" for c in expected)
+                or current != expected):
+            raise RuntimeError(
+                "Coinbase credentials changed since the authenticated account "
+                "snapshot; no order was submitted. Refresh account evidence."
+            )
+
     def _record_order_intent(self, *, product: str, side: str,
                              client_id: str, account_scope=None) -> None:
         """Persist the idempotency key BEFORE a potentially irreversible order.
@@ -1428,6 +1453,7 @@ class AdvancedSpotEngine:
             raise RuntimeError(f"Available {quote} is below Coinbase order minimum for {product_id}.")
 
         preview = self.rail.preview_market_buy(product_id, spend)
+        self._require_snapshot_order_scope(snapshot)
         client_order_id = f"aiscend-{uuid.uuid4()}"
         self._record_order_intent(product=product_id, side="BUY",
                                   client_id=client_order_id,
@@ -1514,6 +1540,7 @@ class AdvancedSpotEngine:
         previewer = getattr(self.rail, "preview_market_sell", None)
         preview = previewer(product_id, qty) if callable(previewer) else None
 
+        self._require_snapshot_order_scope(snapshot)
         client_order_id = f"aiscend-{uuid.uuid4()}"
         self._record_order_intent(product=product_id, side="SELL",
                                   client_id=client_order_id,
