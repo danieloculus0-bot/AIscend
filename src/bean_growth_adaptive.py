@@ -343,8 +343,19 @@ class BeanAdaptiveGrowthGate:
             state = json.loads(row["state"])
             ctxt = _features(state["recent_returns"])
             adopted = _choose(state, ctxt, explore=False, seed=0)
+            direct = int(state.get("win_trials", {}).get(ctxt, {}).get(adopted, 0))
+            observed = int(state.get("forward_win_trials", {})
+                           .get(ctxt, {}).get(adopted, 0))
+            ready = (state.get("cost_model") == PAPER_COST_MODEL
+                     and state.get("paper_bars", 0) >= MIN_HISTORY
+                     and direct >= MIN_FORWARD_BARS
+                     and observed >= MIN_FORWARD_BARS)
             markets.append({
                 "product": row["product"],
+                "adoption_status": "READY" if ready else "WARMING_UP",
+                "selected_action_observed_samples": direct,
+                "selected_action_forward_samples": observed,
+                "paper_model": state.get("cost_model"),
                 "forward_bars": state["forward_bars"],
                 "reward_updates": sum(sum(v.values()) for v in state["visits"].values()),
                 "behavior_revisions": state.get("behavior_revisions", 0),
