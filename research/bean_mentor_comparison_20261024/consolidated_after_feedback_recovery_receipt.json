@@ -1,0 +1,14 @@
+{
+  "policy_id": "consolidated_after_feedback",
+  "module": "bean.optimization.sponge_dqn",
+  "knowledge_cutoff": "2025-10-01T00:00:00Z",
+  "updates": 1728,
+  "frames": 49456,
+  "replay_entries": 4096,
+  "weights_sha256": "3bef097b33d94b8f4aab3d5781022b6471cd8af7d2deaf0c9a89a4a9c6d8f76b",
+  "optimizer_recovered": true,
+  "diagnostic_values_match": null,
+  "prediction_recovery": null,
+  "economic_qualification": "UNEVALUATED_AFTER_CONSOLIDATION",
+  "live_orders": false
+}
