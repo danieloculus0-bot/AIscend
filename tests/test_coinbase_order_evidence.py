@@ -159,6 +159,43 @@ class OrderEvidenceTests(unittest.TestCase):
             finally:
                 store.close()
 
+    def test_switched_credentials_after_ack_preserve_unverified_receipt(self):
+        class SwitchingRail:
+            def __init__(self):
+                self.scope = "a" * 64
+                self.lookups = []
+
+            def account_scope_id(self):
+                return self.scope
+
+            def order_detail(self, order_id):
+                self.lookups.append(order_id)
+                raise AssertionError("Do not query prior order with new credentials")
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "post-ack-scope.db")
+            try:
+                rail = SwitchingRail()
+                engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                engine.store, engine.rail = store, rail
+                account_a = rail.scope
+                engine._record_order_intent(
+                    product="BTC-USD", side="BUY", client_id="client-a",
+                    account_scope=account_a)
+                rail.scope = "b" * 64
+                state, receipt = engine._check_or_track_submission(
+                    {"success": True, "success_response": {"order_id": "order-a"}},
+                    product="BTC-USD", side="BUY", client_id="client-a",
+                    account_scope=account_a)
+                self.assertEqual(state, "ORDER_ACCEPTED_UNVERIFIED")
+                self.assertIn("credentials changed", receipt["reason"])
+                self.assertEqual(rail.lookups, [])
+                pending = json.loads(store.get_meta("pending_coinbase_order"))
+                self.assertEqual(pending["account_scope"], account_a)
+                self.assertEqual(pending["order_id"], "order-a")
+            finally:
+                store.close()
+
     def test_changed_coinbase_credentials_block_both_order_sides(self):
         class SwitchedRail:
             def __init__(self):
