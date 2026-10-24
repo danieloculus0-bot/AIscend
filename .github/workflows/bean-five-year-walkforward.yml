@@ -7,6 +7,8 @@ on:
       - "tests/test_bean_five_year_*.py"
       - ".github/workflows/bean-five-year-walkforward.yml"
       - "src/published_strategy_research.py"
+      - "scripts/bean_five_year_archive.py"
+      - "scripts/bean_five_year_recall.py"
   workflow_dispatch:
 permissions:
   contents: read
@@ -19,6 +21,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Verify BEAN archive and strictly causal learning recall
+        run: python -m unittest discover -s tests -p "test_bean_five_year_archive_recall.py" -v
       - name: Freeze entire eligible Coinbase public spot catalog ONCE
         run: |
           python -m scripts.bean_five_year_universe --snapshot-catalog artifacts/bean-5y-catalog.json
@@ -111,3 +115,45 @@ jobs:
             artifacts/bean-5y-universe-bean-core-advisory.json
           retention-days: 90
           if-no-files-found: warn
+  archive-to-review-branch:
+    needs: [aggregate]
+    if: ${{ needs.aggregate.result == 'success' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: bean-five-year-ALL-market-ledger-${{ github.run_number }}
+          path: artifacts/retained
+      - name: Verify and pack COMPLETE ledger in source-controlled archive
+        run: |
+          mkdir -p research/bean-five-year
+          python -m scripts.bean_five_year_archive --create research/bean-five-year/run-${{ github.run_id }}.zip --catalog artifacts/retained/bean-5y-catalog.json --summary artifacts/retained/bean-5y-universe-summary.json --db artifacts/retained/bean-5y-universe.sqlite3 > research/bean-five-year/run-${{ github.run_id }}.manifest.json
+          python -m scripts.bean_five_year_archive --verify research/bean-five-year/run-${{ github.run_id }}.zip
+      - name: Commit ONLY archive files to a NEW research review branch
+        env:
+          ARCHIVE_BRANCH: research/bean-five-year-${{ github.run_id }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main:refs/remotes/origin/main
+          git switch -c "$ARCHIVE_BRANCH" origin/main
+          git add -f "research/bean-five-year/run-${{ github.run_id }}.zip" "research/bean-five-year/run-${{ github.run_id }}.manifest.json"
+          git commit -m "archive(research): verified full Coinbase five-year BEAN ledger [skip ci]"
+          git push origin "HEAD:refs/heads/$ARCHIVE_BRANCH"
+      - name: Create DRAFT review PR for archive (never auto-merge)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARCHIVE_BRANCH: research/bean-five-year-${{ github.run_id }}
+        run: |
+          gh pr create --base main --head "$ARCHIVE_BRANCH" --draft --title "archive: full Coinbase 5-year BEAN research run ${{ github.run_id }}" --body "Complete verified five-year public-market BEAN SQLite research ledger, normal incomplete outcomes, and checksum manifest. Historic research only; review required, no live trading permission."
