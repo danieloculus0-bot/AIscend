@@ -1,4 +1,5 @@
 """Offline tests for immutable freeze and truly future-only strategy learning."""
+from contextlib import closing
 import sqlite3
 import tempfile
 import unittest
@@ -108,8 +109,9 @@ class ForwardRuleLearningTests(unittest.TestCase):
                          clock=lambda: 720*BAR+5)
             gate.observe("BTC-USD", series(725),
                          clock=lambda: 725*BAR+5)
-            with sqlite3.connect(path) as db:
-                db.execute("UPDATE observations SET evidence='{}'")
+            with closing(sqlite3.connect(path)) as db:
+                with db:
+                    db.execute("UPDATE observations SET evidence='{}'")
             with self.assertRaisesRegex(ValueError, "CORRUPT_FORWARD_RESEARCH"):
                 gate.audit("BTC-USD")
 
