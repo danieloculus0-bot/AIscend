@@ -1220,6 +1220,16 @@ class AdvancedSpotEngine:
             }
         self.store.set_meta("bean_account_latest",
                             json.dumps(account_evidence, sort_keys=True))
+        # A verified credential scope alone does not prove the Coinbase fill
+        # ledger is current. If the authenticated history becomes unavailable,
+        # do not reopen a previously losing asset merely because its loss
+        # lockout cannot be evaluated. Protective exits remain independent.
+        scoped_rail = callable(getattr(
+            getattr(self, "rail", None), "account_scope_id", None))
+        history_ready = (not scoped_rail or (
+            account_evidence.get("account_scope_verified") is True
+            and (account_evidence.get("execution") or {}).get("status")
+                == "COMPLETE"))
         fee_bps, fee_source = self._taker_cost_bps()
         # Actual BEAN Q feedback now competes for live funded allocation.
         # Its selected long/cash signals are not merely advisory telemetry.
@@ -1258,6 +1268,11 @@ class AdvancedSpotEngine:
             eligible_routes.append(route)
         winner = eligible_routes[0] if eligible_routes else None
         plan["rejected_rotation_routes"] = len(plan["routes"]) - len(eligible_routes)
+        if not history_ready:
+            # A candidate is not executable while authenticated loss evidence
+            # is stale, partial or unavailable. Do not trigger rotation sells.
+            winner = None
+            plan["account_history_gate"] = "AUTHENTICATED_HISTORY_UNVERIFIED"
         plan["winner"] = winner
         plan["evaluated_at"] = time.time()
         plan["primary_engine"] = "aiscend_price_action_v1"
@@ -1390,6 +1405,13 @@ class AdvancedSpotEngine:
                     decision = Decision("SELL", product, 1.0,
                                         rationale + f" Execution failed: {exc}")
                 return write(decision, status)
+
+        if not history_ready:
+            return write(Decision("HOLD", None, 0.0,
+                "Coinbase authenticated fill history is missing, partial or "
+                "stale; new entries and rotations paused until a complete "
+                "read. Protective exits of existing holdings remain enabled."),
+                "ACCOUNT_HISTORY_UNVERIFIED")
 
         if winner is None:
             skipped = plan.get("skipped") or {}
