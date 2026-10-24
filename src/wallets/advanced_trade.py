@@ -443,7 +443,8 @@ class AdvancedTradeSpot:
         return float(value * Decimal("10000"))
 
     def find_order_id_by_client_id(
-        self, *, product_id: str, client_order_id: str, max_pages: int = 10
+        self, *, product_id: str, client_order_id: str, max_pages: int = 10,
+        expected_scope: str | None = None
     ) -> str | None:
         """Locate an uncertain submission without ever creating another order.
 
@@ -452,7 +453,8 @@ class AdvancedTradeSpot:
         """
         if not product_id or not client_order_id:
             raise ValueError("Product and client order ID are required")
-        client = self.vault.client()
+        client = (self.vault.client(expected_scope=expected_scope)
+                  if expected_scope is not None else self.vault.client())
         cursor = None
         seen_cursors = set()
         matched_ids = set()
@@ -484,11 +486,13 @@ class AdvancedTradeSpot:
             cursor = next_cursor
         return next(iter(matched_ids)) if matched_ids else None
 
-    def order_detail(self, order_id: str) -> dict[str, Any]:
+    def order_detail(self, order_id: str, *, expected_scope: str | None = None) -> dict[str, Any]:
         """Read an authenticated Coinbase order (not the submit ACK)."""
         if not order_id or not order_id.strip():
             raise ValueError("Coinbase order ID is required")
-        return self._dict(self.vault.client().get_order(order_id=order_id))
+        client = (self.vault.client(expected_scope=expected_scope)
+                  if expected_scope is not None else self.vault.client())
+        return self._dict(client.get_order(order_id=order_id))
 
     def position_fills(self, product_id: str, *, max_pages: int = 30) -> dict[str, Any]:
         """Read actual Coinbase fills for this product, exhausting pagination.
@@ -557,11 +561,13 @@ class AdvancedTradeSpot:
             cursor = next_cursor
         return {"fills": fills, "complete": False, "pages": max_pages}
 
-    def order_fills(self, order_id: str) -> dict[str, Any]:
+    def order_fills(self, order_id: str, *, expected_scope: str | None = None) -> dict[str, Any]:
         """Read actual execution fills/commissions, never a preview estimate."""
         if not order_id or not order_id.strip():
             raise ValueError("Coinbase order ID is required")
-        return self._dict(self.vault.client().get_fills(order_ids=[order_id]))
+        client = (self.vault.client(expected_scope=expected_scope)
+                  if expected_scope is not None else self.vault.client())
+        return self._dict(client.get_fills(order_ids=[order_id]))
 
     def preview_market_sell(self, product_id: str,
                             base_size: Decimal) -> dict[str, Any]:
