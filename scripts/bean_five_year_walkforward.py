@@ -243,55 +243,79 @@ def evaluate_product_history(fetched):
 
 
 def main(argv=None):
-    parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--product",action="append",required=True)
-    parser.add_argument("--years",type=int,default=5)
-    parser.add_argument("--output",type=Path,
+    from collections import Counter
+    from src.universe_research import _catalog_hash, shard_for
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--catalog", type=Path, required=True,
+                        help="One immutable full Coinbase public spot catalog shared by EVERY shard")
+    parser.add_argument("--shards", type=int, default=8)
+    parser.add_argument("--shard-index", type=int, required=True)
+    parser.add_argument("--years", type=int, default=5)
+    parser.add_argument("--output", type=Path,
                         default=Path("artifacts/bean-5y-walkforward.json"))
-    parser.add_argument("--bridge-snapshot",type=Path,
-                        help="Optional read-only observation for actual BEAN Core")
-    args=parser.parse_args(argv)
-    if args.years !=5:
+    parser.add_argument("--bridge-snapshot", type=Path,
+                        help="Read-only observation for actual BEAN Core")
+    args = parser.parse_args(argv)
+    if args.years != 5:
         parser.error("Experiment must cover exactly five calendar years")
-    results={}
-    for product in sorted(set(x.upper() for x in args.product)):
+    if not 1 <= args.shards <= 64 or not 0 <= args.shard_index < args.shards:
+        parser.error("Invalid complete-universe shard")
+    snapshot = json.loads(args.catalog.read_text(encoding="utf-8"))
+    if snapshot.get("schema") != "aiscend.bean.five_year.catalog.v1":
+        raise ValueError("INVALID_CATALOG_SCHEMA")
+    all_products = snapshot.get("eligible_quote_markets")
+    if (not isinstance(all_products, list) or not all_products or
+            all_products != sorted(set(all_products)) or
+            any(not isinstance(p, str) or not p.endswith(("-USD", "-USDC"))
+                for p in all_products)):
+        raise ValueError("INVALID_COMPLETE_CATALOG")
+    catalog_hash = _catalog_hash(all_products)
+    if catalog_hash != snapshot.get("catalog_hash"):
+        raise ValueError("CATALOG_HASH_MISMATCH")
+    selected = [p for p in all_products
+                if shard_for(p, args.shards) == args.shard_index]
+    results = {}
+    for product in selected:
         try:
-            fetched=fetch_five_year(product,years=args.years)
-            results[product]=evaluate_product_history(fetched)
+            fetched = fetch_five_year(product, years=args.years)
+            results[product] = evaluate_product_history(fetched)
         except Exception as exc:
-            results[product]={"status":"DATA_UNAVAILABLE",
-                              "error_type":type(exc).__name__,
-                              "promotion_authorized":False}
-    report={"schema":"aiscend.bean.five_year.walkforward.v1",
-            "simulated_start_capital":1000.0,
-            "research_only":True,"promotion_authorized":False,
-            "markets":results}
-    args.output.parent.mkdir(parents=True,exist_ok=True)
-    args.output.write_text(json.dumps(report,indent=2,sort_keys=True,
-                                      allow_nan=False)+"\n",encoding="utf-8")
+            results[product] = {"product": product, "status": "DATA_UNAVAILABLE",
+                                "error_type": type(exc).__name__,
+                                "promotion_authorized": False}
+    counts = dict(sorted(Counter(r["status"] for r in results.values()).items()))
+    report = {"schema": "aiscend.bean.five_year.walkforward.v2",
+              "catalog_hash": catalog_hash, "catalog_size": len(all_products),
+              "eligible_quote_markets": all_products,
+              "shards": args.shards, "shard_index": args.shard_index,
+              "attempted_count": len(selected), "status_counts": counts,
+              "simulated_start_capital": 1000.0,
+              "research_only": True, "promotion_authorized": False,
+              "markets": results}
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(report, indent=2, sort_keys=True,
+                                      allow_nan=False) + "\n", encoding="utf-8")
     if args.bridge_snapshot:
-        observation={
-            "positions":{},"rotation_reviews":[],
-            "net_liquidation":None,
-            "market_radar":{
-                "prediction":"HISTORICAL_WALKFORWARD_RESEARCH_ONLY",
-                "thesis":"BEAN advisory review; no orders, no future profits claimed",
-                "five_year_summary":{key:{
-                    "status":val["status"],"net_return":val.get("net_return"),
-                    "fold_count":val.get("fold_count"),
-                    "history_coverage":val.get("history_coverage")}
-                    for key,val in results.items()}}}
-        args.bridge_snapshot.parent.mkdir(parents=True,exist_ok=True)
-        args.bridge_snapshot.write_text(
-            json.dumps(observation,indent=2,sort_keys=True)+"\n",
-            encoding="utf-8")
-    print(json.dumps({p:{"status":r["status"],
-                         "fold_count":r.get("fold_count"),
-                         "net_return":r.get("net_return"),
-                         "history_coverage":r.get("history_coverage")}
-                     for p,r in results.items()},sort_keys=True))
+        observation = {
+            "positions": {}, "rotation_reviews": [], "net_liquidation": None,
+            "market_radar": {
+                "prediction": "FIVE_YEAR_FULL_UNIVERSE_RESEARCH_ONLY",
+                "catalog_hash": catalog_hash, "shard_index": args.shard_index,
+                "attempted": len(selected), "status_counts": counts,
+                "thesis": "BEAN advisory only; no funded orders or future profit claims",
+                "markets": {p: {"status": r["status"],
+                                "net_return": r.get("net_return")}
+                            for p, r in results.items()}}}
+        args.bridge_snapshot.parent.mkdir(parents=True, exist_ok=True)
+        args.bridge_snapshot.write_text(json.dumps(
+            observation, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(json.dumps({"catalog_size": len(all_products),
+                      "catalog_hash": catalog_hash, "attempted": len(selected),
+                      "shard_index": args.shard_index, "status_counts": counts,
+                      "promotion_authorized": False}, sort_keys=True))
     return 0
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
     raise SystemExit(main())
