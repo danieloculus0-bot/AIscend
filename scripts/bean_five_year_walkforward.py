@@ -319,19 +319,30 @@ def walkforward(raw, *, product="UNKNOWN-USD", fee_bps=DEFAULT_FEE_BPS,
 
 def evaluate_product_history(fetched, *, recall_db=None):
     runs=contiguous_runs(fetched["data"])
-    # Keep all gaps visible, never fabricate missing six-hour bars.
+    # Do not select the longest interval with hindsight: that can discard a
+    # recent crash or bad data regime and inflate historical profitability.
+    # Anchor to the newest genuinely consecutive candles instead.
     longest=max(runs,key=len) if runs else {}
+    latest=runs[-1] if runs else {}
     expected=fetched["expected_bars"]
     coverage=fetched["received_bars"]/expected if expected else 0.
+    expected_last=(fetched["end"]-BAR if "end" in fetched else
+                   max(latest) if latest else None)
+    current_at_end=bool(latest and max(latest)==expected_last)
     common={"product":fetched["product"],"expected_bars":expected,
             "received_bars":fetched["received_bars"],
             "history_coverage":round(coverage,6),
             "contiguous_runs":len(runs),"longest_run_bars":len(longest),
+            "selected_recent_run_bars":len(latest),
+            "research_segment_selection":"latest_contiguous_tail_only_v2",
             "history_status":"COMPLETE" if fetched["received_bars"]==expected
                 else "PARTIAL", "promotion_authorized":False}
-    if not longest or len(longest)<FIRST_TEST+TEST_BARS:
+    if not current_at_end:
+        return {**common, "status":"INSUFFICIENT_HISTORY",
+                "reason":"RECENT_CANDLE_DATA_MISSING"}
+    if len(latest)<FIRST_TEST+TEST_BARS:
         return {**common,"status":"INSUFFICIENT_HISTORY"}
-    result=walkforward(longest,product=fetched["product"],
+    result=walkforward(latest,product=fetched["product"],
                        recall_db=recall_db)
     return {**result,**common}
 
