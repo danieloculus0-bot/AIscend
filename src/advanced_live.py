@@ -1536,8 +1536,16 @@ class AdvancedSpotEngine:
                                   client_id=client_order_id,
                                   account_scope=snapshot.get("authenticated_scope"))
         try:
-            order = self.rail.market_buy(
-                product_id, spend, client_order_id=client_order_id)
+            if isinstance(self.rail, AdvancedTradeSpot):
+                # Real Coinbase rail must bind the exact credentials used by
+                # the order client to the authenticated balance snapshot.
+                order = self.rail.market_buy(
+                    product_id, spend, client_order_id=client_order_id,
+                    expected_scope=snapshot.get("authenticated_scope"))
+            else:
+                # Preserve lightweight offline mock-rail compatibility.
+                order = self.rail.market_buy(
+                    product_id, spend, client_order_id=client_order_id)
         except CoinbaseExplicitRejection:
             # Coinbase explicitly rejected the order; no possible accepted fill.
             self.store.set_meta("pending_coinbase_order", "")
@@ -1623,8 +1631,16 @@ class AdvancedSpotEngine:
                                   client_id=client_order_id,
                                   account_scope=snapshot.get("authenticated_scope"))
         try:
-            order = self.rail.market_sell(
-                product_id, qty, client_order_id=client_order_id)
+            if isinstance(self.rail, AdvancedTradeSpot):
+                # Real Coinbase rail must bind the exact credentials used by
+                # the order client to the authenticated balance snapshot.
+                order = self.rail.market_sell(
+                    product_id, qty, client_order_id=client_order_id,
+                    expected_scope=snapshot.get("authenticated_scope"))
+            else:
+                # Preserve lightweight offline mock-rail compatibility.
+                order = self.rail.market_sell(
+                    product_id, qty, client_order_id=client_order_id)
         except CoinbaseExplicitRejection:
             # Coinbase explicitly rejected the order; no possible accepted fill.
             self.store.set_meta("pending_coinbase_order", "")
