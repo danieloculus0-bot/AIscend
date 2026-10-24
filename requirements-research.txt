@@ -1,0 +1,5 @@
+# Optional, credential-free causal portfolio research only.
+--extra-index-url https://download.pytorch.org/whl/cpu
+numpy>=1.26,<3
+pandas>=2.2,<3
+torch==2.8.0+cpu

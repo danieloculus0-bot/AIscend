@@ -1,0 +1,37 @@
+name: BEAN causal portfolio and retained learning contracts
+on:
+  pull_request:
+    paths:
+      - 'src/bean_causal_simulation.py'
+      - 'src/bean_policy_worker.py'
+      - 'scripts/bean_retained_policy.py'
+      - 'tests/test_bean_causal_simulation.py'
+      - 'tests/test_bean_retained_policy.py'
+      - 'research/bean_causal_retention_20261024_verified/**'
+      - '.github/workflows/bean-causal-retention.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  causal-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements-research.txt
+      - uses: actions/checkout@v4
+        with:
+          repository: danieloculus0-bot/BEAN
+          ref: 887935ae816b4ce6175c6cde54d749f0e5cf3268
+          path: core-bean
+      - name: Reject future inputs and verify real Core reward timing
+        env:
+          BEAN_CORE_DIR: core-bean
+        run: python -m unittest tests.test_bean_causal_simulation -v
+      - run: python -m unittest tests.test_bean_retained_policy -v
+      - name: Recover both actual retained market policies
+        run: |
+          python -m scripts.bean_retained_policy --directory research/bean_causal_retention_20261024_verified --core-dir core-bean --policy-id selected_frozen --as-of 2026-10-25T00:00:00Z
+          python -m scripts.bean_retained_policy --directory research/bean_causal_retention_20261024_verified --core-dir core-bean --policy-id selected_online_matured_feedback --as-of 2026-10-25T00:00:00Z
