@@ -27,7 +27,7 @@ class ScheduledResearchFeeBaselineTests(unittest.TestCase):
                 )
                 self.assertIn("schedule:", source)
                 self.assertIn(command, source)
-                fees = re.findall(r"--fee-bps\\s+(\\d+(?:\\.\\d+)?)", source)
+                fees = re.findall(r"--fee-bps\s+(\d+(?:\.\d+)?)", source)
                 self.assertEqual([float(value) for value in fees], [90.0])
 
     def test_scheduled_fee_agrees_with_python_defaults_and_frozen_paper_model(self):
