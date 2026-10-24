@@ -113,7 +113,7 @@ class AdvancedTradeVault:
                 ("coinbase-advanced-key-v1:" + credentials[0].strip()).encode("utf-8")
             ).hexdigest()
             if captured_scope != expected_scope:
-                raise RuntimeError(
+                raise CoinbasePreSubmissionScopeMismatch(
                     "Coinbase credentials changed since the authenticated account "
                     "snapshot; no order was submitted."
                 )
@@ -122,6 +122,10 @@ class AdvancedTradeVault:
             api_secret=credentials[1],
             timeout=timeout,
         )
+
+
+class CoinbasePreSubmissionScopeMismatch(RuntimeError):
+    """Credentials changed before an HTTP client existed; no order was sent."""
 
 
 class CoinbaseExplicitRejection(RuntimeError):
