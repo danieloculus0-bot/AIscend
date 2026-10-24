@@ -1,9 +1,10 @@
 import copy
+from collections import deque
 import os
 from pathlib import Path
 import tempfile
 import unittest
-from src.bean_strategy_coach import CoachWorker,mentor_lesson,summaries
+from src.bean_strategy_coach import CoachWorker,mentor_lesson,summaries,teach_and_train_streaming
 from src.bean_mentor_worker import validate_lesson
 from src.bean_strategy_curriculum import ACTIONS,Features
 from src.strategy_atlas import digest
@@ -43,6 +44,63 @@ class StrategyCoachTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'changed'):validate_lesson(changed,10**10)
         changed['id']=digest({k:v for k,v in changed.items() if k!='id'})
         with self.assertRaisesRegex(ValueError,'reconcile'):validate_lesson(changed,10**10)
+    def test_streamed_gradients_see_entire_curriculum_before_replay_eviction(self):
+        # Original implementation taught 47,520 samples to a 4,096-frame
+        # ring, then trained, discarding 91.4% before the FIRST gradient.
+        class ReplayRecorder:
+            def __init__(self):
+                self.buffer=deque(maxlen=4096)
+                self.seen=0
+                self.frames=0
+                self.updates=0
+                self.eligible=set()
+                self.events=[]
+            def call(self,op,**kw):
+                if op=='status':
+                    return {'frames':self.frames,'updates':self.updates,
+                            'mentor_lessons':self.seen}
+                if op=='teach':
+                    batch=kw['lessons']
+                    self.seen+=len(batch)
+                    for case in batch:
+                        for _ in ACTIONS:
+                            self.buffer.append(case['id'])
+                    self.frames+=len(batch)*len(ACTIONS)
+                    return {'frames':self.frames,'lessons':self.seen}
+                if op=='train':
+                    self.eligible.update(self.buffer)
+                    self.events.append((self.seen,kw['updates']))
+                    self.updates=kw['updates']
+                    return {'updates':self.updates}
+                raise AssertionError('Unexpected worker operation')
+        lessons=[{'id':i} for i in range(4320)]
+        permutation=list(range(4319,-1,-1))
+        first=ReplayRecorder()
+        a=teach_and_train_streaming(first,lessons,permutation)
+        second=ReplayRecorder()
+        b=teach_and_train_streaming(second,lessons,permutation)
+        self.assertEqual(a,b)
+        self.assertEqual(a['frames'],47520)
+        self.assertEqual(a['updates'],1024)
+        self.assertEqual(a['training_steps'],135)
+        self.assertEqual(first.events,second.events)
+        self.assertEqual(first.events[0],(32,7))
+        self.assertEqual(first.events[-1],(4320,1024))
+        self.assertEqual(first.eligible,set(range(4320)))
+        self.assertLess(first.events[0][0],4320)
+
+    def test_streaming_requires_complete_unique_lessons_and_valid_capacity(self):
+        class ShouldNotCall:
+            def call(self,*args,**kwargs):
+                raise AssertionError('Must reject invalid batch before worker mutation')
+        lessons=[{'id':i} for i in range(10)]
+        with self.assertRaisesRegex(ValueError,'exactly once'):
+            teach_and_train_streaming(ShouldNotCall(),lessons,[0]*10)
+        with self.assertRaisesRegex(ValueError,'Not enough'):
+            teach_and_train_streaming(ShouldNotCall(),lessons[:5],range(5))
+        with self.assertRaisesRegex(ValueError,'must fit'):
+            teach_and_train_streaming(ShouldNotCall(),lessons,range(10),chunk_size=373)
+
     @unittest.skipUnless(os.environ.get('BEAN_CORE_DIR'),'Actual pinned BEAN Core required')
     def test_actual_bean_consumes_comparisons_once_and_updates_parameters(self):
         f=Features(data());lessons=[mentor_lesson(f,i,0,.5) for i in range(260,324,8)];cutoff=10**10
