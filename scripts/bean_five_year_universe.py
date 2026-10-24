@@ -74,7 +74,7 @@ def aggregate(catalog_file, shard_files, db_path, summary_path):
     counts = dict(sorted(Counter(r["status"] for r in results.values()).items()))
     leaders = sorted(
         ({"product":p,"net_return":r["net_return"],
-          "benchmark":r["fold_rebalanced_buy_hold_return"],
+          "benchmark":r["continuous_buy_hold_return"],
           "folds":r["fold_count"],"won_vs_benchmark":
               r["net_return"] > r["fold_rebalanced_buy_hold_return"]}
          for p,r in results.items()
