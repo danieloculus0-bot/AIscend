@@ -113,7 +113,8 @@ def _mean(rows, i, n):
 
 def _signal(rows, i, rule):
     """Entry and exit instructions using no bar newer than completed i."""
-    if i < WARMUP-1:
+    # A 60-day rule references i-240; i=239 would read rows[-1] (future).
+    if i < WARMUP:
         return False, False
     name, *params = rule
     close = rows[i]["close"]
