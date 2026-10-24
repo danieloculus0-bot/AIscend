@@ -178,10 +178,12 @@ class OrderEvidenceTests(unittest.TestCase):
                 with self.assertRaises(ConnectionError):
                     engine._execute_buy(
                         Decision("BUY", "ALEO-USD", 1.0, "test"),
-                        {"cash_by_quote":{"USD":25}})
+                        {"cash_by_quote":{"USD":25},
+                         "authenticated_scope":"a"*64})
                 pending=store.get_meta("pending_coinbase_order")
                 self.assertTrue(pending)
                 self.assertIn("client_order_id",pending)
+                self.assertEqual(json.loads(pending)["account_scope"], "a"*64)
                 decision,status=engine._pending_order_decision()
                 self.assertEqual(status,"ORDER_AWAITING_VERIFICATION")
                 self.assertEqual(decision.action,"HOLD")
