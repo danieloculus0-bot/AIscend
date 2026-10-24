@@ -102,15 +102,30 @@ class AdvancedTradeVault:
                 pass
             os.environ.pop(key, None)
 
-    def client(self, timeout: int = 10) -> RESTClient:
+    def client(self, timeout: int = 10, *, expected_scope: str | None = None) -> RESTClient:
         credentials = self._credentials()
         if credentials is None:
             raise RuntimeError("Coinbase Advanced Trade is not configured.")
+        # Bind the authenticated account identity to the exact credentials
+        # captured for this HTTP client, not a separate earlier vault read.
+        if expected_scope is not None:
+            captured_scope = hashlib.sha256(
+                ("coinbase-advanced-key-v1:" + credentials[0].strip()).encode("utf-8")
+            ).hexdigest()
+            if captured_scope != expected_scope:
+                raise CoinbasePreSubmissionScopeMismatch(
+                    "Coinbase credentials changed since the authenticated account "
+                    "snapshot; no order was submitted."
+                )
         return RESTClient(
             api_key=credentials[0],
             api_secret=credentials[1],
             timeout=timeout,
         )
+
+
+class CoinbasePreSubmissionScopeMismatch(RuntimeError):
+    """Credentials changed before an HTTP client existed; no order was sent."""
 
 
 class CoinbaseExplicitRejection(RuntimeError):
@@ -432,7 +447,8 @@ class AdvancedTradeSpot:
         return float(value * Decimal("10000"))
 
     def find_order_id_by_client_id(
-        self, *, product_id: str, client_order_id: str, max_pages: int = 10
+        self, *, product_id: str, client_order_id: str, max_pages: int = 10,
+        expected_scope: str | None = None
     ) -> str | None:
         """Locate an uncertain submission without ever creating another order.
 
@@ -441,7 +457,8 @@ class AdvancedTradeSpot:
         """
         if not product_id or not client_order_id:
             raise ValueError("Product and client order ID are required")
-        client = self.vault.client()
+        client = (self.vault.client(expected_scope=expected_scope)
+                  if expected_scope is not None else self.vault.client())
         cursor = None
         seen_cursors = set()
         matched_ids = set()
@@ -473,11 +490,13 @@ class AdvancedTradeSpot:
             cursor = next_cursor
         return next(iter(matched_ids)) if matched_ids else None
 
-    def order_detail(self, order_id: str) -> dict[str, Any]:
+    def order_detail(self, order_id: str, *, expected_scope: str | None = None) -> dict[str, Any]:
         """Read an authenticated Coinbase order (not the submit ACK)."""
         if not order_id or not order_id.strip():
             raise ValueError("Coinbase order ID is required")
-        return self._dict(self.vault.client().get_order(order_id=order_id))
+        client = (self.vault.client(expected_scope=expected_scope)
+                  if expected_scope is not None else self.vault.client())
+        return self._dict(client.get_order(order_id=order_id))
 
     def position_fills(self, product_id: str, *, max_pages: int = 30) -> dict[str, Any]:
         """Read actual Coinbase fills for this product, exhausting pagination.
@@ -546,11 +565,13 @@ class AdvancedTradeSpot:
             cursor = next_cursor
         return {"fills": fills, "complete": False, "pages": max_pages}
 
-    def order_fills(self, order_id: str) -> dict[str, Any]:
+    def order_fills(self, order_id: str, *, expected_scope: str | None = None) -> dict[str, Any]:
         """Read actual execution fills/commissions, never a preview estimate."""
         if not order_id or not order_id.strip():
             raise ValueError("Coinbase order ID is required")
-        return self._dict(self.vault.client().get_fills(order_ids=[order_id]))
+        client = (self.vault.client(expected_scope=expected_scope)
+                  if expected_scope is not None else self.vault.client())
+        return self._dict(client.get_fills(order_ids=[order_id]))
 
     def preview_market_sell(self, product_id: str,
                             base_size: Decimal) -> dict[str, Any]:
@@ -578,20 +599,24 @@ class AdvancedTradeSpot:
             raise RuntimeError("Coinbase market buy preview is missing")
         return preview
 
-    def market_buy(self, product_id: str, quote_size: Decimal, client_order_id: str) -> dict[str, Any]:
+    def market_buy(self, product_id: str, quote_size: Decimal, client_order_id: str, *, expected_scope: str | None = None) -> dict[str, Any]:
         if quote_size <= 0:
             raise ValueError("quote_size must be positive")
-        response = self.vault.client().market_order_buy(
+        client = (self.vault.client(expected_scope=expected_scope)
+                  if expected_scope is not None else self.vault.client())
+        response = client.market_order_buy(
             client_order_id=client_order_id,
             product_id=product_id.upper(),
             quote_size=str(quote_size),
         )
         return require_accepted_order(self._dict(response))
 
-    def market_sell(self, product_id: str, base_size: Decimal, client_order_id: str) -> dict[str, Any]:
+    def market_sell(self, product_id: str, base_size: Decimal, client_order_id: str, *, expected_scope: str | None = None) -> dict[str, Any]:
         if base_size <= 0:
             raise ValueError("base_size must be positive")
-        response = self.vault.client().market_order_sell(
+        client = (self.vault.client(expected_scope=expected_scope)
+                  if expected_scope is not None else self.vault.client())
+        response = client.market_order_sell(
             client_order_id=client_order_id,
             product_id=product_id.upper(),
             base_size=str(base_size),

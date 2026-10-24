@@ -398,5 +398,52 @@ class AdvancedTradeTests(unittest.TestCase):
             AdvancedTradeSpot(vault).status()
 
 
+    def test_order_reads_reject_credential_switch_before_client_construction(self):
+        # A scope check just before an HTTP call is not enough. The vault
+        # must bind the exact credentials used to construct that HTTP client.
+        backend = MemoryKeyring()
+        with patch.dict(os.environ, {}, clear=True):
+            vault = AdvancedTradeVault(backend=backend)
+            vault.save("key-a", "secret-a")
+            rail = AdvancedTradeSpot(vault)
+            original_scope = rail.account_scope_id()
+            vault.save("key-b", "secret-b")
+            with patch("src.wallets.advanced_trade.RESTClient") as client:
+                with self.assertRaisesRegex(RuntimeError, "credentials changed"):
+                    rail.order_detail("order-a", expected_scope=original_scope)
+                with self.assertRaisesRegex(RuntimeError, "credentials changed"):
+                    rail.find_order_id_by_client_id(
+                        product_id="BTC-USD", client_order_id="client-a",
+                        expected_scope=original_scope)
+                with self.assertRaisesRegex(RuntimeError, "credentials changed"):
+                    rail.order_fills("order-a", expected_scope=original_scope)
+                client.assert_not_called()
+
+    def test_order_client_binds_exact_authenticated_credential_scope(self):
+        # Regression: a key switch after desktop snapshot verification but
+        # before the HTTP client is constructed must not submit under key B.
+        backend = MemoryKeyring()
+        with patch.dict(os.environ, {}, clear=True):
+            vault = AdvancedTradeVault(backend=backend)
+            vault.save("key-a", "secret-a")
+            rail = AdvancedTradeSpot(vault)
+            snapshot_scope = rail.account_scope_id()
+            vault.save("key-b", "secret-b")
+            with patch("src.wallets.advanced_trade.RESTClient") as client:
+                with self.assertRaisesRegex(RuntimeError, "credentials changed"):
+                    rail.market_buy("BTC-USD", Decimal("10"), "client-a",
+                                    expected_scope=snapshot_scope)
+                with self.assertRaisesRegex(RuntimeError, "credentials changed"):
+                    rail.market_sell("BTC-USD", Decimal("0.01"), "client-a",
+                                     expected_scope=snapshot_scope)
+                client.assert_not_called()
+                # Returning to the original credential must still work.
+                vault.save("key-a", "secret-a")
+                client.return_value = FakeClient()
+                rail.market_buy("BTC-USD", Decimal("10"), "client-a",
+                                expected_scope=snapshot_scope)
+                self.assertEqual(client.call_args.kwargs["api_key"], "key-a")
+
+
 if __name__ == "__main__":
     unittest.main()

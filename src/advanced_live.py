@@ -27,7 +27,8 @@ from .listing_sentinel import CoinbaseListingSentinel
 from .research import MarketResearch
 from .sentiment import HumanSignalResearch, HumanSignals
 from .wallets.advanced_trade import (AdvancedTradeSpot, require_accepted_order,
-                                     CoinbaseExplicitRejection)
+                                     CoinbaseExplicitRejection,
+                                     CoinbasePreSubmissionScopeMismatch)
 
 
 DOLLAR_ASSETS = {"USD", "USDC"}
@@ -1007,6 +1008,28 @@ class AdvancedSpotEngine:
                     "Unresolved Coinbase order intent already exists; "
                     "refusing to replace its idempotency key")
 
+    def _replace_pending_receipt(self, expected: str, replacement: str) -> bool:
+        """Change the one-order journal only if its exact snapshot still exists.
+
+        Another desktop process may reconcile the previous order and claim the
+        slot while this process waits for Coinbase. Never erase that receipt.
+        """
+        with self.store.conn:
+            changed = self.store.conn.execute(
+                "UPDATE meta SET value=? WHERE key='pending_coinbase_order' "
+                "AND value=?", (replacement, expected))
+        return changed.rowcount == 1
+
+    def _clear_pending_for_client(self, client_id: str) -> bool:
+        """Explicit venue rejection releases only the rejecting client ID."""
+        raw = self.store.get_meta("pending_coinbase_order") or ""
+        try:
+            receipt = json.loads(raw)
+        except (TypeError, ValueError):
+            return False
+        return (receipt.get("client_order_id") == client_id
+                and self._replace_pending_receipt(raw, ""))
+
     def _check_or_track_submission(self, order: dict[str, Any],
                                    *, product: str, side: str,
                                    client_id: str, account_scope=None) -> tuple[str, dict[str, Any]]:
@@ -1014,18 +1037,25 @@ class AdvancedSpotEngine:
         order_id = accepted_order_id(order)
         getter = getattr(self.rail, "order_detail", None)
         scope_reader = getattr(self.rail, "account_scope_id", None)
-        scope_matches = True
-        if callable(scope_reader):
+        def current_scope_matches():
+            # The credential can change while an authenticated HTTP call is
+            # in flight, not just between the ACK and the first lookup.
+            if not callable(scope_reader):
+                return True  # Offline mock rails have no credential identity.
             try:
-                scope_matches = bool(account_scope and scope_reader() == account_scope)
+                return bool(account_scope and scope_reader() == account_scope)
             except Exception:
-                scope_matches = False
-        if not scope_matches:
+                return False
+
+        def changed_scope_observation():
+            return {"state": "ORDER_ACCEPTED_UNVERIFIED",
+                    "order_id": order_id,
+                    "reason": "Coinbase credentials changed during receipt verification"}
+
+        if not current_scope_matches():
             # The venue may have accepted the order under the prior key.
             # Preserve its client ID without looking it up using another key.
-            observation = {"state": "ORDER_ACCEPTED_UNVERIFIED",
-                           "order_id": order_id,
-                           "reason": "Coinbase credentials changed before receipt verification"}
+            observation = changed_scope_observation()
         elif not order_id:
             observation = {"state": "ORDER_ACCEPTED_UNVERIFIED",
                            "reason": "Provider ACK contained no order_id"}
@@ -1035,17 +1065,26 @@ class AdvancedSpotEngine:
                            "reason": "No order-detail lookup on this rail"}
         else:
             try:
-                observation = verified_order(getter(order_id), order_id)
+                detail = (getter(order_id, expected_scope=account_scope)
+                          if isinstance(self.rail, AdvancedTradeSpot) and account_scope
+                          else getter(order_id))
+                observation = verified_order(detail, order_id)
             except Exception as exc:
                 observation = {"state": "ORDER_ACCEPTED_UNVERIFIED",
                                "order_id": order_id,
                                "reason": f"Order verification unavailable: {type(exc).__name__}: {exc}"}
+        if not current_scope_matches():
+            # A FILLED result returned under changed credentials cannot be
+            # used to release the original submitting account's order slot.
+            observation = changed_scope_observation()
         state = str(observation["state"])
         if state == "FILLED_VERIFIED" and order_id:
             filler = getattr(self.rail, "order_fills", None)
             if callable(filler):
                 try:
-                    details = filler(order_id)
+                    details = (filler(order_id, expected_scope=account_scope)
+                               if isinstance(self.rail, AdvancedTradeSpot) and account_scope
+                               else filler(order_id))
                     fills = details.get("fills") or []
                     observation["fill_records_count"] = len(fills)
                     observation["fill_commissions"] = [
@@ -1057,19 +1096,50 @@ class AdvancedSpotEngine:
                     ]
                 except Exception as exc:
                     observation["fill_lookup_warning"] = type(exc).__name__
-        self.store.set_meta("last_coinbase_submission_state", state)
-        self.store.set_meta("last_coinbase_submission_evidence",
-                            json.dumps(observation))
-        if state in {"FILLED_VERIFIED", "VENUE_NOT_FILLED"}:
-            self.store.set_meta("pending_coinbase_order", "")
-        if state not in {"FILLED_VERIFIED", "VENUE_NOT_FILLED"}:
-            # Block subsequent dependent orders until Coinbase confirms the
-            # fill or rejection. Never resubmit a possibly accepted order.
+        if not current_scope_matches():
+            # Also guard a switch during the optional fee/fills lookup.
+            observation = changed_scope_observation()
+            state = "ORDER_ACCEPTED_UNVERIFIED"
+        raw_receipt = self.store.get_meta("pending_coinbase_order") or ""
+        if raw_receipt:
+            try:
+                receipt = json.loads(raw_receipt)
+            except (TypeError, ValueError):
+                receipt = {}
+            if (receipt.get("client_order_id") != client_id
+                    or receipt.get("product") != product
+                    or receipt.get("side") != side
+                    or (account_scope is not None
+                        and receipt.get("account_scope") != account_scope)):
+                # Another process may have reconciled this order and already
+                # claimed the slot for a newer order. Do not replace its ID.
+                return "ORDER_ACCEPTED_UNVERIFIED", {
+                    "state": "ORDER_ACCEPTED_UNVERIFIED",
+                    "reason": "Pending Coinbase order journal changed during receipt verification"}
+            receipt["order_id"] = order_id
+            replacement = ("" if state in {"FILLED_VERIFIED", "VENUE_NOT_FILLED"}
+                           else json.dumps(receipt))
+            if not self._replace_pending_receipt(raw_receipt, replacement):
+                return "ORDER_ACCEPTED_UNVERIFIED", {
+                    "state": "ORDER_ACCEPTED_UNVERIFIED",
+                    "reason": "Pending Coinbase order journal changed during receipt verification"}
+        elif isinstance(self.rail, AdvancedTradeSpot):
+            # Production submissions always claim a durable receipt first.
+            # Never recreate a missing receipt over another process's intent.
+            return "ORDER_ACCEPTED_UNVERIFIED", {
+                "state": "ORDER_ACCEPTED_UNVERIFIED",
+                "reason": "Pending Coinbase order journal missing during receipt verification"}
+        elif state not in {"FILLED_VERIFIED", "VENUE_NOT_FILLED"}:
+            # Historical mock rails can call this method without recording
+            # an intent; never use this fallback for authenticated Coinbase.
             self.store.set_meta("pending_coinbase_order", json.dumps({
                 "order_id": order_id, "client_order_id": client_id,
                 "product": product, "side": side,
                 "account_scope": account_scope,
                 "submitted_at": time.time()}))
+        self.store.set_meta("last_coinbase_submission_state", state)
+        self.store.set_meta("last_coinbase_submission_evidence",
+                            json.dumps(observation))
         return state, observation
 
     def _pending_order_decision(self, scope=None):
@@ -1079,6 +1149,24 @@ class AdvancedSpotEngine:
             return None
         pending = json.loads(raw)
         pending_scope = pending.get("account_scope")
+        scope_reader = getattr(self.rail, "account_scope_id", None)
+
+        def scope_changed():
+            # The authenticated snapshot can become stale after sync(). An
+            # order lookup must not run under credentials selected afterward.
+            if not callable(scope_reader):
+                return False
+            try:
+                return not scope or scope_reader() != scope
+            except Exception:
+                return True
+
+        def changed_scope_hold():
+            return Decision("HOLD", None, 0.0,
+                "Coinbase credentials changed after the authenticated "
+                "snapshot. Preserve the unresolved order and refresh "
+                "account evidence before attempting reconciliation."), "ORDER_ACCOUNT_SCOPE_CHANGED"
+
         if (not pending_scope and scope is not None
                 and callable(getattr(self.rail, "account_scope_id", None))):
             # Older orders were written without a submitting-account identity.
@@ -1096,25 +1184,36 @@ class AdvancedSpotEngine:
                 "An unresolved Coinbase order belongs to a different "
                 "authenticated account. Restore the submitting account "
                 "to reconcile it; no new orders will be placed."), "ORDER_ACCOUNT_SCOPE_MISMATCH"
+        if scope_changed():
+            return changed_scope_hold()
         order_id = str(pending.get("order_id") or "")
         product = str(pending.get("product") or "")
         if not order_id:
             finder = getattr(self.rail, "find_order_id_by_client_id", None)
             if callable(finder):
                 try:
-                    order_id = finder(
-                        product_id=product,
-                        client_order_id=str(pending.get("client_order_id") or ""),
-                    ) or ""
+                    lookup_kwargs = {
+                        "product_id": product,
+                        "client_order_id": str(pending.get("client_order_id") or ""),
+                    }
+                    if isinstance(self.rail, AdvancedTradeSpot) and scope:
+                        lookup_kwargs["expected_scope"] = scope
+                    order_id = finder(**lookup_kwargs) or ""
                 except Exception as exc:
                     return Decision("HOLD", None, 0.0,
                         "Authenticated Coinbase client-order lookup failed: "
                         f"{type(exc).__name__}: {exc}. The original submission "
                         "remains unresolved and no retry will be sent."), "ORDER_AWAITING_VERIFICATION"
+                if scope_changed():
+                    return changed_scope_hold()
                 if order_id:
                     pending["order_id"] = order_id
-                    self.store.set_meta("pending_coinbase_order",
-                                        json.dumps(pending))
+                    updated = json.dumps(pending)
+                    if not self._replace_pending_receipt(raw, updated):
+                        return Decision("HOLD", None, 0.0,
+                            "Coinbase order journal changed during client ID lookup; "
+                            "preserving the newer receipt."), "ORDER_JOURNAL_CHANGED"
+                    raw = updated
             if not order_id:
                 return Decision("HOLD", None, 0.0,
                     "Coinbase submission outcome remains unknown. No matching "
@@ -1124,16 +1223,31 @@ class AdvancedSpotEngine:
         if not callable(getter):
             return Decision("HOLD", None, 0.0,
                 "Coinbase order-detail lookup unavailable; order may still be pending."), "ORDER_AWAITING_VERIFICATION"
+        if scope_changed():
+            return changed_scope_hold()
         try:
-            observed = verified_order(getter(order_id), order_id)
+            detail = (getter(order_id, expected_scope=scope)
+                      if isinstance(self.rail, AdvancedTradeSpot) and scope
+                      else getter(order_id))
+            observed = verified_order(detail, order_id)
         except Exception as exc:
             observed = {"state": "ORDER_ACCEPTED_UNVERIFIED",
                         "reason": f"{type(exc).__name__}: {exc}"}
-        self.store.set_meta("last_coinbase_submission_evidence", json.dumps(observed))
+        # A credential switch during the authenticated HTTP call must not
+        # clear an earlier account's pending idempotency receipt.
+        if scope_changed():
+            return changed_scope_hold()
         state = observed["state"]
         if state in {"FILLED_VERIFIED", "VENUE_NOT_FILLED"}:
-            self.store.set_meta("pending_coinbase_order", "")
+            if not self._replace_pending_receipt(raw, ""):
+                return Decision("HOLD", None, 0.0,
+                    "Coinbase order journal changed during order verification; "
+                    "preserving the newer receipt."), "ORDER_JOURNAL_CHANGED"
+            self.store.set_meta("last_coinbase_submission_evidence", json.dumps(observed))
             self.store.set_meta("last_coinbase_submission_state", state)
+        else:
+            self.store.set_meta("last_coinbase_submission_evidence", json.dumps(observed))
+        if state in {"FILLED_VERIFIED", "VENUE_NOT_FILLED"}:
             if state == "FILLED_VERIFIED":
                 # A completed SELL or BUY changes the position's lifecycle.
                 # Reset observed peaks and cached entry costs so an old lot's
@@ -1493,20 +1607,43 @@ class AdvancedSpotEngine:
                                   client_id=client_order_id,
                                   account_scope=snapshot.get("authenticated_scope"))
         try:
-            order = self.rail.market_buy(
-                product_id, spend, client_order_id=client_order_id)
+            if isinstance(self.rail, AdvancedTradeSpot):
+                # Real Coinbase rail must bind the exact credentials used by
+                # the order client to the authenticated balance snapshot.
+                order = self.rail.market_buy(
+                    product_id, spend, client_order_id=client_order_id,
+                    expected_scope=snapshot.get("authenticated_scope"))
+            else:
+                # Preserve lightweight offline mock-rail compatibility.
+                order = self.rail.market_buy(
+                    product_id, spend, client_order_id=client_order_id)
+        except CoinbasePreSubmissionScopeMismatch:
+            # The credential guard ran before RESTClient construction, so no
+            # submission could have reached Coinbase. Release only this exact
+            # unsent client intent; network ambiguity still retains receipts.
+            raw_receipt = self.store.get_meta("pending_coinbase_order") or ""
+            receipt = json.loads(raw_receipt or "{}")
+            if receipt.get("client_order_id") == client_order_id:
+                with self.store.conn:
+                    cleared = self.store.conn.execute(
+                        "UPDATE meta SET value='' WHERE key='pending_coinbase_order' "
+                        "AND value=?", (raw_receipt,))
+                if cleared.rowcount == 1:
+                    self.store.set_meta("last_coinbase_submission_state",
+                                        "NOT_SUBMITTED_SCOPE_CHANGED")
+            raise
         except CoinbaseExplicitRejection:
             # Coinbase explicitly rejected the order; no possible accepted fill.
-            self.store.set_meta("pending_coinbase_order", "")
-            self.store.set_meta("last_coinbase_submission_state", "VENUE_REJECTED")
+            if self._clear_pending_for_client(client_order_id):
+                self.store.set_meta("last_coinbase_submission_state", "VENUE_REJECTED")
             raise
         # All other transport, SDK and unconfirmed-response failures retain
         # the previously recorded client_order_id. We cannot safely retry.
         try:
             require_accepted_order(order)
         except CoinbaseExplicitRejection:
-            self.store.set_meta("pending_coinbase_order", "")
-            self.store.set_meta("last_coinbase_submission_state", "VENUE_REJECTED")
+            if self._clear_pending_for_client(client_order_id):
+                self.store.set_meta("last_coinbase_submission_state", "VENUE_REJECTED")
             raise
         result_state, evidence = self._check_or_track_submission(
             order, product=product_id, side="BUY", client_id=client_order_id,
@@ -1580,20 +1717,43 @@ class AdvancedSpotEngine:
                                   client_id=client_order_id,
                                   account_scope=snapshot.get("authenticated_scope"))
         try:
-            order = self.rail.market_sell(
-                product_id, qty, client_order_id=client_order_id)
+            if isinstance(self.rail, AdvancedTradeSpot):
+                # Real Coinbase rail must bind the exact credentials used by
+                # the order client to the authenticated balance snapshot.
+                order = self.rail.market_sell(
+                    product_id, qty, client_order_id=client_order_id,
+                    expected_scope=snapshot.get("authenticated_scope"))
+            else:
+                # Preserve lightweight offline mock-rail compatibility.
+                order = self.rail.market_sell(
+                    product_id, qty, client_order_id=client_order_id)
+        except CoinbasePreSubmissionScopeMismatch:
+            # The credential guard ran before RESTClient construction, so no
+            # submission could have reached Coinbase. Release only this exact
+            # unsent client intent; network ambiguity still retains receipts.
+            raw_receipt = self.store.get_meta("pending_coinbase_order") or ""
+            receipt = json.loads(raw_receipt or "{}")
+            if receipt.get("client_order_id") == client_order_id:
+                with self.store.conn:
+                    cleared = self.store.conn.execute(
+                        "UPDATE meta SET value='' WHERE key='pending_coinbase_order' "
+                        "AND value=?", (raw_receipt,))
+                if cleared.rowcount == 1:
+                    self.store.set_meta("last_coinbase_submission_state",
+                                        "NOT_SUBMITTED_SCOPE_CHANGED")
+            raise
         except CoinbaseExplicitRejection:
             # Coinbase explicitly rejected the order; no possible accepted fill.
-            self.store.set_meta("pending_coinbase_order", "")
-            self.store.set_meta("last_coinbase_submission_state", "VENUE_REJECTED")
+            if self._clear_pending_for_client(client_order_id):
+                self.store.set_meta("last_coinbase_submission_state", "VENUE_REJECTED")
             raise
         # All other transport, SDK and unconfirmed-response failures retain
         # the previously recorded client_order_id. We cannot safely retry.
         try:
             require_accepted_order(order)
         except CoinbaseExplicitRejection:
-            self.store.set_meta("pending_coinbase_order", "")
-            self.store.set_meta("last_coinbase_submission_state", "VENUE_REJECTED")
+            if self._clear_pending_for_client(client_order_id):
+                self.store.set_meta("last_coinbase_submission_state", "VENUE_REJECTED")
             raise
         result_state, evidence = self._check_or_track_submission(
             order, product=product_id, side="SELL", client_id=client_order_id,
