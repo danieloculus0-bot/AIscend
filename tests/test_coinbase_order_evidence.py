@@ -124,6 +124,44 @@ class OrderEvidenceTests(unittest.TestCase):
             finally:
                 store.close()
 
+    def test_two_desktop_connections_cannot_both_claim_one_pending_order(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from threading import Barrier
+        class Rail:
+            def order_detail(self, order_id):
+                raise AssertionError("No order should be queried")
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "shared-desktop.db"
+            initializer = StateStore(path)
+            initializer.close()
+            barrier = Barrier(2)
+            def worker(client_id):
+                store = StateStore(path)
+                try:
+                    engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                    engine.store, engine.rail = store, Rail()
+                    barrier.wait(timeout=10)
+                    try:
+                        engine._record_order_intent(
+                            product="BTC-USD", side="BUY", client_id=client_id,
+                            account_scope="a" * 64)
+                        return True
+                    except RuntimeError as exc:
+                        self.assertIn("Unresolved Coinbase order", str(exc))
+                        return False
+                finally:
+                    store.close()
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                result = list(executor.map(worker, ("client-one", "client-two")))
+            self.assertEqual(sorted(result), [False, True])
+            reopened = StateStore(path)
+            try:
+                receipt = json.loads(reopened.get_meta("pending_coinbase_order"))
+                self.assertIn(receipt["client_order_id"],
+                              ("client-one", "client-two"))
+            finally:
+                reopened.close()
+
     def test_legacy_unscoped_pending_cannot_be_reconciled_using_new_key(self):
         class Rail:
             def __init__(self):
