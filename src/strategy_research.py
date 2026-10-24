@@ -17,7 +17,7 @@ from .primary_strategy import POLICIES, proposals
 RESEARCH_POLICIES = (*POLICIES, "trend_4h_hold", "trend_1d_hold", "cash")
 
 
-def simulate(bars: dict, policy: str, *, fee_bps=60.0, spread_bps=10.0,
+def simulate(bars: dict, policy: str, *, fee_bps=90.0, spread_bps=10.0,
              start=0, end=None) -> dict:
     times=sorted(bars)
     n=len(times)
@@ -124,7 +124,7 @@ def simulate(bars: dict, policy: str, *, fee_bps=60.0, spread_bps=10.0,
             "method":"next_completed_bar_open_with_full_taker_and_spread_costs"}
 
 
-def validate(bars: dict, *, fee_bps=60.0, spread_bps=10.0,
+def validate(bars: dict, *, fee_bps=90.0, spread_bps=10.0,
              training_fraction=.70) -> dict:
     times=sorted(bars)
     n=len(times)
@@ -171,7 +171,7 @@ def main():
     parser.add_argument("--products",nargs="+",default=[
         "BTC-USD","ETH-USD","SOL-USD","ADA-USD","DOGE-USD"])
     parser.add_argument("--days",type=int,default=21)
-    parser.add_argument("--fee-bps",type=float,default=60.0)
+    parser.add_argument("--fee-bps",type=float,default=90.0)
     parser.add_argument("--output",default="strategy_evidence.json")
     a=parser.parse_args()
     reports={}

@@ -82,7 +82,7 @@ def _catalog_hash(catalog):
     return hashlib.sha256("\n".join(catalog).encode("ascii")).hexdigest()
 
 
-def run_shard(*, shards=1, shard_index=0, days=21, fee_bps=60.0,
+def run_shard(*, shards=1, shard_index=0, days=21, fee_bps=90.0,
               workers=3, catalog_fetcher=_get_json,
               history_fetcher=historical_bars, evaluator=validate):
     if not 1 <= shards <= 64 or not 0 <= shard_index < shards:
@@ -203,7 +203,7 @@ def main():
     p.add_argument("--shard-index", type=int, default=0)
     p.add_argument("--workers", type=int, default=3)
     p.add_argument("--days", type=int, default=21)
-    p.add_argument("--fee-bps", type=float, default=60.0)
+    p.add_argument("--fee-bps", type=float, default=90.0)
     p.add_argument("--aggregate", nargs="+", type=Path)
     p.add_argument("--output", type=Path, default=Path("artifacts/universe-research.json"))
     args = p.parse_args()
