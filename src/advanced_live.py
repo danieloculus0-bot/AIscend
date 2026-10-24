@@ -1001,7 +1001,20 @@ class AdvancedSpotEngine:
         """A Coinbase submit ACK is NOT evidence of a filled trade."""
         order_id = accepted_order_id(order)
         getter = getattr(self.rail, "order_detail", None)
-        if not order_id:
+        scope_reader = getattr(self.rail, "account_scope_id", None)
+        scope_matches = True
+        if callable(scope_reader):
+            try:
+                scope_matches = bool(account_scope and scope_reader() == account_scope)
+            except Exception:
+                scope_matches = False
+        if not scope_matches:
+            # The venue may have accepted the order under the prior key.
+            # Preserve its client ID without looking it up using another key.
+            observation = {"state": "ORDER_ACCEPTED_UNVERIFIED",
+                           "order_id": order_id,
+                           "reason": "Coinbase credentials changed before receipt verification"}
+        elif not order_id:
             observation = {"state": "ORDER_ACCEPTED_UNVERIFIED",
                            "reason": "Provider ACK contained no order_id"}
         elif not callable(getter):
