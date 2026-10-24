@@ -103,6 +103,19 @@ class FiveYearWalkforwardTests(unittest.TestCase):
                          sum(f["closed_trades"] for f in report["folds"]))
         self.assertGreater(report["simulated_start"],0)
 
+    def test_continuous_buy_and_hold_pays_fees_only_once(self):
+        data=synthetic(2600,shape="bull")
+        report=walkforward(data)
+        first=FIRST_TEST
+        last=first+report["fold_count"]*TEST_BARS-1
+        expected=(data[last*BAR]["close"]/data[first*BAR]["open"]
+                  *(1-(90+10/2)/10000)**2-1)
+        self.assertAlmostEqual(report["continuous_buy_hold_return"],
+                               expected,places=7)
+        self.assertNotAlmostEqual(report["continuous_buy_hold_return"],
+                                  report["fold_rebalanced_buy_hold_return"],
+                                  places=5)
+
     def test_invalid_cost_rejected(self):
         with self.assertRaisesRegex(ValueError,"INVALID_COST"):
             walkforward(synthetic(2400),fee_bps=float("nan"))
