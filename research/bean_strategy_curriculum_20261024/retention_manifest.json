@@ -1,0 +1,255 @@
+{
+  "schema": "aiscend.bean.curriculum_retention.v1",
+  "policies": [
+    {
+      "id": "fold-0-seed-7-updates-256",
+      "file": "fold-0-seed-7.sqlite3.gz",
+      "knowledge_cutoff": "2023-04-01T00:00:00Z",
+      "state": {
+        "updates": 256,
+        "frames": 23232,
+        "replay": 4096,
+        "weights_sha256": "fcab7fbe64fb333714cb969e7517cb1d2e571661a27692cb5cbd8fa848d72c2a",
+        "knowledge_cutoff": 1680307200
+      },
+      "economic_qualification": "DEVELOPMENT_ONLY",
+      "file_sha256": "aefcbbf31073f8fa817c11ff9d0c3204d43c625395bdd71480b49b91f83ca4a8"
+    },
+    {
+      "id": "fold-0-seed-7-updates-1024",
+      "file": "fold-0-seed-7.sqlite3.gz",
+      "knowledge_cutoff": "2023-04-01T00:00:00Z",
+      "state": {
+        "updates": 1024,
+        "frames": 23232,
+        "replay": 4096,
+        "weights_sha256": "2f0f1754683057a64d0336a40c19e4d6a2ef18b4dea1a9b401e51dd4f12b1958",
+        "knowledge_cutoff": 1680307200
+      },
+      "economic_qualification": "DEVELOPMENT_ONLY",
+      "file_sha256": "aefcbbf31073f8fa817c11ff9d0c3204d43c625395bdd71480b49b91f83ca4a8"
+    },
+    {
+      "id": "fold-0-seed-7-updates-4096",
+      "file": "fold-0-seed-7.sqlite3.gz",
+      "knowledge_cutoff": "2023-04-01T00:00:00Z",
+      "state": {
+        "updates": 4096,
+        "frames": 23232,
+        "replay": 4096,
+        "weights_sha256": "964280b78c85b6be7c8b68a831a60dba16ee15ea3f9ae0755456809eac6135e6",
+        "knowledge_cutoff": 1680307200
+      },
+      "economic_qualification": "DEVELOPMENT_ONLY",
+      "file_sha256": "aefcbbf31073f8fa817c11ff9d0c3204d43c625395bdd71480b49b91f83ca4a8"
+    },
+    {
+      "id": "fold-0-seed-41-updates-256",
+      "file": "fold-0-seed-41.sqlite3.gz",
+      "knowledge_cutoff": "2023-04-01T00:00:00Z",
+      "state": {
+        "updates": 256,
+        "frames": 23232,
+        "replay": 4096,
+        "weights_sha256": "20dd48e20715cfdb84959df09c47031a28308c2e085e8717c2300bd6630b83dc",
+        "knowledge_cutoff": 1680307200
+      },
+      "economic_qualification": "DEVELOPMENT_ONLY",
+      "file_sha256": "79699f9424668375d037038deb284f3cf2c26c236437dbf2040e4b1dc588c3d5"
+    },
+    {
+      "id": "fold-0-seed-41-updates-1024",
+      "file": "fold-0-seed-41.sqlite3.gz",
+      "knowledge_cutoff": "2023-04-01T00:00:00Z",
+      "state": {
+        "updates": 1024,
+        "frames": 23232,
+        "replay": 4096,
+        "weights_sha256": "73041c440d755546e50f8f15a1e77f3c9838b31762c701db9f1f4438eb925aa0",
+        "knowledge_cutoff": 1680307200
+      },
+      "economic_qualification": "DEVELOPMENT_ONLY",
+      "file_sha256": "79699f9424668375d037038deb284f3cf2c26c236437dbf2040e4b1dc588c3d5"
+    },
+    {
+      "id": "fold-0-seed-41-updates-4096",
+      "file": "fold-0-seed-41.sqlite3.gz",
+      "knowledge_cutoff": "2023-04-01T00:00:00Z",
+      "state": {
+        "updates": 4096,
+        "frames": 23232,
+        "replay": 4096,
+        "weights_sha256": "20ed5df685a700368e3f2ecf6c22d1cfb2ae86cee34ae504ad02c6e4c2256a63",
+        "knowledge_cutoff": 1680307200
+      },
+      "economic_qualification": "DEVELOPMENT_ONLY",
+      "file_sha256": "79699f9424668375d037038deb284f3cf2c26c236437dbf2040e4b1dc588c3d5"
+    },
+    {
+      "id": "fold-1-seed-7-updates-256",
+      "file": "fold-1-seed-7.sqlite3.gz",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "state": {
+        "updates": 256,
+        "frames": 35376,
+        "replay": 4096,
+        "weights_sha256": "f5eeac8e3b3a753e5441cf0fea8bb8b0280fc2bb7d3f5ae8ddc48131ba0053c7",
+        "knowledge_cutoff": 1711929600
+      },
+      "economic_qualification": "DEVELOPMENT_ONLY",
+      "file_sha256": "a7491f4bb6f3d09ea1820ec932d016b30837fca2e5f87c5af8d3443e26d8dc58"
+    },
+    {
+      "id": "fold-1-seed-7-updates-1024",
+      "file": "fold-1-seed-7.sqlite3.gz",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "state": {
+        "updates": 1024,
+        "frames": 35376,
+        "replay": 4096,
+        "weights_sha256": "31aee0d85f7eb0e6f52cc972306d101e37dee7040e9c52a4614f3f14df19712a",
+        "knowledge_cutoff": 1711929600
+      },
+      "economic_qualification": "DEVELOPMENT_ONLY",
+      "file_sha256": "a7491f4bb6f3d09ea1820ec932d016b30837fca2e5f87c5af8d3443e26d8dc58"
+    },
+    {
+      "id": "fold-1-seed-7-updates-4096",
+      "file": "fold-1-seed-7.sqlite3.gz",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "state": {
+        "updates": 4096,
+        "frames": 35376,
+        "replay": 4096,
+        "weights_sha256": "8ae61d12359c59969a558157424ec4ef4960316be18765e423c03d2435dca9ce",
+        "knowledge_cutoff": 1711929600
+      },
+      "economic_qualification": "DEVELOPMENT_ONLY",
+      "file_sha256": "a7491f4bb6f3d09ea1820ec932d016b30837fca2e5f87c5af8d3443e26d8dc58"
+    },
+    {
+      "id": "fold-1-seed-41-updates-256",
+      "file": "fold-1-seed-41.sqlite3.gz",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "state": {
+        "updates": 256,
+        "frames": 35376,
+        "replay": 4096,
+        "weights_sha256": "fb58ba55df2a03d6e829b2d273abc5a03bb9f885a05368f2a8a815136443ea7b",
+        "knowledge_cutoff": 1711929600
+      },
+      "economic_qualification": "DEVELOPMENT_ONLY",
+      "file_sha256": "dec9b1d4b19cae2847eea816f83f7cd3391d03d359920f7fcc48a77b5e0d5fce"
+    },
+    {
+      "id": "fold-1-seed-41-updates-1024",
+      "file": "fold-1-seed-41.sqlite3.gz",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "state": {
+        "updates": 1024,
+        "frames": 35376,
+        "replay": 4096,
+        "weights_sha256": "215c8f98bb3d6609f1eb3ce3e659a5e6a11687ff014aea4463455c5928326ab9",
+        "knowledge_cutoff": 1711929600
+      },
+      "economic_qualification": "DEVELOPMENT_ONLY",
+      "file_sha256": "dec9b1d4b19cae2847eea816f83f7cd3391d03d359920f7fcc48a77b5e0d5fce"
+    },
+    {
+      "id": "fold-1-seed-41-updates-4096",
+      "file": "fold-1-seed-41.sqlite3.gz",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "state": {
+        "updates": 4096,
+        "frames": 35376,
+        "replay": 4096,
+        "weights_sha256": "c39e5c2803fbe89f50a7c71972f925bae1988de77b29ba1d28b11c95c605d913",
+        "knowledge_cutoff": 1711929600
+      },
+      "economic_qualification": "DEVELOPMENT_ONLY",
+      "file_sha256": "dec9b1d4b19cae2847eea816f83f7cd3391d03d359920f7fcc48a77b5e0d5fce"
+    },
+    {
+      "id": "selected",
+      "file": "selected.sqlite3.gz",
+      "knowledge_cutoff": "2025-04-01T00:00:00Z",
+      "state": {
+        "updates": 256,
+        "frames": 47520,
+        "replay": 4096,
+        "weights_sha256": "13bafbc9f1d3b1f1e6dd4cd9b69338f8f961128f234a7b0999c4d401789e4fe1",
+        "knowledge_cutoff": 1743465600
+      },
+      "economic_qualification": "NOT_QUALIFIED",
+      "diagnostic_vector": [
+        -2.2021116138763195,
+        -1.2129380053908345,
+        -0.43558850787766445,
+        -0.30439640889299885,
+        -0.3880564366181778,
+        0.8105531914893618,
+        -0.5368308240728537,
+        -0.3755135157820133,
+        1.2371861574090781,
+        0.9354767334103754,
+        -0.14702348646007068,
+        -0.44017947591679624,
+        0.7917853257933308,
+        -1.3459119496855343,
+        -0.31440638198029114,
+        0.0,
+        -0.582669322709163,
+        0.035856573705179744,
+        0.3814741035856572,
+        1.2752445065413442,
+        -0.32971014492753664,
+        0.34420289855072345,
+        0.3260869565217399,
+        0.31542857142857095,
+        0.1391752577319608,
+        0.6907216494845354,
+        0.17010309278350383,
+        0.21869011385413195,
+        -0.6500956022944555,
+        0.2562141491395787,
+        0.09369024856596586,
+        0.5906267645398078,
+        0.27179487179487294,
+        0.36410256410256353,
+        0.36410256410256353,
+        0.43352601156069426,
+        0.0,
+        0.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.5344868366498002
+      ],
+      "diagnostic_time": 1758585600,
+      "diagnostic_values": {
+        "values": [
+          [
+            0.05184335261583328,
+            -0.1398516595363617,
+            -0.6061667799949646,
+            -0.1425274908542633,
+            -0.1714446246623993,
+            -0.10368536412715912,
+            -0.10923000425100327,
+            -0.12537908554077148,
+            0.034268442541360855,
+            -0.10753613710403442,
+            -0.20873349905014038
+          ]
+        ]
+      },
+      "file_sha256": "a86fbbaefaf65d3ecf3f6c264dedebae77f0cfe835c0e1fefff2d6b5f02e9cdb"
+    }
+  ],
+  "journal_history": "Each fold journal contains every listed update checkpoint in order; latest recovery returns its final budget. All earlier capsules remain in the SHA-linked Journal."
+}
