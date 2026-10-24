@@ -237,6 +237,11 @@ class BeanAdaptiveGrowthGate:
             if len(valid_times) < 30:
                 raise ValueError("insufficient contiguous completed candles")
             with self._lock, self._db() as db:
+                # Two Python desktop instances have distinct in-process locks.
+                # Reserve the SQLite write slot BEFORE reading the previous
+                # Q state, otherwise both can replay stale state and overwrite
+                # the other's newly completed rewards.
+                db.execute("BEGIN IMMEDIATE")
                 row = db.execute("SELECT state FROM policy WHERE product=?", (market,)).fetchone()
                 state = json.loads(row["state"]) if row else _fresh_state()
                 if row and state.get("cost_model") != PAPER_COST_MODEL:
