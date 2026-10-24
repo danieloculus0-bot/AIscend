@@ -116,6 +116,52 @@ class FiveYearWalkforwardTests(unittest.TestCase):
                                   report["fold_rebalanced_buy_hold_return"],
                                   places=5)
 
+    def test_learning_on_off_same_candles_same_fees_and_frozen_choices(self):
+        report=walkforward(synthetic(2350,shape="waves"), product="TEST-USD")
+        self.assertEqual(report["fold_count"],len(report["folds"]))
+        learned=baseline=1.
+        for fold in report["folds"]:
+            learned*=1+fold["fee_net_return"]
+            baseline*=1+fold["no_memory_fee_net_return"]
+            self.assertIn("no_memory_winner",fold)
+            self.assertIn("baseline_training_scores",fold)
+            self.assertEqual(len(fold["all_rule_test_results_after_close"]),7)
+            self.assertLess(fold["trained_through"],fold["test_start"])
+            self.assertTrue(all(
+                math.isfinite(v["net_return"])
+                for v in fold["all_rule_test_results_after_close"].values()))
+        self.assertAlmostEqual(report["net_return"],learned-1,places=6)
+        self.assertAlmostEqual(report["no_memory_net_return"],
+                               baseline-1,places=6)
+        self.assertAlmostEqual(report["learning_incremental_return"],
+                               learned-baseline,places=6)
+        self.assertEqual(report["learning_outperformed_no_memory"],
+                         learned>baseline)
+        records=report["ledger"]
+        locked=[r for r in records
+                if r["type"]=="locked_before_test_window"]
+        closed=[r for r in records
+                if r["type"]=="after_test_window_closed"]
+        self.assertEqual(len(locked),len(closed))
+        for a,b in zip(locked,closed):
+            self.assertEqual(a["no_memory_winner"],b["no_memory_choice"])
+            self.assertEqual(a["test_end"],b["observed_through"])
+
+    def test_future_shock_does_not_change_ablation_choice_for_prior_fold(self):
+        source=synthetic(2450,shape="waves")
+        first=walkforward(source)
+        altered=copy.deepcopy(source)
+        for i in range(FIRST_TEST+TEST_BARS,len(altered)):
+            candle=altered[i*BAR]
+            candle.update(open=50,close=50,high=52,low=48)
+        future=walkforward(altered)
+        self.assertEqual(first["folds"][0]["no_memory_winner"],
+                         future["folds"][0]["no_memory_winner"])
+        self.assertEqual(first["folds"][0]["no_memory_fee_net_return"],
+                         future["folds"][0]["no_memory_fee_net_return"])
+        self.assertEqual(first["folds"][0]["fee_net_return"],
+                         future["folds"][0]["fee_net_return"])
+
     def test_invalid_cost_rejected(self):
         with self.assertRaisesRegex(ValueError,"INVALID_COST"):
             walkforward(synthetic(2400),fee_bps=float("nan"))
