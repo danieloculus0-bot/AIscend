@@ -102,6 +102,54 @@ class OrderEvidenceTests(unittest.TestCase):
             finally:
                 store.close()
 
+    def test_second_order_intent_cannot_replace_unresolved_client_id(self):
+        class Rail:
+            def order_detail(self, order_id):
+                raise AssertionError("Unexpected authenticated lookup")
+        with tempfile.TemporaryDirectory() as temp:
+            store = StateStore(Path(temp) / "two-orders.db")
+            try:
+                engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                engine.store, engine.rail = store, Rail()
+                engine._record_order_intent(
+                    product="BTC-USD", side="BUY", client_id="first-id",
+                    account_scope="a" * 64)
+                original = store.get_meta("pending_coinbase_order")
+                with self.assertRaisesRegex(RuntimeError, "Unresolved Coinbase order"):
+                    engine._record_order_intent(
+                        product="ETH-USD", side="BUY", client_id="second-id",
+                        account_scope="a" * 64)
+                self.assertEqual(store.get_meta("pending_coinbase_order"), original)
+                self.assertNotIn("second-id", original)
+            finally:
+                store.close()
+
+    def test_legacy_unscoped_pending_cannot_be_reconciled_using_new_key(self):
+        class Rail:
+            def __init__(self):
+                self.lookups = []
+            def account_scope_id(self):
+                return "b" * 64
+            def order_detail(self, order_id):
+                self.lookups.append(order_id)
+                raise AssertionError("Wrong-account lookup")
+        with tempfile.TemporaryDirectory() as temp:
+            store = StateStore(Path(temp) / "legacy-order.db")
+            try:
+                engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                engine.store, engine.rail = store, Rail()
+                old = json.dumps({
+                    "product": "BTC-USD", "side": "SELL", "order_id": "old-123",
+                    "client_order_id": "old-client"})
+                store.set_meta("pending_coinbase_order", old)
+                decision, status = engine._pending_order_decision(scope="b" * 64)
+                self.assertEqual((decision.action, status),
+                                 ("HOLD", "ORDER_ACCOUNT_SCOPE_UNKNOWN"))
+                self.assertEqual(engine.rail.lookups, [])
+                self.assertEqual(store.get_meta("pending_coinbase_order"), old)
+            finally:
+                store.close()
+
     def test_pending_order_cannot_be_reconciled_with_different_coinbase_account(self):
         class ScopedRail:
             def __init__(self):
