@@ -39,6 +39,56 @@ def summaries(lessons):
         best=max(x['cases'],key=lambda c:c['net_return']);out.append({'id':x['id'],'outcome_at':x['outcome_at'],'vector':x['vector'],'best_teacher':{'action':best['action'],'mechanism':best['rule_mechanism'],'market_pnl':best['market_pnl_before_fill']+best['market_pnl_after_fill'],'paid_cost':best['paid_cost'],'net_return':best['net_return'],'advantage_over_hold':best['advantage_over_hold']}})
     return out
 
+def teach_and_train_streaming(worker, lessons, order, *, updates=1024, chunk_size=32):
+    """Train while teacher cases still exist in the bounded BEAN replay.
+
+    SpongeDQN in bean_mentor_worker uses a 4,096-transition replay and has
+    auto-training disabled (learn_every=1,000,000). Teaching every lesson
+    before the first gradient silently evicts most earlier examples.
+    This schedule gives every newly ingested chunk an opportunity to be
+    sampled before it is evicted. It does NOT guarantee every item is drawn
+    or any financial improvement. Both experimental arms use the same
+    ordering, cumulative budget, and schedule.
+    """
+    n = len(lessons)
+    indices = [int(index) for index in order]
+    actions = len(ACTIONS)
+    if not n or len(indices) != n or set(indices) != set(range(n)):
+        raise ValueError('Mentor training requires each lesson exactly once')
+    if n * actions < 64:
+        raise ValueError('Not enough mentor replay samples for BEAN warmup')
+    if not 1 <= chunk_size or chunk_size * actions > 4096:
+        raise ValueError('Mentor batch must fit the 4,096-frame BEAN replay')
+    if not isinstance(updates, int) or not 1 <= updates <= 100000:
+        raise ValueError('Invalid total mentor gradient budget')
+    starting = worker.call('status')
+    if (starting['frames'] != 0 or starting['updates'] != 0
+            or starting['mentor_lessons'] != 0):
+        raise ValueError('Streamed mentor schedule requires a fresh learner')
+    learned = 0
+    training_steps = 0
+    consumed = 0
+    for offset in range(0, n, chunk_size):
+        batch = indices[offset:offset + chunk_size]
+        receipt = worker.call('teach', lessons=[lessons[index] for index in batch])
+        consumed += len(batch)
+        frames = consumed * actions
+        if receipt['frames'] != frames or receipt['lessons'] != consumed:
+            raise AssertionError('Mentor worker lost or duplicated teaching evidence')
+        target = (consumed * updates) // n
+        if frames >= 64 and target > learned:
+            result = worker.call('train', updates=target)
+            if result['updates'] != target:
+                raise AssertionError('Mentor gradient budget did not advance')
+            learned = target
+            training_steps += 1
+    if learned != updates:
+        raise AssertionError('Mentor training ended before full gradient budget')
+    return {'lessons': consumed, 'frames': consumed * actions,
+            'updates': learned, 'training_steps': training_steps,
+            'training_schedule': 'streamed_cumulative_budget_v1'}
+
+
 class CoachWorker:
     def __init__(self,core,journal,size,cutoff,mode,memory,output):
         env={k:v for k,v in os.environ.items() if k in ('PATH','PYTHONPATH','LD_LIBRARY_PATH','LANG')}
@@ -64,7 +114,7 @@ def run(candles,core,output):
     output=Path(output)
     if output.exists() and any(output.iterdir()):raise FileExistsError('Preserve prior mentor experiment')
     output.mkdir(parents=True);features=Features(load_candles(candles));cutoff=int(utc_seconds('2025-04-01T00:00:00Z'));end=int(utc_seconds('2025-10-01T00:00:00Z'))
-    protocol={'schema':'aiscend.bean.strategy_coaching.v1','scope':'DEVELOPMENT_ONLY_ALREADY_INSPECTED_HISTORY','source_rows_sha256':features.c.source_hash,'train_knowledge_cutoff':cutoff,'audit_end':end,'arms':['matched_raw_reward','coached_advantage'],'seed':41,'updates_per_arm':1024,'shared_configuration':'Actual SpongeDQN gamma0, replay4096, batch64, lr0.0005; same examples/order/costs and inference reserve. The only reward difference is raw net log return versus log advantage over unchanged holding.','coaching':'Every action is explained by market PnL before/after delayed fill, paid costs, net return and matched advantage over hold. Worker validates accounting and maturity before actual updates. Past mentor comparisons accompany inference explanations; realized outcome components are never future decision inputs.','selection':'No candidate selection: report both arms even if coached training loses','source_code_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),'worker_sha256':hashlib.sha256(Path(__file__).with_name('bean_mentor_worker.py').read_bytes()).hexdigest(),'core_revision':subprocess.check_output(['git','-C',str(core),'rev-parse','HEAD'],text=True).strip(),'live_orders':False}
+    protocol={'schema':'aiscend.bean.strategy_coaching.v2','scope':'DEVELOPMENT_ONLY_ALREADY_INSPECTED_HISTORY','source_rows_sha256':features.c.source_hash,'train_knowledge_cutoff':cutoff,'audit_end':end,'arms':['matched_raw_reward','coached_advantage'],'seed':41,'updates_per_arm':1024,'training_schedule':'streamed_cumulative_budget_v1: 32 lessons/batch, train after each batch with proportional cumulative gradient budget so earlier lessons remain in replay','shared_configuration':'Actual SpongeDQN gamma0, replay4096, batch64, lr0.0005; same examples/order/costs and inference reserve. The only reward difference is raw net log return versus log advantage over unchanged holding.','coaching':'Every action is explained by market PnL before/after delayed fill, paid costs, net return and matched advantage over hold. Worker validates accounting and maturity before actual updates. Past mentor comparisons accompany inference explanations; realized outcome components are never future decision inputs.','selection':'No candidate selection: report both arms even if coached training loses','source_code_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),'worker_sha256':hashlib.sha256(Path(__file__).with_name('bean_mentor_worker.py').read_bytes()).hexdigest(),'core_revision':subprocess.check_output(['git','-C',str(core),'rev-parse','HEAD'],text=True).strip(),'live_orders':False}
     protocol['protocol_sha256']=digest(protocol);(output/'protocol.json').write_text(json.dumps(protocol,indent=2)+'\n')
     con=sqlite3.connect(output/'matched_mentor_lessons.sqlite3');con.execute('CREATE TABLE lessons(id TEXT PRIMARY KEY,symbol TEXT,decision_at INTEGER,outcome_at INTEGER,payload_json TEXT)');lessons=[]
     for i in range(200,len(features.c.times)-8,8):
@@ -79,11 +129,12 @@ def run(candles,core,output):
         journal=output/(mode+'.sqlite3');worker=CoachWorker(core,journal,len(lessons[0]['vector']),cutoff,mode,memory,output)
         try:
             initial=worker.call('status')
-            for k in range(0,len(order),32):worker.call('teach',lessons=[lessons[n] for n in order[k:k+32]])
-            worker.call('train',updates=1024);status=worker.call('status')
+            schedule=teach_and_train_streaming(worker,lessons,order,updates=1024,chunk_size=32)
+            status=worker.call('status')
             result=evaluate(features,worker,cutoff,end,ledger,mode)
             worker.call('checkpoint',score=result['equal_weight_mean_return'],samples=result['periods']*len(features.c.symbols),evaluation_sha256=digest(result),protocol_sha256=protocol['protocol_sha256'])
             policies.append({'id':mode,'file':mode+'.sqlite3.gz','knowledge_cutoff':'2025-04-01T00:00:00Z','state':status,'economic_qualification':'DEVELOPMENT_ONLY','actual_weights_changed':status['weights_sha256']!=initial['weights_sha256']})
+            result['learning_schedule']=schedule
             results[mode]=result
         finally:worker.close()
     baselines={a:evaluate(features,None,cutoff,end,ledger,'mentor_baseline/'+a,fixed=a) for a in ('cash','buy_hold','sma_trend','donchian_breakout')}
