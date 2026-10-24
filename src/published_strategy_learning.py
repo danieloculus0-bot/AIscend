@@ -9,6 +9,7 @@ import hashlib
 import json
 from pathlib import Path
 import sqlite3
+import time
 
 from .published_strategy_research import (
     MIN_BARS, RULES, WARMUP, normalize, simulate, _passive,
@@ -36,7 +37,7 @@ class PublishedRuleLearner:
                 evidence TEXT NOT NULL,
                 PRIMARY KEY (product,last_ts))""")
 
-    def observe(self, product, raw, *, frozen_rule=None,
+    def observe(self, product, raw, *, frozen_rule=None, clock=None,
                 fee_bps=DEFAULT_FEE_BPS, spread_bps=DEFAULT_SPREAD_BPS):
         """First call freezes selection; later calls score only new future bars."""
         try:
@@ -47,6 +48,14 @@ class PublishedRuleLearner:
             raise
         if len(rows) < MIN_BARS:
             return {"status": "INSUFFICIENT_HISTORY", "promotion_authorized": False}
+        # Frozen prospective research must start at the ACTUAL current
+        # completed candle, never at an arbitrary historical backtest date.
+        now = int((clock or time.time)())
+        completed_at = rows[-1]["ts"] + 21600
+        if not completed_at <= now < completed_at + 21600:
+            return {"status": "DATA_UNAVAILABLE",
+                    "reason": "NO_CURRENT_COMPLETED_CANDLE",
+                    "promotion_authorized": False}
         product = str(product).upper().strip()
         rule = tuple(frozen_rule or ("donchian_20_10",))
         if rule not in RULES:
