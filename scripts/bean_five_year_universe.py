@@ -109,15 +109,39 @@ def main(argv=None):
     g=p.add_mutually_exclusive_group(required=True)
     g.add_argument("--snapshot-catalog",type=Path)
     g.add_argument("--aggregate",nargs="+",type=Path)
+    g.add_argument("--bridge-input",type=Path)
     p.add_argument("--catalog",type=Path)
     p.add_argument("--db",type=Path)
     p.add_argument("--summary",type=Path)
+    p.add_argument("--bridge-output",type=Path)
     args=p.parse_args(argv)
     if args.snapshot_catalog:
         report=capture_catalog(args.snapshot_catalog)
         print(json.dumps({"catalog_size":report["count"],
                           "catalog_hash":report["catalog_hash"]},
                          sort_keys=True))
+    elif args.bridge_input:
+        if not args.bridge_output:
+            p.error("--bridge-input requires --bridge-output")
+        summary=json.loads(args.bridge_input.read_text(encoding="utf-8"))
+        if (summary.get("schema")!="aiscend.bean.five_year.universe.aggregate.v1"
+                or summary.get("promotion_authorized") is not False):
+            raise ValueError("INVALID_BRIDGE_RESEARCH_SNAPSHOT")
+        observation={"positions":{}, "rotation_reviews":[],
+                     "net_liquidation":None,
+                     "market_radar":{
+                         "prediction":"HISTORICAL_ONLY_NOT_LIVE",
+                         "catalog_hash":summary["catalog_hash"],
+                         "all_market_attempts":summary["attempted_count"],
+                         "status_counts":summary["status_counts"],
+                         "history_research_leaders":
+                             summary["research_rankings_only"][:10],
+                         "research_ledger":summary["ledger_file"],
+                         "thesis":"Read-only BEAN audit of five-year full-universe "
+                                  "hypothetical backtests; no funded order authority"}}
+        args.bridge_output.parent.mkdir(parents=True,exist_ok=True)
+        args.bridge_output.write_text(canonical(observation)+"\n",encoding="utf-8")
+        print("Prepared BEAN read-only complete-catalog advisory input")
     else:
         if not args.catalog or not args.db or not args.summary:
             p.error("Aggregation requires --catalog, --db, and --summary")
