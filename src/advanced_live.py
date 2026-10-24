@@ -989,6 +989,13 @@ class AdvancedSpotEngine:
         if not callable(getattr(self.rail, "order_detail", None)):
             # Mock rails are not authenticated Coinbase and have no reconciliation.
             return
+        # Direct execution callers and overlapping desktop cycles must not
+        # overwrite an unresolved client order id, even if the higher-level
+        # strategy gate has already checked the pending receipt.
+        if self.store.get_meta("pending_coinbase_order"):
+            raise RuntimeError(
+                "Unresolved Coinbase order intent already exists; "
+                "refusing to replace its idempotency key")
         self.store.set_meta("pending_coinbase_order", json.dumps({
             "order_id": None, "client_order_id": client_id,
             "product": product, "side": side,
@@ -1067,6 +1074,15 @@ class AdvancedSpotEngine:
             return None
         pending = json.loads(raw)
         pending_scope = pending.get("account_scope")
+        if (not pending_scope and scope is not None
+                and callable(getattr(self.rail, "account_scope_id", None))):
+            # Older orders were written without a submitting-account identity.
+            # Their client IDs cannot safely be reconciled under an arbitrary
+            # currently selected credential. Preserve the original journal.
+            return Decision("HOLD", None, 0.0,
+                "Unresolved legacy Coinbase order lacks submitting-account "
+                "identity. Trading remains paused until manually reconciled; "
+                "no provider lookup or new order was attempted."), "ORDER_ACCOUNT_SCOPE_UNKNOWN"
         if pending_scope and pending_scope != scope:
             # A Coinbase order is tied to the credentials that submitted it.
             # Never query or clear it using a different account's credentials.
