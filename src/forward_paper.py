@@ -136,7 +136,7 @@ def freeze(conn, *, product, policy, now, fee_bps, spread_bps):
 
 
 def observe_and_score(*, manifest, db_path=None, fetcher=fetch_5m,
-                      clock=time.time, fee_bps=60.0, spread_bps=10.0):
+                      clock=time.time, fee_bps=90.0, spread_bps=10.0):
     """Run ONCE using only completed candles; no exchange authentication."""
     if not 0 <= fee_bps <= 1000 or not 0 <= spread_bps <= 1000:
         raise ValueError("Invalid modeled trading costs")

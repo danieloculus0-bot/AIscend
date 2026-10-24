@@ -20,7 +20,7 @@ def main(argv=None):
                         help="Save training-ranked candidates as a new manifest")
     parser.add_argument("--db",type=Path)
     parser.add_argument("--output",type=Path)
-    parser.add_argument("--fee-bps",type=float,default=60)
+    parser.add_argument("--fee-bps",type=float,default=90)
     parser.add_argument("--spread-bps",type=float,default=10)
     args=parser.parse_args(argv)
     if args.freeze_aggregate:

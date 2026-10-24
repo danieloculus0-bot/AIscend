@@ -25,7 +25,7 @@ from .core import app_data_dir
 HOUR = 3600
 HOURS = 288       # 12 days, within Coinbase's 300-candle request limit
 WARMUP = 60       # identical initial observation window for all candidates
-COST = 0.006      # research fee + adverse fill/slippage per side
+COST = 0.0095     # US entry-tier taker 90bps + modeled adverse fill 5bps per side
 CAPITAL = 25.0
 BASELINE = ("BTC-USD", "ETH-USD", "SOL-USD", "DOGE-USD", "SHIB-USD")
 MODES = ("momentum", "reversal", "dual_trend", "breakout", "persistent",

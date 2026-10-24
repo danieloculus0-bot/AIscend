@@ -6,7 +6,7 @@ from pathlib import Path
 from src.bean_policy import BeanPolicyGate
 from src.bean_research_supervisor import BeanResearchSupervisor
 from src.bean_strategy_lab import (
-    BeanStrategyLab, select_markets, simulate, evolve, WARMUP, HOUR, MODES, _choose
+    BeanStrategyLab, select_markets, simulate, evolve, WARMUP, HOUR, MODES, COST, _choose
 )
 
 
@@ -25,6 +25,9 @@ def fixture(_ordinal=0):
 
 
 class BeanSchoolTests(unittest.TestCase):
+    def test_research_cost_includes_90bps_taker_plus_modeled_slippage(self):
+        self.assertAlmostEqual(COST, 0.0095)
+
     def test_policy_uses_fresh_complete_hourly_closes_not_backtest_returns(self):
         with tempfile.TemporaryDirectory() as d:
             lab = BeanStrategyLab(Path(d) / "bean.db")
