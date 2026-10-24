@@ -1,0 +1,10 @@
+{
+  "schema": "aiscend.bean.aborted_curriculum.v1",
+  "archive": "research/bean_curriculum_aborted_numeric_20261024.zip",
+  "sha256": "24b33a59a3d7b134a4e85895cc440242455446fd55f6ad9af084977bd64f9686",
+  "status": "ABORTED_NUMERICAL_EXPOSURE_BOUNDARY",
+  "source_protocol_sha256": "642c46ceaea7e676ea0d9788ff49231ea07cebb700677c77e8e5aa32504f07c4",
+  "raw_failure_source_recovered_by_verified_hash": true,
+  "later_development_audit_opened": false,
+  "complete_economic_result": false
+}
