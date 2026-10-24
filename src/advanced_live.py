@@ -1079,6 +1079,24 @@ class AdvancedSpotEngine:
             return None
         pending = json.loads(raw)
         pending_scope = pending.get("account_scope")
+        scope_reader = getattr(self.rail, "account_scope_id", None)
+
+        def scope_changed():
+            # The authenticated snapshot can become stale after sync(). An
+            # order lookup must not run under credentials selected afterward.
+            if not callable(scope_reader):
+                return False
+            try:
+                return not scope or scope_reader() != scope
+            except Exception:
+                return True
+
+        def changed_scope_hold():
+            return Decision("HOLD", None, 0.0,
+                "Coinbase credentials changed after the authenticated "
+                "snapshot. Preserve the unresolved order and refresh "
+                "account evidence before attempting reconciliation."), "ORDER_ACCOUNT_SCOPE_CHANGED"
+
         if (not pending_scope and scope is not None
                 and callable(getattr(self.rail, "account_scope_id", None))):
             # Older orders were written without a submitting-account identity.
@@ -1096,6 +1114,8 @@ class AdvancedSpotEngine:
                 "An unresolved Coinbase order belongs to a different "
                 "authenticated account. Restore the submitting account "
                 "to reconcile it; no new orders will be placed."), "ORDER_ACCOUNT_SCOPE_MISMATCH"
+        if scope_changed():
+            return changed_scope_hold()
         order_id = str(pending.get("order_id") or "")
         product = str(pending.get("product") or "")
         if not order_id:
@@ -1111,6 +1131,8 @@ class AdvancedSpotEngine:
                         "Authenticated Coinbase client-order lookup failed: "
                         f"{type(exc).__name__}: {exc}. The original submission "
                         "remains unresolved and no retry will be sent."), "ORDER_AWAITING_VERIFICATION"
+                if scope_changed():
+                    return changed_scope_hold()
                 if order_id:
                     pending["order_id"] = order_id
                     self.store.set_meta("pending_coinbase_order",
@@ -1124,11 +1146,17 @@ class AdvancedSpotEngine:
         if not callable(getter):
             return Decision("HOLD", None, 0.0,
                 "Coinbase order-detail lookup unavailable; order may still be pending."), "ORDER_AWAITING_VERIFICATION"
+        if scope_changed():
+            return changed_scope_hold()
         try:
             observed = verified_order(getter(order_id), order_id)
         except Exception as exc:
             observed = {"state": "ORDER_ACCEPTED_UNVERIFIED",
                         "reason": f"{type(exc).__name__}: {exc}"}
+        # A credential switch during the authenticated HTTP call must not
+        # clear an earlier account's pending idempotency receipt.
+        if scope_changed():
+            return changed_scope_hold()
         self.store.set_meta("last_coinbase_submission_evidence", json.dumps(observed))
         state = observed["state"]
         if state in {"FILLED_VERIFIED", "VENUE_NOT_FILLED"}:
