@@ -68,7 +68,7 @@ class CoinbaseUniverseResearchTests(unittest.TestCase):
             return {"product": product_id}
 
         def judge(bars, *, fee_bps):
-            self.assertEqual(fee_bps, 60)
+            self.assertEqual(fee_bps, 90)
             return {
                 "status": "OOS_PASS", "champion": "trend",
                 "training": {"trend": {"trades": 5, "net_return": 0.08}},
