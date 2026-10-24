@@ -117,7 +117,7 @@ def _journal(rows, rule, first, end, *, fee_bps, spread_bps):
 
 def walkforward(raw, *, product="UNKNOWN-USD", fee_bps=DEFAULT_FEE_BPS,
                 spread_bps=DEFAULT_SPREAD_BPS, start_capital=1000.,
-                train_bars=TRAIN_BARS, test_bars=TEST_BARS):
+                train_bars=TRAIN_BARS, test_bars=TEST_BARS, recall_db=None):
     """Choose rules on trailing history; learn only from already-ended folds."""
     if train_bars < 360 or test_bars < 16 or not start_capital > 0:
         raise ValueError("INVALID_CONFIGURATION")
@@ -140,7 +140,21 @@ def walkforward(raw, *, product="UNKNOWN-USD", fee_bps=DEFAULT_FEE_BPS,
                   train_bars=train_bars, test_bars=test_bars,
                   fee_bps=fee_bps, spread_bps=spread_bps,
                   strategies=[list(rule) for rule in RULES])
-    q = {rule: 0. for rule in RULES}
+    # Recall is allowed only when an entire previous experiment finished
+    # before the very FIRST held-out period. Overlapping research is not memory.
+    if recall_db is not None:
+        from scripts.bean_five_year_recall import recall_prior
+        recalled = recall_prior(recall_db, product=product,
+                                before_ts=rows[first]["ts"])
+    else:
+        recalled = {"status":"NO_ELIGIBLE_PRIOR", "prior_scores":{},
+                    "source_experiments":[], "promotion_authorized":False}
+    q = {rule: float(recalled["prior_scores"].get(repr(rule), 0.))
+         for rule in RULES}
+    ledger.append("research_memory_recall", status=recalled["status"],
+                  cutoff_ts=rows[first]["ts"],
+                  source_experiments=recalled["source_experiments"],
+                  recalled_scores=recalled["prior_scores"])
     folds, trades = [], []
     equity, buy_hold = 1., 1.
     chosen_active, wins = 0, 0
@@ -222,6 +236,8 @@ def walkforward(raw, *, product="UNKNOWN-USD", fee_bps=DEFAULT_FEE_BPS,
             "completed_roundtrips":total_trades,
             "winning_roundtrips":total_wins,"trade_journal":trades,
             "bean_q_final":{str(k):round(v,8) for k,v in q.items()},
+            "recalled_prior_sources":recalled["source_experiments"],
+            "recalled_prior_status":recalled["status"],
             "ledger_tip":ledger.tip,"ledger":ledger.entries,
             "promotion_authorized":False,
             "limitations":("Historical rolling adaptation and hypothetical fills only; "
@@ -230,7 +246,7 @@ def walkforward(raw, *, product="UNKNOWN-USD", fee_bps=DEFAULT_FEE_BPS,
                            "or verified future profitability.")}
 
 
-def evaluate_product_history(fetched):
+def evaluate_product_history(fetched, *, recall_db=None):
     runs=contiguous_runs(fetched["data"])
     # Keep all gaps visible, never fabricate missing six-hour bars.
     longest=max(runs,key=len) if runs else {}
@@ -244,7 +260,8 @@ def evaluate_product_history(fetched):
                 else "PARTIAL", "promotion_authorized":False}
     if not longest or len(longest)<FIRST_TEST+TEST_BARS:
         return {**common,"status":"INSUFFICIENT_HISTORY"}
-    result=walkforward(longest,product=fetched["product"])
+    result=walkforward(longest,product=fetched["product"],
+                       recall_db=recall_db)
     return {**result,**common}
 
 
@@ -258,6 +275,8 @@ def main(argv=None):
     parser.add_argument("--shards", type=int, default=8)
     parser.add_argument("--shard-index", type=int, required=True)
     parser.add_argument("--years", type=int, default=5)
+    parser.add_argument("--recall-db", type=Path,
+                        help="Optional audited prior BEAN research; strict no-overlap cutoff")
     parser.add_argument("--output", type=Path,
                         default=Path("artifacts/bean-5y-walkforward.json"))
     parser.add_argument("--bridge-snapshot", type=Path,
@@ -285,7 +304,8 @@ def main(argv=None):
     for product in selected:
         try:
             fetched = fetch_five_year(product, years=args.years)
-            results[product] = evaluate_product_history(fetched)
+            results[product] = evaluate_product_history(
+                fetched, recall_db=args.recall_db)
         except Exception as exc:
             results[product] = {"product": product, "status": "DATA_UNAVAILABLE",
                                 "error_type": type(exc).__name__,
