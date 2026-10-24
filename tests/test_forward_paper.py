@@ -38,6 +38,25 @@ class ForwardPaperTests(unittest.TestCase):
             manifest=MANIFEST,db_path=self.path,fetcher=self.fetch,
             clock=lambda:at*BAR+1,**kwargs)
 
+    def test_default_forward_paper_fee_is_90bps_and_persisted(self):
+        self.simulate_tick(440)
+        with closing(sqlite3.connect(self.path)) as db:
+            fee, spread = db.execute(
+                "SELECT fee_bps,spread_bps FROM frozen_policy WHERE product=?",
+                ("BTC-USD",)).fetchone()
+        self.assertEqual((fee, spread), (90.0, 10.0))
+
+    def test_cli_uses_same_90bps_default_without_live_exchange(self):
+        from unittest.mock import patch
+        manifest_path = Path(self.folder.name)/"cli-manifest.json"
+        manifest_path.write_text(json.dumps(MANIFEST), encoding="utf-8")
+        with patch("scripts.forward_paper.observe_and_score",
+                   return_value={"paper_only": True}) as observer:
+            self.assertEqual(forward_paper_cli_main([
+                "--manifest", str(manifest_path), "--db", str(self.path)]), 0)
+        self.assertEqual(observer.call_args.kwargs["fee_bps"], 90.0)
+        self.assertEqual(observer.call_args.kwargs["spread_bps"], 10.0)
+
     def test_freeze_uses_training_rank_only_and_never_chooses_holdout_winner(self):
         report={"schema":"aiscend.universe_research_aggregate.v1",
                 "promotion_authorized":False,
