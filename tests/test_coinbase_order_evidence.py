@@ -349,6 +349,93 @@ class OrderEvidenceTests(unittest.TestCase):
             finally:
                 store.close()
 
+    def test_ack_detail_switch_keeps_submitting_account_intent(self):
+        class Rail:
+            def __init__(self):
+                self.scope = "a" * 64
+                self.details = []
+                self.fill_calls = 0
+
+            def account_scope_id(self):
+                return self.scope
+
+            def order_detail(self, order_id):
+                self.details.append(order_id)
+                self.scope = "b" * 64
+                return {"order": {"order_id": order_id, "status": "FILLED",
+                                  "filled_size": "0.1", "filled_value": "10"}}
+
+            def order_fills(self, order_id):
+                self.fill_calls += 1
+                raise AssertionError("Do not read fills under switched credentials")
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "ack-detail-switch.db")
+            try:
+                rail = Rail()
+                engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                engine.store, engine.rail = store, rail
+                engine._record_order_intent(
+                    product="BTC-USD", side="BUY", client_id="client-a",
+                    account_scope="a" * 64)
+                state, evidence = engine._check_or_track_submission(
+                    {"success": True, "success_response": {"order_id": "order-a"}},
+                    product="BTC-USD", side="BUY", client_id="client-a",
+                    account_scope="a" * 64)
+                self.assertEqual(state, "ORDER_ACCEPTED_UNVERIFIED")
+                self.assertIn("credentials changed", evidence["reason"])
+                self.assertEqual(rail.details, ["order-a"])
+                self.assertEqual(rail.fill_calls, 0)
+                pending = json.loads(store.get_meta("pending_coinbase_order"))
+                self.assertEqual(pending["client_order_id"], "client-a")
+                self.assertEqual(pending["account_scope"], "a" * 64)
+                self.assertEqual(pending["order_id"], "order-a")
+                self.assertEqual(store.get_meta("last_coinbase_submission_state"),
+                                 "ORDER_ACCEPTED_UNVERIFIED")
+            finally:
+                store.close()
+
+    def test_ack_fills_switch_cannot_release_pending_receipt(self):
+        class Rail:
+            def __init__(self):
+                self.scope = "a" * 64
+                self.fill_calls = 0
+
+            def account_scope_id(self):
+                return self.scope
+
+            def order_detail(self, order_id):
+                return {"order": {"order_id": order_id, "status": "FILLED",
+                                  "filled_size": "0.1", "filled_value": "10"}}
+
+            def order_fills(self, order_id):
+                self.fill_calls += 1
+                self.scope = "b" * 64
+                return {"fills": []}
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "ack-fills-switch.db")
+            try:
+                rail = Rail()
+                engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                engine.store, engine.rail = store, rail
+                engine._record_order_intent(
+                    product="ETH-USD", side="SELL", client_id="client-a",
+                    account_scope="a" * 64)
+                state, evidence = engine._check_or_track_submission(
+                    {"success": True, "success_response": {"order_id": "order-a"}},
+                    product="ETH-USD", side="SELL", client_id="client-a",
+                    account_scope="a" * 64)
+                self.assertEqual(state, "ORDER_ACCEPTED_UNVERIFIED")
+                self.assertIn("credentials changed", evidence["reason"])
+                self.assertEqual(rail.fill_calls, 1)
+                pending = json.loads(store.get_meta("pending_coinbase_order"))
+                self.assertEqual(pending["client_order_id"], "client-a")
+                self.assertEqual(pending["account_scope"], "a" * 64)
+                self.assertEqual(pending["order_id"], "order-a")
+            finally:
+                store.close()
+
     def test_matching_coinbase_scope_still_verifies_completed_order(self):
         class MatchingRail:
             def __init__(self, scope):
