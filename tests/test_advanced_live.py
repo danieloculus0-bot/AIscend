@@ -167,6 +167,36 @@ class FakeUniverse:
 
 
 class AdvancedLiveTests(unittest.TestCase):
+    def test_coinbase_key_rotated_mid_status_cannot_relabel_prior_account_balances(self):
+        # The account read returns A's balances, but the vault is switched to
+        # B before the snapshot captures its authenticated credential scope.
+        # Previously the old $25 could be attributed to B and used for sizing.
+        class RotatingRail(FakeRail):
+            scope = "a" * 64
+
+            def account_scope_id(self):
+                return self.scope
+
+            def status(self):
+                account_a = super().status()
+                self.scope = "b" * 64
+                return account_a
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "advanced.db")
+            rail = RotatingRail()
+            engine = AdvancedSpotEngine(
+                store, rail=rail, asset_universe=FakeUniverse(),
+                listing_sentinel=FakeListingSentinel(),
+                human_researcher=FakeHumanResearch(),
+            )
+            with self.assertRaisesRegex(RuntimeError, "changed during authenticated"):
+                engine.step()
+            self.assertIsNone(engine._snapshot)
+            self.assertIsNone(store.get_meta("advanced_starting_value:" + "b" * 64))
+            self.assertFalse(rail.buys)
+            store.close()
+
     def test_authentication_key_switch_resets_starting_equity_baseline(self):
         class ScopedRail(FakeRail):
             scope = "a" * 64
