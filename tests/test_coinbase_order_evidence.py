@@ -159,6 +159,40 @@ class OrderEvidenceTests(unittest.TestCase):
             finally:
                 store.close()
 
+    def test_matching_coinbase_scope_still_verifies_completed_order(self):
+        class MatchingRail:
+            def __init__(self, scope):
+                self.scope = scope
+                self.lookups = []
+
+            def account_scope_id(self):
+                return self.scope
+
+            def order_detail(self, order_id):
+                self.lookups.append(order_id)
+                return {"order": {"order_id": order_id, "status": "FILLED",
+                                  "filled_size": "0.1", "filled_value": "10.0"}}
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "matching-scope.db")
+            try:
+                account_a = "a" * 64
+                rail = MatchingRail(account_a)
+                engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                engine.store, engine.rail = store, rail
+                engine._record_order_intent(
+                    product="BTC-USD", side="BUY", client_id="client-a",
+                    account_scope=account_a)
+                state, receipt = engine._check_or_track_submission(
+                    {"success": True, "success_response": {"order_id": "order-a"}},
+                    product="BTC-USD", side="BUY", client_id="client-a",
+                    account_scope=account_a)
+                self.assertEqual(state, "FILLED_VERIFIED")
+                self.assertEqual(rail.lookups, ["order-a"])
+                self.assertFalse(store.get_meta("pending_coinbase_order"))
+            finally:
+                store.close()
+
     def test_switched_credentials_after_ack_preserve_unverified_receipt(self):
         class SwitchingRail:
             def __init__(self):
