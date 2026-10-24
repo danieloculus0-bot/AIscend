@@ -174,6 +174,42 @@ class BeanProspectiveTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.run_step(62)
 
+    def test_deleted_manifest_identity_cannot_rebind_existing_paper_ledger(self):
+        first = self.run_step(60)
+        with closing(sqlite3.connect(self.db)) as db, db:
+            db.execute("DELETE FROM meta WHERE k='manifest_sha'")
+        self.manifest["fee_bps_per_side"] = 150
+        self.save()
+        with self.assertRaisesRegex(ValueError, "no frozen manifest identity"):
+            self.run_step(62)
+        with closing(sqlite3.connect(self.db)) as db:
+            count = db.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+            recorded_tip = db.execute(
+                "SELECT v FROM meta WHERE k='ledger_tip'").fetchone()[0]
+        self.assertEqual(count, 3)
+        self.assertEqual(recorded_tip, first["ledger_tip"])
+
+    def test_changed_manifest_identity_and_meta_cannot_relabel_old_evidence(self):
+        self.run_step(60)
+        # Changing both metadata and the manifest file must not invalidate
+        # the immutable freeze event's original manifest digest.
+        self.manifest["fee_bps_per_side"] = 150
+        self.save()
+        from src.bean_sixhour_forward import digest
+        new_digest = digest(self.manifest)
+        with closing(sqlite3.connect(self.db)) as db, db:
+            db.execute("UPDATE meta SET v=? WHERE k='manifest_sha'",
+                       (new_digest,))
+        with self.assertRaisesRegex(ValueError, "frozen manifest identity mismatch"):
+            self.run_step(62)
+
+    def test_deleted_hash_checkpoint_cannot_be_silently_reconstructed(self):
+        self.run_step(60)
+        with closing(sqlite3.connect(self.db)) as db, db:
+            db.execute("DELETE FROM meta WHERE k='ledger_tip'")
+        with self.assertRaisesRegex(ValueError, "ledger checkpoint missing"):
+            self.run_step(62)
+
     def test_sqlite_state_edit_fails_hash_integrity(self):
         self.run_step(60)
         # sqlite3's transaction context does not close its handle on Windows.
