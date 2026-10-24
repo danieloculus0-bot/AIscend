@@ -216,6 +216,39 @@ class OrderEvidenceTests(unittest.TestCase):
             finally:
                 store.close()
 
+    def test_production_rail_reconciliation_passes_expected_credential_scope(self):
+        from src.wallets.advanced_trade import AdvancedTradeSpot
+
+        class Rail(AdvancedTradeSpot):
+            def __init__(self):
+                self.received_scopes = []
+
+            def account_scope_id(self):
+                return "a" * 64
+
+            def order_detail(self, order_id, *, expected_scope=None):
+                self.received_scopes.append(expected_scope)
+                return {"order": {"order_id": order_id, "status": "OPEN",
+                                  "filled_size": "0"}}
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "scope-bound-read.db")
+            try:
+                rail = Rail()
+                engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                engine.store, engine.rail = store, rail
+                store.set_meta("pending_coinbase_order", json.dumps({
+                    "order_id": "venue-a", "client_order_id": "client-a",
+                    "product": "BTC-USD", "side": "BUY",
+                    "account_scope": "a" * 64}))
+                decision, status = engine._pending_order_decision(scope="a" * 64)
+                self.assertEqual((decision.action, status),
+                                 ("HOLD", "ORDER_AWAITING_VERIFICATION"))
+                self.assertEqual(rail.received_scopes, ["a" * 64])
+                self.assertTrue(store.get_meta("pending_coinbase_order"))
+            finally:
+                store.close()
+
     def test_stale_snapshot_scope_blocks_wrong_account_pending_lookup(self):
         class Rail:
             def __init__(self):
