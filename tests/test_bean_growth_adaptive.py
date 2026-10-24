@@ -170,6 +170,43 @@ class GrowthPolicyTests(unittest.TestCase):
                 json.loads(archive["state"])["q"]["initial"]["buy_hold"],
                 99999.0)
 
+    def test_two_desktops_replay_new_completed_candle_once(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from threading import Barrier
+        end = 500 * BAR
+        bars = {t: {"open": 100.0, "close": 100.1}
+                for t in range(end - 280 * BAR, end, BAR)}
+        now = [end + 10]
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "bean.sqlite3"
+            def plain_fetch(_product, a, b):
+                return {t: row for t, row in bars.items() if a <= t < b}
+            initial = BeanAdaptiveGrowthGate(
+                path=path, fetcher=plain_fetch, clock=lambda: now[0])
+            before = initial.assess("ETH-USD")
+            prior = before["reward_updates"]
+            bars[end] = {"open": 100.1, "close": 100.2}
+            now[0] += BAR
+            barrier = Barrier(2)
+            def synchronized_fetch(product, a, b):
+                market = plain_fetch(product, a, b)
+                barrier.wait(timeout=10)
+                return market
+            readers = [
+                BeanAdaptiveGrowthGate(
+                    path=path, fetcher=synchronized_fetch,
+                    clock=lambda: now[0])
+                for _ in range(2)]
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                outputs = list(executor.map(
+                    lambda g: g.assess("ETH-USD"), readers))
+            self.assertEqual([x["forward_bars"] for x in outputs], [1, 1])
+            self.assertTrue(all(x["status"] != "DATA_UNAVAILABLE" for x in outputs))
+            self.assertTrue(all(x["reward_updates"] == prior + 1 for x in outputs))
+            final = BeanAdaptiveGrowthGate(
+                path=path, fetcher=plain_fetch, clock=lambda: now[0])
+            self.assertEqual(final.assess("ETH-USD")["reward_updates"], prior + 1)
+
     def test_missing_bar_does_not_preserve_imaginary_held_equity(self):
         state = _fresh_state()
         state["last_bar"] = 0
