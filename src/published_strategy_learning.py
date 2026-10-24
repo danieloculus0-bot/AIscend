@@ -37,6 +37,13 @@ class PublishedRuleLearner:
                 evidence TEXT NOT NULL,
                 PRIMARY KEY (product,last_ts))""")
 
+    def frozen(self, product):
+        with sqlite3.connect(self.path) as db:
+            saved = db.execute(
+                "SELECT frozen_rule FROM freezes WHERE product=?",
+                (str(product).upper(),)).fetchone()
+        return tuple(json.loads(saved[0])) if saved else None
+
     def observe(self, product, raw, *, frozen_rule=None, clock=None,
                 fee_bps=DEFAULT_FEE_BPS, spread_bps=DEFAULT_SPREAD_BPS):
         """First call freezes selection; later calls score only new future bars."""
