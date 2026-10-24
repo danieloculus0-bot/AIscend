@@ -1332,6 +1332,9 @@ class AdvancedSpotEngine:
             fill_reader = getattr(getattr(self, "rail", None), "position_fills", None)
             if callable(fill_reader) and now - last_checked >= 300:
                 try:
+                    # A per-position fill read can span multiple Coinbase
+                    # requests. Do not trust fills from a rotated credential.
+                    self._require_snapshot_order_scope(snapshot)
                     evidence = fill_reader(product)
                     basis = rebuild_position_basis(
                         product, holding.get("qty") or 0,
@@ -1339,6 +1342,17 @@ class AdvancedSpotEngine:
                 except Exception as exc:
                     basis = {"cost_basis_status": "coinbase_fill_lookup_error",
                              "avg_cost": None, "reason": str(exc)[:200]}
+                # Check even when the provider raised: rotation during an
+                # incomplete read must not be mistaken for a normal outage.
+                # Crucially, reject before persisting B's cost basis under A.
+                try:
+                    self._require_snapshot_order_scope(snapshot)
+                except RuntimeError:
+                    return write(Decision("HOLD", None, 0.0,
+                        "Coinbase credential identity changed during position "
+                        f"fill history for {product}; cost basis discarded and "
+                        "trading paused until a fresh authenticated snapshot."),
+                        "ACCOUNT_SCOPE_CHANGED_DURING_POSITION_HISTORY")
                 self.store.set_meta(basis_key, json.dumps(basis))
                 self.store.set_meta(check_key, str(now))
             verified_cost = (basis.get("avg_cost")
