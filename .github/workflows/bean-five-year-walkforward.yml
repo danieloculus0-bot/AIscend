@@ -1,52 +1,113 @@
-name: BEAN Five Year Historical Strategy Gauntlet
+name: BEAN Five Year Full Coinbase Universe Gauntlet
 on:
   pull_request:
     branches: [main]
     paths:
-      - "scripts/bean_five_year_walkforward.py"
-      - "tests/test_bean_five_year_walkforward.py"
-      - "scripts/bean_five_year_ledger.py"
-      - "tests/test_bean_five_year_ledger.py"
+      - "scripts/bean_five_year_*.py"
+      - "tests/test_bean_five_year_*.py"
       - ".github/workflows/bean-five-year-walkforward.yml"
       - "src/published_strategy_research.py"
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  five-year-read-only:
+  catalog:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Verify causal walk-forward regressions
-        run: python -m unittest discover -s tests -p "test_bean_five_year_walkforward.py" -v
-      - name: Verify BEAN persistent ledger and replay regressions
-        run: python -m unittest discover -s tests -p "test_bean_five_year_ledger.py" -v
-      - name: Research five actual calendar years of Coinbase public candles
+      - name: Freeze entire eligible Coinbase public spot catalog ONCE
         run: |
-          python -m scripts.bean_five_year_walkforward --product BTC-USD --product ETH-USD --product SOL-USD --years 5 --output artifacts/bean-5y-walkforward.json --bridge-snapshot artifacts/bean-5y-bridge-snapshot.json
-      - name: Save research decisions and BEAN Q lessons for later replay
+          python -m scripts.bean_five_year_universe --snapshot-catalog artifacts/bean-5y-catalog.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bean-five-year-complete-catalog
+          path: artifacts/bean-5y-catalog.json
+          if-no-files-found: error
+          retention-days: 90
+  five-year-shards:
+    needs: catalog
+    runs-on: ubuntu-latest
+    timeout-minutes: 105
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: bean-five-year-complete-catalog
+          path: artifacts
+      - name: Verify five-year causal learning, ledger, and catalog regressions
         run: |
-          python -m scripts.bean_five_year_ledger --report artifacts/bean-5y-walkforward.json --db artifacts/bean-5y-learning.sqlite3
-          python -m scripts.bean_five_year_ledger --audit-only --db artifacts/bean-5y-learning.sqlite3
-      - name: Checkout actual BEAN Core for independent advisory review
-        run: git clone --depth 1 https://github.com/danieloculus0-bot/BEAN.git "$RUNNER_TEMP/bean-core"
-      - name: Submit five-year result summary to BEAN Core advisory bridge
+          python -m unittest discover -s tests -p "test_bean_five_year_walkforward.py" -v
+          python -m unittest discover -s tests -p "test_bean_five_year_ledger.py" -v
+          python -m unittest discover -s tests -p "test_bean_five_year_universe.py" -v
+      - name: Simulate ALL products assigned to this immutable shard
         run: |
-          python -m scripts.bean_portfolio_review --core "$RUNNER_TEMP/bean-core" --snapshot artifacts/bean-5y-bridge-snapshot.json --db "$RUNNER_TEMP/bean-five-year-review.db" --output artifacts/bean-5y-bean-core-advisory.json
-          python -c "import json; p=json.load(open('artifacts/bean-5y-bean-core-advisory.json')); assert len(p['core']['sha'])==40; assert p['trade_authorized'] is False; print('BEAN Core evaluated read-only historical evidence')"
-      - name: Preserve all historical results and BEAN advisory
+          python -m scripts.bean_five_year_walkforward --catalog artifacts/bean-5y-catalog.json --shards 8 --shard-index ${{ matrix.shard }} --years 5 --output artifacts/bean-5y-shard-${{ matrix.shard }}.json
+      - name: Persist immutable BEAN learning for EVERY assigned market
+        run: |
+          python -m scripts.bean_five_year_ledger --report artifacts/bean-5y-shard-${{ matrix.shard }}.json --db artifacts/bean-5y-shard-${{ matrix.shard }}.sqlite3
+          python -m scripts.bean_five_year_ledger --audit-only --db artifacts/bean-5y-shard-${{ matrix.shard }}.sqlite3
+      - name: Preserve shard outcomes, including ordinary incomplete histories
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: bean-five-year-walkforward-${{ github.run_number }}
+          name: bean-five-year-shard-${{ matrix.shard }}
           path: |
-            artifacts/bean-5y-walkforward.json
-            artifacts/bean-5y-learning.sqlite3
-            artifacts/bean-5y-bridge-snapshot.json
-            artifacts/bean-5y-bean-core-advisory.json
-          retention-days: 30
+            artifacts/bean-5y-shard-${{ matrix.shard }}.json
+            artifacts/bean-5y-shard-${{ matrix.shard }}.sqlite3
+          if-no-files-found: warn
+          retention-days: 90
+  aggregate:
+    needs: [catalog, five-year-shards]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: bean-five-year-complete-catalog
+          path: artifacts
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bean-five-year-shard-*
+          path: artifacts/shards
+          merge-multiple: true
+      - name: Require EVERY catalog market and save ONE auditable BEAN ledger
+        run: |
+          python -m scripts.bean_five_year_universe --catalog artifacts/bean-5y-catalog.json --aggregate artifacts/shards/bean-5y-shard-*.json --db artifacts/bean-5y-universe.sqlite3 --summary artifacts/bean-5y-universe-summary.json
+          python -m scripts.bean_five_year_ledger --audit-only --db artifacts/bean-5y-universe.sqlite3
+      - name: Checkout actual BEAN Core in independent advisory mode
+        run: git clone --depth 1 https://github.com/danieloculus0-bot/BEAN.git "$RUNNER_TEMP/bean-core"
+      - name: Real BEAN bridge reviews all-market research snapshot
+        run: |
+          python -m scripts.bean_five_year_universe --bridge-input artifacts/bean-5y-universe-summary.json --bridge-output artifacts/bean-5y-universe-bridge-snapshot.json
+          python -m scripts.bean_portfolio_review --core "$RUNNER_TEMP/bean-core" --snapshot artifacts/bean-5y-universe-bridge-snapshot.json --db "$RUNNER_TEMP/bean-five-year-review.db" --output artifacts/bean-5y-universe-bean-core-advisory.json
+          python -c "import json; p=json.load(open('artifacts/bean-5y-universe-bean-core-advisory.json')); assert p['trade_authorized'] is False and len(p['core']['sha'])==40"
+      - name: Archive every result, learner ledger, and bridge report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bean-five-year-ALL-market-ledger-${{ github.run_number }}
+          path: |
+            artifacts/bean-5y-catalog.json
+            artifacts/bean-5y-universe.sqlite3
+            artifacts/bean-5y-universe-summary.json
+            artifacts/bean-5y-universe-bridge-snapshot.json
+            artifacts/bean-5y-universe-bean-core-advisory.json
+          retention-days: 90
           if-no-files-found: warn
