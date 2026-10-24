@@ -1014,18 +1014,25 @@ class AdvancedSpotEngine:
         order_id = accepted_order_id(order)
         getter = getattr(self.rail, "order_detail", None)
         scope_reader = getattr(self.rail, "account_scope_id", None)
-        scope_matches = True
-        if callable(scope_reader):
+        def current_scope_matches():
+            # The credential can change while an authenticated HTTP call is
+            # in flight, not just between the ACK and the first lookup.
+            if not callable(scope_reader):
+                return True  # Offline mock rails have no credential identity.
             try:
-                scope_matches = bool(account_scope and scope_reader() == account_scope)
+                return bool(account_scope and scope_reader() == account_scope)
             except Exception:
-                scope_matches = False
-        if not scope_matches:
+                return False
+
+        def changed_scope_observation():
+            return {"state": "ORDER_ACCEPTED_UNVERIFIED",
+                    "order_id": order_id,
+                    "reason": "Coinbase credentials changed during receipt verification"}
+
+        if not current_scope_matches():
             # The venue may have accepted the order under the prior key.
             # Preserve its client ID without looking it up using another key.
-            observation = {"state": "ORDER_ACCEPTED_UNVERIFIED",
-                           "order_id": order_id,
-                           "reason": "Coinbase credentials changed before receipt verification"}
+            observation = changed_scope_observation()
         elif not order_id:
             observation = {"state": "ORDER_ACCEPTED_UNVERIFIED",
                            "reason": "Provider ACK contained no order_id"}
@@ -1040,6 +1047,10 @@ class AdvancedSpotEngine:
                 observation = {"state": "ORDER_ACCEPTED_UNVERIFIED",
                                "order_id": order_id,
                                "reason": f"Order verification unavailable: {type(exc).__name__}: {exc}"}
+        if not current_scope_matches():
+            # A FILLED result returned under changed credentials cannot be
+            # used to release the original submitting account's order slot.
+            observation = changed_scope_observation()
         state = str(observation["state"])
         if state == "FILLED_VERIFIED" and order_id:
             filler = getattr(self.rail, "order_fills", None)
@@ -1057,6 +1068,10 @@ class AdvancedSpotEngine:
                     ]
                 except Exception as exc:
                     observation["fill_lookup_warning"] = type(exc).__name__
+        if not current_scope_matches():
+            # Also guard a switch during the optional fee/fills lookup.
+            observation = changed_scope_observation()
+            state = "ORDER_ACCEPTED_UNVERIFIED"
         self.store.set_meta("last_coinbase_submission_state", state)
         self.store.set_meta("last_coinbase_submission_evidence",
                             json.dumps(observation))
