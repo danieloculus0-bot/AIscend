@@ -156,24 +156,34 @@ def walkforward(raw, *, product="UNKNOWN-USD", fee_bps=DEFAULT_FEE_BPS,
                   source_experiments=recalled["source_experiments"],
                   recalled_scores=recalled["prior_scores"])
     folds, trades = [], []
-    equity, buy_hold = 1., 1.
+    equity, buy_hold, no_memory_equity = 1., 1., 1.
     chosen_active, wins = 0, 0
+    no_memory_active, no_memory_positive = 0, 0
     for i in range(first, len(rows)-test_bars+1, test_bars):
         cut = i+test_bars
         train_from = i-train_bars
         train = {r: simulate(rows,r,start=train_from,end=i,
                              fee_bps=fee_bps,spread_bps=spread_bps)
                  for r in RULES}
-        # Q contains ONLY outcomes from past completed test windows.
-        scores = {r: _score(train[r]) + .25*q[r]
-                  if math.isfinite(_score(train[r])) else -math.inf
+        # The causal A/B controls use the SAME candles, candidate rules,
+        # execution fees and completed training samples in each fold.
+        # Only the accumulated prior-window Q memory differs.
+        raw_scores = {r:_score(train[r]) for r in RULES}
+        scores = {r:raw_scores[r] + .25*q[r]
+                  if math.isfinite(raw_scores[r]) else -math.inf
                   for r in RULES}
-        qualified = [r for r in RULES if scores[r] > 0]
-        chosen = (max(qualified, key=lambda r:(scores[r],-RULES.index(r)))
-                  if qualified else None)
+        def pick(values):
+            good = [r for r in RULES if values[r] > 0]
+            return max(good, key=lambda r:(values[r],-RULES.index(r))) if good else None
+        chosen = pick(scores)
+        no_memory_choice = pick(raw_scores)
         evidence = {"trained_through":rows[i-1]["ts"], "test_start":rows[i]["ts"],
                     "test_end":rows[cut-1]["ts"],
                     "winner":list(chosen) if chosen else "cash",
+                    "no_memory_winner":list(no_memory_choice) if no_memory_choice else "cash",
+                    "baseline_training_scores":{
+                        str(k):round(v,8) if math.isfinite(v) else None
+                        for k,v in raw_scores.items()},
                     "training_scores":{str(k):round(v,8) if math.isfinite(v)
                                        else None for k,v in scores.items()},
                     "bean_q_before":{str(k):round(v,8) for k,v in q.items()}}
@@ -182,6 +192,11 @@ def walkforward(raw, *, product="UNKNOWN-USD", fee_bps=DEFAULT_FEE_BPS,
         realized = {r:simulate(rows,r,start=i,end=cut,fee_bps=fee_bps,
                               spread_bps=spread_bps) for r in RULES}
         net = realized[chosen]["net_return"] if chosen else 0.
+        no_memory_net = (realized[no_memory_choice]["net_return"]
+                         if no_memory_choice else 0.)
+        if no_memory_choice:
+            no_memory_active += 1
+            no_memory_positive += int(no_memory_net > 0)
         if chosen:
             entries, journal_nav, still_held = _journal(
                 rows,chosen,i,cut,fee_bps=fee_bps,spread_bps=spread_bps)
@@ -193,10 +208,14 @@ def walkforward(raw, *, product="UNKNOWN-USD", fee_bps=DEFAULT_FEE_BPS,
             wins += int(net>0)
         hold_gain = (rows[cut-1]["close"]/rows[i]["open"]*(1-fee)**2-1)
         equity *= 1+net
+        no_memory_equity *= 1+no_memory_net
         buy_hold *= 1+hold_gain
         ledger.append("after_test_window_closed",window=len(folds),
                       chosen=list(chosen) if chosen else "cash",
-                      fee_net_return=net, buy_hold_net_return=round(hold_gain,8),
+                      fee_net_return=net,
+                      no_memory_fee_net_return=no_memory_net,
+                      no_memory_choice=list(no_memory_choice) if no_memory_choice else "cash",
+                      buy_hold_net_return=round(hold_gain,8),
                       trained_through=rows[i-1]["ts"],
                       observed_through=rows[cut-1]["ts"])
         # Train on counterfactual paper choices only AFTER their bars close.
@@ -209,17 +228,30 @@ def walkforward(raw, *, product="UNKNOWN-USD", fee_bps=DEFAULT_FEE_BPS,
                       q_after={str(k):round(v,8) for k,v in q.items()})
         folds.append({**evidence,"window":len(folds),
                       "fee_net_return":net,
+                      "no_memory_fee_net_return":no_memory_net,
+                      "no_memory_closed_trades":(
+                          realized[no_memory_choice]["roundtrips"]
+                          if no_memory_choice else 0),
+                      "no_memory_winning_trades":(
+                          realized[no_memory_choice]["wins"]
+                          if no_memory_choice else 0),
+                      "all_rule_test_results_after_close":{
+                          repr(rule):realized[rule] for rule in RULES},
                       "buy_hold_window_net_return":round(hold_gain,8),
                       "closed_trades":(realized[chosen]["roundtrips"]
                                        if chosen else 0),
                       "winning_trades":realized[chosen]["wins"] if chosen else 0,
                       "open_position_marked":realized[chosen]["open_position"]
                                             if chosen else False,
-                      "simulated_equity":round(start_capital*equity,4)})
+                      "simulated_equity":round(start_capital*equity,4),
+                      "no_memory_simulated_equity":round(
+                          start_capital*no_memory_equity,4)})
     if chain(ledger.entries)!=ledger.tip:
         raise ValueError("LEDGER_NOT_REPRODUCIBLE")
     total_trades = sum(f["closed_trades"] for f in folds)
     total_wins = sum(f["winning_trades"] for f in folds)
+    no_memory_trades = sum(f["no_memory_closed_trades"] for f in folds)
+    no_memory_wins = sum(f["no_memory_winning_trades"] for f in folds)
     # A true passive benchmark buys ONCE and liquidates ONCE. Paying fresh
     # fees at every 90-day fold makes buy-and-hold falsely look weaker.
     passive_exit_index = first + len(folds)*test_bars - 1
@@ -230,9 +262,18 @@ def walkforward(raw, *, product="UNKNOWN-USD", fee_bps=DEFAULT_FEE_BPS,
             "fold_count":len(folds),"simulated_start":start_capital,
             "simulated_final":round(start_capital*equity,4),
             "net_return":round(equity-1,8),
+            "no_memory_net_return":round(no_memory_equity-1,8),
+            "no_memory_simulated_final":round(start_capital*no_memory_equity,4),
+            "learning_incremental_return":round(equity-no_memory_equity,8),
+            "learning_outperformed_no_memory":equity>no_memory_equity,
+            "ablation_mode":"causal_past_fold_q_vs_trailing_training_only",
             "fold_rebalanced_buy_hold_return":round(buy_hold-1,8),
             "continuous_buy_hold_return":round(continuous_buy_hold,8),
             "active_folds":chosen_active,"positive_folds":wins,
+            "no_memory_active_folds":no_memory_active,
+            "no_memory_positive_folds":no_memory_positive,
+            "no_memory_completed_roundtrips":no_memory_trades,
+            "no_memory_winning_roundtrips":no_memory_wins,
             "completed_roundtrips":total_trades,
             "winning_roundtrips":total_wins,"trade_journal":trades,
             "bean_q_final":{str(k):round(v,8) for k,v in q.items()},
