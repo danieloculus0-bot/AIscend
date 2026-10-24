@@ -206,12 +206,18 @@ def walkforward(raw, *, product="UNKNOWN-USD", fee_bps=DEFAULT_FEE_BPS,
         raise ValueError("LEDGER_NOT_REPRODUCIBLE")
     total_trades = sum(f["closed_trades"] for f in folds)
     total_wins = sum(f["winning_trades"] for f in folds)
+    # A true passive benchmark buys ONCE and liquidates ONCE. Paying fresh
+    # fees at every 90-day fold makes buy-and-hold falsely look weaker.
+    passive_exit_index = first + len(folds)*test_bars - 1
+    continuous_buy_hold = (
+        rows[passive_exit_index]["close"]/rows[first]["open"]*(1-fee)**2-1)
     return {"status":"HISTORICAL_WALKFORWARD_RESEARCH",
             "product":product,"bars":len(rows),"folds":folds,
             "fold_count":len(folds),"simulated_start":start_capital,
             "simulated_final":round(start_capital*equity,4),
             "net_return":round(equity-1,8),
             "fold_rebalanced_buy_hold_return":round(buy_hold-1,8),
+            "continuous_buy_hold_return":round(continuous_buy_hold,8),
             "active_folds":chosen_active,"positive_folds":wins,
             "completed_roundtrips":total_trades,
             "winning_roundtrips":total_wins,"trade_journal":trades,
