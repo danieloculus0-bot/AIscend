@@ -101,6 +101,11 @@ class GrowthPolicyTests(unittest.TestCase):
             self.assertEqual(first["observed_forward_samples"], 0)
             self.assertEqual(first["status"], "WARMING_UP")
             self.assertEqual(first["trade_effect"], "NONE")
+            dashboard = gate.status()["markets"][0]
+            self.assertEqual(dashboard["adoption_status"], "WARMING_UP")
+            self.assertEqual(dashboard["selected_action_forward_samples"], 0)
+            self.assertEqual(dashboard["paper_model"],
+                             "taker90bps_forward_context_reward_v5")
             # Even an inflated retrospective visit counter cannot satisfy
             # the missing independently observed forward samples.
             with gate._db() as db:
