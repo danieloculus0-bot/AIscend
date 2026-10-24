@@ -26,7 +26,10 @@ TRAIN_BARS = 1460                  # 365 days on 6h bars
 TEST_BARS = 360                    # 90-day sealed test windows
 FIRST_TEST = WARMUP + TRAIN_BARS   # warm-up cannot be training performance
 MAX_CANDLES = 280
-MODEL = "five_year_six_hour_walkforward_bean_q_vs_no_memory_v2"
+MODEL = "five_year_six_hour_walkforward_bean_q_weight_gauntlet_v3"
+# Frozen, predeclared policy weights. Test outcomes NEVER select weights.
+# Zero is the memory-off control; 0.25 is the existing BEAN policy.
+Q_WEIGHTS = (0., .25, 1., 2., 4.)
 
 
 def fetch_five_year(product, *, years=5, fetcher=_get_json, clock=None):
@@ -159,6 +162,7 @@ def walkforward(raw, *, product="UNKNOWN-USD", fee_bps=DEFAULT_FEE_BPS,
     equity, buy_hold, no_memory_equity = 1., 1., 1.
     chosen_active, wins = 0, 0
     no_memory_active, no_memory_positive = 0, 0
+    q_weight_equities = {weight: 1. for weight in Q_WEIGHTS}
     for i in range(first, len(rows)-test_bars+1, test_bars):
         cut = i+test_bars
         train_from = i-train_bars
@@ -177,6 +181,13 @@ def walkforward(raw, *, product="UNKNOWN-USD", fee_bps=DEFAULT_FEE_BPS,
             return max(good, key=lambda r:(values[r],-RULES.index(r))) if good else None
         chosen = pick(scores)
         no_memory_choice = pick(raw_scores)
+        q_weight_choices = {w:pick({
+            r:(raw_scores[r]+w*q[r] if math.isfinite(raw_scores[r])
+               else -math.inf) for r in RULES})
+            for w in Q_WEIGHTS}
+        if (q_weight_choices[0.] != no_memory_choice or
+                q_weight_choices[.25] != chosen):
+            raise ValueError("PREDECLARED_WEIGHT_REPLAY_MISMATCH")
         evidence = {"trained_through":rows[i-1]["ts"], "test_start":rows[i]["ts"],
                     "test_end":rows[cut-1]["ts"],
                     "winner":list(chosen) if chosen else "cash",
@@ -194,6 +205,11 @@ def walkforward(raw, *, product="UNKNOWN-USD", fee_bps=DEFAULT_FEE_BPS,
         net = realized[chosen]["net_return"] if chosen else 0.
         no_memory_net = (realized[no_memory_choice]["net_return"]
                          if no_memory_choice else 0.)
+        q_weight_returns = {}
+        for weight, rule in q_weight_choices.items():
+            gained = realized[rule]["net_return"] if rule else 0.
+            q_weight_returns[weight] = gained
+            q_weight_equities[weight] *= 1+gained
         if no_memory_choice:
             no_memory_active += 1
             no_memory_positive += int(no_memory_net > 0)
@@ -229,6 +245,14 @@ def walkforward(raw, *, product="UNKNOWN-USD", fee_bps=DEFAULT_FEE_BPS,
         folds.append({**evidence,"window":len(folds),
                       "fee_net_return":net,
                       "no_memory_fee_net_return":no_memory_net,
+                      "q_weight_research":{
+                          str(w):{
+                              "winner":list(q_weight_choices[w])
+                                  if q_weight_choices[w] else "cash",
+                              "net_return":q_weight_returns[w],
+                              "simulated_equity":round(
+                                  start_capital*q_weight_equities[w],4)}
+                          for w in Q_WEIGHTS},
                       "no_memory_closed_trades":(
                           realized[no_memory_choice]["roundtrips"]
                           if no_memory_choice else 0),
@@ -250,6 +274,9 @@ def walkforward(raw, *, product="UNKNOWN-USD", fee_bps=DEFAULT_FEE_BPS,
         raise ValueError("LEDGER_NOT_REPRODUCIBLE")
     total_trades = sum(f["closed_trades"] for f in folds)
     total_wins = sum(f["winning_trades"] for f in folds)
+    if (abs(q_weight_equities[0.]-no_memory_equity)>1e-8 or
+            abs(q_weight_equities[.25]-equity)>1e-8):
+        raise ValueError("Q_WEIGHT_ABLATION_REPLAY_MISMATCH")
     no_memory_trades = sum(f["no_memory_closed_trades"] for f in folds)
     no_memory_wins = sum(f["no_memory_winning_trades"] for f in folds)
     # A true passive benchmark buys ONCE and liquidates ONCE. Paying fresh
@@ -267,6 +294,9 @@ def walkforward(raw, *, product="UNKNOWN-USD", fee_bps=DEFAULT_FEE_BPS,
             "learning_incremental_return":round(equity-no_memory_equity,8),
             "learning_outperformed_no_memory":equity>no_memory_equity,
             "ablation_mode":"causal_past_fold_q_vs_trailing_training_only",
+            "q_weight_research_only":{
+                str(w):round(v-1,8) for w,v in q_weight_equities.items()},
+            "q_weight_predeclared":list(Q_WEIGHTS),
             "fold_rebalanced_buy_hold_return":round(buy_hold-1,8),
             "continuous_buy_hold_return":round(continuous_buy_hold,8),
             "active_folds":chosen_active,"positive_folds":wins,
