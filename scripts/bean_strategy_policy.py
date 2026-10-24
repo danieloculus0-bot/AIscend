@@ -4,10 +4,25 @@ import argparse
 import gzip
 import hashlib
 import json
+import math
 from pathlib import Path
 import sys
 import tempfile
 from src.strategy_atlas import utc_seconds
+
+def compare_predictions(actual,expected,*,rtol=1e-5,atol=1e-6):
+    """Float32 CPU kernels may round differently; weights remain SHA-exact.
+
+    Require every value within tolerance AND the same greedy action. This is
+    solely a portable recovery check, not a relaxation of economic scoring.
+    """
+    a,b=actual['values'],expected['values']
+    if len(a)!=len(b) or any(len(x)!=len(y) or not x for x,y in zip(a,b)):raise ValueError('Recovered prediction shape differs')
+    error=max((abs(x-y) for row_a,row_b in zip(a,b) for x,y in zip(row_a,row_b)),default=0.)
+    choices_equal=all(max(range(len(x)),key=x.__getitem__)==max(range(len(y)),key=y.__getitem__) for x,y in zip(a,b))
+    values_close=all(math.isfinite(x) and math.isfinite(y) and math.isclose(x,y,rel_tol=rtol,abs_tol=atol) for row_a,row_b in zip(a,b) for x,y in zip(row_a,row_b))
+    if not values_close or not choices_equal:raise ValueError(f'Recovered diagnostic differs: max_abs_error={error}, same_greedy_action={choices_equal}')
+    return {'max_absolute_error':error,'same_greedy_action':choices_equal,'relative_tolerance':rtol,'absolute_tolerance':atol,'values_exactly_equal':a==b}
 
 def verify(directory,core_dir,policy_id,as_of):
     directory=Path(directory);manifest=json.loads((directory/'retention_manifest.json').read_text())
@@ -30,11 +45,11 @@ def verify(directory,core_dir,policy_id,as_of):
             if row['metadata']['knowledge_cutoff']!=int(utc_seconds(item['knowledge_cutoff'])):raise ValueError('Retained knowledge cutoff changed')
             model=SpongeDQN.from_training_state(unpack(row['training_state']))
             if model.weights_digest()!=item['state']['weights_sha256']:raise ValueError('Actual learned weights differ')
-            values=None
+            values=None;comparison=None
             if item.get('diagnostic_vector'):
                 with torch.no_grad():values={'values':model.online(torch.tensor([model.encode(item['diagnostic_vector'])],dtype=torch.float32)).tolist()}
-                if values!=item['diagnostic_values']:raise ValueError('Recovered diagnostic decision values differ')
-            return {'policy_id':policy_id,'module':type(model).__module__,'knowledge_cutoff':item['knowledge_cutoff'],'updates':model.updates,'frames':model.frames,'replay_entries':len(model.replay),'weights_sha256':model.weights_digest(),'optimizer_recovered':bool(model.optimizer.state),'diagnostic_values_match':values==item.get('diagnostic_values') if values else None,'economic_qualification':item['economic_qualification'],'live_orders':False}
+                comparison=compare_predictions(values,item['diagnostic_values'])
+            return {'policy_id':policy_id,'module':type(model).__module__,'knowledge_cutoff':item['knowledge_cutoff'],'updates':model.updates,'frames':model.frames,'replay_entries':len(model.replay),'weights_sha256':model.weights_digest(),'optimizer_recovered':bool(model.optimizer.state),'diagnostic_values_match':comparison is not None,'prediction_recovery':comparison,'economic_qualification':item['economic_qualification'],'live_orders':False}
         finally:journal.close()
 
 def main():

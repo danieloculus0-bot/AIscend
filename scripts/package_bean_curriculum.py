@@ -103,7 +103,7 @@ The eight instruments were selected in the present, excluding many failed/delist
 
 Official source documentation: https://github.com/binance/binance-public-data . Source terms: https://github.com/binance/binance-public-data/blob/master/TERMS_AND_CONDITIONS.md . Original failed portfolio experiment: https://github.com/danieloculus0-bot/AIscend/pull/86 . Core implementation: https://github.com/danieloculus0-bot/BEAN/pull/166 .
 
-READY FOR REVIEW: separate experiment branch; reference-price research only; nine meaningful contract tests passed locally with actual Core gradients and restart. No profitable production behavior is asserted.
+READY FOR REVIEW: separate experiment branch; reference-price research only; ten meaningful contract tests passed locally with actual Core gradients and restart. No profitable production behavior is asserted.
 '''
     (output/'RESULTS.md').write_text(text)
     files={str(p.relative_to(output)):{'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in sorted(output.rglob('*')) if p.is_file() and p.name!='artifacts_manifest.json'}

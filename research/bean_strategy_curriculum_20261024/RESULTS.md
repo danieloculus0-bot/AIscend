@@ -57,7 +57,7 @@ The eight instruments were selected in the present, excluding many failed/delist
 
 Official source documentation: https://github.com/binance/binance-public-data . Source terms: https://github.com/binance/binance-public-data/blob/master/TERMS_AND_CONDITIONS.md . Original failed portfolio experiment: https://github.com/danieloculus0-bot/AIscend/pull/86 . Core implementation: https://github.com/danieloculus0-bot/BEAN/pull/166 .
 
-READY FOR REVIEW: separate experiment branch; reference-price research only; nine meaningful contract tests passed locally with actual Core gradients and restart. No profitable production behavior is asserted.
+READY FOR REVIEW: separate experiment branch; reference-price research only; ten meaningful contract tests passed locally with actual Core gradients and restart. No profitable production behavior is asserted.
 
 ## Complete explicit-rule teacher scoreboard
 
@@ -78,3 +78,7 @@ These fixed-rule results cover all available history after 200 warmup bars, with
 | risk_scaled_trend | +18.88% | 57.19% |
 
 The complete source/equity/action evidence contains 17,864 additional SHA-linked decisions in `expert_teachers/`. These fixed-rule returns demonstrate historical profitable examples that BEAN can study; they do not prove a neural selector improves on those rules.
+
+## Portable recovery check
+
+The first GitHub job passed all nine original contracts and recovered identical learned-weight hashes, then failed its exact-decimal prediction comparison across CPU environments. The recovery helper now reports the measured numerical difference, requires relative tolerance 1e-5 and absolute tolerance 1e-6 for float32 values, and independently requires the same greedy action. Artifact and learned-weight hashes still must match exactly. An added test rejects changed choices, material prediction errors, and nonfinite values. No simulation code, financial result, selection rule or learned state was changed. Original CI failure: https://github.com/danieloculus0-bot/AIscend/actions/runs/40134373273 .
