@@ -1,0 +1,63 @@
+name: Build and archive strategy research database
+on:
+  push:
+    branches: ['research/strategy-atlas-20261024']
+    paths:
+      - 'research/strategy_atlas/collect_history.py'
+      - 'research/strategy_atlas/package_snapshot.py'
+      - 'research/strategy_atlas/strategies.jsonl'
+      - 'research/strategy_atlas/sources.jsonl'
+      - 'src/strategy_atlas.py'
+      - '.github/workflows/build-strategy-atlas-snapshot.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  publish-collected-snapshot:
+    if: github.ref == 'refs/heads/research/strategy-atlas-20261024'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m unittest discover -s tests -p 'test_strategy_atlas.py' -v
+      - name: Fetch pinned, attributed research history
+        run: python research/strategy_atlas/collect_history.py --revision f1a36afb962731c387bb03982758ab0103063da5 --cutoff 2026-10-24 --years 5
+      - name: Build the database and frozen narrative context
+        run: python research/strategy_atlas/package_snapshot.py
+      - name: Validate collected coverage
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('research/strategy_atlas')
+          r=json.loads((p/'snapshot_receipt.json').read_text())
+          assert r['stats']['historical_asset_days']==1953796, r
+          assert r['stats']['history_chunks']==2235, r
+          assert r['stats']['assets_with_usd_prices']==1603, r
+          assert r['stats']['strategies']==289, r
+          assert r['stats']['documents']==105, r
+          assert r['compressed_bytes']<99_000_000, r
+          PY
+      - name: Archive database and provenance
+        uses: actions/upload-artifact@v4
+        with:
+          name: AIscend-strategy-database-20261024
+          path: |
+            research/strategy_atlas/strategy_research.sqlite3.gz
+            research/strategy_atlas/snapshot_receipt.json
+            research/strategy_atlas/history_manifest.json
+            research/strategy_atlas/BEAN_CONTEXT.json
+            research/strategy_atlas/COIN_METRICS_DATA_LICENSE.txt
+          retention-days: 90
+      - name: Commit the collected database to the research branch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add research/strategy_atlas/strategy_research.sqlite3.gz research/strategy_atlas/snapshot_receipt.json research/strategy_atlas/history_manifest.json research/strategy_atlas/BEAN_CONTEXT.json research/strategy_atlas/COIN_METRICS_DATA_LICENSE.txt
+          if ! git diff --cached --quiet; then
+            git commit -m 'Archive collected strategy research database and provenance'
+            git push origin HEAD:research/strategy-atlas-20261024
+          fi

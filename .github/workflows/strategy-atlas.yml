@@ -1,0 +1,23 @@
+name: Strategy research atlas contracts
+on:
+  pull_request:
+    paths:
+      - 'src/strategy_atlas.py'
+      - 'src/narrative_evidence.py'
+      - 'scripts/strategy_atlas.py'
+      - 'tests/test_strategy_atlas.py'
+      - 'research/strategy_atlas/**'
+      - '.github/workflows/strategy-atlas.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  research-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m unittest discover -s tests -p 'test_strategy_atlas.py' -v
+      - run: python -m scripts.strategy_atlas stats
