@@ -239,16 +239,39 @@ def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--product", action="append", required=True)
     p.add_argument("--days", type=int, default=270)
+    p.add_argument("--learn", action="store_true",
+                   help="Persist strictly future observations in local SQLite; no orders")
+    p.add_argument("--ledger", type=Path,
+                   help="Optional forward research SQLite path")
     p.add_argument("--output", type=Path,
                    default=Path("artifacts/published-strategy-research.json"))
     args = p.parse_args(argv)
     fixed_clock = int(time.time()//BAR)*BAR
     reports = {}
+    learner = None
+    if args.learn:
+        from .published_strategy_learning import PublishedRuleLearner
+        from .core import app_data_dir
+        learner = PublishedRuleLearner(args.ledger or
+                    (app_data_dir() / "published-strategy-learning.sqlite3"))
     for product in sorted(set(p.upper() for p in args.product)):
         try:
             data = fetch_public_ohlcv(product, days=args.days,
                                       clock=lambda: fixed_clock)
-            reports[product] = evaluate(data)
+            report = evaluate(data)
+            if learner is not None and report["status"] not in {
+                    "PARTIAL", "INSUFFICIENT_HISTORY"}:
+                existing = learner.frozen(product)
+                selected = report.get("selected_rule")
+                if existing is None and selected is None:
+                    report["learning"] = {"status": "NO_TRAINING_CHAMPION",
+                                         "promotion_authorized": False}
+                else:
+                    report["learning"] = learner.observe(
+                        product, data,
+                        frozen_rule=selected if existing is None else None)
+                    report["learning_ledger"] = learner.audit(product)
+            reports[product] = report
         except Exception as exc:
             reports[product] = {"status": "DATA_UNAVAILABLE",
                                 "reason": type(exc).__name__,
