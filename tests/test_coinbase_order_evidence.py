@@ -673,5 +673,85 @@ class OrderEvidenceTests(unittest.TestCase):
                 store.close()
 
 
+    def test_preclient_scope_switch_clears_unsent_buy_and_sell(self):
+        from unittest.mock import patch
+        from src.wallets.advanced_trade import (
+            AdvancedTradeSpot, AdvancedTradeVault, CoinbasePreSubmissionScopeMismatch)
+
+        class Vault(AdvancedTradeVault):
+            def __init__(self):
+                self.key = "a"
+            def _credentials(self):
+                return ("key-" + self.key, "secret-" + self.key)
+
+        class Rail(AdvancedTradeSpot):
+            def product(self, product_id):
+                return {"quote_increment": "0.01", "quote_min_size": "1",
+                        "base_increment": "0.0001", "base_min_size": "0.0001"}
+            def preview_market_buy(self, product_id, quote_size):
+                return {}
+            def preview_market_sell(self, product_id, base_size):
+                return {}
+
+        for side in ("BUY", "SELL"):
+            with self.subTest(side=side), tempfile.TemporaryDirectory() as td:
+                store = StateStore(Path(td) / "unsent.db")
+                try:
+                    vault = Vault()
+                    rail = Rail(vault)
+                    engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                    engine.store, engine.rail = store, rail
+                    scope = rail.account_scope_id()
+                    original_check = engine._require_snapshot_order_scope
+                    def switch_after_check(snapshot):
+                        original_check(snapshot)
+                        vault.key = "b"
+                    engine._require_snapshot_order_scope = switch_after_check
+                    snapshot = {"authenticated_scope": scope,
+                                "cash_by_quote": {"USD": 100},
+                                "positions": {"BTC-USD": {"available_qty": "0.1"}}}
+                    with patch("src.wallets.advanced_trade.RESTClient") as client:
+                        with self.assertRaises(CoinbasePreSubmissionScopeMismatch):
+                            getattr(engine, "_execute_" + side.lower())(
+                                Decision(side, "BTC-USD", 1.0, "offline"), snapshot)
+                        client.assert_not_called()
+                    self.assertEqual(store.get_meta("pending_coinbase_order"), "")
+                    self.assertEqual(store.get_meta("last_coinbase_submission_state"),
+                                     "NOT_SUBMITTED_SCOPE_CHANGED")
+                finally:
+                    store.close()
+
+    def test_network_timeout_preserves_pending_client_id(self):
+        from src.wallets.advanced_trade import AdvancedTradeSpot
+        class Rail(AdvancedTradeSpot):
+            def __init__(self):
+                self.scope = "a" * 64
+            def account_scope_id(self):
+                return self.scope
+            def product(self, product_id):
+                return {"quote_increment": "0.01", "quote_min_size": "1"}
+            def preview_market_buy(self, product_id, quote_size):
+                return {}
+            def market_buy(self, product_id, quote_size, client_order_id,
+                           *, expected_scope=None):
+                self.sent_client_id = client_order_id
+                raise TimeoutError("Unknown venue outcome")
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "ambiguous.db")
+            try:
+                rail = Rail()
+                engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                engine.store, engine.rail = store, rail
+                with self.assertRaises(TimeoutError):
+                    engine._execute_buy(
+                        Decision("BUY", "BTC-USD", 1.0, "offline"),
+                        {"authenticated_scope": "a" * 64,
+                         "cash_by_quote": {"USD": 100}})
+                receipt = json.loads(store.get_meta("pending_coinbase_order"))
+                self.assertEqual(receipt["client_order_id"], rail.sent_client_id)
+            finally:
+                store.close()
+
+
 if __name__=="__main__":
     unittest.main()
