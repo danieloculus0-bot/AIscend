@@ -159,6 +159,57 @@ class OrderEvidenceTests(unittest.TestCase):
             finally:
                 store.close()
 
+    def test_changed_coinbase_credentials_block_both_order_sides(self):
+        class SwitchedRail:
+            def __init__(self):
+                self.orders = []
+
+            def account_scope_id(self):
+                return "b" * 64
+
+            def product(self, product_id):
+                return {"quote_increment": "0.01", "quote_min_size": "1",
+                        "base_increment": "0.00001", "base_min_size": "0.001"}
+
+            def preview_market_buy(self, product_id, amount):
+                return {"preview_id": "offline-buy"}
+
+            def preview_market_sell(self, product_id, amount):
+                return {"preview_id": "offline-sell"}
+
+            def market_buy(self, *args, **kwargs):
+                self.orders.append(("BUY", args, kwargs))
+                raise AssertionError("Wrong-account BUY must never be submitted")
+
+            def market_sell(self, *args, **kwargs):
+                self.orders.append(("SELL", args, kwargs))
+                raise AssertionError("Wrong-account SELL must never be submitted")
+
+            def order_detail(self, order_id):
+                raise AssertionError("No order should have been submitted")
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "switched-credentials.db")
+            try:
+                rail = SwitchedRail()
+                engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                engine.store, engine.rail = store, rail
+                original_scope = "a" * 64
+                with self.assertRaisesRegex(RuntimeError, "credentials changed"):
+                    engine._execute_buy(
+                        Decision("BUY", "BTC-USD", 1.0, "offline test"),
+                        {"cash_by_quote": {"USD": 25},
+                         "authenticated_scope": original_scope})
+                with self.assertRaisesRegex(RuntimeError, "credentials changed"):
+                    engine._execute_sell(
+                        Decision("SELL", "BTC-USD", 1.0, "offline test"),
+                        {"positions": {"BTC-USD": {"available_qty": 0.5}},
+                         "authenticated_scope": original_scope})
+                self.assertEqual(rail.orders, [])
+                self.assertFalse(store.get_meta("pending_coinbase_order"))
+            finally:
+                store.close()
+
     def test_network_timeout_preserves_order_intent_without_resubmission(self):
         class AmbiguousRail:
             def product(self, product_id):
