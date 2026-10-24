@@ -22,8 +22,8 @@ class GrowthPolicyTests(unittest.TestCase):
             now = [end + 40]
             g = BeanAdaptiveGrowthGate(path=path, fetcher=fetch, clock=lambda: now[0])
             first = g.assess("WETH")
-            self.assertEqual(first["status"], "READY")
-            self.assertEqual(first["trade_effect"], "ADOPTED_LONG_CASH")
+            self.assertEqual(first["status"], "WARMING_UP")
+            self.assertEqual(first["trade_effect"], "NONE")
             self.assertGreater(first["reward_updates"], 20)
             self.assertGreater(first["strategy_changes"], 0)
             self.assertGreater(first["paper_trades"], 0)
@@ -63,6 +63,7 @@ class GrowthPolicyTests(unittest.TestCase):
             state["q"] = {context: {"buy_hold": 50.0}}
             state["visits"] = {context: {"buy_hold": 5}}
             state["win_trials"] = {context: {"buy_hold": 5}}
+            state["forward_win_trials"] = {context: {"buy_hold": 5}}
             with gate._db() as db:
                 db.execute("INSERT INTO policy(product,state) VALUES(?,?)",
                            ("ETH-USD", json.dumps(state)))
@@ -73,6 +74,7 @@ class GrowthPolicyTests(unittest.TestCase):
             self.assertEqual(first["trade_effect"], "NONE")
             self.assertEqual(first["reward_updates"], 5)
             state["win_trials"][context]["buy_hold"] = 6
+            state["forward_win_trials"][context]["buy_hold"] = 6
             state["visits"][context]["buy_hold"] = 6
             with gate._db() as db:
                 db.execute("UPDATE policy SET state=? WHERE product=?",
@@ -81,6 +83,87 @@ class GrowthPolicyTests(unittest.TestCase):
             self.assertEqual(second["status"], "READY")
             self.assertEqual(second["trade_effect"], "ADOPTED_LONG_CASH")
             self.assertEqual(second["observed_samples"], 6)
+
+    def test_historical_bootstrap_cannot_immediately_authorize_live_adoption(self):
+        import json
+        end = 500 * BAR
+        candles = {t: {"open": 100.0, "close": 100.0}
+                   for t in range(end - 280 * BAR, end, BAR)}
+        with tempfile.TemporaryDirectory() as folder:
+            gate = BeanAdaptiveGrowthGate(
+                path=Path(folder) / "growth.sqlite3",
+                fetcher=lambda _p, a, b: {
+                    t: row for t, row in candles.items() if a <= t < b},
+                clock=lambda: end + 10)
+            first = gate.assess("ETH-USD")
+            self.assertGreater(first["reward_updates"], 100)
+            self.assertEqual(first["forward_bars"], 0)
+            self.assertEqual(first["observed_forward_samples"], 0)
+            self.assertEqual(first["status"], "WARMING_UP")
+            self.assertEqual(first["trade_effect"], "NONE")
+            # Even an inflated retrospective visit counter cannot satisfy
+            # the missing independently observed forward samples.
+            with gate._db() as db:
+                state = json.loads(db.execute(
+                    "SELECT state FROM policy WHERE product=?",
+                    ("ETH-USD",)).fetchone()["state"])
+                context = _features(state["recent_returns"])
+                policy = _choose(state, context, explore=False, seed=0)
+                state["win_trials"].setdefault(context, {})[policy] = 300
+                db.execute("UPDATE policy SET state=? WHERE product=?",
+                           (json.dumps(state), "ETH-USD"))
+            later = gate.assess("ETH-USD")
+            self.assertEqual(later["status"], "WARMING_UP")
+            self.assertEqual(later["observed_forward_samples"], 0)
+
+    def test_forward_reward_samples_are_observed_once_after_bootstrap(self):
+        state = _fresh_state()
+        state["last_bar"] = 0
+        state["last_close"] = 100.0
+        state["pending"] = {"context": "initial", "action": "buy_hold",
+                            "position": 1}
+        BeanAdaptiveGrowthGate._apply_bar(
+            state, {"open": 100.0, "close": 101.0}, BAR, "ETH-USD")
+        self.assertEqual(state["forward_win_trials"], {})
+        state["bootstrapped"] = True
+        state["pending"] = {"context": "initial", "action": "buy_hold",
+                            "position": 1}
+        BeanAdaptiveGrowthGate._apply_bar(
+            state, {"open": 101.0, "close": 102.0}, 2 * BAR, "ETH-USD")
+        self.assertEqual(state["forward_win_trials"]["initial"]["buy_hold"], 1)
+        self.assertFalse(BeanAdaptiveGrowthGate._apply_bar(
+            state, {"open": 101.0, "close": 102.0}, 2 * BAR, "ETH-USD"))
+        self.assertEqual(state["forward_win_trials"]["initial"]["buy_hold"], 1)
+
+    def test_v4_historical_q_is_archived_and_requalified_from_zero(self):
+        import json
+        end = 500 * BAR
+        candles = {t: {"open": 100.0, "close": 100.0}
+                   for t in range(end - 280 * BAR, end, BAR)}
+        with tempfile.TemporaryDirectory() as folder:
+            gate = BeanAdaptiveGrowthGate(
+                path=Path(folder) / "growth.sqlite3",
+                fetcher=lambda _p, a, b: {
+                    t: row for t, row in candles.items() if a <= t < b},
+                clock=lambda: end + 10)
+            old = _fresh_state()
+            old["cost_model"] = "taker90bps_held_gap_reward_v4"
+            old["q"] = {"initial": {"buy_hold": 99999.0}}
+            with gate._db() as db:
+                db.execute("INSERT INTO policy(product,state) VALUES(?,?)",
+                           ("ETH-USD", json.dumps(old)))
+            observed = gate.assess("ETH-USD")
+            self.assertEqual(observed["status"], "WARMING_UP")
+            self.assertEqual(observed["observed_forward_samples"], 0)
+            with gate._db() as db:
+                archive = db.execute(
+                    "SELECT state FROM policy_archive WHERE product=? "
+                    "AND model_version=?",
+                    ("ETH-USD", "taker90bps_held_gap_reward_v4")).fetchone()
+            self.assertIsNotNone(archive)
+            self.assertEqual(
+                json.loads(archive["state"])["q"]["initial"]["buy_hold"],
+                99999.0)
 
     def test_missing_bar_does_not_preserve_imaginary_held_equity(self):
         state = _fresh_state()
@@ -125,7 +208,7 @@ class GrowthPolicyTests(unittest.TestCase):
                     t: v for t, v in bars.items() if a <= t < b},
                 clock=lambda: now[0])
             before = gate.assess("ETH-USD")
-            self.assertEqual(before["status"], "READY")
+            self.assertEqual(before["status"], "WARMING_UP")
             prior_updates = before["reward_updates"]
             new_end = end + 100 * BAR
             # Five unavailable bars include the unknowable scheduled fill.
@@ -133,7 +216,7 @@ class GrowthPolicyTests(unittest.TestCase):
                 bars[t] = {"open": 50.0, "close": 50.0}
             now[0] = new_end + 10
             after = gate.assess("ETH-USD")
-            self.assertEqual(after["status"], "READY")
+            self.assertEqual(after["status"], "WARMING_UP")
             self.assertEqual(after["equity_segment_restarts"], 1)
             self.assertGreater(after["reward_updates"], prior_updates)
             self.assertLessEqual(after["paper_equity"], 100.0)
@@ -240,7 +323,7 @@ class GrowthPolicyTests(unittest.TestCase):
             with gate._db() as db:
                 db.execute("INSERT INTO policy(product,state) VALUES(?,?)",
                            ("ETH-USD", json.dumps(stale)))
-            self.assertEqual(gate.assess("ETH-USD")["status"], "READY")
+            self.assertEqual(gate.assess("ETH-USD")["status"], "WARMING_UP")
             with gate._db() as db:
                 archived = db.execute(
                     "SELECT state FROM policy_archive WHERE product=? AND "
@@ -276,7 +359,7 @@ class GrowthPolicyTests(unittest.TestCase):
                 db.execute("INSERT INTO policy(product,state) VALUES(?,?)",
                            ("ETH-USD", json.dumps(prior)))
             result = gate.assess("ETH-USD")
-            self.assertEqual(result["status"], "READY")
+            self.assertEqual(result["status"], "WARMING_UP")
             self.assertEqual(result["paper_taker_fee_bps"], 90.0)
             with gate._db() as db:
                 archived = db.execute(
@@ -289,7 +372,7 @@ class GrowthPolicyTests(unittest.TestCase):
             self.assertEqual(
                 json.loads(archived["state"])["q"]["initial"]["buy_hold"], 99999.0)
             updated = json.loads(current["state"])
-            self.assertEqual(updated["cost_model"], "taker90bps_held_gap_reward_v4")
+            self.assertEqual(updated["cost_model"], "taker90bps_forward_context_reward_v5")
             self.assertNotEqual(updated["q"].get("initial", {}).get("buy_hold"), 99999.0)
 
     def test_mock_round_trip_fee_matches_live_order_cost_assumption(self):
@@ -358,7 +441,7 @@ class GrowthPolicyTests(unittest.TestCase):
                 db.execute("INSERT INTO policy(product,state) VALUES(?,?)",
                            ("ETH-USD", json.dumps(stale)))
             result = gate.assess("ETH-USD")
-            self.assertEqual(result["status"], "READY")
+            self.assertEqual(result["status"], "WARMING_UP")
             self.assertEqual(result["paper_taker_fee_bps"], DEFAULT_TAKER_BPS)
             with gate._db() as db:
                 archive = db.execute(
