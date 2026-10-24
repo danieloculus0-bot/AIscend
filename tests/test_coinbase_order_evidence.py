@@ -753,5 +753,91 @@ class OrderEvidenceTests(unittest.TestCase):
                 store.close()
 
 
+    def test_delayed_reconciliation_cannot_clear_newer_order_receipt(self):
+        # Another desktop connection may finish A, then claim B while the
+        # original order-detail HTTP call is still outstanding.
+        class Rail:
+            def __init__(self, store):
+                self.store = store
+            def order_detail(self, order_id):
+                self.store.set_meta("pending_coinbase_order", json.dumps({
+                    "order_id": None, "client_order_id": "client-b",
+                    "product": "ETH-USD", "side": "BUY"}))
+                return {"order": {"order_id": order_id, "status": "FILLED",
+                                  "filled_size": "0.1", "filled_value": "10"}}
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "delayed-reconcile.db")
+            try:
+                engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                engine.store, engine.rail = store, Rail(store)
+                store.set_meta("pending_coinbase_order", json.dumps({
+                    "order_id": "order-a", "client_order_id": "client-a",
+                    "product": "BTC-USD", "side": "BUY"}))
+                decision, status = engine._pending_order_decision()
+                self.assertEqual((decision.action, status),
+                                 ("HOLD", "ORDER_JOURNAL_CHANGED"))
+                receipt = json.loads(store.get_meta("pending_coinbase_order"))
+                self.assertEqual(receipt["client_order_id"], "client-b")
+                self.assertIsNone(store.get_meta("last_coinbase_submission_state"))
+            finally:
+                store.close()
+
+    def test_delayed_ack_cannot_overwrite_newer_order_receipt(self):
+        class Rail:
+            def __init__(self, store):
+                self.store = store
+            def order_detail(self, order_id):
+                self.store.set_meta("pending_coinbase_order", json.dumps({
+                    "order_id": None, "client_order_id": "client-b",
+                    "product": "ETH-USD", "side": "SELL"}))
+                return {"order": {"order_id": order_id, "status": "OPEN",
+                                  "filled_size": "0"}}
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "delayed-ack.db")
+            try:
+                engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                engine.store, engine.rail = store, Rail(store)
+                engine._record_order_intent(product="BTC-USD", side="BUY",
+                                            client_id="client-a")
+                status, evidence = engine._check_or_track_submission(
+                    {"success": True, "success_response": {"order_id": "order-a"}},
+                    product="BTC-USD", side="BUY", client_id="client-a")
+                self.assertEqual(status, "ORDER_ACCEPTED_UNVERIFIED")
+                self.assertIn("journal changed", evidence["reason"])
+                receipt = json.loads(store.get_meta("pending_coinbase_order"))
+                self.assertEqual(receipt["client_order_id"], "client-b")
+            finally:
+                store.close()
+
+    def test_explicit_rejection_cannot_clear_another_clients_receipt(self):
+        from src.wallets.advanced_trade import CoinbaseExplicitRejection
+        class Rail:
+            def __init__(self, store):
+                self.store = store
+            def order_detail(self, order_id):
+                raise AssertionError("No detail lookup after explicit rejection")
+            def product(self, product_id):
+                return {"quote_increment": "0.01", "quote_min_size": "1"}
+            def preview_market_buy(self, product_id, amount):
+                return {"preview_id": "offline"}
+            def market_buy(self, product_id, amount, client_order_id):
+                self.store.set_meta("pending_coinbase_order", json.dumps({
+                    "order_id": None, "client_order_id": "client-b",
+                    "product": "ETH-USD", "side": "SELL"}))
+                raise CoinbaseExplicitRejection("Rejected before acceptance")
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "delayed-reject.db")
+            try:
+                engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                engine.store, engine.rail = store, Rail(store)
+                with self.assertRaises(CoinbaseExplicitRejection):
+                    engine._execute_buy(
+                        Decision("BUY", "BTC-USD", 1.0, "offline"),
+                        {"cash_by_quote": {"USD": 25}})
+                receipt = json.loads(store.get_meta("pending_coinbase_order"))
+                self.assertEqual(receipt["client_order_id"], "client-b")
+            finally:
+                store.close()
+
 if __name__=="__main__":
     unittest.main()
