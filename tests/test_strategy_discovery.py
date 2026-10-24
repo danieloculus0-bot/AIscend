@@ -78,6 +78,13 @@ class StrategyDiscoveryTests(unittest.TestCase):
         self.assertNotEqual(original["holdout_buy_hold_net"],
                             altered["holdout_buy_hold_net"])
 
+    def test_partial_btc_does_not_suppress_other_strategies(self):
+        r = challenge(history(360), btc_raw=history(360, gap=150))
+        self.assertIn(r["status"], {"OOS_PASS", "OOS_NOT_PROVEN"})
+        self.assertTrue(r["training_candidates"])
+        self.assertTrue(all(x["config"][0] != "relative_momentum"
+                            for x in r["training_candidates"]))
+
     def test_invalid_cost(self):
         with self.assertRaisesRegex(ValueError, "INVALID_COST"):
             simulate(candles(history(100)), ("breakout", 20, 16),
