@@ -27,7 +27,8 @@ from .listing_sentinel import CoinbaseListingSentinel
 from .research import MarketResearch
 from .sentiment import HumanSignalResearch, HumanSignals
 from .wallets.advanced_trade import (AdvancedTradeSpot, require_accepted_order,
-                                     CoinbaseExplicitRejection)
+                                     CoinbaseExplicitRejection,
+                                     CoinbasePreSubmissionScopeMismatch)
 
 
 DOLLAR_ASSETS = {"USD", "USDC"}
@@ -1557,6 +1558,16 @@ class AdvancedSpotEngine:
                 # Preserve lightweight offline mock-rail compatibility.
                 order = self.rail.market_buy(
                     product_id, spend, client_order_id=client_order_id)
+        except CoinbasePreSubmissionScopeMismatch:
+            # The credential guard ran before RESTClient construction, so no
+            # submission could have reached Coinbase. Release only this exact
+            # unsent client intent; network ambiguity still retains receipts.
+            receipt = json.loads(self.store.get_meta("pending_coinbase_order") or "{}")
+            if receipt.get("client_order_id") == client_order_id:
+                self.store.set_meta("pending_coinbase_order", "")
+                self.store.set_meta("last_coinbase_submission_state",
+                                    "NOT_SUBMITTED_SCOPE_CHANGED")
+            raise
         except CoinbaseExplicitRejection:
             # Coinbase explicitly rejected the order; no possible accepted fill.
             self.store.set_meta("pending_coinbase_order", "")
@@ -1652,6 +1663,16 @@ class AdvancedSpotEngine:
                 # Preserve lightweight offline mock-rail compatibility.
                 order = self.rail.market_sell(
                     product_id, qty, client_order_id=client_order_id)
+        except CoinbasePreSubmissionScopeMismatch:
+            # The credential guard ran before RESTClient construction, so no
+            # submission could have reached Coinbase. Release only this exact
+            # unsent client intent; network ambiguity still retains receipts.
+            receipt = json.loads(self.store.get_meta("pending_coinbase_order") or "{}")
+            if receipt.get("client_order_id") == client_order_id:
+                self.store.set_meta("pending_coinbase_order", "")
+                self.store.set_meta("last_coinbase_submission_state",
+                                    "NOT_SUBMITTED_SCOPE_CHANGED")
+            raise
         except CoinbaseExplicitRejection:
             # Coinbase explicitly rejected the order; no possible accepted fill.
             self.store.set_meta("pending_coinbase_order", "")
