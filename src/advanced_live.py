@@ -1562,11 +1562,16 @@ class AdvancedSpotEngine:
             # The credential guard ran before RESTClient construction, so no
             # submission could have reached Coinbase. Release only this exact
             # unsent client intent; network ambiguity still retains receipts.
-            receipt = json.loads(self.store.get_meta("pending_coinbase_order") or "{}")
+            raw_receipt = self.store.get_meta("pending_coinbase_order") or ""
+            receipt = json.loads(raw_receipt or "{}")
             if receipt.get("client_order_id") == client_order_id:
-                self.store.set_meta("pending_coinbase_order", "")
-                self.store.set_meta("last_coinbase_submission_state",
-                                    "NOT_SUBMITTED_SCOPE_CHANGED")
+                with self.store.conn:
+                    cleared = self.store.conn.execute(
+                        "UPDATE meta SET value='' WHERE key='pending_coinbase_order' "
+                        "AND value=?", (raw_receipt,))
+                if cleared.rowcount == 1:
+                    self.store.set_meta("last_coinbase_submission_state",
+                                        "NOT_SUBMITTED_SCOPE_CHANGED")
             raise
         except CoinbaseExplicitRejection:
             # Coinbase explicitly rejected the order; no possible accepted fill.
@@ -1667,11 +1672,16 @@ class AdvancedSpotEngine:
             # The credential guard ran before RESTClient construction, so no
             # submission could have reached Coinbase. Release only this exact
             # unsent client intent; network ambiguity still retains receipts.
-            receipt = json.loads(self.store.get_meta("pending_coinbase_order") or "{}")
+            raw_receipt = self.store.get_meta("pending_coinbase_order") or ""
+            receipt = json.loads(raw_receipt or "{}")
             if receipt.get("client_order_id") == client_order_id:
-                self.store.set_meta("pending_coinbase_order", "")
-                self.store.set_meta("last_coinbase_submission_state",
-                                    "NOT_SUBMITTED_SCOPE_CHANGED")
+                with self.store.conn:
+                    cleared = self.store.conn.execute(
+                        "UPDATE meta SET value='' WHERE key='pending_coinbase_order' "
+                        "AND value=?", (raw_receipt,))
+                if cleared.rowcount == 1:
+                    self.store.set_meta("last_coinbase_submission_state",
+                                        "NOT_SUBMITTED_SCOPE_CHANGED")
             raise
         except CoinbaseExplicitRejection:
             # Coinbase explicitly rejected the order; no possible accepted fill.
