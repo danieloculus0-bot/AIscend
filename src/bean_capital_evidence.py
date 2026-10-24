@@ -300,6 +300,12 @@ def evaluate_account(store, snapshot, rail, *, clock=time.time,
         store.set_meta(_scope_meta("bean_fills_last_attempt_at", scope), str(now))
         try:
             response = reader()
+            # The fill API may use a newly selected SDK credential. Never
+            # persist another account's fills under the original scope when
+            # the key changes during pagination or the authenticated read.
+            if scope_getter() != scope:
+                raise RuntimeError(
+                    "Coinbase credential scope changed during fill history read")
             preserve_fills(store, response, account_scope=scope, clock=clock)
             status = ("PROVIDER_HISTORY_COMPLETE" if response.get("complete") is True
                       else "PROVIDER_HISTORY_PARTIAL")
