@@ -61,6 +61,14 @@ def _verify(db):
     tip = chain(events)
     anchor_tip = db.execute("SELECT v FROM meta WHERE k='ledger_tip'").fetchone()
     anchor_count = db.execute("SELECT v FROM meta WHERE k='ledger_count'").fetchone()
+    # A missing checkpoint on an existing ledger is corruption, not an
+    # invitation to reconstruct and silently bless incomplete history.
+    if events and (anchor_tip is None or anchor_count is None):
+        raise ValueError("SQLite BEAN ledger checkpoint missing")
+    frozen = db.execute("SELECT v FROM meta WHERE k='manifest_sha'").fetchone()
+    if events and (frozen is None or events[0].get("type") != "freeze_preregistered"
+                   or events[0].get("manifest_sha") != frozen[0]):
+        raise ValueError("SQLite BEAN frozen manifest identity mismatch")
     if anchor_tip is not None and anchor_tip[0] != tip:
         raise ValueError("SQLite BEAN ledger tip differs from recorded checkpoint")
     if anchor_count is not None and int(anchor_count[0]) != len(events):
@@ -248,6 +256,11 @@ def inspect(manifest_path, db_path, *, clock=None, history_fetcher=None):
         if row and row[0] != manifest_sha:
             raise ValueError("Cannot change BEAN freeze, Q model or fee assumptions")
         if row is None:
+            # Never re-register a different research freeze over an existing
+            # ledger whose identity row was deleted or damaged.
+            if (db.execute("SELECT 1 FROM events LIMIT 1").fetchone()
+                    or db.execute("SELECT 1 FROM positions LIMIT 1").fetchone()):
+                raise ValueError("Existing BEAN ledger has no frozen manifest identity")
             db.execute("INSERT INTO meta(k,v) VALUES('manifest_sha',?)",
                        (manifest_sha,))
             _append(db, "freeze_preregistered", manifest_sha=manifest_sha,
