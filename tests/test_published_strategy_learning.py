@@ -44,6 +44,7 @@ class ForwardRuleLearningTests(unittest.TestCase):
             self.assertEqual(observed["last_forward_bar"], 729*BAR)
             self.assertFalse(observed["promotion_authorized"])
             self.assertEqual(len(observed["outcomes"]), 7)
+            self.assertIsNone(observed["learned_rule"])  # 10 bars are not enough
             self.assertEqual(next_run.audit("ETH-USD")["events"], 1)
             # Repeating the same historical snapshot cannot double-credit.
             again = next_run.observe("ETH-USD", series(730),
@@ -88,6 +89,16 @@ class ForwardRuleLearningTests(unittest.TestCase):
                 gate.observe("BTC-USD", series(720, gap=80),
                              clock=lambda: 720*BAR+5)["status"],
                 "PARTIAL")
+
+    def test_frozen_fee_model_cannot_change(self):
+        with tempfile.TemporaryDirectory() as folder:
+            gate = PublishedRuleLearner(Path(folder)/"fees.sqlite3")
+            gate.observe("BTC-USD", series(720), fee_bps=90,
+                         clock=lambda: 720*BAR+5)
+            with self.assertRaisesRegex(ValueError, "FROZEN_COST_MODEL_MISMATCH"):
+                gate.observe("BTC-USD", series(730), fee_bps=60,
+                             clock=lambda: 730*BAR+5)
+            self.assertEqual(gate.audit("BTC-USD")["events"], 0)
 
     def test_ledger_tampering_detected(self):
         with tempfile.TemporaryDirectory() as folder:
