@@ -117,15 +117,19 @@ def challenge(raw, *, btc_raw=None, fee_bps=FEE_BPS,
               stress_spread_bps=30.):
     try:
         rows = candles(raw)
-        btc = candles(btc_raw) if btc_raw is not None else None
-        if btc is not None and (len(btc) != len(rows) or any(
-                x["ts"] != y["ts"] for x, y in zip(rows, btc))):
-            btc = None  # Missing benchmark cannot invent relative performance.
     except ValueError as e:
         if str(e) in {"PARTIAL_HISTORY", "INVALID_CANDLE"}:
             return {"status": "PARTIAL", "reason": str(e),
                     "promotion_authorized": False}
         raise
+    # A BTC-data outage must not suppress independent breakout/pullback trials.
+    try:
+        btc = candles(btc_raw) if btc_raw is not None else None
+    except (ValueError, KeyError, TypeError):
+        btc = None
+    if btc is not None and (len(btc) != len(rows) or any(
+            x["ts"] != y["ts"] for x, y in zip(rows, btc))):
+        btc = None
     if len(rows) < 240:
         return {"status": "INSUFFICIENT_HISTORY", "bars": len(rows),
                 "promotion_authorized": False}
@@ -174,6 +178,7 @@ def challenge(raw, *, btc_raw=None, fee_bps=FEE_BPS,
 
 def main(argv=None):
     from .bean_six_hour_universe import fetch_history
+    import time
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--product", action="append", required=True,
                    help="Repeat for Coinbase USD/USDC pairs")
@@ -185,11 +190,12 @@ def main(argv=None):
         p.error("Days must be between 45 and 120")
     reports = {}
     btc = None
+    fixed_clock = int(time.time()//BAR)*BAR
     for product in sorted(set(p.upper() for p in args.product)):
         try:
-            bars = fetch_history(product, days=args.days)
+            bars = fetch_history(product, days=args.days, clock=lambda: fixed_clock)
             if product != "BTC-USD" and btc is None:
-                btc = fetch_history("BTC-USD", days=args.days)
+                btc = fetch_history("BTC-USD", days=args.days, clock=lambda: fixed_clock)
             reports[product] = challenge(bars,
                 btc_raw=btc if product != "BTC-USD" else None)
         except Exception as exc:
