@@ -66,7 +66,17 @@ class FakeVault:
     def __init__(self, client):
         self.sdk = client
 
-    def client(self, timeout=10):
+    def client(self, timeout=10, *, expected_scope=None):
+        # Match the production vault's scope-bound client contract while
+        # keeping the SDK entirely offline in this integration fixture.
+        if expected_scope is not None:
+            import hashlib
+            key = self._credentials()[0]
+            actual = hashlib.sha256(
+                ("coinbase-advanced-key-v1:" + key).encode("utf-8")
+            ).hexdigest()
+            if actual != expected_scope:
+                raise RuntimeError("Coinbase credentials changed")
         return self.sdk
 
     def _credentials(self):
