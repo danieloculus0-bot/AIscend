@@ -142,6 +142,10 @@ def _score(db, candidate, state, row):
                 frozen_at=state["frozen_at_unix"])
         return
     opening, close = float(row["open"]), float(row["close"])
+    # Start the passive benchmark at the first observed forward candle, not
+    # at the strategy's first trade. Otherwise time in cash hides market moves.
+    if state["benchmark_first_open"] is None:
+        state["benchmark_first_open"] = opening
     cost = state["cost"]
     was_held = state["held"]
     previous_close = state["last_close"]
@@ -170,8 +174,6 @@ def _score(db, candidate, state, row):
             else:
                 state["entry_equity"] = pre_fee_equity
             state["held"] = target
-        if state["benchmark_first_open"] is None:
-            state["benchmark_first_open"] = opening
         state["pending"] = None
 
     if state["held"]:
