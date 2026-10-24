@@ -14,6 +14,7 @@ import sqlite3
 
 from src.universe_research import discover_public_spot, _catalog_hash, shard_for
 from scripts.bean_five_year_ledger import store_report, audit_db, canonical
+from scripts.bean_five_year_walkforward import Q_WEIGHTS
 
 
 def capture_catalog(output, *, discover=discover_public_spot):
@@ -76,6 +77,7 @@ def aggregate(catalog_file, shard_files, db_path, summary_path):
     leaders = sorted(
         ({"product":p,"net_return":r["net_return"],
           "no_memory_net_return":r["no_memory_net_return"],
+          "q_weight_research_only":r["q_weight_research_only"],
           "learning_incremental_return":r["learning_incremental_return"],
           "learned_more_than_no_memory":r["learning_outperformed_no_memory"],
           "benchmark":r["continuous_buy_hold_return"],
@@ -109,12 +111,34 @@ def aggregate(catalog_file, shard_files, db_path, summary_path):
                   "uses overlapping stored experiment recall. "
                   "This is historical ablation, not future profitability.",
     }
+    predeclared_weight_evidence = {}
+    for weight in Q_WEIGHTS:
+        name = str(weight)
+        returns = [r["q_weight_research_only"][name] for r in leaders]
+        predeclared_weight_evidence[name] = {
+            "evaluated_markets":len(returns),
+            "positive_after_costs":sum(x > 0 for x in returns),
+            "positive_and_beat_buy_hold":sum(
+                result["q_weight_research_only"][name] >
+                max(0.,result["benchmark"]) for result in leaders),
+            "outperformed_zero_weight":sum(
+                result["q_weight_research_only"][name] >
+                result["q_weight_research_only"]["0.0"]
+                for result in leaders),
+            "underperformed_zero_weight":sum(
+                result["q_weight_research_only"][name] <
+                result["q_weight_research_only"]["0.0"]
+                for result in leaders),
+            "median_net_return":median(returns) if returns else None,
+        }
     summary = {
         "schema": "aiscend.bean.five_year.universe.aggregate.v1",
         "catalog_hash": catalog_hash,
         "catalog_size": len(products), "attempted_count": len(results),
         "shards": count, "status_counts": counts,
         "learning_ablation":learning_results,
+        "predeclared_weight_gauntlet":predeclared_weight_evidence,
+        "strategy_weight_selection_authorized":False,
         "research_rankings_only": leaders,
         "outcomes_saved": audit["outcome_count"],
         "full_experiments_saved": len(audit["experiments"]),
@@ -131,6 +155,7 @@ def aggregate(catalog_file, shard_files, db_path, summary_path):
                       "status_counts":counts,"stored":audit["outcome_count"],
                       "research_winners":sum(x["won_vs_benchmark"] for x in leaders),
                       "learning_ablation":learning_results,
+                      "predeclared_weight_gauntlet":predeclared_weight_evidence,
                       "promotion_authorized":False},sort_keys=True))
     return summary
 
