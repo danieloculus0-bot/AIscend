@@ -20,4 +20,10 @@ jobs:
         with:
           python-version: '3.11'
       - run: python -m unittest discover -s tests -p 'test_strategy_atlas.py' -v
-      - run: python -m scripts.strategy_atlas stats
+      - name: Inspect database when the separate archive build has published it
+        run: |
+          if test -f research/strategy_atlas/strategy_research.sqlite3.gz; then
+            python -m scripts.strategy_atlas stats
+          else
+            echo 'Snapshot publication is validated by the separate archive-build workflow.'
+          fi

@@ -4,6 +4,7 @@ on:
     branches: ['research/strategy-atlas-20261024']
     paths:
       - 'research/strategy_atlas/collect_history.py'
+      - 'research/strategy_atlas/.gitignore'
       - 'research/strategy_atlas/package_snapshot.py'
       - 'research/strategy_atlas/strategies.jsonl'
       - 'research/strategy_atlas/sources.jsonl'
