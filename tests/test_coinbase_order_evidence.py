@@ -184,7 +184,7 @@ class OrderEvidenceTests(unittest.TestCase):
                 self.assertTrue(pending)
                 self.assertIn("client_order_id",pending)
                 self.assertEqual(json.loads(pending)["account_scope"], "a"*64)
-                decision,status=engine._pending_order_decision()
+                decision,status=engine._pending_order_decision(scope="a"*64)
                 self.assertEqual(status,"ORDER_AWAITING_VERIFICATION")
                 self.assertEqual(decision.action,"HOLD")
             finally:
