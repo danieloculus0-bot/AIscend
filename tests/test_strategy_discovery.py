@@ -66,6 +66,18 @@ class StrategyDiscoveryTests(unittest.TestCase):
         self.assertTrue(all(x["config"][0] != "relative_momentum"
                             for x in r["training_candidates"]))
 
+    def test_holdout_changes_cannot_select_another_strategy(self):
+        base = history(360, fn=lambda i: 100 + i*.25,
+                       volume=lambda i: 600 if i % 18 == 0 else 100)
+        changed = {ts: dict(row) for ts, row in base.items()}
+        for i in range(int(360*.65), 360):
+            changed[i*BAR].update(open=300-i*.5, close=300-i*.5)
+        original, altered = challenge(base), challenge(changed)
+        self.assertEqual(original["selected_config"], altered["selected_config"])
+        self.assertEqual(original["training_candidates"], altered["training_candidates"])
+        self.assertNotEqual(original["holdout_buy_hold_net"],
+                            altered["holdout_buy_hold_net"])
+
     def test_invalid_cost(self):
         with self.assertRaisesRegex(ValueError, "INVALID_COST"):
             simulate(candles(history(100)), ("breakout", 20, 16),
