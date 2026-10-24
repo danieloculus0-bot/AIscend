@@ -70,8 +70,9 @@ class FiveYearMemoryTests(unittest.TestCase):
             db=Path(d)/"bean.sql"
             r=store_report(db,{"markets":{"X-USD":{
                 "status":"PARTIAL","promotion_authorized":False}}})
-            self.assertFalse(r["markets"][0]["stored"])
+            self.assertTrue(r["markets"][0]["stored"])
             self.assertEqual(audit_db(db)["experiments"],[])
+            self.assertEqual(audit_db(db)["outcome_count"],1)
 
 
 if __name__=="__main__":
