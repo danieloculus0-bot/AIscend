@@ -7,6 +7,7 @@ import unittest
 import zipfile
 import numpy as np
 from scripts.collect_strategy_candles import parse_archive,seconds
+from scripts.bean_strategy_policy import compare_predictions
 from src.bean_strategy_curriculum import ACTIONS,Account,Candles,CandleWorker,Features,PatternMemory,experience,select
 
 def data():
@@ -14,6 +15,12 @@ def data():
     return Candles(('BTCUSDT','ETHUSDT','ADAUSDT'),np.arange(440)*86400,{'open':o,'high':p*1.02,'low':o*.98,'close':p,'volume':np.full_like(p,1e6)},'a'*64)
 
 class CurriculumTests(unittest.TestCase):
+    def test_portable_prediction_check_requires_same_action_and_bounded_error(self):
+        c=compare_predictions({'values':[[1.,2.0000001]]},{'values':[[1.,2.]]})
+        self.assertTrue(c['same_greedy_action']);self.assertFalse(c['values_exactly_equal'])
+        with self.assertRaises(ValueError):compare_predictions({'values':[[1.,3.]]},{'values':[[1.,2.]]})
+        with self.assertRaises(ValueError):compare_predictions({'values':[[1.0000001,1.]]},{'values':[[1.,1.0000001]]})
+        with self.assertRaises(ValueError):compare_predictions({'values':[[float('nan'),1.]]},{'values':[[1.,2.]]})
     def test_future_candles_cannot_change_pattern_or_eligibility(self):
         c=data();other=copy.deepcopy(c)
         for v in other.data.values():v[261:]=np.nan
