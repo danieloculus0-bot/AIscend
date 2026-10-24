@@ -8,7 +8,18 @@ from pathlib import Path
 
 from scripts.bean_five_year_walkforward import walkforward
 from scripts.bean_five_year_ledger import store_report, audit_db, validate_experiment
-from tests.test_bean_five_year_walkforward import synthetic
+from scripts.bean_five_year_walkforward import BAR
+import math
+
+
+def synthetic(n=2100, shape="waves"):
+    out={}
+    for i in range(n):
+        v=100+math.sin(i/53)*15 + i*.10
+        out[i*BAR]={"ts":i*BAR,"open":v,"high":v+.7,
+                    "low":v-.7,"close":v,"volume":200.}
+    return out
+
 
 
 class FiveYearMemoryTests(unittest.TestCase):
