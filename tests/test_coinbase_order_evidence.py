@@ -216,6 +216,110 @@ class OrderEvidenceTests(unittest.TestCase):
             finally:
                 store.close()
 
+    def test_stale_snapshot_scope_blocks_wrong_account_pending_lookup(self):
+        class Rail:
+            def __init__(self):
+                self.scope = "b" * 64
+                self.lookups = []
+
+            def account_scope_id(self):
+                return self.scope
+
+            def order_detail(self, order_id):
+                self.lookups.append(order_id)
+                raise AssertionError("Never query the wrong account")
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "stale-snapshot.db")
+            try:
+                rail = Rail()
+                engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                engine.store, engine.rail = store, rail
+                original = json.dumps({
+                    "order_id": "venue-a", "client_order_id": "client-a",
+                    "product": "BTC-USD", "side": "BUY",
+                    "account_scope": "a" * 64})
+                store.set_meta("pending_coinbase_order", original)
+                # Snapshot was authenticated for A; the rail now uses B.
+                decision, status = engine._pending_order_decision(scope="a" * 64)
+                self.assertEqual((decision.action, status),
+                                 ("HOLD", "ORDER_ACCOUNT_SCOPE_CHANGED"))
+                self.assertEqual(rail.lookups, [])
+                self.assertEqual(store.get_meta("pending_coinbase_order"), original)
+            finally:
+                store.close()
+
+    def test_pending_order_switch_during_detail_does_not_clear_receipt(self):
+        class Rail:
+            def __init__(self):
+                self.scope = "a" * 64
+                self.lookups = []
+
+            def account_scope_id(self):
+                return self.scope
+
+            def order_detail(self, order_id):
+                self.lookups.append(order_id)
+                self.scope = "b" * 64
+                return {"order": {"order_id": order_id, "status": "FILLED",
+                                  "filled_size": "0.1", "filled_value": "10"}}
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "mid-detail-switch.db")
+            try:
+                rail = Rail()
+                engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                engine.store, engine.rail = store, rail
+                original = json.dumps({
+                    "order_id": "venue-a", "client_order_id": "client-a",
+                    "product": "BTC-USD", "side": "SELL",
+                    "account_scope": "a" * 64})
+                store.set_meta("pending_coinbase_order", original)
+                decision, status = engine._pending_order_decision(scope="a" * 64)
+                self.assertEqual((decision.action, status),
+                                 ("HOLD", "ORDER_ACCOUNT_SCOPE_CHANGED"))
+                self.assertEqual(rail.lookups, ["venue-a"])
+                self.assertEqual(store.get_meta("pending_coinbase_order"), original)
+                self.assertIsNone(store.get_meta("last_coinbase_submission_state"))
+            finally:
+                store.close()
+
+    def test_pending_client_lookup_switch_does_not_replace_receipt(self):
+        class Rail:
+            def __init__(self):
+                self.scope = "a" * 64
+                self.details = []
+
+            def account_scope_id(self):
+                return self.scope
+
+            def find_order_id_by_client_id(self, **kwargs):
+                self.scope = "b" * 64
+                return "venue-a"
+
+            def order_detail(self, order_id):
+                self.details.append(order_id)
+                raise AssertionError("Do not query with switched credentials")
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "mid-finder-switch.db")
+            try:
+                rail = Rail()
+                engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                engine.store, engine.rail = store, rail
+                original = json.dumps({
+                    "order_id": None, "client_order_id": "client-a",
+                    "product": "BTC-USD", "side": "BUY",
+                    "account_scope": "a" * 64})
+                store.set_meta("pending_coinbase_order", original)
+                decision, status = engine._pending_order_decision(scope="a" * 64)
+                self.assertEqual((decision.action, status),
+                                 ("HOLD", "ORDER_ACCOUNT_SCOPE_CHANGED"))
+                self.assertEqual(rail.details, [])
+                self.assertEqual(store.get_meta("pending_coinbase_order"), original)
+            finally:
+                store.close()
+
     def test_accepted_unverified_order_keeps_original_account_scope(self):
         class Rail:
             def order_detail(self, order_id):
