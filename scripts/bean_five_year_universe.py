@@ -76,7 +76,7 @@ def aggregate(catalog_file, shard_files, db_path, summary_path):
         ({"product":p,"net_return":r["net_return"],
           "benchmark":r["continuous_buy_hold_return"],
           "folds":r["fold_count"],"won_vs_benchmark":
-              r["net_return"] > r["fold_rebalanced_buy_hold_return"]}
+              r["net_return"] > r["continuous_buy_hold_return"]}
          for p,r in results.items()
          if r["status"] == "HISTORICAL_WALKFORWARD_RESEARCH"),
         key=lambda x:(-x["net_return"],x["product"]))
