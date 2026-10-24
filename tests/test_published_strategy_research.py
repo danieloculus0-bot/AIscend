@@ -45,6 +45,16 @@ class PublishedRuleResearchTests(unittest.TestCase):
                                 ("time_series_momentum_60d", .08))[0])
         self.assertTrue(_signal(rows, 300, ("obv_trend",))[0])
 
+    def test_60_day_momentum_warmup_never_reads_future_row(self):
+        rows = normalize(series())
+        rows[-1]["close"] = 999999.
+        self.assertEqual(
+            _signal(rows, WARMUP-1, ("time_series_momentum_60d", .08)),
+            (False, False))
+        self.assertEqual(
+            _signal(rows, WARMUP-1, ("donchian_20_10",)),
+            (False, False))
+
     def test_trade_buys_at_next_open_not_signal_close(self):
         rows = normalize(series())
         opening = 700.
