@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'src/bean_strategy_curriculum.py'
+      - 'src/bean_training_batches.py'
       - 'src/bean_curriculum_worker.py'
       - 'src/bean_strategy_coach.py'
       - 'src/bean_mentor_worker.py'
@@ -41,3 +42,58 @@ jobs:
           python -m scripts.bean_strategy_policy --directory research/bean_strategy_curriculum_20261024 --core-dir core-bean --policy-id fold-0-seed-7-updates-256 --as-of 2026-10-25T00:00:00Z
           python -m scripts.bean_strategy_policy --directory research/bean_mentor_comparison_20261024 --core-dir core-bean --policy-id coached_advantage --as-of 2026-10-25T00:00:00Z
           python -m scripts.bean_strategy_policy --directory research/bean_mentor_comparison_20261024 --core-dir core-bean --policy-id consolidated_after_feedback --as-of 2026-10-25T00:00:00Z
+
+  chunked-mentor-development:
+    name: Digest archived mentor lessons with real BEAN gradients
+    needs: learning-contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements-research.txt
+      - uses: actions/checkout@v4
+        with:
+          repository: danieloculus0-bot/BEAN
+          ref: 887935ae816b4ce6175c6cde54d749f0e5cf3268
+          path: core-bean
+      - name: Run exact-budget, chunk-digested matched development arms
+        run: |
+          python -m src.bean_strategy_coach \
+            --candles research/bean_strategy_curriculum_20261024/source/candles.jsonl.gz \
+            --core-dir core-bean \
+            --output artifacts/bean-chunked-mentor
+      - name: Require all training cases, early gradients and evidence retention
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('artifacts/bean-chunked-mentor/results.json').read_text())
+          assert p['mentor_lessons']==4320
+          assert p['strategy_comparisons']==47520
+          assert p['live_orders'] is False
+          assert p['independent_unseen_profitability_proven'] is False
+          for mode in ('matched_raw_reward','coached_advantage'):
+              x=p['training_digestion'][mode]
+              assert x['gradient_updates']==1024, x
+              assert x['transitions']==47520, x
+              assert x['cohort_count']>1, x
+              assert x['receipts'][0]['frames_through']<=4096, x
+              assert x['receipts'][-1]['updates_through']==1024, x
+              assert p['results'][mode]['state']['updates']==1024, p['results'][mode]['state']
+          print({k:p['results'][k]['equal_weight_mean_return'] for k in p['results']})
+          PY
+      - name: Preserve fresh failed or successful development evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bean-chunked-mentor-development-${{ github.run_number }}
+          path: |
+            artifacts/bean-chunked-mentor/protocol.json
+            artifacts/bean-chunked-mentor/results.json
+            artifacts/bean-chunked-mentor/retention_manifest.json
+            artifacts/bean-chunked-mentor/*.gz
+          if-no-files-found: warn
+          retention-days: 90

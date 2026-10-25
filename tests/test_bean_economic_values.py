@@ -6,7 +6,8 @@ import tempfile
 import unittest
 from src.bean_strategy_curriculum import ACTIONS,Features,experience
 from src.bean_economic_values import funded_values,market_vector,choose,gate_overrides
-from src.bean_economic_experiment import Worker,examples,recover,best_teacher,evaluate
+from src.bean_economic_experiment import Worker,ChunkAdapter,examples,recover,best_teacher,evaluate
+from src.bean_training_batches import digest_chunks
 from src.bean_causal_simulation import DecisionLedger
 from tests.test_bean_strategy_curriculum import data
 
@@ -74,5 +75,14 @@ class EconomicValueTests(unittest.TestCase):
                 self.assertNotEqual(initial['weights_sha256'],entry['online_weights_sha256'])
                 self.assertTrue(recover(root,core,entry)['full_training_state_matches'])
             finally:w.close()
+            chunked=Worker(core,root/'chunked.sqlite3','factor',10,64)
+            try:
+                digest_chunks(ChunkAdapter(chunked),batch,field='experiences',updates=2,batch_size=64,transitions_per_item=1,replay_capacity=64)
+                coverage=chunked.call('train',updates=2)
+                self.assertEqual(coverage['distinct_source_examples_sampled'],128)
+                self.assertEqual(coverage['available_replay_entries'],64)
+                self.assertEqual(coverage['discarded_before_training'],0)
+                self.assertEqual(coverage['evicted_total'],64)
+            finally:chunked.close()
 
 if __name__=='__main__':unittest.main()

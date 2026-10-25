@@ -18,6 +18,7 @@ import sys
 import numpy as np
 from .bean_strategy_curriculum import ACTIONS,Account,Features,load_candles,experience
 from .bean_economic_values import choose,funded_values,market_vector,gate_overrides
+from .bean_training_batches import digest_chunks
 from .bean_causal_simulation import DecisionLedger
 from .strategy_atlas import canonical,digest,utc_seconds
 
@@ -35,6 +36,13 @@ class Worker:
     def close(self):
         if self.p.poll() is None:self.call('close');self.p.wait(timeout=15)
         for x in (self.p.stdin,self.p.stdout,self.p.stderr):x.close()
+
+class ChunkAdapter:
+    """Reuse the parent branch's bounded ingestion/gradient scheduler unchanged."""
+    def __init__(self,worker):self.worker=worker
+    def call(self,op,**kw):
+        if op=='teach':kw={'examples':kw['experiences']}
+        return self.worker.call(op,**kw)
 
 def examples(features,cutoff):
     raw=[];market=[];c=features.c
@@ -117,7 +125,7 @@ def run(candles,core,output,updates=1024):
     import platform,pandas,torch
     (output/'environment.json').write_text(json.dumps({'python':sys.version,'platform':platform.platform(),'numpy':np.__version__,'pandas':pandas.__version__,'torch':torch.__version__},indent=2)+'\n')
     splits=[('2023-04-01T00:00:00Z','2023-10-01T00:00:00Z'),('2024-04-01T00:00:00Z','2024-10-01T00:00:00Z'),('2025-04-01T00:00:00Z','2025-10-01T00:00:00Z')]
-    protocol={'schema':'aiscend.bean.economic_values.v1','scope':'DEVELOPMENT_ONLY_HISTORY_ALREADY_SEEN','source_sha256':features.c.source_hash,'core_revision':subprocess.check_output(['git','-C',str(core),'rev-parse','HEAD'],text=True).strip(),'implementation':{p:hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in ('src/bean_economic_experiment.py','src/bean_economic_worker.py','src/bean_economic_values.py')},'splits':splits,'arms':['raw_limited','raw_full','factor'],'seed':41,'updates':updates,'raw_supervision':'All 11 action labels at three prior exposures; legacy 4096 replay versus full replay, identical input order and update budget','factor_supervision':'Two mature market return components per distinct asset/period, 35 market-only inputs. Exact same funded cash/fee engine converts forecasts to action values. Log forecasts are scenarios, not calibrated expected cash returns.','decision_rule':'Choose a different action only when its modeled net log return exceeds the reference by .10 percentage points. All learned arms share this rule.','capital':1000,'allocation':'Equal fixed funded sleeves across eight present-selected symbols; not a full-universe qualification','cost_per_side':.01,'expert_selection':'Best training-only net portfolio return among all 11 fixed experts; alphabetical tie. No later returns read.','override_gate':'Before 2025 audit: economic overlay must beat its training-selected expert on BOTH earlier development folds AND market forecast MSE must beat training-mean forecasts on BOTH. Otherwise retain the expert. No learned profit credit for expert fallback.','limitations':['All dates are previously inspected development history','Eight-symbol survivorship and venue bias','Daily reference-open simulation, no exchange fill claim','No independently audited competitor comparison','More epochs are not more independent market evidence'],'live_orders':False}
+    protocol={'schema':'aiscend.bean.economic_values.v2','scope':'DEVELOPMENT_ONLY_HISTORY_ALREADY_SEEN','source_sha256':features.c.source_hash,'core_revision':subprocess.check_output(['git','-C',str(core),'rev-parse','HEAD'],text=True).strip(),'parent_chunked_implementation':'75bd175c647ad90785501b70bbc35bef0ed95584','implementation':{p:hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in ('src/bean_economic_experiment.py','src/bean_economic_worker.py','src/bean_economic_values.py','src/bean_training_batches.py')},'splits':splits,'arms':['raw_limited','raw_chunked','raw_full','factor'],'seed':41,'updates':updates,'raw_supervision':'All 11 labels at three exposures; legacy ingest-then-train4096, parent digest_chunks4096, complete replay; identical input order and total update budget','factor_supervision':'Two mature market return components per distinct asset/period, 35 market-only inputs. Exact same funded cash/fee engine converts forecasts to action values. Log forecasts are scenarios, not calibrated expected cash returns.','decision_rule':'Choose a different action only when its modeled net log return exceeds the reference by .10 percentage points. All learned arms share this rule.','capital':1000,'allocation':'Equal fixed funded sleeves across eight present-selected symbols; not a full-universe qualification','cost_per_side':.01,'expert_selection':'Best training-only net portfolio return among all 11 fixed experts; alphabetical tie. No later returns read.','override_gate':'Before 2025 audit: economic overlay must beat its training-selected expert on BOTH earlier development folds AND market forecast MSE must beat training-mean forecasts on BOTH. Otherwise retain the expert. No learned profit credit for expert fallback.','limitations':['All dates are previously inspected development history','Eight-symbol survivorship and venue bias','Daily reference-open simulation, no exchange fill claim','No independently audited competitor comparison','More epochs are not more independent market evidence'],'live_orders':False}
     protocol['protocol_sha256']=digest(protocol);(output/'protocol.json').write_text(json.dumps(protocol,indent=2)+'\n');ledger.metadata('protocol',protocol)
     raw,market=examples(features,int(utc_seconds(splits[-1][0])))
     for name,data in (('raw_examples',raw),('distinct_market_examples',market)):
@@ -135,11 +143,15 @@ def run(candles,core,output,updates=1024):
         models={};cohort_market=[x for x in market if x['outcome_at']<=cutoff];training_mean=[float(np.mean([x['reward'] for x in cohort_market if x['action']==a])) for a in (0,1)]
         for arm in protocol['arms']:
             data=cohort_market if arm=='factor' else [x for x in raw if x['outcome_at']<=cutoff]
-            capacity=4096 if arm=='raw_limited' else len(data);worker=Worker(core,output/(label+'-'+arm+'.sqlite3'),arm,cutoff,capacity)
+            capacity=4096 if arm in ('raw_limited','raw_chunked') else len(data);worker=Worker(core,output/(label+'-'+arm+'.sqlite3'),arm,cutoff,capacity)
             try:
                 before=worker.call('status');order=np.random.default_rng(41).permutation(len(data))
-                for k in range(0,len(order),256):worker.call('teach',examples=[data[n] for n in order[k:k+256]])
-                coverage=worker.call('train',updates=updates)
+                if arm=='raw_chunked':
+                    digestion=digest_chunks(ChunkAdapter(worker),[data[n] for n in order],field='experiences',updates=updates,batch_size=256,transitions_per_item=1)
+                    coverage=worker.call('train',updates=updates);coverage['digestion']=digestion
+                else:
+                    for k in range(0,len(order),256):worker.call('teach',examples=[data[n] for n in order[k:k+256]])
+                    coverage=worker.call('train',updates=updates)
                 outcome=evaluate(features,cutoff,stop,ledger,label+'/'+arm,worker=worker)
                 if arm=='factor':
                     overlay=evaluate(features,cutoff,stop,ledger,label+'/economic_overlay',worker=worker,reference=teacher);models['economic_overlay']=overlay
@@ -159,8 +171,8 @@ def run(candles,core,output,updates=1024):
     for p in output.glob('*.sqlite3'):
         with p.open('rb') as src,gzip.GzipFile(filename=str(p)+'.gz',mode='wb',mtime=0) as dest:shutil.copyfileobj(src,dest)
     with (output/'decisions.jsonl').open('rb') as src,gzip.GzipFile(filename=str(output/'decisions.jsonl.gz'),mode='wb',mtime=0) as dest:shutil.copyfileobj(src,dest)
-    lines=['# BEAN economic consistency and replay coverage\n','This is an already-seen, eight-symbol development ablation. It cannot establish best-on-market performance or independent profitability.\n',f"Raw labels: {len(raw):,}. Distinct asset/period outcomes: {len(market)//2:,}. The raw labels repeat actions and starting exposures; they are not that many independent market events.\n",'| Fold | Training-selected expert | Expert return | Raw 4096 | Raw full replay | Factored values | Economic overlay |','| --- | --- | ---: | ---: | ---: | ---: | ---: |']
-    for r in results:lines.append(f"| {r['start'][:4]} | {r['training_selected_expert']} | {r['expert_only']['net_return']:+.2%} | {r['models']['raw_limited']['result']['net_return']:+.2%} | {r['models']['raw_full']['result']['net_return']:+.2%} | {r['models']['factor']['result']['net_return']:+.2%} | {r['models']['economic_overlay']['net_return']:+.2%} |")
+    lines=['# BEAN economic consistency and replay coverage\n','This is an already-seen, eight-symbol development ablation. It cannot establish best-on-market performance or independent profitability.\n',f"Raw labels: {len(raw):,}. Distinct asset/period outcomes: {len(market)//2:,}. The raw labels repeat actions and starting exposures; they are not that many independent market events.\n",'| Fold | Training-selected expert | Expert return | Raw 4096 | Parent chunked 4096 | Raw full replay | Factored values | Economic overlay |','| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |']
+    for r in results:lines.append(f"| {r['start'][:4]} | {r['training_selected_expert']} | {r['expert_only']['net_return']:+.2%} | {r['models']['raw_limited']['result']['net_return']:+.2%} | {r['models']['raw_chunked']['result']['net_return']:+.2%} | {r['models']['raw_full']['result']['net_return']:+.2%} | {r['models']['factor']['result']['net_return']:+.2%} | {r['models']['economic_overlay']['net_return']:+.2%} |")
     last=results[-1]['models']['expert_first_policy'];lines += [f"\nThe predeclared override gate enabled learning overrides: **{gate}**. The final development expert-first policy used **{last['behavior']}**, ending with **${last['result']['ending_equity']:.2f} from $1,000**. When an expert fallback earns money, its return is explicitly attributed to the expert, not to learning.\n",'The factor model predicts two market log-return components. Exact funded trade accounting supplies costs and all 11 action values; cash versus holding cash must match and trades with identical exposures cannot acquire different values from their names. This fixes structural inconsistency, not predictive skill. Forecast MSE is compared with zero and training-mean forecasts.\n','The raw-limited and raw-full arms share the same examples/order/network/updates. Coverage receipts report how many inputs were evicted before training and how many available entries were actually sampled. The complete Core training state (including full replay, optimizer, target and RNG) is hash-linked through external gzip files because the original capsule has a 16 MB expanded-size limit. Every saved state was independently recovered.\n','All earlier failures are preserved in parent branches. No old final year was reopened, no live order was placed, and no result here is called an unseen competitor benchmark. Broader point-in-time asset coverage and genuinely new forward evaluation remain necessary.']
     (output/'RESULTS.md').write_text('\n'.join(lines)+'\n');print(canonical({'event':'economic_experiment_complete','gate':gate,'expert_first_return':last['result']['net_return'],'behavior':last['behavior']}),flush=True);return report
 
