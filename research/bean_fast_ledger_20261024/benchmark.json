@@ -1,0 +1,34 @@
+{
+  "schema": "aiscend.bean.fast_benchmark.v1",
+  "reference_commit": "e49bb7e1052181a80be06ed23fd26316deae3ceb",
+  "scope": "Synthetic mechanics and repeated-search throughput, not measured trading performance",
+  "checks": [
+    {
+      "gap_fixture": false,
+      "rows": 224,
+      "teaching_sha256": "7c7c7d3bd8a232e7688593be728e4201c8d69fa07bb962c19e7a050d5cb8971a",
+      "decision_tip": "da68ec62974846947f4fd7db742f33a60e71e2d3326fbea7d2f69bf8a58d1524",
+      "byte_identical": true
+    },
+    {
+      "gap_fixture": true,
+      "rows": 88,
+      "teaching_sha256": "39b48d0c6d48244a060a1b78233af37603617483d6cdc37b16de9d01628464af",
+      "decision_tip": "f8bac2fd2e6ac948ef09ac521de8bd7cddcaf084036f7aa550780f48848d35a5",
+      "byte_identical": true
+    }
+  ],
+  "actual_core": {
+    "full_states_identical": true,
+    "models": [
+      "immediate",
+      "linked",
+      "untrained"
+    ],
+    "rows": 224
+  },
+  "teaching_rows_timed": 2688,
+  "reference_seconds": 0.7059386050000285,
+  "fast_seconds": 0.06381156899999496,
+  "teaching_speedup": 11.06286236278071
+}
