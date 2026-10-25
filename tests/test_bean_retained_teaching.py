@@ -102,7 +102,7 @@ class RetainedTeachingContracts(unittest.TestCase):
             root=Path(d);teaching=root/'teaching';teaching.mkdir()
             path=teaching/(symbol+'.jsonl.gz')
             with gzip.GzipFile(filename=str(path),mode='wb',mtime=0) as dest:
-                for row in rows:dest.write((canonical(row)+'\\n').encode())
+                for row in rows:dest.write((canonical(row)+'\n').encode())
             blob=path.read_bytes()
             (root/'artifacts_manifest.json').write_text(json.dumps({'files':{'teaching/'+path.name:{'sha256':hashlib.sha256(blob).hexdigest()}}}))
             lessons,stats=load_lessons(root,cutoff)
