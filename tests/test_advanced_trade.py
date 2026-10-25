@@ -214,6 +214,43 @@ class AdvancedTradeTests(unittest.TestCase):
                 AdvancedTradeSpot.validate_credentials("id", "secret")
             self.assertNotIn("ADVANCED_TRADE_API_KEY_ID", os.environ)
 
+    def test_missing_view_permission_cannot_be_assumed_from_trade_flag(self):
+        vault = FakeVault()
+        vault.fake_client.get_api_key_permissions = lambda: FakeResponse({
+            "can_trade": True, "can_transfer": False})
+        rail = AdvancedTradeSpot(vault)
+        status = rail.status()
+        self.assertFalse(status.can_view)
+        self.assertTrue(status.can_trade)
+        with patch("src.wallets.advanced_trade.RESTClient",
+                   return_value=vault.fake_client), patch.dict(
+                       os.environ, {}, clear=True):
+            with self.assertRaisesRegex(RuntimeError, "view and trade"):
+                AdvancedTradeSpot.validate_credentials("id", "secret")
+
+    def test_nonboolean_coinbase_permission_flags_fail_closed(self):
+        for field in ("can_view", "can_trade"):
+            for value in ("true", "false", "1", 1, None, [], {}):
+                with self.subTest(field=field, value=value):
+                    vault = FakeVault()
+                    flags = {"can_view": True, "can_trade": True,
+                             "can_transfer": False}
+                    flags[field] = value
+                    vault.fake_client.get_api_key_permissions = (
+                        lambda flags=flags: FakeResponse(flags))
+                    status = AdvancedTradeSpot(vault).status()
+                    self.assertFalse(getattr(status, field))
+                    self.assertFalse(status.can_transfer)
+
+    def test_permission_aliases_require_explicit_booleans(self):
+        vault = FakeVault()
+        vault.fake_client.get_api_key_permissions = lambda: FakeResponse({
+            "view": True, "trade": True, "transfer": False})
+        status = AdvancedTradeSpot(vault).status()
+        self.assertTrue(status.can_view)
+        self.assertTrue(status.can_trade)
+        self.assertFalse(status.can_transfer)
+
     def test_status_lists_balances_and_tradable_spot_products(self):
         status = AdvancedTradeSpot(FakeVault()).status()
         self.assertEqual(status.tradable_spot_products, 2)
