@@ -7,6 +7,7 @@ locked before the final historical interval is opened.
 from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass
+from contextlib import closing
 import gzip
 import hashlib
 import json
@@ -291,7 +292,7 @@ class DecisionLedger:
                 if seq!=self.seq or previous!=self.tip or claimed!=expected:raise ValueError("Decision ledger changed or reordered")
                 self.db.execute("INSERT INTO decisions VALUES (?,?,?,?)",(seq,previous,claimed,raw));self.tip=claimed;self.seq+=1
         if self.path.exists():
-            with sqlite3.connect(self.path) as prior:
+            with closing(sqlite3.connect(self.path)) as prior:
                 rows=prior.execute("SELECT seq,previous_hash,entry_hash,payload_json FROM decisions ORDER BY seq").fetchall()
             expected=self.db.execute("SELECT seq,previous_hash,entry_hash,payload_json FROM decisions ORDER BY seq").fetchall()
             if rows!=expected:raise ValueError("SQLite snapshot differs from authoritative event stream")
@@ -325,7 +326,12 @@ class DecisionLedger:
         self.db.backup(target)
         if target.execute("PRAGMA integrity_check").fetchone()[0]!="ok":raise ValueError("Snapshot integrity failed")
         target.close();os.replace(temp,self.path)
-    def close(self):self.snapshot();self.stream.close();self.db.close()
+    def close(self):
+        try:
+            self.snapshot()
+        finally:
+            self.stream.close()
+            self.db.close()
 
 def replay(panel,signals,worker,start,end,*,label,ledger,training=False,placebo=False,fixed=None,seed=0):
     broker=Broker(panel);rng=random.Random(seed);past_rewards=[];choices=Counter();start_status=worker.call("status") if worker else None
