@@ -294,14 +294,31 @@ class AdvancedSpotEngine:
         return fused, context, human_score, human_weight
 
     def sync(self) -> dict[str, Any]:
+        # A key can rotate WHILE Coinbase is returning wallets and products.
+        # Sampling only after status() could label account A's cash with key B,
+        # then let the order-scope guard authorize a B order using A's funds.
+        # Bracket the authenticated read with the same credential identity.
+        scope_reader = getattr(self.rail, "account_scope_id", None)
+        try:
+            scope_before = scope_reader() if callable(scope_reader) else None
+        except Exception as exc:
+            raise RuntimeError(
+                "Coinbase credential identity unavailable before account snapshot"
+            ) from exc
         status = self.rail.status()
         # status() must authenticate first. Never trust a key fingerprint as
         # proof the key has permissions until the venue status call succeeds.
-        scope_reader = getattr(self.rail, "account_scope_id", None)
         try:
             authenticated_scope = scope_reader() if callable(scope_reader) else None
-        except Exception:
-            authenticated_scope = None
+        except Exception as exc:
+            raise RuntimeError(
+                "Coinbase credential identity unavailable after account snapshot"
+            ) from exc
+        if callable(scope_reader) and scope_before != authenticated_scope:
+            raise RuntimeError(
+                "Coinbase credentials changed during authenticated account "
+                "snapshot; discard mixed-account balances and refresh."
+            )
         if (not isinstance(authenticated_scope, str)
                 or len(authenticated_scope) != 64
                 or any(c not in "0123456789abcdef" for c in authenticated_scope)):
