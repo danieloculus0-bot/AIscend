@@ -301,6 +301,13 @@ def evaluate_account(store, snapshot, rail, *, clock=time.time,
     reader = getattr(rail, "account_fills", None)
     status = "NOT_QUERIED"
     if not callable(reader):
+        # A reader can disappear after a previously successful authenticated
+        # read. A still-fresh cached snapshot must not qualify new BUYs when
+        # the provider's fill-history interface is no longer available.
+        # Reset the attempt clock too, so restoring the reader immediately
+        # retries rather than trusting an old cache window.
+        store.set_meta(_scope_meta("bean_fills_last_complete_at", scope), "")
+        store.set_meta(_scope_meta("bean_fills_last_attempt_at", scope), "")
         status = "AUTHENTICATED_FILL_READER_UNAVAILABLE"
     elif last is None or now - last >= refresh_seconds or now < last:
         store.set_meta(_scope_meta("bean_fills_last_attempt_at", scope), str(now))
