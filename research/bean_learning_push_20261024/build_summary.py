@@ -1,7 +1,6 @@
 """Build the outcome index from immutable, provenance-tagged result rows."""
 from __future__ import annotations
 import argparse
-from contextlib import closing
 import gzip
 import hashlib
 import json
@@ -18,12 +17,12 @@ def timestamp(value):
 def recall_outcomes(database,as_of,*,historical=False):
     """Default to actual recording time; historical counterfactual mode is explicit."""
     column='historical_release_at' if historical else 'recorded_at'
-    with closing(sqlite3.connect(Path(database).absolute().as_uri()+'?mode=ro',uri=True)) as con:
+    with sqlite3.connect(Path(database).absolute().as_uri()+'?mode=ro',uri=True) as con:
         con.row_factory=sqlite3.Row
         return [dict(x) for x in con.execute('SELECT * FROM outcomes WHERE '+column+'<=? ORDER BY window,method',(timestamp(as_of),))]
 
 def recall_checkpoints(database,as_of,*,historical=False):
-    with closing(sqlite3.connect(Path(database).absolute().as_uri()+'?mode=ro',uri=True)) as con:
+    with sqlite3.connect(Path(database).absolute().as_uri()+'?mode=ro',uri=True) as con:
         con.row_factory=sqlite3.Row;time=timestamp(as_of)
         query='SELECT * FROM checkpoints WHERE knowledge_cutoff<=?';args=[time]
         if not historical:query+=' AND recorded_at<=?';args.append(time)
