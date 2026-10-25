@@ -7,7 +7,7 @@ import tempfile
 import unittest
 
 from src.bean_five_minute import BAR
-from src.forward_paper import observe_and_score, freeze_training_candidates
+from src.forward_paper import observe_and_score, freeze_training_candidates, freeze
 from scripts.forward_paper import main as forward_paper_cli_main
 
 MANIFEST=[{"product":"BTC-USD","policy":"trend",
@@ -45,6 +45,30 @@ class ForwardPaperTests(unittest.TestCase):
                 "SELECT fee_bps,spread_bps FROM frozen_policy WHERE product=?",
                 ("BTC-USD",)).fetchone()
         self.assertEqual((fee, spread), (90.0, 10.0))
+
+    def test_nonfinite_costs_cannot_mutate_frozen_fee_net_paper_ledger(self):
+        self.simulate_tick(440)
+        with closing(sqlite3.connect(self.path)) as db:
+            original = db.execute(
+                "SELECT fee_bps,spread_bps FROM frozen_policy").fetchone()
+            original_decisions = db.execute(
+                "SELECT COUNT(*) FROM paper_decisions").fetchone()[0]
+            for invalid in (float("nan"), float("inf"), float("-inf")):
+                for field in ("fee_bps", "spread_bps"):
+                    with self.subTest(invalid=str(invalid), field=field):
+                        with self.assertRaisesRegex(ValueError, "Invalid modeled trading costs"):
+                            self.simulate_tick(441, **{field: invalid})
+                        # freeze() is also public and must not bypass validation.
+                        with self.assertRaisesRegex(ValueError, "Invalid modeled trading costs"):
+                            freeze(db, product="BTC-USD", policy="trend",
+                                   now=441*BAR+1,
+                                   fee_bps=invalid if field == "fee_bps" else 90,
+                                   spread_bps=invalid if field == "spread_bps" else 10)
+            self.assertEqual(db.execute(
+                "SELECT fee_bps,spread_bps FROM frozen_policy").fetchone(), original)
+            self.assertEqual(db.execute(
+                "SELECT COUNT(*) FROM paper_decisions").fetchone()[0],
+                original_decisions)
 
     def test_cli_uses_same_90bps_default_without_live_exchange(self):
         from unittest.mock import patch
