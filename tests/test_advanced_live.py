@@ -167,6 +167,75 @@ class FakeUniverse:
 
 
 class AdvancedLiveTests(unittest.TestCase):
+    def test_coinbase_key_rotation_during_status_discards_mixed_account_snapshot(self):
+        class RotatingRail(FakeRail):
+            def __init__(self):
+                super().__init__()
+                self.scope = "a" * 64
+                self.status_calls = 0
+
+            def account_scope_id(self):
+                return self.scope
+
+            def status(self):
+                self.status_calls += 1
+                # Wallets are returned under A; the key changes to B before
+                # the caller can label those balances and authorize an order.
+                result = super().status()
+                self.scope = "b" * 64
+                return result
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "mid-snapshot-key-rotation.db")
+            try:
+                rail = RotatingRail()
+                engine = AdvancedSpotEngine(
+                    store, rail=rail, asset_universe=FakeUniverse(),
+                    listing_sentinel=FakeListingSentinel(),
+                    human_researcher=FakeHumanResearch(),
+                )
+                with self.assertRaisesRegex(
+                    RuntimeError, "credentials changed during authenticated account snapshot"
+                ):
+                    engine.sync()
+                self.assertEqual(rail.status_calls, 1)
+                self.assertIsNone(engine._snapshot)
+                self.assertEqual(rail.buys, [])
+            finally:
+                store.close()
+
+    def test_coinbase_scope_reader_failure_before_status_never_uses_cash(self):
+        class BrokenScopeRail(FakeRail):
+            def __init__(self):
+                super().__init__()
+                self.status_calls = 0
+
+            def account_scope_id(self):
+                raise RuntimeError("credential store unavailable")
+
+            def status(self):
+                self.status_calls += 1
+                return super().status()
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "unavailable-credential-scope.db")
+            try:
+                rail = BrokenScopeRail()
+                engine = AdvancedSpotEngine(
+                    store, rail=rail, asset_universe=FakeUniverse(),
+                    listing_sentinel=FakeListingSentinel(),
+                    human_researcher=FakeHumanResearch(),
+                )
+                with self.assertRaisesRegex(
+                    RuntimeError, "credential identity unavailable before account snapshot"
+                ):
+                    engine.sync()
+                self.assertEqual(rail.status_calls, 0)
+                self.assertIsNone(engine._snapshot)
+                self.assertEqual(rail.buys, [])
+            finally:
+                store.close()
+
     def test_authentication_key_switch_resets_starting_equity_baseline(self):
         class ScopedRail(FakeRail):
             scope = "a" * 64
