@@ -27,6 +27,18 @@ python -m src.bean_compact_scores --results research/bean_wide_multistep_capital
 
 The command creates the pair legend, compact scoreboard, exact SQLite index and authoritative event stream. The original trade ledgers and full learned states stay in the source experiment. Faster indexing does not turn already inspected evaluation periods into new learning evidence.
 
+## Run a cached candidate grid
+
+```bash
+python -m src.bean_cached_search --history research/bean_wide_history_20261024 --corpus research/bean_wide_multistep_capital_20261024 --core-dir /path/to/pinned-BEAN --output /path/to/new-search --seeds 7 41
+```
+
+This trains four actual Core candidates, two seeds crossed with immediate and linked rewards, from one read of the cached source. It reuses exact source vectors and rewards, checks their hashes and verifies complete recovered states. Every supplied mature row participates in the actual gradient batches. It also keeps the unchanged random network and cash/buy-hold/trend controls. Additional seed numbers expand the grid without another candle download or feature-building pass.
+
+Gradients stop before April 2025. A seven-day availability purge also prevents the original episode-terminal/missing-data flags from carrying later knowledge across that earlier cutoff. Selection uses April-September 2025 on training assets only. The candidate is locked before the later October 2025-October 2026 historical audit and the asset cohort withheld from gradients. This is still reused development history, not a fresh forward test. A profitable cash or unchanged-random fallback does not count as learned profit.
+
+Each candidate's model, individual decision events, exact scores and losses remain archived. The score table drives the internal selection; later audit rows cannot enter that ranking. The detailed original trace is preserved once per tested candidate and referenced by its pair code.
+
 Verify the optimization locally against the pinned reference checkout:
 
 ```bash
