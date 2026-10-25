@@ -1,0 +1,54 @@
+name: BEAN real-outcome compact pair scoreboard
+on:
+  push:
+    branches: ['experiment/bean-fast-ledger-20261024']
+    paths: ['.github/workflows/bean-compact-index.yml', 'src/bean_compact_scores.py']
+  pull_request:
+    paths: ['.github/workflows/bean-compact-index.yml', 'src/bean_compact_scores.py', 'tests/test_bean_compact_scores.py']
+permissions:
+  contents: write
+jobs:
+  index:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install numpy pandas
+      - run: python -m unittest tests.test_bean_compact_scores -v
+      - name: Index actual full-universe outcomes without re-running the simulation
+        run: python -m src.bean_compact_scores --results research/bean_wide_multistep_capital_20261024/results.json --output research/bean_compact_scores_20261024
+      - name: Verify source pointers, exact return scores and duplicate rejection on actual results
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json,time
+          from src.bean_compact_scores import CompactScores,index_report
+          source=Path('research/bean_wide_multistep_capital_20261024/results.json');root=Path('research/bean_compact_scores_20261024');data=json.loads(source.read_text())
+          ledger=CompactScores(root);before=ledger.events.seq
+          assert before==48
+          for row in ledger.db.execute('SELECT payload_json FROM scores'):
+              event=json.loads(row[0]);value=data
+              for token in event['keys']['evidence']['pointer'].strip('/').split('/'):value=value[int(token)] if isinstance(value,list) else value[token]
+              assert value['net_return']==event['score']['net_return']
+              assert ledger.decode(event['mnemonic'])==event['keys']
+          assert ledger.rank(int(time.time()),window='anything')==[]
+          ledger.close();index_report(source,root);ledger=CompactScores(root);assert ledger.events.seq==before;ledger.close()
+          print(json.dumps({'exact_outcomes':before,'source_bytes':source.stat().st_size,'scoreboard_bytes':(root/'scoreboard.json').stat().st_size,'all_pair_codes_reversed':True,'duplicates_rejected':True,'evaluation_reward_credit':False}))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bean-compact-scores-${{ github.run_id }}
+          path: research/bean_compact_scores_20261024/
+      - name: Archive exact scores and reversible legend
+        if: github.event_name == 'push'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add research/bean_compact_scores_20261024
+          git commit -m 'Archive actual full-universe results as exact reversible pair-code scores'
+          git fetch origin experiment/bean-fast-ledger-20261024
+          git rebase origin/experiment/bean-fast-ledger-20261024
+          git push origin HEAD:experiment/bean-fast-ledger-20261024
