@@ -1,0 +1,40 @@
+{
+  "schema": "aiscend.bean.wide_multistep.protocol.v1",
+  "parent": "56c757a302b2ca5b00ced36624b91e44eaf7a93e",
+  "core": "887935ae816b4ce6175c6cde54d749f0e5cf3268",
+  "history_start": "2021-10-01T00:00:00Z",
+  "history_end": "2026-10-24T00:00:00Z",
+  "training_end": "2025-10-01T00:00:00Z",
+  "validation_end": "2026-04-01T00:00:00Z",
+  "asset_split": "SHA256(base asset) mod 5 == 0 withheld from all training; quote aliases share the same split",
+  "actions": [
+    "cash",
+    "long"
+  ],
+  "decision_cadence_days": 7,
+  "observation": "35 existing market features plus exposure, holding age, unrealized price return, net wealth relative to initial capital",
+  "training": "Actual existing SpongeDQN. Matched gamma=0 and gamma=.99 arms; seed41; identical source order and one full mini-batch gradient per <=64-row cohort. Training labels only mature before training_end. Counterfactual branches from fixed expert trajectories, at most26 decisions per training episode. Full states retained.",
+  "training_experts": [
+    "cash",
+    "buy_hold",
+    "price_trend",
+    "donchian_breakout"
+  ],
+  "evaluation_controls": [
+    "cash",
+    "buy_hold",
+    "price_trend",
+    "donchian_breakout",
+    "training_selected_expert",
+    "untrained_DQN"
+  ],
+  "capital": 1000,
+  "cost_per_side": 0.01,
+  "quotes": "Only USD markets enter funded portfolio. All USDC markets collected and counted, but no unverified 1:1 conversion is assumed. Prefer USD for duplicate base assets.",
+  "execution": "Signals use completed daily candles, next-next daily open fills, full funded accounting. Current catalog minimum notional and base increment applied with explicit current-vintage caveat.",
+  "missing_data": "No interpolation. Missing held-position marks valued at zero until an actual candle returns; no retroactive exits before gaps. Final missing quote gives zero liquidation value. Invalid lookback prevents new decisions.",
+  "selection": "All neural arms and losses retained, no choosing a neural winner on evaluation returns. The single expert control is selected using training-only funded net return, and frozen before either evaluation.",
+  "qualification": "Historical reused data, current-survivor listing bias, no independent profitability or competitor superiority claim. New-to-model asset cohort is distinct from never-before-researched assets.",
+  "forward_requirement": "Separate future paper observations after frozen source/model selection; not inferred from reused historical periods",
+  "live_orders": false
+}
