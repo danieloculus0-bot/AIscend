@@ -271,6 +271,33 @@ class AccountEvidenceTests(unittest.TestCase):
             self.preserve(self.store, {"fills": changed, "complete": True},
                            clock=lambda: 1001)
 
+    def test_duplicate_fill_ids_in_one_complete_read_fail_closed(self):
+        # Re-reading the same IDs on different days is idempotent. A single
+        # claimed-complete provider response repeating an ID is not.
+        duplicate = [self.fills[0], copy.deepcopy(self.fills[0])]
+        with self.assertRaisesRegex(ValueError, "repeats a fill ID"):
+            self.preserve(self.store, {"fills": duplicate, "complete": True},
+                          clock=lambda: 1000)
+        self.assertEqual(self.history(self.store, clock=lambda: 1001)
+                         ["status"], "UNVERIFIED_OR_STALE")
+        self.assertEqual(self.history(self.store, clock=lambda: 1001)
+                         ["fill_count_retained"], 0)
+
+        reader = RealReader(duplicate)
+        result = evaluate_account(self.store, self.snap, reader,
+                                  clock=lambda: 1002)
+        self.assertEqual(result["read_status"], "HISTORY_READ_FAILED:ValueError")
+        self.assertFalse(result["execution"]["history_fully_reconciled"])
+        self.assertFalse(result["realized_account_profit_verified"])
+        self.assertEqual(result["execution"]["fill_count_retained"], 0)
+
+        # A later genuinely complete, unique snapshot can recover normally.
+        reader.fills = self.fills
+        recovered = evaluate_account(self.store, self.snap, reader,
+                                     clock=lambda: 1400)
+        self.assertEqual(recovered["read_status"], "PROVIDER_HISTORY_COMPLETE")
+        self.assertEqual(recovered["execution"]["fill_count_retained"], 4)
+
     def test_live_account_reader_is_throttled_and_learner_sees_history(self):
         reader = RealReader(self.fills)
         first = evaluate_account(self.store, self.snap, reader,
