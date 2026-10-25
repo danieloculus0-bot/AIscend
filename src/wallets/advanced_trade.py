@@ -206,6 +206,7 @@ class AdvancedTradeSpot:
         account_rows: list[dict[str, Any]] = []
         cursor = None
         seen_cursors: set[str] = set()
+        seen_account_uuids: set[str] = set()
         for _ in range(200):
             payload = self._dict(
                 client.get_accounts(cursor=cursor) if cursor else client.get_accounts()
@@ -215,6 +216,22 @@ class AdvancedTradeSpot:
                 not isinstance(row, dict) for row in page_rows
             ):
                 raise RuntimeError("Coinbase accounts returned malformed page data")
+            # Coinbase may paginate wallets with overlapping pages. Counting a
+            # repeated UUID twice would invent spendable funds, even though
+            # multiple DISTINCT wallets sharing one currency must still sum.
+            for row in page_rows:
+                raw_uuid = row.get("uuid")
+                # A wallet without a stable identifier cannot be safely
+                # deduplicated. Fail closed rather than counting anonymous
+                # duplicate rows as additional spendable capital.
+                if not isinstance(raw_uuid, str) or not raw_uuid.strip():
+                    raise RuntimeError(
+                        "Coinbase account wallet UUID missing or malformed")
+                uuid = raw_uuid.strip()
+                if uuid in seen_account_uuids:
+                    raise RuntimeError(
+                        "Coinbase account pagination repeated a wallet UUID")
+                seen_account_uuids.add(uuid)
             account_rows.extend(page_rows)
             next_cursor = str(payload.get("cursor") or "").strip()
             if payload.get("has_next") is False:
@@ -310,10 +327,13 @@ class AdvancedTradeSpot:
 
     def permissions(self) -> dict[str, bool]:
         payload = self._dict(self.vault.client().get_api_key_permissions())
+        # Permissions must be affirmative provider booleans. Missing view
+        # permission used to default True, and bool("false") is also True.
+        # Neither is evidence that this key may read the funded account.
         return {
-            "can_view": bool(payload.get("can_view", payload.get("view", True))),
-            "can_trade": bool(payload.get("can_trade", payload.get("trade", False))),
-            "can_transfer": bool(payload.get("can_transfer", payload.get("transfer", False))),
+            "can_view": payload.get("can_view", payload.get("view")) is True,
+            "can_trade": payload.get("can_trade", payload.get("trade")) is True,
+            "can_transfer": payload.get("can_transfer", payload.get("transfer")) is True,
         }
 
     @staticmethod
