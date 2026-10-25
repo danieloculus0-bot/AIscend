@@ -1,0 +1,429 @@
+[
+  {
+    "id": "td-7",
+    "engine": "td",
+    "seed": 7,
+    "journal": "td-7.sqlite3",
+    "training": {
+      "phase": "td-7/train",
+      "starting_equity": 1000.0,
+      "ending_equity": 225.3926476583342,
+      "net_return": -0.7746073523416658,
+      "max_drawdown": 0.7781500553838594,
+      "modeled_costs": 1385.1349498850936,
+      "orders": 1118,
+      "decisions": 447,
+      "action_counts": {
+        "cash": 194,
+        "lowvol_factor": 4,
+        "bollinger_breakout": 10,
+        "inverse_vol": 7,
+        "zscore_revert": 5,
+        "buy_hold_btc": 40,
+        "hold": 67,
+        "macd": 4,
+        "sma_cross": 22,
+        "equal_weight": 25,
+        "vol_scaled_tsm": 4,
+        "ema_cross": 1,
+        "streak_reversal": 25,
+        "volume_breakout": 1,
+        "price_sma": 10,
+        "roc": 12,
+        "relative_strength_rotation": 10,
+        "rsi2": 3,
+        "bollinger_revert": 3
+      },
+      "gap_marks": 0,
+      "first_decision": 1652400000,
+      "last_data_time": 1729555200,
+      "initial_learner": {
+        "updates": 0,
+        "q_states": 0,
+        "weights_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+      },
+      "final_learner": {
+        "updates": 447,
+        "q_states": 54,
+        "weights_sha256": "ec5e4fe9313ef1d587486c2927e39ff416bb790c4793b1d5d4889dc22e8d0e5b"
+      },
+      "observation_chain_sha256": "1f384d200f458dfab872a011fa55a9a643befae4cbafacf73139c57c1fc4f01d"
+    },
+    "validation": {
+      "phase": "td-7/validation",
+      "starting_equity": 1000.0,
+      "ending_equity": 1232.5728838579203,
+      "net_return": 0.2325728838579202,
+      "max_drawdown": 0.01980198019801982,
+      "modeled_costs": 22.351221249089903,
+      "orders": 10,
+      "decisions": 182,
+      "action_counts": {
+        "cash": 178,
+        "hold": 3,
+        "sma_cross": 1
+      },
+      "gap_marks": 0,
+      "first_decision": 1729728000,
+      "last_data_time": 1761091200,
+      "initial_learner": {
+        "updates": 447,
+        "q_states": 54,
+        "weights_sha256": "ec5e4fe9313ef1d587486c2927e39ff416bb790c4793b1d5d4889dc22e8d0e5b"
+      },
+      "final_learner": {
+        "updates": 447,
+        "q_states": 54,
+        "weights_sha256": "ec5e4fe9313ef1d587486c2927e39ff416bb790c4793b1d5d4889dc22e8d0e5b"
+      },
+      "observation_chain_sha256": "69c2aae4911c6cd9916b5df57abb8d67cda1f78e490eee6775c68e99ebf49e9a"
+    },
+    "checkpoint": {
+      "schema": "bean.learning.core.v1",
+      "checkpoint_saved": true,
+      "journal_tip": "eeb4841ed2ab5bbc855b35639ee942414f1cf3cddb05050c5f29ea9ac4858b20",
+      "memory_mnemonic": "ec5e-4fe9-313e-f1d5",
+      "memory_sha256": "ec5e4fe9313ef1d587486c2927e39ff416bb790c4793b1d5d4889dc22e8d0e5b",
+      "score": 67.5,
+      "delta": 0.232573,
+      "sample_count": 182,
+      "receipt_sha256": "159156a4b75809dd05bd1fac3aab0637e331472d4243000003c0f5ada751746f",
+      "promotable": true,
+      "verification": "host_attested_not_independently_verified"
+    },
+    "weights_changed_from_training": true,
+    "retention_after_restart": true
+  },
+  {
+    "id": "dqn-7",
+    "engine": "dqn",
+    "seed": 7,
+    "journal": "dqn-7.sqlite3",
+    "training": {
+      "phase": "dqn-7/train",
+      "starting_equity": 1000.0,
+      "ending_equity": 67.49665906303743,
+      "net_return": -0.9325033409369625,
+      "max_drawdown": 0.9419405939488777,
+      "modeled_costs": 1081.0923071058407,
+      "orders": 2170,
+      "decisions": 447,
+      "action_counts": {
+        "sma_cross": 9,
+        "equal_weight": 18,
+        "lowvol_factor": 27,
+        "bollinger_breakout": 20,
+        "inverse_vol": 4,
+        "buy_hold_btc": 6,
+        "hold": 57,
+        "macd": 40,
+        "ema_cross": 97,
+        "relative_strength_rotation": 7,
+        "cash": 12,
+        "zscore_revert": 3,
+        "rsi_reversion": 7,
+        "vol_scaled_tsm": 40,
+        "bollinger_revert": 2,
+        "volume_breakout": 11,
+        "roc": 28,
+        "rsi2": 45,
+        "price_sma": 14
+      },
+      "gap_marks": 0,
+      "first_decision": 1652400000,
+      "last_data_time": 1729555200,
+      "initial_learner": {
+        "updates": 0,
+        "frames": 0,
+        "weights_sha256": "aacda0a4e89122033f3f83123d28af101f707e38c6523f19d94fd301c5a721e2",
+        "replay_entries": 0
+      },
+      "final_learner": {
+        "updates": 1536,
+        "frames": 447,
+        "weights_sha256": "eba6d4505cd990c44d1a05b8d7346675ab126370a48072e0b44a2930ef7340bf",
+        "replay_entries": 447
+      },
+      "observation_chain_sha256": "c54b40f3e298824841a0d66e4c0cb339fae2a9272a78de287541d516358d734a"
+    },
+    "validation": {
+      "phase": "dqn-7/validation",
+      "starting_equity": 1000.0,
+      "ending_equity": 121.75110811781362,
+      "net_return": -0.8782488918821864,
+      "max_drawdown": 0.9233469323095829,
+      "modeled_costs": 763.277979365857,
+      "orders": 1082,
+      "decisions": 182,
+      "action_counts": {
+        "roc": 22,
+        "ema_cross": 42,
+        "vol_scaled_tsm": 11,
+        "lowvol_factor": 25,
+        "bollinger_breakout": 8,
+        "hold": 19,
+        "macd": 25,
+        "price_sma": 3,
+        "rsi_reversion": 2,
+        "rsi2": 22,
+        "equal_weight": 3
+      },
+      "gap_marks": 0,
+      "first_decision": 1729728000,
+      "last_data_time": 1761091200,
+      "initial_learner": {
+        "updates": 1536,
+        "frames": 447,
+        "weights_sha256": "eba6d4505cd990c44d1a05b8d7346675ab126370a48072e0b44a2930ef7340bf",
+        "replay_entries": 447
+      },
+      "final_learner": {
+        "updates": 1536,
+        "frames": 447,
+        "weights_sha256": "eba6d4505cd990c44d1a05b8d7346675ab126370a48072e0b44a2930ef7340bf",
+        "replay_entries": 447
+      },
+      "observation_chain_sha256": "d6bcc61b19274fe1c88fc81c48d1ad826c73644a7f9b047cd69f9f0ebf812997"
+    },
+    "checkpoint": {
+      "journal_tip": "7cabfc5755d9d6388e4b7e480dc3fd21041555069134b46503900813c0b56a65",
+      "mnemonic": "6a11-a5ac-ec21-21b3",
+      "sha256": "6a11a5acec2121b3fb239ba1b1afa456d78111812f714c089c8205f35338a79a",
+      "quality": {
+        "score": 23.07,
+        "delta": -0.878249,
+        "sample_count": 182,
+        "receipt_sha256": "28230efafa2d62ab830542e81661f0d8bbe41b4d6f0f8711a91638f979df7e7a",
+        "promotable": false,
+        "verification": "host_attested_not_independently_verified"
+      },
+      "capsule_score": 23.07,
+      "online_weights_sha256": "eba6d4505cd990c44d1a05b8d7346675ab126370a48072e0b44a2930ef7340bf"
+    },
+    "weights_changed_from_training": true,
+    "retention_after_restart": true
+  },
+  {
+    "id": "dqn-41",
+    "engine": "dqn",
+    "seed": 41,
+    "journal": "dqn-41.sqlite3",
+    "training": {
+      "phase": "dqn-41/train",
+      "starting_equity": 1000.0,
+      "ending_equity": 371.2760583472235,
+      "net_return": -0.6287239416527766,
+      "max_drawdown": 0.8851913164654982,
+      "modeled_costs": 2891.1289771103475,
+      "orders": 1611,
+      "decisions": 447,
+      "action_counts": {
+        "rsi_reversion": 28,
+        "ema_cross": 4,
+        "bollinger_revert": 40,
+        "roc": 22,
+        "sma_cross": 20,
+        "streak_reversal": 17,
+        "cash": 36,
+        "bollinger_breakout": 9,
+        "vol_scaled_tsm": 27,
+        "rsi2": 31,
+        "hold": 131,
+        "buy_hold_btc": 14,
+        "inverse_vol": 9,
+        "zscore_revert": 6,
+        "macd": 2,
+        "price_sma": 6,
+        "equal_weight": 20,
+        "volume_breakout": 21,
+        "relative_strength_rotation": 4
+      },
+      "gap_marks": 0,
+      "first_decision": 1652400000,
+      "last_data_time": 1729555200,
+      "initial_learner": {
+        "updates": 0,
+        "frames": 0,
+        "weights_sha256": "0860c91809d51fe7d82c1ef5850d73043ef828b476f8a09d4f7fa2b3da87e3ff",
+        "replay_entries": 0
+      },
+      "final_learner": {
+        "updates": 1536,
+        "frames": 447,
+        "weights_sha256": "721cf316bf69ceb230efd50acf9d93a99ff0c56006ecb8ee5afd78692e2ababe",
+        "replay_entries": 447
+      },
+      "observation_chain_sha256": "07336ed262f4370fa2ddc761d096abbbdc6fc4c035354dc0a643cfae43dcbd62"
+    },
+    "validation": {
+      "phase": "dqn-41/validation",
+      "starting_equity": 1000.0,
+      "ending_equity": 77.7434769455964,
+      "net_return": -0.9222565230544036,
+      "max_drawdown": 0.9452067965843182,
+      "modeled_costs": 578.2730236891724,
+      "orders": 876,
+      "decisions": 182,
+      "action_counts": {
+        "roc": 66,
+        "bollinger_revert": 9,
+        "cash": 7,
+        "rsi2": 26,
+        "vol_scaled_tsm": 2,
+        "bollinger_breakout": 5,
+        "buy_hold_btc": 1,
+        "hold": 17,
+        "rsi_reversion": 17,
+        "price_sma": 5,
+        "sma_cross": 1,
+        "volume_breakout": 23,
+        "ema_cross": 1,
+        "inverse_vol": 1,
+        "streak_reversal": 1
+      },
+      "gap_marks": 0,
+      "first_decision": 1729728000,
+      "last_data_time": 1761091200,
+      "initial_learner": {
+        "updates": 1536,
+        "frames": 447,
+        "weights_sha256": "721cf316bf69ceb230efd50acf9d93a99ff0c56006ecb8ee5afd78692e2ababe",
+        "replay_entries": 447
+      },
+      "final_learner": {
+        "updates": 1536,
+        "frames": 447,
+        "weights_sha256": "721cf316bf69ceb230efd50acf9d93a99ff0c56006ecb8ee5afd78692e2ababe",
+        "replay_entries": 447
+      },
+      "observation_chain_sha256": "0b10a5b66e8075ab39b823a2de28107d0682b3d37a258ba4f1b1f262ebeea89e"
+    },
+    "checkpoint": {
+      "journal_tip": "8d84836aa559f1bcc94192a31833bc77b37de16b3f925fd5f213804cf9fee27a",
+      "mnemonic": "a3f4-832f-2892-af8d",
+      "sha256": "a3f4832f2892af8d944f29472111483d53f9420b02c1cd703ac1b1b39b367e30",
+      "quality": {
+        "score": 21.31,
+        "delta": -0.922257,
+        "sample_count": 182,
+        "receipt_sha256": "6233b7b2991246664429100b13ef3f950a1d8a6932862f8ca7272306a8c7bbc1",
+        "promotable": false,
+        "verification": "host_attested_not_independently_verified"
+      },
+      "capsule_score": 21.31,
+      "online_weights_sha256": "721cf316bf69ceb230efd50acf9d93a99ff0c56006ecb8ee5afd78692e2ababe"
+    },
+    "weights_changed_from_training": true,
+    "retention_after_restart": true
+  },
+  {
+    "id": "dqn-20261024",
+    "engine": "dqn",
+    "seed": 20261024,
+    "journal": "dqn-20261024.sqlite3",
+    "training": {
+      "phase": "dqn-20261024/train",
+      "starting_equity": 1000.0,
+      "ending_equity": 18.317105385126563,
+      "net_return": -0.9816828946148735,
+      "max_drawdown": 0.9851329085515916,
+      "modeled_costs": 738.2876324936062,
+      "orders": 2130,
+      "decisions": 447,
+      "action_counts": {
+        "volume_breakout": 55,
+        "bollinger_revert": 11,
+        "cash": 50,
+        "hold": 25,
+        "inverse_vol": 9,
+        "sma_cross": 4,
+        "rsi_reversion": 20,
+        "lowvol_factor": 45,
+        "vol_scaled_tsm": 10,
+        "roc": 13,
+        "macd": 6,
+        "price_sma": 8,
+        "relative_strength_rotation": 61,
+        "streak_reversal": 44,
+        "rsi2": 34,
+        "ema_cross": 3,
+        "zscore_revert": 27,
+        "bollinger_breakout": 2,
+        "equal_weight": 13,
+        "buy_hold_btc": 7
+      },
+      "gap_marks": 0,
+      "first_decision": 1652400000,
+      "last_data_time": 1729555200,
+      "initial_learner": {
+        "updates": 0,
+        "frames": 0,
+        "weights_sha256": "792f46775cc8af3d4a1e1c6a66b73b2fb46aadd5071803ff6433948d40b05029",
+        "replay_entries": 0
+      },
+      "final_learner": {
+        "updates": 1536,
+        "frames": 447,
+        "weights_sha256": "38e06ca98f985d1285bb574e4f8e3fc45e7664f7515b13a70bc56b88bb5ac62e",
+        "replay_entries": 447
+      },
+      "observation_chain_sha256": "422cc2caf4de39f3fb3be98616a4f6dcb7c15bfa5a37c855c441318ce358326c"
+    },
+    "validation": {
+      "phase": "dqn-20261024/validation",
+      "starting_equity": 1000.0,
+      "ending_equity": 67.77997563226509,
+      "net_return": -0.9322200243677349,
+      "max_drawdown": 0.9368130323039174,
+      "modeled_costs": 658.5108529540441,
+      "orders": 887,
+      "decisions": 182,
+      "action_counts": {
+        "rsi_reversion": 33,
+        "volume_breakout": 42,
+        "lowvol_factor": 8,
+        "hold": 12,
+        "rsi2": 27,
+        "zscore_revert": 20,
+        "roc": 3,
+        "relative_strength_rotation": 23,
+        "streak_reversal": 7,
+        "price_sma": 3,
+        "cash": 4
+      },
+      "gap_marks": 0,
+      "first_decision": 1729728000,
+      "last_data_time": 1761091200,
+      "initial_learner": {
+        "updates": 1536,
+        "frames": 447,
+        "weights_sha256": "38e06ca98f985d1285bb574e4f8e3fc45e7664f7515b13a70bc56b88bb5ac62e",
+        "replay_entries": 447
+      },
+      "final_learner": {
+        "updates": 1536,
+        "frames": 447,
+        "weights_sha256": "38e06ca98f985d1285bb574e4f8e3fc45e7664f7515b13a70bc56b88bb5ac62e",
+        "replay_entries": 447
+      },
+      "observation_chain_sha256": "8abeac1da1cdfcef75158dd2661bce70b0a87fe75d889b2064cd0e1dabe30520"
+    },
+    "checkpoint": {
+      "journal_tip": "e6081aea39a3a62eabe5b163651f54f567ad5fb07801e8b9f38f7cf5d0ef74bb",
+      "mnemonic": "268d-705a-dbd9-9d3f",
+      "sha256": "268d705adbd99d3f9e8974592e072a1a92a2441f4a74f0a9c5162f10aa927491",
+      "quality": {
+        "score": 20.91,
+        "delta": -0.93222,
+        "sample_count": 182,
+        "receipt_sha256": "7ed3b01362b2f73f6989fd39a10821e22e7109893b84858bf61a666930ab4fba",
+        "promotable": false,
+        "verification": "host_attested_not_independently_verified"
+      },
+      "capsule_score": 20.91,
+      "online_weights_sha256": "38e06ca98f985d1285bb574e4f8e3fc45e7664f7515b13a70bc56b88bb5ac62e"
+    },
+    "weights_changed_from_training": true,
+    "retention_after_restart": true
+  }
+]

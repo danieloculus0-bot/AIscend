@@ -1,0 +1,20 @@
+{
+  "schema": "aiscend.bean.full_pass_learning.v1",
+  "scope": "ALREADY_SEEN_DEVELOPMENT_HISTORY",
+  "source_protocol_sha256": "f33a05474f455f3c74ba49d176c8e142b550e02c6f55ed587987d4b89a1b93ef",
+  "alias_control_protocol_sha256": "c1a4f450623b6ceca85e7ee33a7a2f022c236cf2f82c04570490c432f09bff85",
+  "liquidation_control_protocol_sha256": "60244093ada84d7b2209c0db2f0b04d09e809d40adfeb91c7a4512880ab69505",
+  "core_revision": "887935ae816b4ce6175c6cde54d749f0e5cf3268",
+  "implementation": {
+    "src/bean_full_pass_learning.py": "e0e97b36cfbd9a9445286fd554fd8618feca5c1c7f473358eed525d95933659e",
+    "src/bean_economic_worker.py": "0606f20dc66332c71a89deb715301548b0dcaeb830e68e8b2dfa3c387b32144f",
+    "src/bean_training_batches.py": "ee0b9d5eaf279f34ec08cb5a0be0a8e51d26a4d86ded00155bf19b5cfe5c092c",
+    "src/bean_net_liquidation_learning.py": "ccfcd2a42918ce34ebc997597e770f163931ff717218a8da429184fb6a36045f",
+    "src/bean_action_aliases.py": "3c1de899cd39bffeb7733261ead5f2d470be33371d54f6c88e3c7ae61569d34b"
+  },
+  "schedule": "64-row replay equals the 64-row gradient batch. digest_chunks alternates each <=64-row cohort with gradients. Every current row participates, including the final partial cohort, before it can be evicted. Remaining allocated updates rehearse the current batch. This differs from mixed 4096 replay and is explicitly a schedule/replay-size ablation.",
+  "controls": "Same Core architecture, seed41, 1024 updates, ordered source evidence, alias-consistent inference, funded $1000 allocation and costs. Gross and net-liquidation reward variants both retained.",
+  "qualification": "No automatic promotion; full row coverage is not proof of learning a profitable edge.",
+  "live_orders": false,
+  "protocol_sha256": "e9cb917b073323b61bf826dd83522835514e3b0bd02dc431769826e03acec189"
+}

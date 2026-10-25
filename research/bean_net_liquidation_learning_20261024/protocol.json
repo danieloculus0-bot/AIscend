@@ -1,0 +1,18 @@
+{
+  "schema": "aiscend.bean.net_liquidation_learning.v1",
+  "scope": "ALREADY_SEEN_DEVELOPMENT_HISTORY",
+  "source_protocol_sha256": "f33a05474f455f3c74ba49d176c8e142b550e02c6f55ed587987d4b89a1b93ef",
+  "control_protocol_sha256": "c1a4f450623b6ceca85e7ee33a7a2f022c236cf2f82c04570490c432f09bff85",
+  "core_revision": "887935ae816b4ce6175c6cde54d749f0e5cf3268",
+  "implementation": {
+    "src/bean_net_liquidation_learning.py": "ccfcd2a42918ce34ebc997597e770f163931ff717218a8da429184fb6a36045f",
+    "src/bean_route_values.py": "f1df2bdbda2cfe6dd925b7b72338f52cf76746f37d9bc9f002ff2d0aaa55b82c",
+    "src/bean_action_aliases.py": "3c1de899cd39bffeb7733261ead5f2d470be33371d54f6c88e3c7ae61569d34b",
+    "src/bean_training_batches.py": "ee0b9d5eaf279f34ec08cb5a0be0a8e51d26a4d86ded00155bf19b5cfe5c092c"
+  },
+  "objective": "100 log of future net-liquidation equity divided by current net-liquidation equity. Current orders and outstanding future exit cost are reconciled; unchanged holding does not pay a new exit fee every period.",
+  "matched_conditions": "Same 47 known inputs, 11 actions, seed41, 1024 updates, 4096 replay, digest_chunks order, alias-consistent inference, $1000 allocation, source periods and modeled costs. Only supervised reward basis changes relative to the frozen alias-control checkpoints.",
+  "promotion": "No automatic activation; later independent evaluation required",
+  "live_orders": false,
+  "protocol_sha256": "60244093ada84d7b2209c0db2f0b04d09e809d40adfeb91c7a4512880ab69505"
+}

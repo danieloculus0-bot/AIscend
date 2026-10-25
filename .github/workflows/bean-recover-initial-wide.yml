@@ -1,0 +1,46 @@
+name: Preserve the superseded initial wide-study evidence
+on:
+  push:
+    branches: ['experiment/bean-fast-ledger-20261024']
+    paths: ['.github/workflows/bean-recover-initial-wide.yml']
+permissions:
+  contents: write
+  actions: read
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: bean-wide-multistep-40157680186
+          run-id: 40157680186
+          github-token: ${{ github.token }}
+          path: /tmp/bean-wide-initial
+      - name: Preserve original source events and complete learned states
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib,json,shutil
+          source=Path('/tmp/bean-wide-initial');target=Path('research/bean_wide_initial_20261024');target.mkdir(parents=True)
+          omitted=[]
+          for p in source.rglob('*'):
+              if not p.is_file():continue
+              relative=p.relative_to(source)
+              if p.suffix in ('.sqlite3','.jsonl'):omitted.append(str(relative));continue
+              if relative.parts[0]=='ledgers' and p.name.endswith('.sqlite3.gz'):
+                  omitted.append(str(relative));continue
+              out=target/relative;out.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(p,out)
+          (target/'RECOVERY.json').write_text(json.dumps({'source_run':40157680186,'source_commit':'cb812a8ed3078c94aee1c735782595f2ac9c8b9e','source_artifact':12585283439,'source_artifact_sha256':'41feffa854345655e0a0bb28031557367ea6b868e70f0f48c36d023df4fe3247','qualification':'Superseded 39-input study with a one-day holding-age mismatch; do not promote. Original archive push failed after successful training/evaluation. Corrected 43-input study is separate.','original_event_bytes_retained':True,'complete_model_states_retained':True,'omitted_redundant_derived_files':omitted,'retained_files':{str(p.relative_to(target)):{'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in target.rglob('*') if p.is_file()}},indent=2)+'\n')
+          (target/'RECOVERY.md').write_text('The initial study is superseded, including all positive and negative outcomes. Its original per-decision JSONL gzip bytes, phase metadata, teaching corpus, complete model training states and checkpoint journals are preserved. Redundant phase SQLite snapshots can be rebuilt from the retained authoritative JSONL event stream using DecisionLedger; they are deliberately omitted to avoid duplicating the same detailed evidence. The original artifact manifest is unchanged and therefore includes those explicitly omitted derived snapshots. See RECOVERY.json for exact retained hashes and the original artifact identity. The original Git archive step failed because separately fetched history became untracked during rebase; the actual training and evaluation had completed.\n')
+          PY
+      - name: Commit superseded results alongside corrected experiments
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add research/bean_wide_initial_20261024
+          git commit -m 'Recover original wide-study events, losses and complete retained Core states'
+          git fetch origin experiment/bean-fast-ledger-20261024
+          git rebase origin/experiment/bean-fast-ledger-20261024
+          git push origin HEAD:experiment/bean-fast-ledger-20261024

@@ -1,0 +1,19 @@
+{
+  "selected_expert": "buy_hold",
+  "training_returns": {
+    "cash": 2.220446049250313e-16,
+    "buy_hold": 0.06822208808018249,
+    "price_trend": -0.020077499568758705,
+    "donchian_breakout": -0.0055624352197141125
+  },
+  "cutoff": 1759276800,
+  "withheld_assets_used": false,
+  "eval_returns_opened": false,
+  "model_hashes": {
+    "immediate": "760c0fa2340ba3d612a9f74ee36b165995111e0b81d694a837ee3ddb2d8de29f",
+    "linked": "41db34f4be965fc63617ccedb04b92546a33076e070e0c02be7f2a0507572bcd",
+    "untrained": "7e8636783d479456b6521c5d4574a2d54d014f728e2cd6e4ebfbe4bc04e0f240"
+  },
+  "recorded_at": 1792898606,
+  "protocol_sha256": "d5250ec02d2dc13ebe45dfcfa38c7ef3b47d7e3e087f989148233862d310e762"
+}
