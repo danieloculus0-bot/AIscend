@@ -1,0 +1,160 @@
+{
+  "schema": "aiscend.bean.compact_scoreboard.v1",
+  "trials": 14,
+  "rows": [
+    {
+      "mnemonic": "0200010000000A02",
+      "role": "evaluation",
+      "method": "price_trend",
+      "window": "{\"cohort\":\"all_usd\",\"end\":1792800000,\"phase\":\"later_historical_audit\",\"start\":1759276800}",
+      "net_return": -0.08674766802336209,
+      "incremental_return_bps": 0.0,
+      "drawdown": 0.10315994944082929,
+      "reason": "T0",
+      "receipt": "30ef69d366809394d1c86c50ab506a9f3f787d78931af107a8995681dc309f3a"
+    },
+    {
+      "mnemonic": "0100000000000101",
+      "role": "training",
+      "method": "buy_hold",
+      "window": "{\"assets\":\"known\",\"end\":1759276800,\"phase\":\"internal_training_selection\",\"start\":1743465600}",
+      "net_return": -0.011047287175672493,
+      "incremental_return_bps": 548.0496060007001,
+      "drawdown": 0.20401084088854338,
+      "reason": "L0",
+      "receipt": "314469c0341a006605e0759878ebe638cce560c0aac253b6c0bfcb1917a3f014"
+    },
+    {
+      "mnemonic": "0000020000000B01",
+      "role": "evaluation",
+      "method": "cash",
+      "window": "{\"cohort\":\"withheld_assets\",\"end\":1792800000,\"phase\":\"later_historical_audit\",\"start\":1759276800}",
+      "net_return": 0.0,
+      "incremental_return_bps": 1047.2079702925096,
+      "drawdown": 0.0,
+      "reason": "L0",
+      "receipt": "3a9040b01bccb5b9513d53623a7be66ad86bb8a42b6525a500f0202f40679505"
+    },
+    {
+      "mnemonic": "0300000100000301",
+      "role": "training",
+      "method": "seed7_gamma0.0",
+      "window": "{\"assets\":\"known\",\"end\":1759276800,\"phase\":\"internal_training_selection\",\"start\":1743465600}",
+      "net_return": -0.04156896527589071,
+      "incremental_return_bps": 242.83282499851788,
+      "drawdown": 0.07318341520863525,
+      "reason": "L0",
+      "receipt": "3becce1056d80f801c978b18b6f02c24de74bc01aa05c0787a87a3ee68eaa57f"
+    },
+    {
+      "mnemonic": "0000000000000000",
+      "role": "training",
+      "method": "cash",
+      "window": "{\"assets\":\"known\",\"end\":1759276800,\"phase\":\"internal_training_selection\",\"start\":1743465600}",
+      "net_return": 2.220446049250313e-16,
+      "incremental_return_bps": 658.5224777574273,
+      "drawdown": 0.0,
+      "reason": "P0",
+      "receipt": "5c52b07f8751903e2f343533001744b45ebbb91801bd7d2caff68a31ec8dc7b1"
+    },
+    {
+      "mnemonic": "0600000200000603",
+      "role": "training",
+      "method": "seed41_gamma0.99",
+      "window": "{\"assets\":\"known\",\"end\":1759276800,\"phase\":\"internal_training_selection\",\"start\":1743465600}",
+      "net_return": -0.07482762926871978,
+      "incremental_return_bps": -89.75381492977274,
+      "drawdown": 0.08839665783825801,
+      "reason": "L1",
+      "receipt": "69067930744774d9da431cefeccc963cb375a53e6fa4251b0abe933529feedf6"
+    },
+    {
+      "mnemonic": "0200020000000D02",
+      "role": "evaluation",
+      "method": "price_trend",
+      "window": "{\"cohort\":\"withheld_assets\",\"end\":1792800000,\"phase\":\"later_historical_audit\",\"start\":1759276800}",
+      "net_return": -0.10472079702925097,
+      "incremental_return_bps": 0.0,
+      "drawdown": 0.1271386075475388,
+      "reason": "T0",
+      "receipt": "6dd9b2d5af052720ec55989bc145144c6966dd571c0350c8d2d1f90410f50062"
+    },
+    {
+      "mnemonic": "0100020000000C03",
+      "role": "evaluation",
+      "method": "buy_hold",
+      "window": "{\"cohort\":\"withheld_assets\",\"end\":1792800000,\"phase\":\"later_historical_audit\",\"start\":1759276800}",
+      "net_return": -0.4130910372012584,
+      "incremental_return_bps": -3083.7024017200742,
+      "drawdown": 0.5492584872752171,
+      "reason": "L1",
+      "receipt": "726269faf8314a02b2931c2096d8ffd8e3e2cd33f7da6f2975679812a21a0c36"
+    },
+    {
+      "mnemonic": "0400000100000401",
+      "role": "training",
+      "method": "seed7_gamma0.99",
+      "window": "{\"assets\":\"known\",\"end\":1759276800,\"phase\":\"internal_training_selection\",\"start\":1743465600}",
+      "net_return": -0.04838488023805776,
+      "incremental_return_bps": 174.67367537684743,
+      "drawdown": 0.05632365822604524,
+      "reason": "L0",
+      "receipt": "9028cc86c7866749f394ba634d2674da4d60ac2654873975cbb46c824b24e61e"
+    },
+    {
+      "mnemonic": "0500000200000501",
+      "role": "training",
+      "method": "seed41_gamma0.0",
+      "window": "{\"assets\":\"known\",\"end\":1759276800,\"phase\":\"internal_training_selection\",\"start\":1743465600}",
+      "net_return": -0.057231552738909786,
+      "incremental_return_bps": 86.20695036832716,
+      "drawdown": 0.06936781133088632,
+      "reason": "L0",
+      "receipt": "bac8a28a395b36cbde132c75a8288284cf6c99f487fe0a066b06d2a4f222782d"
+    },
+    {
+      "mnemonic": "0000010000000801",
+      "role": "evaluation",
+      "method": "cash",
+      "window": "{\"cohort\":\"all_usd\",\"end\":1792800000,\"phase\":\"later_historical_audit\",\"start\":1759276800}",
+      "net_return": 0.0,
+      "incremental_return_bps": 867.4766802336209,
+      "drawdown": 0.0,
+      "reason": "L0",
+      "receipt": "c258608d9a06fcce9e6fb017758911af3fde43d9d8b7be3d1a815043fc80198c"
+    },
+    {
+      "mnemonic": "0700000200000701",
+      "role": "training",
+      "method": "untrained_seed41",
+      "window": "{\"assets\":\"known\",\"end\":1759276800,\"phase\":\"internal_training_selection\",\"start\":1743465600}",
+      "net_return": -0.006615120745736003,
+      "incremental_return_bps": 592.371270300065,
+      "drawdown": 0.20142417361548692,
+      "reason": "L0",
+      "receipt": "c788539570893e88f3d7b20c9e2944394467c5cf20980bccc342bf6362ce925b"
+    },
+    {
+      "mnemonic": "0200000000000202",
+      "role": "training",
+      "method": "price_trend",
+      "window": "{\"assets\":\"known\",\"end\":1759276800,\"phase\":\"internal_training_selection\",\"start\":1743465600}",
+      "net_return": -0.0658522477757425,
+      "incremental_return_bps": 0.0,
+      "drawdown": 0.07468812254055923,
+      "reason": "T0",
+      "receipt": "ca28b7782ee855f578aecfc41905b903aed192b0682ead0510ece11f864e4bab"
+    },
+    {
+      "mnemonic": "0100010000000903",
+      "role": "evaluation",
+      "method": "buy_hold",
+      "window": "{\"cohort\":\"all_usd\",\"end\":1792800000,\"phase\":\"later_historical_audit\",\"start\":1759276800}",
+      "net_return": -0.4689363659949263,
+      "incremental_return_bps": -3821.8869797156417,
+      "drawdown": 0.5055020080446148,
+      "reason": "L1",
+      "receipt": "d37d8d954ad2515087c900f2a6283ab7da39b031ac0956502fdf391d1095741c"
+    }
+  ]
+}
