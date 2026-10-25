@@ -167,6 +167,38 @@ class FakeUniverse:
 
 
 class AdvancedLiveTests(unittest.TestCase):
+    def test_coinbase_scope_reader_failure_before_status_never_uses_cash(self):
+        class BrokenScopeRail(FakeRail):
+            def __init__(self):
+                super().__init__()
+                self.status_calls = 0
+
+            def account_scope_id(self):
+                raise RuntimeError("credential store unavailable")
+
+            def status(self):
+                self.status_calls += 1
+                return super().status()
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "unavailable-credential-scope.db")
+            try:
+                rail = BrokenScopeRail()
+                engine = AdvancedSpotEngine(
+                    store, rail=rail, asset_universe=FakeUniverse(),
+                    listing_sentinel=FakeListingSentinel(),
+                    human_researcher=FakeHumanResearch(),
+                )
+                with self.assertRaisesRegex(
+                    RuntimeError, "credential identity unavailable before account snapshot"
+                ):
+                    engine.sync()
+                self.assertEqual(rail.status_calls, 0)
+                self.assertIsNone(engine._snapshot)
+                self.assertEqual(rail.buys, [])
+            finally:
+                store.close()
+
     def test_coinbase_key_rotated_mid_status_cannot_relabel_prior_account_balances(self):
         # The account read returns A's balances, but the vault is switched to
         # B before the snapshot captures its authenticated credential scope.
