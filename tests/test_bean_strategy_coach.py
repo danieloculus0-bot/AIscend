@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
-from src.bean_strategy_coach import CoachWorker,mentor_lesson,summaries
+from src.bean_strategy_coach import CoachWorker,mentor_lesson,summaries,run
 from src.bean_mentor_worker import validate_lesson
 from src.bean_training_batches import digest_chunks
 from src.bean_strategy_curriculum import ACTIONS,Features
@@ -48,6 +48,39 @@ class ReceiptWorker:
 
 
 class StrategyCoachTests(unittest.TestCase):
+    def test_reproducibility_controls_reject_invalid_seeds_before_creating_output(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp)
+            for seed in (-1, 2**32, 1.5, True):
+                with self.subTest(seed=seed), self.assertRaises(ValueError):
+                    run(d / 'unused.gz', d / 'missingcore', d / 'results', seed=seed)
+                self.assertFalse((d / 'results').exists())
+            for batch in (0, 5, 257, True):
+                with self.subTest(batch=batch), self.assertRaises(ValueError):
+                    run(d / 'unused.gz', d / 'missingcore', d / 'results',
+                        batch_lessons=batch)
+                self.assertFalse((d / 'results').exists())
+
+    @unittest.skipUnless(os.environ.get('BEAN_CORE_DIR'), 'Actual pinned BEAN Core required')
+    def test_different_seeds_initialize_distinct_real_core_models(self):
+        f = Features(data())
+        lessons = [mentor_lesson(f, i, 0, .5) for i in range(260, 324, 8)]
+        with tempfile.TemporaryDirectory() as temp:
+            statuses = []
+            for seed in (7, 73):
+                d = Path(temp) / str(seed)
+                d.mkdir()
+                w = CoachWorker(Path(os.environ['BEAN_CORE_DIR']),
+                                d / 'model.sqlite3', len(lessons[0]['vector']),
+                                10**10, 'coached_advantage', summaries(lessons), d,
+                                seed=seed)
+                try:
+                    statuses.append(w.call('status'))
+                finally:
+                    w.close()
+            self.assertNotEqual(statuses[0]['weights_sha256'],
+                                statuses[1]['weights_sha256'])
+
     def test_all_mentor_chunks_are_digested_before_replay_eviction(self):
         # 47,520 observations cannot fit in BEAN's 4,096-transition replay.
         # Every cohort must train before the next cohort is accepted.
