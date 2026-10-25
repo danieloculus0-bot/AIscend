@@ -52,7 +52,10 @@ def features_for(product,rows,start,end):
     return Features(Candles((product,),times,arrays,'current-vintage-raw-source'))
 
 def observation(features,i,account):
-    price=float(features.c.data['close'][i,0]);base=market_vector(features.vector(i,0,account.exposure(price)))
+    price=float(features.c.data['close'][i,0])
+    if not hasattr(features,'_wide_market_cache'):features._wide_market_cache={}
+    if i not in features._wide_market_cache:features._wide_market_cache[i]=market_vector(features.vector(i,0,0.))
+    base=features._wide_market_cache[i]
     extra=[account.exposure(price),min(account.age,180)/30.,0. if not account.entry else (price/account.entry-1)/.25,math.log(max(account.liquidation(price)/account.initial,1e-12))]
     return base+[float(np.clip(x,-5,5)) for x in extra]
 
@@ -73,7 +76,8 @@ def branch(features,i,account,action,*,terminal=False):
     if not valid_path(features,i,i+7):raise ValueError('Cannot teach across missing candles')
     before=copy.deepcopy(account);after=copy.deepcopy(account)
     p=float(features.c.data['close'][i,0]);fill=float(features.c.data['open'][i+2,0]);end=float(features.c.data['close'][i+7,0]);old=before.liquidation(p)
-    paid=after.trade(action,fill);after.age+=7 if after.quantity else 0
+    paid=after.trade(action,fill)
+    if after.quantity:after.age+=6 if not before.quantity else 7
     if terminal:paid+=after.trade(0,end)
     outcome=after.liquidation(end)
     reward=100*math.log(max(outcome,1e-12)/max(old,1e-12))

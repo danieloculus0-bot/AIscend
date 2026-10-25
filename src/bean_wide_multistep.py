@@ -128,6 +128,7 @@ def evaluate(features,metadata,products,start,end,name,ledger,*,model=None,refer
                     _,counter=branch(f,case['signal_index'],case['before'],case['reference_action'])
                     _,actual=branch(f,case['signal_index'],case['before'],case['action'])
                     if abs(actual['wealth_after']-after)>1e-7:raise AssertionError('Execution and source transition differ')
+                    if observation(f,case['signal_index']+7,account)!=actual['next_vector']:raise AssertionError('Execution and teaching portfolio states differ')
                     row.update(attribution=actual['effects'],matched_reference=reference,reference_wealth_after=counter['wealth_after'],incremental_wealth=after-counter['wealth_after'],outcome_reason='FEES_DOMINATE' if actual['effects']['paid_costs']<0 and sum(v for k,v in actual['effects'].items() if k!='paid_costs')>=0 and after<case['wealth_before'] else ('POSITIVE_NET_OUTCOME' if after>case['wealth_before'] else 'NONPOSITIVE_MARKET_AND_COST_OUTCOME'))
                 else:row['attribution_unavailable']='Missing observed candle; no synthetic fill or price attribution'
                 ledger.record(row);decisions+=1;open_cases.pop(p)
