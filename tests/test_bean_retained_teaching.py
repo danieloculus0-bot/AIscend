@@ -77,6 +77,41 @@ class RetainedTeachingContracts(unittest.TestCase):
                 self.assertTrue(any(x.get('retained_lesson_evidence',{}).get('usable') for x in entries))
             ledger.close()
 
+    def test_invalid_market_observations_fail_before_any_recall(self):
+        from src.bean_retained_lessons import regime
+        vector=observation(self.f,260,VenueAccount(1000,META))
+        for bad in (float('nan'),float('inf'),-float('inf'),None,'not-a-number'):
+            invalid=list(vector);invalid[12]=bad
+            with self.subTest(value=str(bad)):
+                with self.assertRaises(ValueError):regime(invalid)
+        from src.bean_retained_lessons import regime
+        state=active_memory([dict(case(i,vector),regime=regime(vector)) for i in range(32)],30)
+        memory=RetainedMemory(state)
+        invalid=list(vector);invalid[0]=float('nan')
+        with self.assertRaises(ValueError):memory.query(invalid,'UNSEEN-USD',30)
+
+    def test_maturity_boundary_and_hash_tampering_reject_untrusted_teaching(self):
+        f=Features(data());symbol=next(f'CASE{i}-USD' for i in range(100) if not withheld(f'CASE{i}-USD'))
+        rows=[]
+        for action in (0,1):
+            _,row=branch(f,260,VenueAccount(1000,META),action)
+            row.update(product=symbol,teacher='cash',episode=0,id=f'source-{action}')
+            rows.append(row)
+        cutoff=rows[0]['outcome_at']+7*DAY
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);teaching=root/'teaching';teaching.mkdir()
+            path=teaching/(symbol+'.jsonl.gz')
+            with gzip.GzipFile(filename=str(path),mode='wb',mtime=0) as dest:
+                for row in rows:dest.write((canonical(row)+'\\n').encode())
+            blob=path.read_bytes()
+            (root/'artifacts_manifest.json').write_text(json.dumps({'files':{'teaching/'+path.name:{'sha256':hashlib.sha256(blob).hexdigest()}}}))
+            lessons,stats=load_lessons(root,cutoff)
+            self.assertEqual(len(lessons),1)
+            self.assertEqual(stats['source_rows'],2)
+            with self.assertRaises(ValueError):load_lessons(root,cutoff-1)
+            path.write_bytes(blob+b'corrupted')
+            with self.assertRaises(ValueError):load_lessons(root,cutoff)
+
 @unittest.skipUnless(os.environ.get('BEAN_CORE_DIR'),'Pinned actual Core executes in GitHub CI')
 class ActualCoreTeachingContracts(unittest.TestCase):
     def test_grouped_baseline_is_exact_and_teaching_changes_and_retains_real_weights(self):
