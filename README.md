@@ -16,6 +16,10 @@ Experimental noncustodial small-bankroll autonomous crypto trading application w
 - Historical, forward-candle and cost-aware strategy research, candidate scoring and experimental policy feedback.
 - Separate [BEAN](https://github.com/danieloculus0-bot/BEAN) reasoning research may advise the app; BEAN Core does not directly execute AIscend trades.
 
+## BEAN learning research evidence (October 25, 2026)
+
+The BEAN domain-capable DQN and full-state recovery research learner is [merged into BEAN Core](https://github.com/danieloculus0-bot/BEAN/pull/166). AIscend's separate 389-market training work preserved real gradient updates, original candles, immutable decisions, losing outcomes and reversible compact scores, but it **has not established a profitable learned policy**. [Read the evidence publication, failures, pending tests and exact research PRs](docs/BEAN_ADAPTIVE_LEARNING_PUBLICATION_2026-10-25.md). Those AIscend research branches remain unmerged and do not enable funded trading.
+
 ## Install and verification
 
 For local Windows setup and paper/synthetic launch instructions, consult the [full archived README](docs/archive/README_2026-10-20_before_refresh.md). Code entry points include `main.py` (live-capable desktop launch) and `web_app.py` (research/dashboard).
