@@ -101,14 +101,20 @@ def evaluate(features,metadata,products,start,end,name,ledger,*,model=None,refer
                 f=features[p];i=int((day-int(f.c.times[0]))//DAY)-1
                 if 200<=i<len(f.c.times) and valid_history(f,i):
                     ready.append((p,i,observation(f,i,allocations[p])))
-            predictions=None
+            predictions=None;contexts=None
             if model and ready:
-                with torch.no_grad():predictions=model.online(torch.tensor([x[2] for x in ready],dtype=torch.float32)).tolist()
+                if hasattr(model,'predict'):
+                    reply=model.predict([x[2] for x in ready],[x[0] for x in ready],day)
+                    predictions=reply['values'];contexts=reply.get('contexts')
+                    if len(predictions)!=len(ready) or (contexts is not None and len(contexts)!=len(ready)):raise ValueError('Model reply lost a decision or its memory receipt')
+                else:
+                    with torch.no_grad():predictions=model.online(torch.tensor([x[2] for x in ready],dtype=torch.float32)).tolist()
             for k,(p,i,vector) in enumerate(ready):
                 f=features[p];account=allocations[p];values=predictions[k] if predictions else None
                 action=int(np.argmax(values)) if values else fixed_action(name,f,i,account)
                 ref=fixed_action(reference,f,i,account)
                 pending[p]=dict(product=p,signal_index=i,decision_at=day,execution_at=day+DAY,outcome_at=day+7*DAY,action=action,reference_action=ref,q_values=values,vector=vector,wealth_before=account.liquidation(float(f.c.data['close'][i,0])),before=account.clone(),old_costs=account.costs)
+                if contexts is not None:pending[p]['retained_lesson_evidence']=contexts[k]
         for p in products:
             account=allocations[p];f=features[p];i=int((day-int(f.c.times[0]))//DAY)
             op=float(f.c.data['open'][i,0]);close=float(f.c.data['close'][i,0])

@@ -20,7 +20,7 @@ from .bean_wide_multistep import load_snapshot,evaluate
 from .bean_causal_simulation import DecisionLedger
 from .strategy_atlas import utc_seconds
 
-def learn_cached(corpus,core,output,cutoff,seeds):
+def learn_cached(corpus,core,output,cutoff,seeds,*,gammas=(0.,.99)):
     import torch
     sys.path.insert(0,str(Path(core).resolve()))
     from bean.optimization.sponge_dqn import SpongeDQN
@@ -28,7 +28,7 @@ def learn_cached(corpus,core,output,cutoff,seeds):
     corpus,output=Path(corpus),Path(output);output.mkdir(parents=True,exist_ok=True)
     manifest=json.loads((corpus/'artifacts_manifest.json').read_text())['files'];models={};receipts=[]
     for seed in seeds:
-        for gamma in (0.,.99):
+        for gamma in gammas:
             name=f'seed{seed}_gamma{gamma}'
             models[name]=SpongeDQN(seed=seed,gamma=gamma,lr=.0005,batch_size=64,replay_capacity=64,warmup=64,learn_every=10000000,target_sync=100,observation_size=43,actions=('cash','long'),domain='aiscend.wide.multistep.v2')
             models[name].knowledge_cutoff=cutoff
