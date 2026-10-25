@@ -271,6 +271,33 @@ class AccountEvidenceTests(unittest.TestCase):
             self.preserve(self.store, {"fills": changed, "complete": True},
                            clock=lambda: 1001)
 
+    def test_duplicate_fill_ids_in_one_complete_read_fail_closed(self):
+        # Re-reading the same IDs on different days is idempotent. A single
+        # claimed-complete provider response repeating an ID is not.
+        duplicate = [self.fills[0], copy.deepcopy(self.fills[0])]
+        with self.assertRaisesRegex(ValueError, "repeats a fill ID"):
+            self.preserve(self.store, {"fills": duplicate, "complete": True},
+                          clock=lambda: 1000)
+        self.assertEqual(self.history(self.store, clock=lambda: 1001)
+                         ["status"], "UNVERIFIED_OR_STALE")
+        self.assertEqual(self.history(self.store, clock=lambda: 1001)
+                         ["fill_count_retained"], 0)
+
+        reader = RealReader(duplicate)
+        result = evaluate_account(self.store, self.snap, reader,
+                                  clock=lambda: 1002)
+        self.assertEqual(result["read_status"], "HISTORY_READ_FAILED:ValueError")
+        self.assertFalse(result["execution"]["history_fully_reconciled"])
+        self.assertFalse(result["realized_account_profit_verified"])
+        self.assertEqual(result["execution"]["fill_count_retained"], 0)
+
+        # A later genuinely complete, unique snapshot can recover normally.
+        reader.fills = self.fills
+        recovered = evaluate_account(self.store, self.snap, reader,
+                                     clock=lambda: 1400)
+        self.assertEqual(recovered["read_status"], "PROVIDER_HISTORY_COMPLETE")
+        self.assertEqual(recovered["execution"]["fill_count_retained"], 4)
+
     def test_live_account_reader_is_throttled_and_learner_sees_history(self):
         reader = RealReader(self.fills)
         first = evaluate_account(self.store, self.snap, reader,
@@ -412,6 +439,36 @@ class AccountEvidenceTests(unittest.TestCase):
         self.assertEqual(self.history(self.store, clock=lambda: 1001)["fill_count_retained"], 0)
         self.assertEqual(self.store.conn.execute(
             "SELECT COUNT(*) FROM bean_account_fills").fetchone()[0], 0)
+
+    def test_reader_removed_after_complete_snapshot_revokes_history_and_retries(self):
+        # A previously verified fill cache cannot remain BUY-qualified if
+        # the authenticated fill reader disappears within the freshness TTL.
+        reader = RealReader(self.fills)
+        good = evaluate_account(self.store, self.snap, reader, clock=lambda: 1000)
+        self.assertEqual(good["execution"]["status"], "COMPLETE")
+        self.assertEqual(reader.calls, 1)
+
+        reader.account_fills = None
+        unavailable = evaluate_account(
+            self.store, self.snap, reader, clock=lambda: 1001)
+        self.assertEqual(unavailable["read_status"],
+                         "AUTHENTICATED_FILL_READER_UNAVAILABLE")
+        self.assertEqual(unavailable["execution"]["status"],
+                         "UNVERIFIED_OR_STALE")
+        self.assertFalse(unavailable["execution"]["history_fully_reconciled"])
+        self.assertEqual(unavailable["execution"]["fill_count_retained"], 4)
+        self.assertEqual(self.history(self.store, clock=lambda: 1001)["status"],
+                         "UNVERIFIED_OR_STALE")
+
+        # Restoration must revalidate immediately, without waiting for the
+        # previous 300-second throttle to expire or discarding retained fills.
+        del reader.account_fills
+        recovered = evaluate_account(
+            self.store, self.snap, reader, clock=lambda: 1002)
+        self.assertEqual(reader.calls, 2)
+        self.assertEqual(recovered["read_status"], "PROVIDER_HISTORY_COMPLETE")
+        self.assertTrue(recovered["execution"]["history_fully_reconciled"])
+        self.assertEqual(recovered["execution"]["fill_count_retained"], 4)
 
     def test_broken_fill_reader_reports_problem_without_inventing_fills(self):
         class Broken:
