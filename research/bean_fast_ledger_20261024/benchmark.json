@@ -6,15 +6,15 @@
     {
       "gap_fixture": false,
       "rows": 224,
-      "teaching_sha256": "7c7c7d3bd8a232e7688593be728e4201c8d69fa07bb962c19e7a050d5cb8971a",
-      "decision_tip": "da68ec62974846947f4fd7db742f33a60e71e2d3326fbea7d2f69bf8a58d1524",
+      "teaching_sha256": "d6c8a26ef44c070ebb1a27601a52ad152dfb2d24f29d1a9daf28ed7980e26681",
+      "decision_tip": "760f93d8c14c57fed615e812e5f5fd8aa90bb646ff5c8229129561710856fe60",
       "byte_identical": true
     },
     {
       "gap_fixture": true,
       "rows": 88,
-      "teaching_sha256": "39b48d0c6d48244a060a1b78233af37603617483d6cdc37b16de9d01628464af",
-      "decision_tip": "f8bac2fd2e6ac948ef09ac521de8bd7cddcaf084036f7aa550780f48848d35a5",
+      "teaching_sha256": "0e11a7434568c2be64141adb0ace08f6ec74207bfe38078dc3b564f23039099f",
+      "decision_tip": "2bb6f267ed7a1fa0b9345f9838ca1fc2e202f55fbc26f66c441f2a456f91d8bf",
       "byte_identical": true
     }
   ],
@@ -28,7 +28,7 @@
     "rows": 224
   },
   "teaching_rows_timed": 2688,
-  "reference_seconds": 0.7059386050000285,
-  "fast_seconds": 0.06381156899999496,
-  "teaching_speedup": 11.06286236278071
+  "reference_seconds": 0.44440144399999326,
+  "fast_seconds": 0.0402412959999765,
+  "teaching_speedup": 11.04341778655073
 }
