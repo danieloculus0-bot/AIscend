@@ -1,0 +1,79 @@
+{
+  "policies": [
+    {
+      "name": "immediate",
+      "cutoff": 1759276800,
+      "recorded_at": 1792898717,
+      "input_rows": 190648,
+      "sampled_rows": 190648,
+      "updates": 2979,
+      "replay": 64,
+      "state_file": "immediate.training_state.json.gz",
+      "state_sha256": "60349818a6ce05a856d8b18bc0dd329a124bdaa0583472d4848f8c703ee9d991",
+      "state_json_sha256": "497ad28e6673c68d9a53462e8450afadba00ddca13b5be4d824f6fc1588cdf3d",
+      "weights_sha256": "cfb0b9d5bf399aff78902d1ca4dd4278db475b84e8659647eb0588d1d2e8ea67",
+      "weights_changed": true,
+      "recovered": true,
+      "qualification": "HISTORICAL_RESEARCH_ONLY",
+      "source_rows_sha256": "7fc269d028a53dc09c03dfebe93928aa663be368830ed0aa2eb1b92103094051",
+      "protocol_sha256": "e5758e68759ecb1f273d2dd53a2270261fcc86b43dec5156fe9f1aba7c19bcf4",
+      "journal_tip": "088493978a8d460a14792a6b07e1b2a0c11c2d7915a4a6497f7a8e318f9dedfe"
+    },
+    {
+      "name": "linked",
+      "cutoff": 1759276800,
+      "recorded_at": 1792898717,
+      "input_rows": 190648,
+      "sampled_rows": 190648,
+      "updates": 2979,
+      "replay": 64,
+      "state_file": "linked.training_state.json.gz",
+      "state_sha256": "cbfda739e8df33081b92fd5b046709b1f654c0cbae08e1c671160e3e3e726065",
+      "state_json_sha256": "1b9961465b8ec2d59012ea72eab3019605c9284c48c61c2837767d5aead03c4a",
+      "weights_sha256": "8f94d92db5a79026c3e7717e145d914166ea032162ea3155f3baece2af6e2db7",
+      "weights_changed": true,
+      "recovered": true,
+      "qualification": "HISTORICAL_RESEARCH_ONLY",
+      "source_rows_sha256": "7fc269d028a53dc09c03dfebe93928aa663be368830ed0aa2eb1b92103094051",
+      "protocol_sha256": "e5758e68759ecb1f273d2dd53a2270261fcc86b43dec5156fe9f1aba7c19bcf4",
+      "journal_tip": "2b0a4888176e924a06c987374d6a1fcb3ec5337172e0c0aafa9fe8839fe7ca63"
+    },
+    {
+      "name": "untrained",
+      "cutoff": 1759276800,
+      "recorded_at": 1792898717,
+      "input_rows": 0,
+      "sampled_rows": 0,
+      "updates": 0,
+      "replay": 0,
+      "state_file": "untrained.training_state.json.gz",
+      "state_sha256": "5e5b36899512fd2d2b2b33806f51ae1a1c39f6de2205f256d48b47c66fc61b58",
+      "state_json_sha256": "b6db3c49eec6affa48713fe974602fe826957e2d8a0bd352d97895482d944d35",
+      "weights_sha256": "665f19cb48c6293a814ba24779fdaffb4d60f8bf72db30d633810aad498b4192",
+      "weights_changed": false,
+      "recovered": true,
+      "qualification": "HISTORICAL_RESEARCH_ONLY",
+      "source_rows_sha256": "7fc269d028a53dc09c03dfebe93928aa663be368830ed0aa2eb1b92103094051",
+      "protocol_sha256": "e5758e68759ecb1f273d2dd53a2270261fcc86b43dec5156fe9f1aba7c19bcf4",
+      "journal_tip": "1fd9ce605f0fb38c3e80d3b17a7829a128bfa40d10de955395f36c0fd561289b"
+    }
+  ],
+  "training": {
+    "rows": 190648,
+    "markets_with_teaching": 190,
+    "nonterminal": 182728,
+    "terminal": 7920
+  },
+  "scope": {
+    "catalog_markets": 389,
+    "usd_funded_markets": 389,
+    "known_assets": 318,
+    "withheld_assets": 71,
+    "usdc_collected_not_funded": [],
+    "candles": 392099,
+    "market_data_status_counts": {
+      "OBSERVED": 389
+    },
+    "listing_scope": "Current-vintage listings, not point-in-time or authenticated account permissions"
+  }
+}
