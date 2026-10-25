@@ -84,6 +84,52 @@ class ReleasePreflightTests(unittest.TestCase):
         self.assertFalse(blocked["execution_ready"])
         self.assertIn("COINBASE_FILL_HISTORY_INCOMPLETE", blocked["blockers"])
 
+    def test_preflight_rejects_credential_rotation_during_any_authenticated_read(self):
+        # A status read, product sizing, and fill history may use different
+        # SDK clients. No combination of two accounts may authorize START.
+        class RotatingSpot(Spot):
+            def __init__(self, rotate_at):
+                super().__init__()
+                self.rotate_at = rotate_at
+                self.scope = "a" * 64
+
+            def account_scope_id(self):
+                return self.scope
+
+            def status(self):
+                result = super().status()
+                if self.rotate_at == "status":
+                    self.scope = "b" * 64
+                return result
+
+            def product(self, product_id):
+                result = super().product(product_id)
+                if self.rotate_at == "product":
+                    self.scope = "b" * 64
+                return result
+
+            def account_fills(self):
+                if self.rotate_at == "fills":
+                    self.scope = "b" * 64
+                return {"complete": True, "fills": []}
+
+        stable = inspect_advanced(
+            vault=Key(), rail=RotatingSpot(None),
+            db_path=self.path, require_history=True)
+        self.assertTrue(stable["execution_ready"], stable["blockers"])
+        for stage in ("status", "product", "fills"):
+            with self.subTest(stage=stage):
+                rail = RotatingSpot(stage)
+                report = inspect_advanced(
+                    vault=Key(), rail=rail, db_path=self.path,
+                    require_history=True)
+                self.assertFalse(report["execution_ready"])
+                self.assertIn(
+                    "COINBASE_ACCOUNT_SCOPE_CHANGED_DURING_PREFLIGHT",
+                    report["blockers"])
+                self.assertTrue(report["read_only"])
+                self.assertFalse(report["placed_orders"])
+
     def test_python_live_start_rejects_missing_credential_identity_and_reader(self):
         result = inspect_advanced(vault=Key(), rail=self.spot,
                                   db_path=self.path, require_history=True)
