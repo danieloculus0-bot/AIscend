@@ -204,6 +204,60 @@ class PrimaryLiveTests(unittest.TestCase):
         self.assertEqual(saved["cost_basis_status"], "verified_coinbase_fills")
         self.assertAlmostEqual(saved["avg_cost"], 1.001)
 
+    def test_scoped_account_history_outage_blocks_buy_but_allows_protective_sell(self):
+        from unittest.mock import patch
+
+        class ScopedRail:
+            def account_scope_id(self):
+                return "a" * 64
+
+        self.engine.rail = ScopedRail()
+        stale = {
+            "account_scope_verified": True,
+            "capital": {},
+            "read_status": "HISTORY_READ_FAILED:TimeoutError",
+            "execution": {"status": "UNVERIFIED_OR_STALE", "products": {}},
+        }
+        with patch("src.advanced_live.evaluate_account", return_value=stale):
+            cash_snapshot = self.snapshot(cash={"USD": 25})
+            cash_snapshot["authenticated_scope"] = "a" * 64
+            self.engine._primary_trade_step(cash_snapshot)
+            self.assertEqual(self.actions, [])
+            self.assertEqual(
+                self.store.latest_decisions(1)[0]["status"],
+                "ACCOUNT_HISTORY_UNVERIFIED")
+            plan = json.loads(self.store.get_meta("primary_trade_plan_latest"))
+            self.assertIsNone(plan["winner"])
+            self.assertEqual(
+                plan["account_history_gate"], "AUTHENTICATED_HISTORY_UNVERIFIED")
+
+            # An existing position's risk-reducing exit still executes.
+            held_snapshot = self.snapshot(
+                held={"GROVE-USDC": {"qty": 10, "available_qty": 10}})
+            held_snapshot["authenticated_scope"] = "a" * 64
+            self.engine._primary_trade_step(held_snapshot)
+            self.assertEqual(self.actions[-1], ("SELL", "GROVE-USDC"))
+
+    def test_scoped_account_with_complete_history_still_can_buy(self):
+        from unittest.mock import patch
+
+        class ScopedRail:
+            def account_scope_id(self):
+                return "a" * 64
+
+        self.engine.rail = ScopedRail()
+        complete = {
+            "account_scope_verified": True,
+            "capital": {},
+            "read_status": "CACHED_HISTORY",
+            "execution": {"status": "COMPLETE", "products": {}},
+        }
+        snapshot = self.snapshot(cash={"USD": 25})
+        snapshot["authenticated_scope"] = "a" * 64
+        with patch("src.advanced_live.evaluate_account", return_value=complete):
+            self.engine._primary_trade_step(snapshot)
+        self.assertIn(("BUY", "ALEO-USD"), self.actions)
+
     def test_buy_execution_error_is_not_called_success(self):
         def boom(decision,snapshot):
             raise RuntimeError("preview rejected by venue")
