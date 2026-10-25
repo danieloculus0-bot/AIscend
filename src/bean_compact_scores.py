@@ -85,7 +85,7 @@ CREATE INDEX IF NOT EXISTS comparable_scores ON scores(role,available_at,window,
         query="SELECT mnemonic,method,net_return,incremental_return_bps,drawdown,reason,receipt FROM scores WHERE role='training' AND available_at<=? AND window=? AND incremental_return_bps IS NOT NULL"
         args=[int(as_of),canonical(window)]
         if not historical:query+=' AND recorded_at<=?';args.append(int(as_of))
-        query+=' ORDER BY incremental_return_bps DESC,drawdown,receipt LIMIT ?';args.append(min(100,max(1,int(limit))))
+        query+=' ORDER BY incremental_return_bps DESC,drawdown,method,receipt LIMIT ?';args.append(min(100,max(1,int(limit))))
         return [dict(x) for x in self.db.execute(query,args)]
     def export(self):
         self.events.snapshot();self.db.commit()

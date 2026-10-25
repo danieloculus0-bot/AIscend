@@ -38,10 +38,10 @@ jobs:
       - name: Retain every candidate, score, losing outcome and complete model
         if: github.event_name == 'push'
         run: |
-          cp -r /tmp/bean-cached-search research/bean_cached_search_20261024
+          cp -r /tmp/bean-cached-search research/bean_cached_search_sql_20261024
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add research/bean_cached_search_20261024
+          git add research/bean_cached_search_sql_20261024
           git commit -m 'Archive one-pass cached BEAN search with every candidate and compact score'
           git fetch origin experiment/bean-fast-ledger-20261024
           git rebase origin/experiment/bean-fast-ledger-20261024

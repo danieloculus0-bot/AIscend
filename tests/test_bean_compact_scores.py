@@ -38,5 +38,11 @@ class CompactScoreContracts(unittest.TestCase):
     def test_dictionary_overflow_cannot_wrap_and_corrupt_old_codes(self):
         self.assertNotEqual(pair(0),pair(3843))
         with self.assertRaises(OverflowError):pair(3844)
+    def test_exact_ties_use_declared_method_order_not_dictionary_insertion(self):
+        with tempfile.TemporaryDirectory() as d:
+            ledger=CompactScores(d)
+            for name in ('zulu','alpha'):
+                ledger.record(keys=dict(keys(name),method=name),candidate=metrics(.1),baseline=metrics(0),role='training',available_at=200,source='source')
+            self.assertEqual(ledger.rank(9999999999,window='train-2025')[0]['method'],'alpha');ledger.close()
 
 if __name__=='__main__':unittest.main()
