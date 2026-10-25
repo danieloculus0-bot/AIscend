@@ -1,0 +1,68 @@
+name: BEAN economic consistency and complete replay experiment
+on:
+  push:
+    branches: ['experiment/bean-economic-values-20261024']
+    paths:
+      - 'src/bean_economic_*.py'
+      - 'tests/test_bean_economic_values.py'
+      - '.github/workflows/bean-economic-values.yml'
+  pull_request:
+    paths:
+      - 'src/bean_economic_*.py'
+      - 'tests/test_bean_economic_values.py'
+      - '.github/workflows/bean-economic-values.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  economic-experiment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements-research.txt
+      - uses: actions/checkout@v4
+        with:
+          repository: danieloculus0-bot/BEAN
+          ref: 887935ae816b4ce6175c6cde54d749f0e5cf3268
+          path: core-bean
+      - name: Economic identities, future rejection, actual gradients and complete recovery
+        env:
+          BEAN_CORE_DIR: core-bean
+        run: python -m unittest tests.test_bean_economic_values -v
+      - name: Run preregistered replay and economic-value ablations
+        if: github.event_name != 'pull_request'
+        run: python -m src.bean_economic_experiment --candles research/bean_strategy_curriculum_20261024/source/candles.jsonl.gz --core-dir core-bean --output /tmp/bean-economic-values-20261024 --updates 1024
+      - name: Save all negative and positive results and complete model states
+        if: github.event_name != 'pull_request'
+        run: |
+          mkdir -p research/bean_economic_values_20261024
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib,json,shutil
+          source=Path('/tmp/bean-economic-values-20261024');target=Path('research/bean_economic_values_20261024')
+          for p in source.iterdir():
+              if p.name.endswith(('.sqlite3','.jsonl')):continue
+              shutil.copy2(p,target/p.name)
+          (target/'.gitignore').write_text('*.sqlite3\n*.sqlite3-*\n*.jsonl\n!*.sqlite3.gz\n!*.jsonl.gz\n')
+          (target/'artifacts_manifest.json').write_text(json.dumps({'files':{p.name:{'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in sorted(target.iterdir()) if p.is_file() and p.name!='artifacts_manifest.json'}},indent=2)+'\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
+        with:
+          name: bean-economic-values-all-results-20261024
+          path: research/bean_economic_values_20261024/
+          retention-days: 90
+      - name: Archive full experiment on its research branch
+        if: github.event_name == 'push' && github.ref == 'refs/heads/experiment/bean-economic-values-20261024'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add research/bean_economic_values_20261024
+          if ! git diff --cached --quiet; then
+            git commit -m 'Archive complete replay and economic-value ablations including failures'
+            git push origin HEAD:experiment/bean-economic-values-20261024
+          fi
