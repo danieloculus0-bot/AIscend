@@ -45,3 +45,7 @@ Use the corrected training/valuation contracts on broader venue-eligible data, w
 
 Use BEAN Core revision `887935ae816b4ce6175c6cde54d749f0e5cf3268` and verify the state-file hash before `SpongeDQN.from_training_state`. Respect its knowledge cutoff and the matching source policy/valuation convention. The neural head alone is not the complete trader: factored heads predict market components, and raw-head policies may require alias constraints or an expert reference. This index does not auto-activate a model or update the hosted BEAN notes connector.
 
+## Time-aware recall
+
+`recall_outcomes` and `recall_checkpoints` default to actual snapshot recording time. An explicit `historical=True` mode is available only for counterfactual research: it quarantines each evaluation until the declared window ends and respects model training cutoffs. Thus a 2023 decision cannot consult its later April-September score. Historical release times do not make current-vintage source data point-in-time verified. Both modes retain failed outcomes once available; neither promotes a model.
+

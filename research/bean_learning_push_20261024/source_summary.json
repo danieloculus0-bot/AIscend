@@ -1,5 +1,5 @@
 {
-  "schema": "aiscend.bean.learning_push_summary.v1",
+  "schema": "aiscend.bean.learning_push_summary.v2",
   "source_ref": "e1af9621550e914b579bfc346624bf2a7efe0235",
   "sources": [
     {
@@ -69,7 +69,9 @@
       "source_blob_sha": "e879658aa3ddde822050051c86f1736fe1670a19",
       "label": "fold-0/raw_limited",
       "weights": "c5959bad8180a513815bc56d5cad8fceee4fb80f4c995b0fd4dfe75c2f154bb9",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1696118400,
+      "recorded_at": 1792894520
     },
     {
       "method": "raw_chunked",
@@ -88,7 +90,9 @@
       "source_blob_sha": "e879658aa3ddde822050051c86f1736fe1670a19",
       "label": "fold-0/raw_chunked",
       "weights": "bfe23a2a61f59483dc1f11c504c9ad72feab0a3694deb0499fc4831ee02d2fae",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1696118400,
+      "recorded_at": 1792894520
     },
     {
       "method": "raw_full",
@@ -107,7 +111,9 @@
       "source_blob_sha": "e879658aa3ddde822050051c86f1736fe1670a19",
       "label": "fold-0/raw_full",
       "weights": "5feed6a258101e56a4867b2909d09db8152ae584ea2f53908cc3daf12ae75d3c",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1696118400,
+      "recorded_at": 1792894520
     },
     {
       "method": "factor",
@@ -126,7 +132,9 @@
       "source_blob_sha": "e879658aa3ddde822050051c86f1736fe1670a19",
       "label": "fold-0/factor",
       "weights": "94687ad39da608c014941befabe2def9fb80586f2a47fa6267f6709d663b102d",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1696118400,
+      "recorded_at": 1792894520
     },
     {
       "method": "economic_overlay",
@@ -145,7 +153,9 @@
       "source_blob_sha": "e879658aa3ddde822050051c86f1736fe1670a19",
       "label": "fold-0/economic_overlay",
       "weights": "94687ad39da608c014941befabe2def9fb80586f2a47fa6267f6709d663b102d",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1696118400,
+      "recorded_at": 1792894520
     },
     {
       "method": "training_selected_expert",
@@ -165,7 +175,9 @@
       "label": "fold-0/expert_only",
       "weights": null,
       "qualification": "DEVELOPMENT_ONLY",
-      "selected_expert": "hammer_rebound"
+      "selected_expert": "hammer_rebound",
+      "historical_release_at": 1696118400,
+      "recorded_at": 1792894520
     },
     {
       "method": "cash",
@@ -184,7 +196,9 @@
       "source_blob_sha": "e879658aa3ddde822050051c86f1736fe1670a19",
       "label": "fold-0/benchmark/cash",
       "weights": null,
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1696118400,
+      "recorded_at": 1792894520
     },
     {
       "method": "buy_hold",
@@ -203,7 +217,9 @@
       "source_blob_sha": "e879658aa3ddde822050051c86f1736fe1670a19",
       "label": "fold-0/benchmark/buy_hold",
       "weights": null,
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1696118400,
+      "recorded_at": 1792894520
     },
     {
       "method": "past_mean_forecast",
@@ -222,7 +238,9 @@
       "source_blob_sha": "e879658aa3ddde822050051c86f1736fe1670a19",
       "label": "fold-0/past_mean_forecast",
       "weights": null,
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1696118400,
+      "recorded_at": 1792894520
     },
     {
       "method": "raw_limited",
@@ -241,7 +259,9 @@
       "source_blob_sha": "e879658aa3ddde822050051c86f1736fe1670a19",
       "label": "fold-1/raw_limited",
       "weights": "62d20646c0e5fee4620be65d8b377c8d2eacc186bbb293267aee575cbd5d3378",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1727740800,
+      "recorded_at": 1792894520
     },
     {
       "method": "raw_chunked",
@@ -260,7 +280,9 @@
       "source_blob_sha": "e879658aa3ddde822050051c86f1736fe1670a19",
       "label": "fold-1/raw_chunked",
       "weights": "415c2ebc427bfd96983d0d547c42f915b5b6842935fd64f8eddcd00caf3005d2",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1727740800,
+      "recorded_at": 1792894520
     },
     {
       "method": "raw_full",
@@ -279,7 +301,9 @@
       "source_blob_sha": "e879658aa3ddde822050051c86f1736fe1670a19",
       "label": "fold-1/raw_full",
       "weights": "690f33cbab1587dd43c26d555285d492fa9be280fed9af76e7c9e87bda736771",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1727740800,
+      "recorded_at": 1792894520
     },
     {
       "method": "factor",
@@ -298,7 +322,9 @@
       "source_blob_sha": "e879658aa3ddde822050051c86f1736fe1670a19",
       "label": "fold-1/factor",
       "weights": "bdd50ecd77437e6bc762aed9d19e36ed7ea50e5a6b9d6c9c4b3c6aa5b96ad7e2",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1727740800,
+      "recorded_at": 1792894520
     },
     {
       "method": "economic_overlay",
@@ -317,7 +343,9 @@
       "source_blob_sha": "e879658aa3ddde822050051c86f1736fe1670a19",
       "label": "fold-1/economic_overlay",
       "weights": "bdd50ecd77437e6bc762aed9d19e36ed7ea50e5a6b9d6c9c4b3c6aa5b96ad7e2",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1727740800,
+      "recorded_at": 1792894520
     },
     {
       "method": "training_selected_expert",
@@ -337,7 +365,9 @@
       "label": "fold-1/expert_only",
       "weights": null,
       "qualification": "DEVELOPMENT_ONLY",
-      "selected_expert": "sma_trend"
+      "selected_expert": "sma_trend",
+      "historical_release_at": 1727740800,
+      "recorded_at": 1792894520
     },
     {
       "method": "cash",
@@ -356,7 +386,9 @@
       "source_blob_sha": "e879658aa3ddde822050051c86f1736fe1670a19",
       "label": "fold-1/benchmark/cash",
       "weights": null,
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1727740800,
+      "recorded_at": 1792894520
     },
     {
       "method": "buy_hold",
@@ -375,7 +407,9 @@
       "source_blob_sha": "e879658aa3ddde822050051c86f1736fe1670a19",
       "label": "fold-1/benchmark/buy_hold",
       "weights": null,
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1727740800,
+      "recorded_at": 1792894520
     },
     {
       "method": "past_mean_forecast",
@@ -394,7 +428,9 @@
       "source_blob_sha": "e879658aa3ddde822050051c86f1736fe1670a19",
       "label": "fold-1/past_mean_forecast",
       "weights": null,
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1727740800,
+      "recorded_at": 1792894520
     },
     {
       "method": "raw_limited",
@@ -413,7 +449,9 @@
       "source_blob_sha": "e879658aa3ddde822050051c86f1736fe1670a19",
       "label": "fold-2/raw_limited",
       "weights": "d82d6fd1e8755915f2d865b505a89ec58bbfc55890685da933b3c79f838b778c",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1759276800,
+      "recorded_at": 1792894520
     },
     {
       "method": "raw_chunked",
@@ -432,7 +470,9 @@
       "source_blob_sha": "e879658aa3ddde822050051c86f1736fe1670a19",
       "label": "fold-2/raw_chunked",
       "weights": "bb28cd7153536f36607513c7d9c3c26cc682a4ccfa0bdc44d831cbef79736ca4",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1759276800,
+      "recorded_at": 1792894520
     },
     {
       "method": "raw_full",
@@ -451,7 +491,9 @@
       "source_blob_sha": "e879658aa3ddde822050051c86f1736fe1670a19",
       "label": "fold-2/raw_full",
       "weights": "cf47155153c18925d3ee99353c6700e695f17b517a9774649ce6ed3f2270a52e",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1759276800,
+      "recorded_at": 1792894520
     },
     {
       "method": "factor",
@@ -470,7 +512,9 @@
       "source_blob_sha": "e879658aa3ddde822050051c86f1736fe1670a19",
       "label": "fold-2/factor",
       "weights": "fd640d734c95460ae1c83d042d794b3590d3fa60470f873fd51861cba1863084",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1759276800,
+      "recorded_at": 1792894520
     },
     {
       "method": "economic_overlay",
@@ -489,7 +533,9 @@
       "source_blob_sha": "e879658aa3ddde822050051c86f1736fe1670a19",
       "label": "fold-2/economic_overlay",
       "weights": "fd640d734c95460ae1c83d042d794b3590d3fa60470f873fd51861cba1863084",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1759276800,
+      "recorded_at": 1792894520
     },
     {
       "method": "training_selected_expert",
@@ -509,7 +555,9 @@
       "label": "fold-2/expert_only",
       "weights": null,
       "qualification": "DEVELOPMENT_ONLY",
-      "selected_expert": "hammer_rebound"
+      "selected_expert": "hammer_rebound",
+      "historical_release_at": 1759276800,
+      "recorded_at": 1792894520
     },
     {
       "method": "cash",
@@ -528,7 +576,9 @@
       "source_blob_sha": "e879658aa3ddde822050051c86f1736fe1670a19",
       "label": "fold-2/benchmark/cash",
       "weights": null,
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1759276800,
+      "recorded_at": 1792894520
     },
     {
       "method": "buy_hold",
@@ -547,7 +597,9 @@
       "source_blob_sha": "e879658aa3ddde822050051c86f1736fe1670a19",
       "label": "fold-2/benchmark/buy_hold",
       "weights": null,
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1759276800,
+      "recorded_at": 1792894520
     },
     {
       "method": "past_mean_forecast",
@@ -566,7 +618,9 @@
       "source_blob_sha": "e879658aa3ddde822050051c86f1736fe1670a19",
       "label": "fold-2/past_mean_forecast",
       "weights": null,
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1759276800,
+      "recorded_at": 1792894520
     },
     {
       "method": "factor_exit_reserve",
@@ -585,7 +639,9 @@
       "source_blob_sha": "f6b14c36209dd392ef35ae04839aa5bdca68021f",
       "label": "fold-0/net_liquidation",
       "weights": "94687ad39da608c014941befabe2def9fb80586f2a47fa6267f6709d663b102d",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1696118400,
+      "recorded_at": 1792894520
     },
     {
       "method": "factor_exit_reserve",
@@ -604,7 +660,9 @@
       "source_blob_sha": "f6b14c36209dd392ef35ae04839aa5bdca68021f",
       "label": "fold-1/net_liquidation",
       "weights": "bdd50ecd77437e6bc762aed9d19e36ed7ea50e5a6b9d6c9c4b3c6aa5b96ad7e2",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1727740800,
+      "recorded_at": 1792894520
     },
     {
       "method": "factor_exit_reserve",
@@ -623,7 +681,9 @@
       "source_blob_sha": "f6b14c36209dd392ef35ae04839aa5bdca68021f",
       "label": "fold-2/net_liquidation",
       "weights": "fd640d734c95460ae1c83d042d794b3590d3fa60470f873fd51861cba1863084",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1759276800,
+      "recorded_at": 1792894520
     },
     {
       "method": "chunked_alias_consistent",
@@ -642,7 +702,9 @@
       "source_blob_sha": "1417be52aa857a733fe3851b8df90ff38cc9b308",
       "label": "fold-0/consistent_aliases",
       "weights": "bfe23a2a61f59483dc1f11c504c9ad72feab0a3694deb0499fc4831ee02d2fae",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1696118400,
+      "recorded_at": 1792894520
     },
     {
       "method": "chunked_alias_consistent",
@@ -661,7 +723,9 @@
       "source_blob_sha": "1417be52aa857a733fe3851b8df90ff38cc9b308",
       "label": "fold-1/consistent_aliases",
       "weights": "415c2ebc427bfd96983d0d547c42f915b5b6842935fd64f8eddcd00caf3005d2",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1727740800,
+      "recorded_at": 1792894520
     },
     {
       "method": "chunked_alias_consistent",
@@ -680,7 +744,9 @@
       "source_blob_sha": "1417be52aa857a733fe3851b8df90ff38cc9b308",
       "label": "fold-2/consistent_aliases",
       "weights": "bb28cd7153536f36607513c7d9c3c26cc682a4ccfa0bdc44d831cbef79736ca4",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1759276800,
+      "recorded_at": 1792894520
     },
     {
       "method": "chunked_net_liquidation_reward",
@@ -699,7 +765,9 @@
       "source_blob_sha": "906ab03c60e3c0e9aed10604ae4dd046960fe8bb",
       "label": "fold-0/net_liquidation_learning",
       "weights": "b2926b2bb4caee0d42ef1b214a85472f3475a3d670faa70a7299dbb42ffceae2",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1696118400,
+      "recorded_at": 1792894520
     },
     {
       "method": "chunked_net_liquidation_reward",
@@ -718,7 +786,9 @@
       "source_blob_sha": "906ab03c60e3c0e9aed10604ae4dd046960fe8bb",
       "label": "fold-1/net_liquidation_learning",
       "weights": "6bdbb3fa8646c4a12d82976f5b7aed2c06148c1844833d54829bc52c168d2b40",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1727740800,
+      "recorded_at": 1792894520
     },
     {
       "method": "chunked_net_liquidation_reward",
@@ -737,7 +807,9 @@
       "source_blob_sha": "906ab03c60e3c0e9aed10604ae4dd046960fe8bb",
       "label": "fold-2/net_liquidation_learning",
       "weights": "b69430196f11b2fb30442e88341801b32488df13f99e98ace171942dd61691df",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1759276800,
+      "recorded_at": 1792894520
     },
     {
       "method": "full_pass_gross",
@@ -756,7 +828,9 @@
       "source_blob_sha": "1b99e494b10171d008c9fa0399cf9d206b9c073f",
       "label": "fold-0/full_pass_gross",
       "weights": "31d03b6dae434908549cb1df06e4df34a3059fba3cb37a1206e565a1ee76c023",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1696118400,
+      "recorded_at": 1792894520
     },
     {
       "method": "full_pass_net_liquidation",
@@ -775,7 +849,9 @@
       "source_blob_sha": "1b99e494b10171d008c9fa0399cf9d206b9c073f",
       "label": "fold-0/full_pass_net_liquidation",
       "weights": "b3e08b75fef37473ad2192a4fea137d7b6e1bb815c2340b1c7c9a5734d138929",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1696118400,
+      "recorded_at": 1792894520
     },
     {
       "method": "full_pass_gross",
@@ -794,7 +870,9 @@
       "source_blob_sha": "1b99e494b10171d008c9fa0399cf9d206b9c073f",
       "label": "fold-1/full_pass_gross",
       "weights": "b195a957264c89b886945ae834f743535cf9146798de2b50d4f90a10124df70b",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1727740800,
+      "recorded_at": 1792894520
     },
     {
       "method": "full_pass_net_liquidation",
@@ -813,7 +891,9 @@
       "source_blob_sha": "1b99e494b10171d008c9fa0399cf9d206b9c073f",
       "label": "fold-1/full_pass_net_liquidation",
       "weights": "3bb375bc21b675b3b5b3fbea37c1725795a85a796599e69aacd9ab9d8a563d8d",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1727740800,
+      "recorded_at": 1792894520
     },
     {
       "method": "full_pass_gross",
@@ -832,7 +912,9 @@
       "source_blob_sha": "1b99e494b10171d008c9fa0399cf9d206b9c073f",
       "label": "fold-2/full_pass_gross",
       "weights": "ee85d4f6a6b7430d33a6ef39a9409002d1fc76718761da66f9e688a8d8d28477",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1759276800,
+      "recorded_at": 1792894520
     },
     {
       "method": "full_pass_net_liquidation",
@@ -851,7 +933,9 @@
       "source_blob_sha": "1b99e494b10171d008c9fa0399cf9d206b9c073f",
       "label": "fold-2/full_pass_net_liquidation",
       "weights": "89428b41d02c2ffa1ad62399662056d778c06dee7b1fbd45bc7e9658a3a6609e",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "historical_release_at": 1759276800,
+      "recorded_at": 1792894520
     }
   ],
   "checkpoints": [
@@ -872,7 +956,8 @@
       "state_sha256": "b271de7671af450278c91fa0bd7bc67a68efc1e6d1ff17da3244b4a65ad841c8",
       "manifest_path": "research/bean_economic_values_chunked_20261024/retention_manifest.json",
       "source_ref": "e1af9621550e914b579bfc346624bf2a7efe0235",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "recorded_at": 1792894520
     },
     {
       "phase": "economic_states",
@@ -891,7 +976,8 @@
       "state_sha256": "efd00ad3ee9e3228d0a79b2df846ef5e66520fcc49d70e8e41d19e0b6d8327b2",
       "manifest_path": "research/bean_economic_values_chunked_20261024/retention_manifest.json",
       "source_ref": "e1af9621550e914b579bfc346624bf2a7efe0235",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "recorded_at": 1792894520
     },
     {
       "phase": "economic_states",
@@ -910,7 +996,8 @@
       "state_sha256": "b84f363b823ee2a3aee76d89948ef5d99288a68d98c9913df24586817332395c",
       "manifest_path": "research/bean_economic_values_chunked_20261024/retention_manifest.json",
       "source_ref": "e1af9621550e914b579bfc346624bf2a7efe0235",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "recorded_at": 1792894520
     },
     {
       "phase": "economic_states",
@@ -929,7 +1016,8 @@
       "state_sha256": "40d8806abe8eda6a254e3a0a8dca98ad0d3c823196b6893c5925b84188d6c9e6",
       "manifest_path": "research/bean_economic_values_chunked_20261024/retention_manifest.json",
       "source_ref": "e1af9621550e914b579bfc346624bf2a7efe0235",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "recorded_at": 1792894520
     },
     {
       "phase": "economic_states",
@@ -948,7 +1036,8 @@
       "state_sha256": "e0e06b99b479ba4d14a6bc4f915dc1078389aa2a61e93ad6d85bcdd34d23d06b",
       "manifest_path": "research/bean_economic_values_chunked_20261024/retention_manifest.json",
       "source_ref": "e1af9621550e914b579bfc346624bf2a7efe0235",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "recorded_at": 1792894520
     },
     {
       "phase": "economic_states",
@@ -967,7 +1056,8 @@
       "state_sha256": "a7c634a5ee3c6f70a4baf5f0793bc4ef4489808bc90b5903895dfb5ab98b13fe",
       "manifest_path": "research/bean_economic_values_chunked_20261024/retention_manifest.json",
       "source_ref": "e1af9621550e914b579bfc346624bf2a7efe0235",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "recorded_at": 1792894520
     },
     {
       "phase": "economic_states",
@@ -986,7 +1076,8 @@
       "state_sha256": "9abc9874d51902e29c093c8cf42af0dcfc82409fe70b428865938963d69f60d5",
       "manifest_path": "research/bean_economic_values_chunked_20261024/retention_manifest.json",
       "source_ref": "e1af9621550e914b579bfc346624bf2a7efe0235",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "recorded_at": 1792894520
     },
     {
       "phase": "economic_states",
@@ -1005,7 +1096,8 @@
       "state_sha256": "37e6966f024cfb63308fc37a919897971217e7b172ee6ff4bed98543498c909c",
       "manifest_path": "research/bean_economic_values_chunked_20261024/retention_manifest.json",
       "source_ref": "e1af9621550e914b579bfc346624bf2a7efe0235",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "recorded_at": 1792894520
     },
     {
       "phase": "economic_states",
@@ -1024,7 +1116,8 @@
       "state_sha256": "c7f99c57f6f8fbc787581c0495a7bb84f555e29c228035e5e1a9e450a6b6c7d2",
       "manifest_path": "research/bean_economic_values_chunked_20261024/retention_manifest.json",
       "source_ref": "e1af9621550e914b579bfc346624bf2a7efe0235",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "recorded_at": 1792894520
     },
     {
       "phase": "economic_states",
@@ -1043,7 +1136,8 @@
       "state_sha256": "90910dd287743bdf3456e5d9f92e97dfea29689db94212034e0d94df686f6ac2",
       "manifest_path": "research/bean_economic_values_chunked_20261024/retention_manifest.json",
       "source_ref": "e1af9621550e914b579bfc346624bf2a7efe0235",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "recorded_at": 1792894520
     },
     {
       "phase": "economic_states",
@@ -1062,7 +1156,8 @@
       "state_sha256": "cd7470f222203f1986bf959b44785c64dfa7e5017175ea1f9ff5b48399feecf0",
       "manifest_path": "research/bean_economic_values_chunked_20261024/retention_manifest.json",
       "source_ref": "e1af9621550e914b579bfc346624bf2a7efe0235",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "recorded_at": 1792894520
     },
     {
       "phase": "economic_states",
@@ -1081,7 +1176,8 @@
       "state_sha256": "178a2c5907d4665f1b9908b8cd3b24a02e3e9a1ae4d737d1a85f7c2df6003b6f",
       "manifest_path": "research/bean_economic_values_chunked_20261024/retention_manifest.json",
       "source_ref": "e1af9621550e914b579bfc346624bf2a7efe0235",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "recorded_at": 1792894520
     },
     {
       "phase": "liquidation_states",
@@ -1100,7 +1196,8 @@
       "state_sha256": "f1c1c665d3e50d39adcbd14667dd0d6b4efd6888ced1532e02f22fe4adc4cec4",
       "manifest_path": "research/bean_net_liquidation_learning_20261024/retention_manifest.json",
       "source_ref": "e1af9621550e914b579bfc346624bf2a7efe0235",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "recorded_at": 1792894520
     },
     {
       "phase": "liquidation_states",
@@ -1119,7 +1216,8 @@
       "state_sha256": "1788653c0348738af9de8ad7ae0526172e158693b49f73deefe7515c0ff29480",
       "manifest_path": "research/bean_net_liquidation_learning_20261024/retention_manifest.json",
       "source_ref": "e1af9621550e914b579bfc346624bf2a7efe0235",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "recorded_at": 1792894520
     },
     {
       "phase": "liquidation_states",
@@ -1138,7 +1236,8 @@
       "state_sha256": "a067a2e9a03d863690d1874a6366399adfd0c7c963e27af60393760ec0e7508d",
       "manifest_path": "research/bean_net_liquidation_learning_20261024/retention_manifest.json",
       "source_ref": "e1af9621550e914b579bfc346624bf2a7efe0235",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "recorded_at": 1792894520
     },
     {
       "phase": "full_pass_states",
@@ -1157,7 +1256,8 @@
       "state_sha256": "edd65a06c3f978e22a6475ccfb17a83ab2cf2f82b6e8d776b3dbd5e1fa2143f1",
       "manifest_path": "research/bean_full_pass_learning_20261024/retention_manifest.json",
       "source_ref": "e1af9621550e914b579bfc346624bf2a7efe0235",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "recorded_at": 1792894520
     },
     {
       "phase": "full_pass_states",
@@ -1176,7 +1276,8 @@
       "state_sha256": "76eab1443d71d0cd1fff155f168f3d933b3ea8611fddbdf26ca3476536fa551f",
       "manifest_path": "research/bean_full_pass_learning_20261024/retention_manifest.json",
       "source_ref": "e1af9621550e914b579bfc346624bf2a7efe0235",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "recorded_at": 1792894520
     },
     {
       "phase": "full_pass_states",
@@ -1195,7 +1296,8 @@
       "state_sha256": "1127d591395305c65956607b81601f44f224cec10c4d447ed65c9b936ef812b0",
       "manifest_path": "research/bean_full_pass_learning_20261024/retention_manifest.json",
       "source_ref": "e1af9621550e914b579bfc346624bf2a7efe0235",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "recorded_at": 1792894520
     },
     {
       "phase": "full_pass_states",
@@ -1214,7 +1316,8 @@
       "state_sha256": "a195346cac296b8379a316bcd1741f647f660a6d4ef96f81b4ebba74256422d9",
       "manifest_path": "research/bean_full_pass_learning_20261024/retention_manifest.json",
       "source_ref": "e1af9621550e914b579bfc346624bf2a7efe0235",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "recorded_at": 1792894520
     },
     {
       "phase": "full_pass_states",
@@ -1233,7 +1336,8 @@
       "state_sha256": "d65150568351061d764927f80d7133924df3e5580876db8e5e97f36737270756",
       "manifest_path": "research/bean_full_pass_learning_20261024/retention_manifest.json",
       "source_ref": "e1af9621550e914b579bfc346624bf2a7efe0235",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "recorded_at": 1792894520
     },
     {
       "phase": "full_pass_states",
@@ -1252,7 +1356,8 @@
       "state_sha256": "4bd17153b4d955051e62186ec25dd18ab901a58867d0c389422427329856fa88",
       "manifest_path": "research/bean_full_pass_learning_20261024/retention_manifest.json",
       "source_ref": "e1af9621550e914b579bfc346624bf2a7efe0235",
-      "qualification": "DEVELOPMENT_ONLY"
+      "qualification": "DEVELOPMENT_ONLY",
+      "recorded_at": 1792894520
     }
   ],
   "distinct_market_events": 1440,
@@ -1265,6 +1370,8 @@
     "Eight present-selected Binance USDT instruments; not full Coinbase universe qualification.",
     "$1000 modeled quote-unit capital with fixed equal sleeves; USD/USDT conversion and exchange execution are not verified.",
     "Different methods and overlapping source cases are not independent market evidence.",
-    "Every source outcome and model state remains at its immutable upstream path; this database is an index, not a reconstruction of missing cases."
-  ]
+    "Every source outcome and model state remains at its immutable upstream path; this database is an index, not a reconstruction of missing cases.",
+    "Historical release is a conservative end-of-evaluation quarantine, not a claim of original point-in-time data publication. Actual recall defaults to the source snapshot recording time."
+  ],
+  "source_snapshot_recorded_at": "2026-10-25T02:15:20Z"
 }
