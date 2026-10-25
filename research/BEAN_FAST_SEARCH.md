@@ -4,6 +4,8 @@ Use the frozen Coinbase snapshot and the saved per-market teaching corpus again.
 
 The local synthetic mechanics benchmark measured approximately 14x faster repeated teaching generation. This is not an end-to-end training speedup or market-performance result. The GitHub benchmark also requires identical complete Core optimizer, replay, target, RNG and weight states compared with source `e49bb7e1052181a80be06ed23fd26316deae3ceb`.
 
+GitHub's first actual-Core benchmark measured 11.06x on the same synthetic workload and confirmed every complete state was identical. The first real cached search trained and recovered four candidates from 151,728 mature source rows in 18.66 seconds, with 2,371 gradient updates per model. This timed the cached training/recovery phase, not dependency installation, evaluation or artifact upload. All four learned candidates lost money in the internal selection window, so the frozen cash control won. Neither speed nor passing software checks establishes a profitable method.
+
 ## Compact active memory
 
 `CompactScores` stores one trial outcome as eight reversible character pairs: method, dataset, window, seed, cost, configuration, evidence and reason. A 16-character mnemonic references a versioned dictionary; it does not round dollars, returns or drawdown. Exact scores and upstream file hashes/JSON pointers remain in SQLite and the existing append-only `DecisionLedger`. The index rebuilds from those original events. Each page supports 3,844 dictionary entries per field; overflow raises instead of recycling a code.
