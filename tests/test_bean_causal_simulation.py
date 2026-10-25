@@ -1,4 +1,5 @@
 import copy
+from contextlib import closing
 import json
 import os
 from pathlib import Path
@@ -57,7 +58,11 @@ class CausalSimulationTests(unittest.TestCase):
             ledger=DecisionLedger(path);ledger.record({"action":"cash","outcome":-.01});first=ledger.tip;ledger.close()
             ledger=DecisionLedger(path);self.assertEqual(ledger.tip,first);self.assertEqual(ledger.seq,1)
             ledger.record({"action":"trend","outcome":.02});ledger.close()
-            with sqlite3.connect(path) as c:c.execute("UPDATE decisions SET payload_json='{}' WHERE seq=0")
+            # sqlite3.Connection.__exit__ commits but DOES NOT close the
+            # handle. Windows cannot remove the temporary DB if it remains open.
+            with closing(sqlite3.connect(path)) as c:
+                with c:
+                    c.execute("UPDATE decisions SET payload_json='{}' WHERE seq=0")
             with self.assertRaises(ValueError):DecisionLedger(path)
 
     @unittest.skipUnless(os.environ.get("BEAN_CORE_DIR"),"Explicit real BEAN checkout required")
