@@ -351,6 +351,46 @@ class AdvancedTradeTests(unittest.TestCase):
         self.assertEqual(values["USDC"], (Decimal("10"), Decimal("3")))
         self.assertEqual(len(vault.fake_client.account_calls), 2)
 
+    def test_duplicate_coinbase_wallet_uuid_across_pages_cannot_double_cash(self):
+        vault = FakeVault()
+        calls = []
+        def overlapping(**kwargs):
+            calls.append(kwargs)
+            wallet = {
+                "uuid": "same-wallet",
+                "currency": "USDC",
+                "available_balance": {"value": "500"},
+                "hold": {"value": "0"},
+            }
+            if kwargs.get("cursor"):
+                return FakeResponse({"accounts": [wallet], "has_next": False})
+            return FakeResponse({
+                "accounts": [wallet], "has_next": True, "cursor": "next"})
+        vault.fake_client.get_accounts = overlapping
+        with self.assertRaisesRegex(RuntimeError, "repeated a wallet UUID"):
+            AdvancedTradeSpot(vault).status()
+        self.assertEqual(len(calls), 2)
+
+    def test_distinct_coinbase_wallet_uuids_still_aggregate_same_currency(self):
+        vault = FakeVault()
+        def distinct(**kwargs):
+            if kwargs.get("cursor"):
+                return FakeResponse({"accounts": [{
+                    "uuid": "wallet-two", "currency": "USDC",
+                    "available_balance": {"value": "4"},
+                    "hold": {"value": "1"},
+                }], "has_next": False})
+            return FakeResponse({"accounts": [{
+                "uuid": "wallet-one", "currency": "USDC",
+                "available_balance": {"value": "6"},
+                "hold": {"value": "2"},
+            }], "has_next": True, "cursor": "next"})
+        vault.fake_client.get_accounts = distinct
+        balances = AdvancedTradeSpot(vault).status().balances
+        usdc = next(b for b in balances if b.currency == "USDC")
+        self.assertEqual(usdc.available, Decimal("10"))
+        self.assertEqual(usdc.hold, Decimal("3"))
+
     def test_accounts_missing_next_cursor_block_partial_wallet_view(self):
         vault = FakeVault()
         vault.fake_client.get_accounts = lambda **kwargs: FakeResponse({
