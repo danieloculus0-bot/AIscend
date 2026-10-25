@@ -301,14 +301,18 @@ class AdvancedSpotEngine:
         scope_reader = getattr(self.rail, "account_scope_id", None)
         try:
             scope_before = scope_reader() if callable(scope_reader) else None
-        except Exception:
-            scope_before = None
+        except Exception as exc:
+            raise RuntimeError(
+                "Coinbase credential identity unavailable before account snapshot"
+            ) from exc
         status = self.rail.status()
         # A fingerprint alone is not authentication: status() must succeed.
         try:
             authenticated_scope = scope_reader() if callable(scope_reader) else None
-        except Exception:
-            authenticated_scope = None
+        except Exception as exc:
+            raise RuntimeError(
+                "Coinbase credential identity unavailable after account snapshot"
+            ) from exc
         if callable(scope_reader) and scope_before != authenticated_scope:
             raise RuntimeError(
                 "Coinbase credential identity changed during authenticated "
