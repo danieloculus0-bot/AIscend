@@ -228,6 +228,8 @@ class PrimaryLiveTests(unittest.TestCase):
                 "ACCOUNT_HISTORY_UNVERIFIED")
             plan = json.loads(self.store.get_meta("primary_trade_plan_latest"))
             self.assertIsNone(plan["winner"])
+            self.assertFalse(plan["order_attempted"])
+            self.assertFalse(self.store.get_meta("pending_coinbase_order"))
             self.assertEqual(
                 plan["account_history_gate"], "AUTHENTICATED_HISTORY_UNVERIFIED")
 
