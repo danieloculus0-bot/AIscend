@@ -1,0 +1,30 @@
+{
+  "schema": "aiscend.bean.learning_summary_artifacts.v1",
+  "counts": {
+    "provenance": 8,
+    "outcomes": 42,
+    "checkpoints": 21
+  },
+  "files": {
+    ".gitignore": {
+      "bytes": 24,
+      "sha256": "ae144a1a8917e76b36ea6dc04eef2336730bce73418013a101cac4c29fdaad28"
+    },
+    "README.md": {
+      "bytes": 4594,
+      "sha256": "36f58dc0d88787cecedcde12247abcf47d25cc16ed88cc2ee11ff991cb4f569f"
+    },
+    "build_summary.py": {
+      "bytes": 8583,
+      "sha256": "5aee5c9388630dcb86daee263b1e15f24e1b4b4294763ff2a858968da6199f78"
+    },
+    "learning_outcomes.sqlite3.gz": {
+      "bytes": 11375,
+      "sha256": "ef5b25babb3245bcc79e55a6a06557ca2455de6412055387865c1d66f810c5b9"
+    },
+    "source_summary.json": {
+      "bytes": 54039,
+      "sha256": "323db19a6e68813990754ff23195a7c167aaacb4b0cdeb0f805f199b23965657"
+    }
+  }
+}
