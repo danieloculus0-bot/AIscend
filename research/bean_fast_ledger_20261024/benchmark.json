@@ -28,7 +28,7 @@
     "rows": 224
   },
   "teaching_rows_timed": 2688,
-  "reference_seconds": 0.44440144399999326,
-  "fast_seconds": 0.0402412959999765,
-  "teaching_speedup": 11.04341778655073
+  "reference_seconds": 0.33340215399999806,
+  "fast_seconds": 0.029851951000011923,
+  "teaching_speedup": 11.168521414223978
 }
