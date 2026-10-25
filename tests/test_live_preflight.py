@@ -84,6 +84,45 @@ class ReleasePreflightTests(unittest.TestCase):
         self.assertFalse(blocked["execution_ready"])
         self.assertIn("COINBASE_FILL_HISTORY_INCOMPLETE", blocked["blockers"])
 
+    def test_preflight_rejects_key_rotation_during_authenticated_fill_read(self):
+        class RotatingHistorySpot(Spot):
+            def __init__(self):
+                super().__init__()
+                self.scope = "a" * 64
+            def account_scope_id(self):
+                return self.scope
+            def account_fills(self):
+                self.scope = "b" * 64
+                return {"complete": True, "fills": []}
+        result = inspect_advanced(
+            vault=Key(), rail=RotatingHistorySpot(),
+            db_path=self.path, require_history=True)
+        self.assertFalse(result["execution_ready"])
+        self.assertIn("COINBASE_ACCOUNT_SCOPE_CHANGED_DURING_PREFLIGHT",
+                      result["blockers"])
+        self.assertTrue(result["read_only"])
+        self.assertFalse(result["placed_orders"])
+
+    def test_preflight_rejects_key_rotation_between_balance_and_history(self):
+        class RotatingStatusSpot(Spot):
+            def __init__(self):
+                super().__init__()
+                self.scope = "a" * 64
+            def account_scope_id(self):
+                return self.scope
+            def status(self):
+                status = super().status()
+                self.scope = "b" * 64
+                return status
+            def account_fills(self):
+                return {"complete": True, "fills": []}
+        result = inspect_advanced(
+            vault=Key(), rail=RotatingStatusSpot(),
+            db_path=self.path, require_history=True)
+        self.assertFalse(result["execution_ready"])
+        self.assertIn("COINBASE_ACCOUNT_SCOPE_CHANGED_DURING_PREFLIGHT",
+                      result["blockers"])
+
     def test_python_live_start_rejects_missing_credential_identity_and_reader(self):
         result = inspect_advanced(vault=Key(), rail=self.spot,
                                   db_path=self.path, require_history=True)
