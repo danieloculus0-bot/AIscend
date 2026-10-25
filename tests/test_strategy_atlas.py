@@ -1,5 +1,6 @@
 from __future__ import annotations
 import copy
+from contextlib import closing
 import gzip
 import hashlib
 import importlib.util
@@ -95,7 +96,7 @@ class AtlasTests(unittest.TestCase):
         append_experiment(self.db,base)
         self.assertEqual(recall_experiments(self.db,as_of=39),[])
         self.assertEqual(recall_experiments(self.db,as_of=40)[0]["result"],"NEGATIVE")
-        with sqlite3.connect(self.db) as con:
+        with closing(sqlite3.connect(self.db)) as con, con:
             with self.assertRaises(sqlite3.IntegrityError):con.execute("DELETE FROM experiment_events")
             con.execute("DROP TRIGGER no_experiment_update")
             con.execute("UPDATE experiment_events SET record_json='{}'")
