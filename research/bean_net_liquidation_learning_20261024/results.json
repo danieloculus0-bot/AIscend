@@ -1,0 +1,2333 @@
+{
+  "protocol": {
+    "schema": "aiscend.bean.net_liquidation_learning.v1",
+    "scope": "ALREADY_SEEN_DEVELOPMENT_HISTORY",
+    "source_protocol_sha256": "f33a05474f455f3c74ba49d176c8e142b550e02c6f55ed587987d4b89a1b93ef",
+    "control_protocol_sha256": "c1a4f450623b6ceca85e7ee33a7a2f022c236cf2f82c04570490c432f09bff85",
+    "core_revision": "887935ae816b4ce6175c6cde54d749f0e5cf3268",
+    "implementation": {
+      "src/bean_net_liquidation_learning.py": "ccfcd2a42918ce34ebc997597e770f163931ff717218a8da429184fb6a36045f",
+      "src/bean_route_values.py": "f1df2bdbda2cfe6dd925b7b72338f52cf76746f37d9bc9f002ff2d0aaa55b82c",
+      "src/bean_action_aliases.py": "3c1de899cd39bffeb7733261ead5f2d470be33371d54f6c88e3c7ae61569d34b",
+      "src/bean_training_batches.py": "ee0b9d5eaf279f34ec08cb5a0be0a8e51d26a4d86ded00155bf19b5cfe5c092c"
+    },
+    "objective": "100 log of future net-liquidation equity divided by current net-liquidation equity. Current orders and outstanding future exit cost are reconciled; unchanged holding does not pay a new exit fee every period.",
+    "matched_conditions": "Same 47 known inputs, 11 actions, seed41, 1024 updates, 4096 replay, digest_chunks order, alias-consistent inference, $1000 allocation, source periods and modeled costs. Only supervised reward basis changes relative to the frozen alias-control checkpoints.",
+    "promotion": "No automatic activation; later independent evaluation required",
+    "live_orders": false,
+    "protocol_sha256": "60244093ada84d7b2209c0db2f0b04d09e809d40adfeb91c7a4512880ab69505"
+  },
+  "results": [
+    {
+      "fold": 0,
+      "year": "2023",
+      "control_alias_consistent_gross_reward": {
+        "label": "fold-0/consistent_aliases",
+        "starting_equity": 1000.0,
+        "ending_equity": 908.7467767470052,
+        "net_return": -0.09125322325299479,
+        "portfolio_daily_close_drawdown": 0.12446866397269596,
+        "paid_costs": 60.22491707024126,
+        "orders": 97,
+        "action_counts": {
+          "risk_scaled_trend": 38,
+          "hold": 80,
+          "cash": 39,
+          "buy_hold": 9,
+          "donchian_breakout": 9,
+          "bollinger_revert": 1
+        },
+        "state": {
+          "weights_sha256": "bfe23a2a61f59483dc1f11c504c9ad72feab0a3694deb0499fc4831ee02d2fae",
+          "updates": 1024,
+          "cutoff": 1680307200,
+          "value_convention": "consistent_aliases"
+        },
+        "forecast_cases": [],
+        "marks_sha256": "79e5df7a5af6e2f56c661c669b2bd965ee818db890a4ffacb543116127f75293",
+        "scope": "Eight surviving example instruments, funded $1000 split equally; already inspected development history"
+      },
+      "net_liquidation_reward": {
+        "label": "fold-0/net_liquidation_learning",
+        "starting_equity": 1000.0,
+        "ending_equity": 912.4806390111474,
+        "net_return": -0.0875193609888526,
+        "portfolio_daily_close_drawdown": 0.10681961385749517,
+        "paid_costs": 41.33412448764693,
+        "orders": 59,
+        "action_counts": {
+          "hold": 114,
+          "risk_scaled_trend": 18,
+          "cash": 26,
+          "buy_hold": 9,
+          "donchian_breakout": 9
+        },
+        "state": {
+          "updates": 1024,
+          "frames": 23232,
+          "weights_sha256": "b2926b2bb4caee0d42ef1b214a85472f3475a3d670faa70a7299dbb42ffceae2",
+          "replay": 4096,
+          "cutoff": 1680307200
+        },
+        "forecast_cases": [],
+        "marks_sha256": "ffc57c37701fc6f76ca2d31d7ae730ad133a575621d551e59bf5f930a3befc81",
+        "scope": "Eight surviving example instruments, funded $1000 split equally; already inspected development history"
+      },
+      "reward_change_effect_on_net_return": 0.003733862264142185,
+      "coverage": {
+        "updates": 1024,
+        "last_loss": 3.7453784942626953,
+        "sampled_replay_entries": 21048,
+        "distinct_source_examples_sampled": 21048,
+        "available_replay_entries": 4096,
+        "discarded_before_training": 994,
+        "evicted_total": 19136,
+        "digestion": {
+          "items": 23232,
+          "transitions": 23232,
+          "gradient_updates": 1024,
+          "cohort_count": 91,
+          "items_per_cohort_max": 256,
+          "receipts": [
+            {
+              "items_through": 256,
+              "frames_through": 256,
+              "updates_through": 11
+            },
+            {
+              "items_through": 512,
+              "frames_through": 512,
+              "updates_through": 22
+            },
+            {
+              "items_through": 768,
+              "frames_through": 768,
+              "updates_through": 33
+            },
+            {
+              "items_through": 1024,
+              "frames_through": 1024,
+              "updates_through": 45
+            },
+            {
+              "items_through": 1280,
+              "frames_through": 1280,
+              "updates_through": 56
+            },
+            {
+              "items_through": 1536,
+              "frames_through": 1536,
+              "updates_through": 67
+            },
+            {
+              "items_through": 1792,
+              "frames_through": 1792,
+              "updates_through": 78
+            },
+            {
+              "items_through": 2048,
+              "frames_through": 2048,
+              "updates_through": 90
+            },
+            {
+              "items_through": 2304,
+              "frames_through": 2304,
+              "updates_through": 101
+            },
+            {
+              "items_through": 2560,
+              "frames_through": 2560,
+              "updates_through": 112
+            },
+            {
+              "items_through": 2816,
+              "frames_through": 2816,
+              "updates_through": 123
+            },
+            {
+              "items_through": 3072,
+              "frames_through": 3072,
+              "updates_through": 135
+            },
+            {
+              "items_through": 3328,
+              "frames_through": 3328,
+              "updates_through": 146
+            },
+            {
+              "items_through": 3584,
+              "frames_through": 3584,
+              "updates_through": 157
+            },
+            {
+              "items_through": 3840,
+              "frames_through": 3840,
+              "updates_through": 168
+            },
+            {
+              "items_through": 4096,
+              "frames_through": 4096,
+              "updates_through": 180
+            },
+            {
+              "items_through": 4352,
+              "frames_through": 4352,
+              "updates_through": 191
+            },
+            {
+              "items_through": 4608,
+              "frames_through": 4608,
+              "updates_through": 202
+            },
+            {
+              "items_through": 4864,
+              "frames_through": 4864,
+              "updates_through": 213
+            },
+            {
+              "items_through": 5120,
+              "frames_through": 5120,
+              "updates_through": 225
+            },
+            {
+              "items_through": 5376,
+              "frames_through": 5376,
+              "updates_through": 236
+            },
+            {
+              "items_through": 5632,
+              "frames_through": 5632,
+              "updates_through": 247
+            },
+            {
+              "items_through": 5888,
+              "frames_through": 5888,
+              "updates_through": 258
+            },
+            {
+              "items_through": 6144,
+              "frames_through": 6144,
+              "updates_through": 270
+            },
+            {
+              "items_through": 6400,
+              "frames_through": 6400,
+              "updates_through": 281
+            },
+            {
+              "items_through": 6656,
+              "frames_through": 6656,
+              "updates_through": 292
+            },
+            {
+              "items_through": 6912,
+              "frames_through": 6912,
+              "updates_through": 303
+            },
+            {
+              "items_through": 7168,
+              "frames_through": 7168,
+              "updates_through": 315
+            },
+            {
+              "items_through": 7424,
+              "frames_through": 7424,
+              "updates_through": 326
+            },
+            {
+              "items_through": 7680,
+              "frames_through": 7680,
+              "updates_through": 337
+            },
+            {
+              "items_through": 7936,
+              "frames_through": 7936,
+              "updates_through": 348
+            },
+            {
+              "items_through": 8192,
+              "frames_through": 8192,
+              "updates_through": 360
+            },
+            {
+              "items_through": 8448,
+              "frames_through": 8448,
+              "updates_through": 371
+            },
+            {
+              "items_through": 8704,
+              "frames_through": 8704,
+              "updates_through": 382
+            },
+            {
+              "items_through": 8960,
+              "frames_through": 8960,
+              "updates_through": 393
+            },
+            {
+              "items_through": 9216,
+              "frames_through": 9216,
+              "updates_through": 405
+            },
+            {
+              "items_through": 9472,
+              "frames_through": 9472,
+              "updates_through": 416
+            },
+            {
+              "items_through": 9728,
+              "frames_through": 9728,
+              "updates_through": 427
+            },
+            {
+              "items_through": 9984,
+              "frames_through": 9984,
+              "updates_through": 438
+            },
+            {
+              "items_through": 10240,
+              "frames_through": 10240,
+              "updates_through": 450
+            },
+            {
+              "items_through": 10496,
+              "frames_through": 10496,
+              "updates_through": 461
+            },
+            {
+              "items_through": 10752,
+              "frames_through": 10752,
+              "updates_through": 472
+            },
+            {
+              "items_through": 11008,
+              "frames_through": 11008,
+              "updates_through": 483
+            },
+            {
+              "items_through": 11264,
+              "frames_through": 11264,
+              "updates_through": 495
+            },
+            {
+              "items_through": 11520,
+              "frames_through": 11520,
+              "updates_through": 506
+            },
+            {
+              "items_through": 11776,
+              "frames_through": 11776,
+              "updates_through": 517
+            },
+            {
+              "items_through": 12032,
+              "frames_through": 12032,
+              "updates_through": 528
+            },
+            {
+              "items_through": 12288,
+              "frames_through": 12288,
+              "updates_through": 540
+            },
+            {
+              "items_through": 12544,
+              "frames_through": 12544,
+              "updates_through": 551
+            },
+            {
+              "items_through": 12800,
+              "frames_through": 12800,
+              "updates_through": 562
+            },
+            {
+              "items_through": 13056,
+              "frames_through": 13056,
+              "updates_through": 573
+            },
+            {
+              "items_through": 13312,
+              "frames_through": 13312,
+              "updates_through": 585
+            },
+            {
+              "items_through": 13568,
+              "frames_through": 13568,
+              "updates_through": 596
+            },
+            {
+              "items_through": 13824,
+              "frames_through": 13824,
+              "updates_through": 607
+            },
+            {
+              "items_through": 14080,
+              "frames_through": 14080,
+              "updates_through": 618
+            },
+            {
+              "items_through": 14336,
+              "frames_through": 14336,
+              "updates_through": 630
+            },
+            {
+              "items_through": 14592,
+              "frames_through": 14592,
+              "updates_through": 641
+            },
+            {
+              "items_through": 14848,
+              "frames_through": 14848,
+              "updates_through": 652
+            },
+            {
+              "items_through": 15104,
+              "frames_through": 15104,
+              "updates_through": 663
+            },
+            {
+              "items_through": 15360,
+              "frames_through": 15360,
+              "updates_through": 675
+            },
+            {
+              "items_through": 15616,
+              "frames_through": 15616,
+              "updates_through": 686
+            },
+            {
+              "items_through": 15872,
+              "frames_through": 15872,
+              "updates_through": 697
+            },
+            {
+              "items_through": 16128,
+              "frames_through": 16128,
+              "updates_through": 708
+            },
+            {
+              "items_through": 16384,
+              "frames_through": 16384,
+              "updates_through": 720
+            },
+            {
+              "items_through": 16640,
+              "frames_through": 16640,
+              "updates_through": 731
+            },
+            {
+              "items_through": 16896,
+              "frames_through": 16896,
+              "updates_through": 742
+            },
+            {
+              "items_through": 17152,
+              "frames_through": 17152,
+              "updates_through": 753
+            },
+            {
+              "items_through": 17408,
+              "frames_through": 17408,
+              "updates_through": 765
+            },
+            {
+              "items_through": 17664,
+              "frames_through": 17664,
+              "updates_through": 776
+            },
+            {
+              "items_through": 17920,
+              "frames_through": 17920,
+              "updates_through": 787
+            },
+            {
+              "items_through": 18176,
+              "frames_through": 18176,
+              "updates_through": 798
+            },
+            {
+              "items_through": 18432,
+              "frames_through": 18432,
+              "updates_through": 810
+            },
+            {
+              "items_through": 18688,
+              "frames_through": 18688,
+              "updates_through": 821
+            },
+            {
+              "items_through": 18944,
+              "frames_through": 18944,
+              "updates_through": 832
+            },
+            {
+              "items_through": 19200,
+              "frames_through": 19200,
+              "updates_through": 843
+            },
+            {
+              "items_through": 19456,
+              "frames_through": 19456,
+              "updates_through": 855
+            },
+            {
+              "items_through": 19712,
+              "frames_through": 19712,
+              "updates_through": 866
+            },
+            {
+              "items_through": 19968,
+              "frames_through": 19968,
+              "updates_through": 877
+            },
+            {
+              "items_through": 20224,
+              "frames_through": 20224,
+              "updates_through": 888
+            },
+            {
+              "items_through": 20480,
+              "frames_through": 20480,
+              "updates_through": 900
+            },
+            {
+              "items_through": 20736,
+              "frames_through": 20736,
+              "updates_through": 911
+            },
+            {
+              "items_through": 20992,
+              "frames_through": 20992,
+              "updates_through": 922
+            },
+            {
+              "items_through": 21248,
+              "frames_through": 21248,
+              "updates_through": 933
+            },
+            {
+              "items_through": 21504,
+              "frames_through": 21504,
+              "updates_through": 945
+            },
+            {
+              "items_through": 21760,
+              "frames_through": 21760,
+              "updates_through": 956
+            },
+            {
+              "items_through": 22016,
+              "frames_through": 22016,
+              "updates_through": 967
+            },
+            {
+              "items_through": 22272,
+              "frames_through": 22272,
+              "updates_through": 978
+            },
+            {
+              "items_through": 22528,
+              "frames_through": 22528,
+              "updates_through": 990
+            },
+            {
+              "items_through": 22784,
+              "frames_through": 22784,
+              "updates_through": 1001
+            },
+            {
+              "items_through": 23040,
+              "frames_through": 23040,
+              "updates_through": 1012
+            },
+            {
+              "items_through": 23232,
+              "frames_through": 23232,
+              "updates_through": 1024
+            }
+          ],
+          "scope": "training-only; existing development history already inspected"
+        }
+      }
+    },
+    {
+      "fold": 1,
+      "year": "2024",
+      "control_alias_consistent_gross_reward": {
+        "label": "fold-1/consistent_aliases",
+        "starting_equity": 1000.0,
+        "ending_equity": 945.594142566507,
+        "net_return": -0.05440585743349302,
+        "portfolio_daily_close_drawdown": 0.10005444408840836,
+        "paid_costs": 13.747355467279291,
+        "orders": 66,
+        "action_counts": {
+          "risk_scaled_trend": 12,
+          "hold": 113,
+          "donchian_breakout": 42,
+          "cash": 9
+        },
+        "state": {
+          "weights_sha256": "415c2ebc427bfd96983d0d547c42f915b5b6842935fd64f8eddcd00caf3005d2",
+          "updates": 1024,
+          "cutoff": 1711929600,
+          "value_convention": "consistent_aliases"
+        },
+        "forecast_cases": [],
+        "marks_sha256": "49c8eb8958cff461a0d48f40d43d6a12c0b7595ddac401958d08eea7f9b7b6dd",
+        "scope": "Eight surviving example instruments, funded $1000 split equally; already inspected development history"
+      },
+      "net_liquidation_reward": {
+        "label": "fold-1/net_liquidation_learning",
+        "starting_equity": 1000.0,
+        "ending_equity": 972.4873818717231,
+        "net_return": -0.027512618128276878,
+        "portfolio_daily_close_drawdown": 0.0391029380621708,
+        "paid_costs": 4.3739820157686236,
+        "orders": 7,
+        "action_counts": {
+          "buy_hold": 1,
+          "hold": 164,
+          "donchian_breakout": 6,
+          "cash": 3,
+          "risk_scaled_trend": 2
+        },
+        "state": {
+          "updates": 1024,
+          "frames": 35376,
+          "weights_sha256": "6bdbb3fa8646c4a12d82976f5b7aed2c06148c1844833d54829bc52c168d2b40",
+          "replay": 4096,
+          "cutoff": 1711929600
+        },
+        "forecast_cases": [],
+        "marks_sha256": "5b8e67b50e028298dc1ff00947c0f87cf51cff63bc642b1edc3956f05b4b7001",
+        "scope": "Eight surviving example instruments, funded $1000 split equally; already inspected development history"
+      },
+      "reward_change_effect_on_net_return": 0.026893239305216143,
+      "coverage": {
+        "updates": 1024,
+        "last_loss": 3.1878726482391357,
+        "sampled_replay_entries": 29045,
+        "distinct_source_examples_sampled": 29045,
+        "available_replay_entries": 4096,
+        "discarded_before_training": 4740,
+        "evicted_total": 31280,
+        "digestion": {
+          "items": 35376,
+          "transitions": 35376,
+          "gradient_updates": 1024,
+          "cohort_count": 139,
+          "items_per_cohort_max": 256,
+          "receipts": [
+            {
+              "items_through": 256,
+              "frames_through": 256,
+              "updates_through": 7
+            },
+            {
+              "items_through": 512,
+              "frames_through": 512,
+              "updates_through": 14
+            },
+            {
+              "items_through": 768,
+              "frames_through": 768,
+              "updates_through": 22
+            },
+            {
+              "items_through": 1024,
+              "frames_through": 1024,
+              "updates_through": 29
+            },
+            {
+              "items_through": 1280,
+              "frames_through": 1280,
+              "updates_through": 36
+            },
+            {
+              "items_through": 1536,
+              "frames_through": 1536,
+              "updates_through": 44
+            },
+            {
+              "items_through": 1792,
+              "frames_through": 1792,
+              "updates_through": 51
+            },
+            {
+              "items_through": 2048,
+              "frames_through": 2048,
+              "updates_through": 58
+            },
+            {
+              "items_through": 2304,
+              "frames_through": 2304,
+              "updates_through": 66
+            },
+            {
+              "items_through": 2560,
+              "frames_through": 2560,
+              "updates_through": 73
+            },
+            {
+              "items_through": 2816,
+              "frames_through": 2816,
+              "updates_through": 81
+            },
+            {
+              "items_through": 3072,
+              "frames_through": 3072,
+              "updates_through": 88
+            },
+            {
+              "items_through": 3328,
+              "frames_through": 3328,
+              "updates_through": 95
+            },
+            {
+              "items_through": 3584,
+              "frames_through": 3584,
+              "updates_through": 103
+            },
+            {
+              "items_through": 3840,
+              "frames_through": 3840,
+              "updates_through": 110
+            },
+            {
+              "items_through": 4096,
+              "frames_through": 4096,
+              "updates_through": 117
+            },
+            {
+              "items_through": 4352,
+              "frames_through": 4352,
+              "updates_through": 125
+            },
+            {
+              "items_through": 4608,
+              "frames_through": 4608,
+              "updates_through": 132
+            },
+            {
+              "items_through": 4864,
+              "frames_through": 4864,
+              "updates_through": 139
+            },
+            {
+              "items_through": 5120,
+              "frames_through": 5120,
+              "updates_through": 147
+            },
+            {
+              "items_through": 5376,
+              "frames_through": 5376,
+              "updates_through": 154
+            },
+            {
+              "items_through": 5632,
+              "frames_through": 5632,
+              "updates_through": 162
+            },
+            {
+              "items_through": 5888,
+              "frames_through": 5888,
+              "updates_through": 169
+            },
+            {
+              "items_through": 6144,
+              "frames_through": 6144,
+              "updates_through": 176
+            },
+            {
+              "items_through": 6400,
+              "frames_through": 6400,
+              "updates_through": 184
+            },
+            {
+              "items_through": 6656,
+              "frames_through": 6656,
+              "updates_through": 191
+            },
+            {
+              "items_through": 6912,
+              "frames_through": 6912,
+              "updates_through": 198
+            },
+            {
+              "items_through": 7168,
+              "frames_through": 7168,
+              "updates_through": 206
+            },
+            {
+              "items_through": 7424,
+              "frames_through": 7424,
+              "updates_through": 213
+            },
+            {
+              "items_through": 7680,
+              "frames_through": 7680,
+              "updates_through": 221
+            },
+            {
+              "items_through": 7936,
+              "frames_through": 7936,
+              "updates_through": 228
+            },
+            {
+              "items_through": 8192,
+              "frames_through": 8192,
+              "updates_through": 235
+            },
+            {
+              "items_through": 8448,
+              "frames_through": 8448,
+              "updates_through": 243
+            },
+            {
+              "items_through": 8704,
+              "frames_through": 8704,
+              "updates_through": 250
+            },
+            {
+              "items_through": 8960,
+              "frames_through": 8960,
+              "updates_through": 257
+            },
+            {
+              "items_through": 9216,
+              "frames_through": 9216,
+              "updates_through": 265
+            },
+            {
+              "items_through": 9472,
+              "frames_through": 9472,
+              "updates_through": 272
+            },
+            {
+              "items_through": 9728,
+              "frames_through": 9728,
+              "updates_through": 279
+            },
+            {
+              "items_through": 9984,
+              "frames_through": 9984,
+              "updates_through": 287
+            },
+            {
+              "items_through": 10240,
+              "frames_through": 10240,
+              "updates_through": 294
+            },
+            {
+              "items_through": 10496,
+              "frames_through": 10496,
+              "updates_through": 302
+            },
+            {
+              "items_through": 10752,
+              "frames_through": 10752,
+              "updates_through": 309
+            },
+            {
+              "items_through": 11008,
+              "frames_through": 11008,
+              "updates_through": 316
+            },
+            {
+              "items_through": 11264,
+              "frames_through": 11264,
+              "updates_through": 324
+            },
+            {
+              "items_through": 11520,
+              "frames_through": 11520,
+              "updates_through": 331
+            },
+            {
+              "items_through": 11776,
+              "frames_through": 11776,
+              "updates_through": 338
+            },
+            {
+              "items_through": 12032,
+              "frames_through": 12032,
+              "updates_through": 346
+            },
+            {
+              "items_through": 12288,
+              "frames_through": 12288,
+              "updates_through": 353
+            },
+            {
+              "items_through": 12544,
+              "frames_through": 12544,
+              "updates_through": 360
+            },
+            {
+              "items_through": 12800,
+              "frames_through": 12800,
+              "updates_through": 368
+            },
+            {
+              "items_through": 13056,
+              "frames_through": 13056,
+              "updates_through": 375
+            },
+            {
+              "items_through": 13312,
+              "frames_through": 13312,
+              "updates_through": 383
+            },
+            {
+              "items_through": 13568,
+              "frames_through": 13568,
+              "updates_through": 390
+            },
+            {
+              "items_through": 13824,
+              "frames_through": 13824,
+              "updates_through": 397
+            },
+            {
+              "items_through": 14080,
+              "frames_through": 14080,
+              "updates_through": 405
+            },
+            {
+              "items_through": 14336,
+              "frames_through": 14336,
+              "updates_through": 412
+            },
+            {
+              "items_through": 14592,
+              "frames_through": 14592,
+              "updates_through": 419
+            },
+            {
+              "items_through": 14848,
+              "frames_through": 14848,
+              "updates_through": 427
+            },
+            {
+              "items_through": 15104,
+              "frames_through": 15104,
+              "updates_through": 434
+            },
+            {
+              "items_through": 15360,
+              "frames_through": 15360,
+              "updates_through": 442
+            },
+            {
+              "items_through": 15616,
+              "frames_through": 15616,
+              "updates_through": 449
+            },
+            {
+              "items_through": 15872,
+              "frames_through": 15872,
+              "updates_through": 456
+            },
+            {
+              "items_through": 16128,
+              "frames_through": 16128,
+              "updates_through": 464
+            },
+            {
+              "items_through": 16384,
+              "frames_through": 16384,
+              "updates_through": 471
+            },
+            {
+              "items_through": 16640,
+              "frames_through": 16640,
+              "updates_through": 478
+            },
+            {
+              "items_through": 16896,
+              "frames_through": 16896,
+              "updates_through": 486
+            },
+            {
+              "items_through": 17152,
+              "frames_through": 17152,
+              "updates_through": 493
+            },
+            {
+              "items_through": 17408,
+              "frames_through": 17408,
+              "updates_through": 500
+            },
+            {
+              "items_through": 17664,
+              "frames_through": 17664,
+              "updates_through": 508
+            },
+            {
+              "items_through": 17920,
+              "frames_through": 17920,
+              "updates_through": 515
+            },
+            {
+              "items_through": 18176,
+              "frames_through": 18176,
+              "updates_through": 523
+            },
+            {
+              "items_through": 18432,
+              "frames_through": 18432,
+              "updates_through": 530
+            },
+            {
+              "items_through": 18688,
+              "frames_through": 18688,
+              "updates_through": 537
+            },
+            {
+              "items_through": 18944,
+              "frames_through": 18944,
+              "updates_through": 545
+            },
+            {
+              "items_through": 19200,
+              "frames_through": 19200,
+              "updates_through": 552
+            },
+            {
+              "items_through": 19456,
+              "frames_through": 19456,
+              "updates_through": 559
+            },
+            {
+              "items_through": 19712,
+              "frames_through": 19712,
+              "updates_through": 567
+            },
+            {
+              "items_through": 19968,
+              "frames_through": 19968,
+              "updates_through": 574
+            },
+            {
+              "items_through": 20224,
+              "frames_through": 20224,
+              "updates_through": 581
+            },
+            {
+              "items_through": 20480,
+              "frames_through": 20480,
+              "updates_through": 589
+            },
+            {
+              "items_through": 20736,
+              "frames_through": 20736,
+              "updates_through": 596
+            },
+            {
+              "items_through": 20992,
+              "frames_through": 20992,
+              "updates_through": 604
+            },
+            {
+              "items_through": 21248,
+              "frames_through": 21248,
+              "updates_through": 611
+            },
+            {
+              "items_through": 21504,
+              "frames_through": 21504,
+              "updates_through": 618
+            },
+            {
+              "items_through": 21760,
+              "frames_through": 21760,
+              "updates_through": 626
+            },
+            {
+              "items_through": 22016,
+              "frames_through": 22016,
+              "updates_through": 633
+            },
+            {
+              "items_through": 22272,
+              "frames_through": 22272,
+              "updates_through": 640
+            },
+            {
+              "items_through": 22528,
+              "frames_through": 22528,
+              "updates_through": 648
+            },
+            {
+              "items_through": 22784,
+              "frames_through": 22784,
+              "updates_through": 655
+            },
+            {
+              "items_through": 23040,
+              "frames_through": 23040,
+              "updates_through": 663
+            },
+            {
+              "items_through": 23296,
+              "frames_through": 23296,
+              "updates_through": 670
+            },
+            {
+              "items_through": 23552,
+              "frames_through": 23552,
+              "updates_through": 677
+            },
+            {
+              "items_through": 23808,
+              "frames_through": 23808,
+              "updates_through": 685
+            },
+            {
+              "items_through": 24064,
+              "frames_through": 24064,
+              "updates_through": 692
+            },
+            {
+              "items_through": 24320,
+              "frames_through": 24320,
+              "updates_through": 699
+            },
+            {
+              "items_through": 24576,
+              "frames_through": 24576,
+              "updates_through": 707
+            },
+            {
+              "items_through": 24832,
+              "frames_through": 24832,
+              "updates_through": 714
+            },
+            {
+              "items_through": 25088,
+              "frames_through": 25088,
+              "updates_through": 721
+            },
+            {
+              "items_through": 25344,
+              "frames_through": 25344,
+              "updates_through": 729
+            },
+            {
+              "items_through": 25600,
+              "frames_through": 25600,
+              "updates_through": 736
+            },
+            {
+              "items_through": 25856,
+              "frames_through": 25856,
+              "updates_through": 744
+            },
+            {
+              "items_through": 26112,
+              "frames_through": 26112,
+              "updates_through": 751
+            },
+            {
+              "items_through": 26368,
+              "frames_through": 26368,
+              "updates_through": 758
+            },
+            {
+              "items_through": 26624,
+              "frames_through": 26624,
+              "updates_through": 766
+            },
+            {
+              "items_through": 26880,
+              "frames_through": 26880,
+              "updates_through": 773
+            },
+            {
+              "items_through": 27136,
+              "frames_through": 27136,
+              "updates_through": 780
+            },
+            {
+              "items_through": 27392,
+              "frames_through": 27392,
+              "updates_through": 788
+            },
+            {
+              "items_through": 27648,
+              "frames_through": 27648,
+              "updates_through": 795
+            },
+            {
+              "items_through": 27904,
+              "frames_through": 27904,
+              "updates_through": 802
+            },
+            {
+              "items_through": 28160,
+              "frames_through": 28160,
+              "updates_through": 810
+            },
+            {
+              "items_through": 28416,
+              "frames_through": 28416,
+              "updates_through": 817
+            },
+            {
+              "items_through": 28672,
+              "frames_through": 28672,
+              "updates_through": 825
+            },
+            {
+              "items_through": 28928,
+              "frames_through": 28928,
+              "updates_through": 832
+            },
+            {
+              "items_through": 29184,
+              "frames_through": 29184,
+              "updates_through": 839
+            },
+            {
+              "items_through": 29440,
+              "frames_through": 29440,
+              "updates_through": 847
+            },
+            {
+              "items_through": 29696,
+              "frames_through": 29696,
+              "updates_through": 854
+            },
+            {
+              "items_through": 29952,
+              "frames_through": 29952,
+              "updates_through": 861
+            },
+            {
+              "items_through": 30208,
+              "frames_through": 30208,
+              "updates_through": 869
+            },
+            {
+              "items_through": 30464,
+              "frames_through": 30464,
+              "updates_through": 876
+            },
+            {
+              "items_through": 30720,
+              "frames_through": 30720,
+              "updates_through": 884
+            },
+            {
+              "items_through": 30976,
+              "frames_through": 30976,
+              "updates_through": 891
+            },
+            {
+              "items_through": 31232,
+              "frames_through": 31232,
+              "updates_through": 898
+            },
+            {
+              "items_through": 31488,
+              "frames_through": 31488,
+              "updates_through": 906
+            },
+            {
+              "items_through": 31744,
+              "frames_through": 31744,
+              "updates_through": 913
+            },
+            {
+              "items_through": 32000,
+              "frames_through": 32000,
+              "updates_through": 920
+            },
+            {
+              "items_through": 32256,
+              "frames_through": 32256,
+              "updates_through": 928
+            },
+            {
+              "items_through": 32512,
+              "frames_through": 32512,
+              "updates_through": 935
+            },
+            {
+              "items_through": 32768,
+              "frames_through": 32768,
+              "updates_through": 942
+            },
+            {
+              "items_through": 33024,
+              "frames_through": 33024,
+              "updates_through": 950
+            },
+            {
+              "items_through": 33280,
+              "frames_through": 33280,
+              "updates_through": 957
+            },
+            {
+              "items_through": 33536,
+              "frames_through": 33536,
+              "updates_through": 965
+            },
+            {
+              "items_through": 33792,
+              "frames_through": 33792,
+              "updates_through": 972
+            },
+            {
+              "items_through": 34048,
+              "frames_through": 34048,
+              "updates_through": 979
+            },
+            {
+              "items_through": 34304,
+              "frames_through": 34304,
+              "updates_through": 987
+            },
+            {
+              "items_through": 34560,
+              "frames_through": 34560,
+              "updates_through": 994
+            },
+            {
+              "items_through": 34816,
+              "frames_through": 34816,
+              "updates_through": 1001
+            },
+            {
+              "items_through": 35072,
+              "frames_through": 35072,
+              "updates_through": 1009
+            },
+            {
+              "items_through": 35328,
+              "frames_through": 35328,
+              "updates_through": 1016
+            },
+            {
+              "items_through": 35376,
+              "frames_through": 35376,
+              "updates_through": 1024
+            }
+          ],
+          "scope": "training-only; existing development history already inspected"
+        }
+      }
+    },
+    {
+      "fold": 2,
+      "year": "2025",
+      "control_alias_consistent_gross_reward": {
+        "label": "fold-2/consistent_aliases",
+        "starting_equity": 1000.0,
+        "ending_equity": 1171.914598354601,
+        "net_return": 0.17191459835460088,
+        "portfolio_daily_close_drawdown": 0.12208747635937633,
+        "paid_costs": 17.89501691509607,
+        "orders": 18,
+        "action_counts": {
+          "hold": 153,
+          "buy_hold": 5,
+          "risk_scaled_trend": 5,
+          "cash": 8,
+          "donchian_breakout": 5
+        },
+        "state": {
+          "weights_sha256": "bb28cd7153536f36607513c7d9c3c26cc682a4ccfa0bdc44d831cbef79736ca4",
+          "updates": 1024,
+          "cutoff": 1743465600,
+          "value_convention": "consistent_aliases"
+        },
+        "forecast_cases": [],
+        "marks_sha256": "395a73b756c2131925473a569915ee5315e7fbb5b6f0c8b8d475cd543877e5f3",
+        "scope": "Eight surviving example instruments, funded $1000 split equally; already inspected development history"
+      },
+      "net_liquidation_reward": {
+        "label": "fold-2/net_liquidation_learning",
+        "starting_equity": 1000.0,
+        "ending_equity": 985.8919541452973,
+        "net_return": -0.014108045854702711,
+        "portfolio_daily_close_drawdown": 0.03281227427395861,
+        "paid_costs": 2.9011952743569553,
+        "orders": 8,
+        "action_counts": {
+          "hold": 161,
+          "risk_scaled_trend": 3,
+          "cash": 9,
+          "donchian_breakout": 3
+        },
+        "state": {
+          "updates": 1024,
+          "frames": 47520,
+          "weights_sha256": "b69430196f11b2fb30442e88341801b32488df13f99e98ace171942dd61691df",
+          "replay": 4096,
+          "cutoff": 1743465600
+        },
+        "forecast_cases": [],
+        "marks_sha256": "b7d0dd7e007d0668b57db0f52655751560980331809ea8da11c7eaf79694b073",
+        "scope": "Eight surviving example instruments, funded $1000 split equally; already inspected development history"
+      },
+      "reward_change_effect_on_net_return": -0.1860226442093036,
+      "coverage": {
+        "updates": 1024,
+        "last_loss": 4.871461391448975,
+        "sampled_replay_entries": 34781,
+        "distinct_source_examples_sampled": 34781,
+        "available_replay_entries": 4096,
+        "discarded_before_training": 10679,
+        "evicted_total": 43424,
+        "digestion": {
+          "items": 47520,
+          "transitions": 47520,
+          "gradient_updates": 1024,
+          "cohort_count": 186,
+          "items_per_cohort_max": 256,
+          "receipts": [
+            {
+              "items_through": 256,
+              "frames_through": 256,
+              "updates_through": 5
+            },
+            {
+              "items_through": 512,
+              "frames_through": 512,
+              "updates_through": 11
+            },
+            {
+              "items_through": 768,
+              "frames_through": 768,
+              "updates_through": 16
+            },
+            {
+              "items_through": 1024,
+              "frames_through": 1024,
+              "updates_through": 22
+            },
+            {
+              "items_through": 1280,
+              "frames_through": 1280,
+              "updates_through": 27
+            },
+            {
+              "items_through": 1536,
+              "frames_through": 1536,
+              "updates_through": 33
+            },
+            {
+              "items_through": 1792,
+              "frames_through": 1792,
+              "updates_through": 38
+            },
+            {
+              "items_through": 2048,
+              "frames_through": 2048,
+              "updates_through": 44
+            },
+            {
+              "items_through": 2304,
+              "frames_through": 2304,
+              "updates_through": 49
+            },
+            {
+              "items_through": 2560,
+              "frames_through": 2560,
+              "updates_through": 55
+            },
+            {
+              "items_through": 2816,
+              "frames_through": 2816,
+              "updates_through": 60
+            },
+            {
+              "items_through": 3072,
+              "frames_through": 3072,
+              "updates_through": 66
+            },
+            {
+              "items_through": 3328,
+              "frames_through": 3328,
+              "updates_through": 71
+            },
+            {
+              "items_through": 3584,
+              "frames_through": 3584,
+              "updates_through": 77
+            },
+            {
+              "items_through": 3840,
+              "frames_through": 3840,
+              "updates_through": 82
+            },
+            {
+              "items_through": 4096,
+              "frames_through": 4096,
+              "updates_through": 88
+            },
+            {
+              "items_through": 4352,
+              "frames_through": 4352,
+              "updates_through": 93
+            },
+            {
+              "items_through": 4608,
+              "frames_through": 4608,
+              "updates_through": 99
+            },
+            {
+              "items_through": 4864,
+              "frames_through": 4864,
+              "updates_through": 104
+            },
+            {
+              "items_through": 5120,
+              "frames_through": 5120,
+              "updates_through": 110
+            },
+            {
+              "items_through": 5376,
+              "frames_through": 5376,
+              "updates_through": 115
+            },
+            {
+              "items_through": 5632,
+              "frames_through": 5632,
+              "updates_through": 121
+            },
+            {
+              "items_through": 5888,
+              "frames_through": 5888,
+              "updates_through": 126
+            },
+            {
+              "items_through": 6144,
+              "frames_through": 6144,
+              "updates_through": 132
+            },
+            {
+              "items_through": 6400,
+              "frames_through": 6400,
+              "updates_through": 137
+            },
+            {
+              "items_through": 6656,
+              "frames_through": 6656,
+              "updates_through": 143
+            },
+            {
+              "items_through": 6912,
+              "frames_through": 6912,
+              "updates_through": 148
+            },
+            {
+              "items_through": 7168,
+              "frames_through": 7168,
+              "updates_through": 154
+            },
+            {
+              "items_through": 7424,
+              "frames_through": 7424,
+              "updates_through": 159
+            },
+            {
+              "items_through": 7680,
+              "frames_through": 7680,
+              "updates_through": 165
+            },
+            {
+              "items_through": 7936,
+              "frames_through": 7936,
+              "updates_through": 170
+            },
+            {
+              "items_through": 8192,
+              "frames_through": 8192,
+              "updates_through": 176
+            },
+            {
+              "items_through": 8448,
+              "frames_through": 8448,
+              "updates_through": 181
+            },
+            {
+              "items_through": 8704,
+              "frames_through": 8704,
+              "updates_through": 187
+            },
+            {
+              "items_through": 8960,
+              "frames_through": 8960,
+              "updates_through": 192
+            },
+            {
+              "items_through": 9216,
+              "frames_through": 9216,
+              "updates_through": 198
+            },
+            {
+              "items_through": 9472,
+              "frames_through": 9472,
+              "updates_through": 203
+            },
+            {
+              "items_through": 9728,
+              "frames_through": 9728,
+              "updates_through": 209
+            },
+            {
+              "items_through": 9984,
+              "frames_through": 9984,
+              "updates_through": 214
+            },
+            {
+              "items_through": 10240,
+              "frames_through": 10240,
+              "updates_through": 220
+            },
+            {
+              "items_through": 10496,
+              "frames_through": 10496,
+              "updates_through": 225
+            },
+            {
+              "items_through": 10752,
+              "frames_through": 10752,
+              "updates_through": 231
+            },
+            {
+              "items_through": 11008,
+              "frames_through": 11008,
+              "updates_through": 236
+            },
+            {
+              "items_through": 11264,
+              "frames_through": 11264,
+              "updates_through": 242
+            },
+            {
+              "items_through": 11520,
+              "frames_through": 11520,
+              "updates_through": 247
+            },
+            {
+              "items_through": 11776,
+              "frames_through": 11776,
+              "updates_through": 253
+            },
+            {
+              "items_through": 12032,
+              "frames_through": 12032,
+              "updates_through": 258
+            },
+            {
+              "items_through": 12288,
+              "frames_through": 12288,
+              "updates_through": 264
+            },
+            {
+              "items_through": 12544,
+              "frames_through": 12544,
+              "updates_through": 269
+            },
+            {
+              "items_through": 12800,
+              "frames_through": 12800,
+              "updates_through": 275
+            },
+            {
+              "items_through": 13056,
+              "frames_through": 13056,
+              "updates_through": 280
+            },
+            {
+              "items_through": 13312,
+              "frames_through": 13312,
+              "updates_through": 286
+            },
+            {
+              "items_through": 13568,
+              "frames_through": 13568,
+              "updates_through": 291
+            },
+            {
+              "items_through": 13824,
+              "frames_through": 13824,
+              "updates_through": 297
+            },
+            {
+              "items_through": 14080,
+              "frames_through": 14080,
+              "updates_through": 302
+            },
+            {
+              "items_through": 14336,
+              "frames_through": 14336,
+              "updates_through": 308
+            },
+            {
+              "items_through": 14592,
+              "frames_through": 14592,
+              "updates_through": 313
+            },
+            {
+              "items_through": 14848,
+              "frames_through": 14848,
+              "updates_through": 319
+            },
+            {
+              "items_through": 15104,
+              "frames_through": 15104,
+              "updates_through": 324
+            },
+            {
+              "items_through": 15360,
+              "frames_through": 15360,
+              "updates_through": 330
+            },
+            {
+              "items_through": 15616,
+              "frames_through": 15616,
+              "updates_through": 335
+            },
+            {
+              "items_through": 15872,
+              "frames_through": 15872,
+              "updates_through": 341
+            },
+            {
+              "items_through": 16128,
+              "frames_through": 16128,
+              "updates_through": 346
+            },
+            {
+              "items_through": 16384,
+              "frames_through": 16384,
+              "updates_through": 352
+            },
+            {
+              "items_through": 16640,
+              "frames_through": 16640,
+              "updates_through": 357
+            },
+            {
+              "items_through": 16896,
+              "frames_through": 16896,
+              "updates_through": 363
+            },
+            {
+              "items_through": 17152,
+              "frames_through": 17152,
+              "updates_through": 368
+            },
+            {
+              "items_through": 17408,
+              "frames_through": 17408,
+              "updates_through": 374
+            },
+            {
+              "items_through": 17664,
+              "frames_through": 17664,
+              "updates_through": 379
+            },
+            {
+              "items_through": 17920,
+              "frames_through": 17920,
+              "updates_through": 385
+            },
+            {
+              "items_through": 18176,
+              "frames_through": 18176,
+              "updates_through": 390
+            },
+            {
+              "items_through": 18432,
+              "frames_through": 18432,
+              "updates_through": 396
+            },
+            {
+              "items_through": 18688,
+              "frames_through": 18688,
+              "updates_through": 401
+            },
+            {
+              "items_through": 18944,
+              "frames_through": 18944,
+              "updates_through": 407
+            },
+            {
+              "items_through": 19200,
+              "frames_through": 19200,
+              "updates_through": 412
+            },
+            {
+              "items_through": 19456,
+              "frames_through": 19456,
+              "updates_through": 418
+            },
+            {
+              "items_through": 19712,
+              "frames_through": 19712,
+              "updates_through": 423
+            },
+            {
+              "items_through": 19968,
+              "frames_through": 19968,
+              "updates_through": 429
+            },
+            {
+              "items_through": 20224,
+              "frames_through": 20224,
+              "updates_through": 434
+            },
+            {
+              "items_through": 20480,
+              "frames_through": 20480,
+              "updates_through": 440
+            },
+            {
+              "items_through": 20736,
+              "frames_through": 20736,
+              "updates_through": 445
+            },
+            {
+              "items_through": 20992,
+              "frames_through": 20992,
+              "updates_through": 451
+            },
+            {
+              "items_through": 21248,
+              "frames_through": 21248,
+              "updates_through": 456
+            },
+            {
+              "items_through": 21504,
+              "frames_through": 21504,
+              "updates_through": 462
+            },
+            {
+              "items_through": 21760,
+              "frames_through": 21760,
+              "updates_through": 467
+            },
+            {
+              "items_through": 22016,
+              "frames_through": 22016,
+              "updates_through": 473
+            },
+            {
+              "items_through": 22272,
+              "frames_through": 22272,
+              "updates_through": 478
+            },
+            {
+              "items_through": 22528,
+              "frames_through": 22528,
+              "updates_through": 484
+            },
+            {
+              "items_through": 22784,
+              "frames_through": 22784,
+              "updates_through": 489
+            },
+            {
+              "items_through": 23040,
+              "frames_through": 23040,
+              "updates_through": 495
+            },
+            {
+              "items_through": 23296,
+              "frames_through": 23296,
+              "updates_through": 500
+            },
+            {
+              "items_through": 23552,
+              "frames_through": 23552,
+              "updates_through": 506
+            },
+            {
+              "items_through": 23808,
+              "frames_through": 23808,
+              "updates_through": 512
+            },
+            {
+              "items_through": 24064,
+              "frames_through": 24064,
+              "updates_through": 517
+            },
+            {
+              "items_through": 24320,
+              "frames_through": 24320,
+              "updates_through": 523
+            },
+            {
+              "items_through": 24576,
+              "frames_through": 24576,
+              "updates_through": 528
+            },
+            {
+              "items_through": 24832,
+              "frames_through": 24832,
+              "updates_through": 534
+            },
+            {
+              "items_through": 25088,
+              "frames_through": 25088,
+              "updates_through": 539
+            },
+            {
+              "items_through": 25344,
+              "frames_through": 25344,
+              "updates_through": 545
+            },
+            {
+              "items_through": 25600,
+              "frames_through": 25600,
+              "updates_through": 550
+            },
+            {
+              "items_through": 25856,
+              "frames_through": 25856,
+              "updates_through": 556
+            },
+            {
+              "items_through": 26112,
+              "frames_through": 26112,
+              "updates_through": 561
+            },
+            {
+              "items_through": 26368,
+              "frames_through": 26368,
+              "updates_through": 567
+            },
+            {
+              "items_through": 26624,
+              "frames_through": 26624,
+              "updates_through": 572
+            },
+            {
+              "items_through": 26880,
+              "frames_through": 26880,
+              "updates_through": 578
+            },
+            {
+              "items_through": 27136,
+              "frames_through": 27136,
+              "updates_through": 583
+            },
+            {
+              "items_through": 27392,
+              "frames_through": 27392,
+              "updates_through": 589
+            },
+            {
+              "items_through": 27648,
+              "frames_through": 27648,
+              "updates_through": 594
+            },
+            {
+              "items_through": 27904,
+              "frames_through": 27904,
+              "updates_through": 600
+            },
+            {
+              "items_through": 28160,
+              "frames_through": 28160,
+              "updates_through": 605
+            },
+            {
+              "items_through": 28416,
+              "frames_through": 28416,
+              "updates_through": 611
+            },
+            {
+              "items_through": 28672,
+              "frames_through": 28672,
+              "updates_through": 616
+            },
+            {
+              "items_through": 28928,
+              "frames_through": 28928,
+              "updates_through": 622
+            },
+            {
+              "items_through": 29184,
+              "frames_through": 29184,
+              "updates_through": 627
+            },
+            {
+              "items_through": 29440,
+              "frames_through": 29440,
+              "updates_through": 633
+            },
+            {
+              "items_through": 29696,
+              "frames_through": 29696,
+              "updates_through": 638
+            },
+            {
+              "items_through": 29952,
+              "frames_through": 29952,
+              "updates_through": 644
+            },
+            {
+              "items_through": 30208,
+              "frames_through": 30208,
+              "updates_through": 649
+            },
+            {
+              "items_through": 30464,
+              "frames_through": 30464,
+              "updates_through": 655
+            },
+            {
+              "items_through": 30720,
+              "frames_through": 30720,
+              "updates_through": 660
+            },
+            {
+              "items_through": 30976,
+              "frames_through": 30976,
+              "updates_through": 666
+            },
+            {
+              "items_through": 31232,
+              "frames_through": 31232,
+              "updates_through": 671
+            },
+            {
+              "items_through": 31488,
+              "frames_through": 31488,
+              "updates_through": 677
+            },
+            {
+              "items_through": 31744,
+              "frames_through": 31744,
+              "updates_through": 682
+            },
+            {
+              "items_through": 32000,
+              "frames_through": 32000,
+              "updates_through": 688
+            },
+            {
+              "items_through": 32256,
+              "frames_through": 32256,
+              "updates_through": 693
+            },
+            {
+              "items_through": 32512,
+              "frames_through": 32512,
+              "updates_through": 699
+            },
+            {
+              "items_through": 32768,
+              "frames_through": 32768,
+              "updates_through": 704
+            },
+            {
+              "items_through": 33024,
+              "frames_through": 33024,
+              "updates_through": 710
+            },
+            {
+              "items_through": 33280,
+              "frames_through": 33280,
+              "updates_through": 715
+            },
+            {
+              "items_through": 33536,
+              "frames_through": 33536,
+              "updates_through": 721
+            },
+            {
+              "items_through": 33792,
+              "frames_through": 33792,
+              "updates_through": 726
+            },
+            {
+              "items_through": 34048,
+              "frames_through": 34048,
+              "updates_through": 732
+            },
+            {
+              "items_through": 34304,
+              "frames_through": 34304,
+              "updates_through": 737
+            },
+            {
+              "items_through": 34560,
+              "frames_through": 34560,
+              "updates_through": 743
+            },
+            {
+              "items_through": 34816,
+              "frames_through": 34816,
+              "updates_through": 748
+            },
+            {
+              "items_through": 35072,
+              "frames_through": 35072,
+              "updates_through": 754
+            },
+            {
+              "items_through": 35328,
+              "frames_through": 35328,
+              "updates_through": 759
+            },
+            {
+              "items_through": 35584,
+              "frames_through": 35584,
+              "updates_through": 765
+            },
+            {
+              "items_through": 35840,
+              "frames_through": 35840,
+              "updates_through": 770
+            },
+            {
+              "items_through": 36096,
+              "frames_through": 36096,
+              "updates_through": 776
+            },
+            {
+              "items_through": 36352,
+              "frames_through": 36352,
+              "updates_through": 781
+            },
+            {
+              "items_through": 36608,
+              "frames_through": 36608,
+              "updates_through": 787
+            },
+            {
+              "items_through": 36864,
+              "frames_through": 36864,
+              "updates_through": 792
+            },
+            {
+              "items_through": 37120,
+              "frames_through": 37120,
+              "updates_through": 798
+            },
+            {
+              "items_through": 37376,
+              "frames_through": 37376,
+              "updates_through": 803
+            },
+            {
+              "items_through": 37632,
+              "frames_through": 37632,
+              "updates_through": 809
+            },
+            {
+              "items_through": 37888,
+              "frames_through": 37888,
+              "updates_through": 814
+            },
+            {
+              "items_through": 38144,
+              "frames_through": 38144,
+              "updates_through": 820
+            },
+            {
+              "items_through": 38400,
+              "frames_through": 38400,
+              "updates_through": 825
+            },
+            {
+              "items_through": 38656,
+              "frames_through": 38656,
+              "updates_through": 831
+            },
+            {
+              "items_through": 38912,
+              "frames_through": 38912,
+              "updates_through": 836
+            },
+            {
+              "items_through": 39168,
+              "frames_through": 39168,
+              "updates_through": 842
+            },
+            {
+              "items_through": 39424,
+              "frames_through": 39424,
+              "updates_through": 847
+            },
+            {
+              "items_through": 39680,
+              "frames_through": 39680,
+              "updates_through": 853
+            },
+            {
+              "items_through": 39936,
+              "frames_through": 39936,
+              "updates_through": 858
+            },
+            {
+              "items_through": 40192,
+              "frames_through": 40192,
+              "updates_through": 864
+            },
+            {
+              "items_through": 40448,
+              "frames_through": 40448,
+              "updates_through": 869
+            },
+            {
+              "items_through": 40704,
+              "frames_through": 40704,
+              "updates_through": 875
+            },
+            {
+              "items_through": 40960,
+              "frames_through": 40960,
+              "updates_through": 880
+            },
+            {
+              "items_through": 41216,
+              "frames_through": 41216,
+              "updates_through": 886
+            },
+            {
+              "items_through": 41472,
+              "frames_through": 41472,
+              "updates_through": 891
+            },
+            {
+              "items_through": 41728,
+              "frames_through": 41728,
+              "updates_through": 897
+            },
+            {
+              "items_through": 41984,
+              "frames_through": 41984,
+              "updates_through": 902
+            },
+            {
+              "items_through": 42240,
+              "frames_through": 42240,
+              "updates_through": 908
+            },
+            {
+              "items_through": 42496,
+              "frames_through": 42496,
+              "updates_through": 913
+            },
+            {
+              "items_through": 42752,
+              "frames_through": 42752,
+              "updates_through": 919
+            },
+            {
+              "items_through": 43008,
+              "frames_through": 43008,
+              "updates_through": 924
+            },
+            {
+              "items_through": 43264,
+              "frames_through": 43264,
+              "updates_through": 930
+            },
+            {
+              "items_through": 43520,
+              "frames_through": 43520,
+              "updates_through": 935
+            },
+            {
+              "items_through": 43776,
+              "frames_through": 43776,
+              "updates_through": 941
+            },
+            {
+              "items_through": 44032,
+              "frames_through": 44032,
+              "updates_through": 946
+            },
+            {
+              "items_through": 44288,
+              "frames_through": 44288,
+              "updates_through": 952
+            },
+            {
+              "items_through": 44544,
+              "frames_through": 44544,
+              "updates_through": 957
+            },
+            {
+              "items_through": 44800,
+              "frames_through": 44800,
+              "updates_through": 963
+            },
+            {
+              "items_through": 45056,
+              "frames_through": 45056,
+              "updates_through": 968
+            },
+            {
+              "items_through": 45312,
+              "frames_through": 45312,
+              "updates_through": 974
+            },
+            {
+              "items_through": 45568,
+              "frames_through": 45568,
+              "updates_through": 979
+            },
+            {
+              "items_through": 45824,
+              "frames_through": 45824,
+              "updates_through": 985
+            },
+            {
+              "items_through": 46080,
+              "frames_through": 46080,
+              "updates_through": 990
+            },
+            {
+              "items_through": 46336,
+              "frames_through": 46336,
+              "updates_through": 996
+            },
+            {
+              "items_through": 46592,
+              "frames_through": 46592,
+              "updates_through": 1001
+            },
+            {
+              "items_through": 46848,
+              "frames_through": 46848,
+              "updates_through": 1007
+            },
+            {
+              "items_through": 47104,
+              "frames_through": 47104,
+              "updates_through": 1012
+            },
+            {
+              "items_through": 47360,
+              "frames_through": 47360,
+              "updates_through": 1018
+            },
+            {
+              "items_through": 47520,
+              "frames_through": 47520,
+              "updates_through": 1024
+            }
+          ],
+          "scope": "training-only; existing development history already inspected"
+        }
+      }
+    }
+  ],
+  "training_cases_reconciled": 47520,
+  "full_states_recovered": 3,
+  "independent_profitability_proven": false,
+  "best_on_market_proven": false,
+  "decision_records": 528,
+  "decision_ledger_tip": "f05b8ad4798028daf758fdcf0e13b703d7dc4180e917bf647b5027f2bbb14ee4",
+  "live_orders": false
+}
