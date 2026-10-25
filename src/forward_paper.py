@@ -118,6 +118,11 @@ def _db(conn):
 
 
 def freeze(conn, *, product, policy, now, fee_bps, spread_bps):
+    # NaN silently bypasses range comparisons and frozen-cost equality checks.
+    # Never persist a nonfinite modeled cost to the paper evidence ledger.
+    if (not math.isfinite(fee_bps) or not math.isfinite(spread_bps)
+            or not 0 <= fee_bps <= 1000 or not 0 <= spread_bps <= 1000):
+        raise ValueError("Invalid modeled trading costs")
     identity = policy_identity(product, policy)
     existing = conn.execute(
         "SELECT policy_sha,fee_bps,spread_bps FROM frozen_policy WHERE product=?",
@@ -138,7 +143,8 @@ def freeze(conn, *, product, policy, now, fee_bps, spread_bps):
 def observe_and_score(*, manifest, db_path=None, fetcher=fetch_5m,
                       clock=time.time, fee_bps=90.0, spread_bps=10.0):
     """Run ONCE using only completed candles; no exchange authentication."""
-    if not 0 <= fee_bps <= 1000 or not 0 <= spread_bps <= 1000:
+    if (not math.isfinite(fee_bps) or not math.isfinite(spread_bps)
+            or not 0 <= fee_bps <= 1000 or not 0 <= spread_bps <= 1000):
         raise ValueError("Invalid modeled trading costs")
     if not isinstance(manifest, list) or not 1 <= len(manifest) <= 20:
         raise ValueError("Supply 1-20 explicitly frozen training candidates")
