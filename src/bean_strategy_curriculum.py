@@ -23,7 +23,6 @@ import numpy as np
 import pandas as pd
 from .strategy_atlas import canonical,digest,utc_seconds,iso_time
 from .bean_causal_simulation import DecisionLedger
-from .bean_training_batches import digest_chunks
 
 DAY=86400;STEP=8;COST=.01
 ACTIONS=('cash','hold','buy_hold','sma_trend','price_trend','donchian_breakout','rsi_pullback','bollinger_revert','bullish_engulf','hammer_rebound','risk_scaled_trend')
@@ -137,10 +136,11 @@ class PatternMemory:
         self.groups=groups
         self.vectors=np.array([x['vector'] for x in groups]);self.rewards=np.array([x['rewards'] for x in groups])
         self.symbols=np.array([x['symbol'] for x in groups]);self.outcomes=np.array([x['outcome_at'] for x in groups])
+        self.label_symbols=np.array([x.get('label_symbol',x['symbol']) for x in groups])
     def query(self,vector,symbol,decision_at,k=32):
         # Only mature examples on other instruments. This avoids retrieving the
         # current instrument's exact past trajectory as its own transfer proof.
-        known=np.flatnonzero((self.symbols!=symbol)&(self.outcomes<=decision_at))
+        known=np.flatnonzero((self.symbols!=symbol)&(self.label_symbols!=symbol)&(self.outcomes<=decision_at))
         if not len(known):return {'count':0,'mean_rewards':[0.]*len(ACTIONS),'max_outcome_at':None}
         distance=np.mean((self.vectors[known]-np.array(vector))**2,axis=1)
         local=np.argsort(distance,kind='stable')[:k];chosen=known[local]
@@ -194,41 +194,31 @@ def run(candles,core,output):
     output.mkdir(parents=True);c=load_candles(candles);features=Features(c);ledger=DecisionLedger(output/'decisions.sqlite3')
     folds=[('2023-04-01T00:00:00Z','2023-10-01T00:00:00Z'),('2024-04-01T00:00:00Z','2024-10-01T00:00:00Z')]
     final_start='2025-04-01T00:00:00Z';final_end='2025-10-01T00:00:00Z'
-    protocol={'schema':'aiscend.bean.strategy_curriculum.v1','scope':'DEVELOPMENT_ONLY_PRIOR_HISTORY_SEEN','actions':list(ACTIONS),'seeds':list(SEEDS),'budgets':list(BUDGETS),'folds':folds,'development_audit':[final_start,final_end],'source_rows_sha256':c.source_hash,'source_code_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),'worker_sha256':hashlib.sha256(Path(__file__).with_name('bean_curriculum_worker.py').read_bytes()).hexdigest(),'core_revision':subprocess.check_output(['git','-C',str(core),'rev-parse','HEAD'],text=True).strip(),'cost_per_side':COST,'initial_equity_per_asset':1000,'decision_step_days':STEP,'execution':'At least one day after feature availability, at next-next bar open; reward only after close of eighth later bar','learner':'Actual BEAN SpongeDQN replay/Adam/Huber, gamma=0 contextual strategy-value regression','teaching':'All actions, cash/half/full initial exposure, all mature positive and negative outcomes within train cutoff; shuffle then alternate <=256 examples per cohort with explicit gradient updates before replay eviction. Independent learner per training budget; no cherry-picked winners','pattern_transfer':'Fixed 75% neural value plus 25% mean reward of 32 nearest mature training patterns on other symbols when at least 16 exist and mean squared normalized distance<=1; else neural values. Expected reward reserve .10 percent log return; otherwise prefer hold/cash. No fitted future scaler.','selection':'Maximize worst of two forward development fold mean net returns; tie mean, lower budget, seed; freeze before development audit','promotion_rule':'Both fold returns positive, development audit positive, beats cash/buy-hold/SMA/Donchian/untrained/pattern-only on audit, worst asset daily-close drawdown<=25%; even a pass is development evidence only','future_promotion':'Require a separately registered new forward or independent dataset evaluation; opened final year cannot count again','narratives':'No point-in-time historical news provided; current headlines excluded','live_orders':False}
+    protocol={'schema':'aiscend.bean.strategy_curriculum.v1','scope':'DEVELOPMENT_ONLY_PRIOR_HISTORY_SEEN','actions':list(ACTIONS),'seeds':list(SEEDS),'budgets':list(BUDGETS),'folds':folds,'development_audit':[final_start,final_end],'source_rows_sha256':c.source_hash,'source_code_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),'worker_sha256':hashlib.sha256(Path(__file__).with_name('bean_curriculum_worker.py').read_bytes()).hexdigest(),'core_revision':subprocess.check_output(['git','-C',str(core),'rev-parse','HEAD'],text=True).strip(),'cost_per_side':COST,'initial_equity_per_asset':1000,'decision_step_days':STEP,'execution':'At least one day after feature availability, at next-next bar open; reward only after close of eighth later bar','learner':'Actual BEAN SpongeDQN replay/Adam/Huber, gamma=0 contextual strategy-value regression','teaching':'All actions, cash/half/full initial exposure, all mature positive and negative outcomes within train cutoff; no cherry-picked winners','pattern_transfer':'Fixed 75% neural value plus 25% mean reward of 32 nearest mature training patterns on other symbols when at least 16 exist and mean squared normalized distance<=1; else neural values. Expected reward reserve .10 percent log return; otherwise prefer hold/cash. No fitted future scaler.','selection':'Maximize worst of two forward development fold mean net returns; tie mean, lower budget, seed; freeze before development audit','promotion_rule':'Both fold returns positive, development audit positive, beats cash/buy-hold/SMA/Donchian/untrained/pattern-only on audit, worst asset daily-close drawdown<=25%; even a pass is development evidence only','future_promotion':'Require a separately registered new forward or independent dataset evaluation; opened final year cannot count again','narratives':'No point-in-time historical news provided; current headlines excluded','live_orders':False}
     protocol['protocol_sha256']=digest(protocol);(output/'protocol.json').write_text(json.dumps(protocol,indent=2)+'\n');ledger.metadata('protocol',protocol)
     trials={(seed,budget):{'seed':seed,'budget':budget,'fold_returns':[],'folds':[]} for seed in SEEDS for budget in BUDGETS};retained=[]
     all_examples,all_groups=build_memory(features,output/'teaching_memory.sqlite3',int(utc_seconds(final_start)))
     for f,(start,end) in enumerate(folds):
         cutoff=int(utc_seconds(start));examples=[x for x in all_examples if x['outcome_at']<=cutoff]
         for seed in SEEDS:
-            order=np.random.default_rng(seed).permutation(len(examples))
-            ordered=[examples[k] for k in order]
-            # Different budgets need distinct learners: do not train a 256-step
-            # candidate on streamed data, then give its 4096-step competitor
-            # only the last replay window.
-            for budget in BUDGETS:
-                name=f'fold-{f}-seed-{seed}-updates-{budget}'
-                filename=name+'.sqlite3'
-                worker=CandleWorker(core,output/filename,len(examples[0]['vector']),seed,cutoff)
-                try:
-                    digestion=digest_chunks(worker,ordered,field='experiences',
-                                            updates=budget,batch_size=256,
-                                            transitions_per_item=1)
+            worker=CandleWorker(core,output/f'fold-{f}-seed-{seed}.sqlite3',len(examples[0]['vector']),seed,cutoff)
+            try:
+                order=np.random.default_rng(seed).permutation(len(examples))
+                for p in range(0,len(order),256):worker.call('teach',experiences=[examples[k] for k in order[p:p+256]])
+                for budget in BUDGETS:
+                    worker.call('train',updates=budget);name=f'fold-{f}-seed-{seed}-updates-{budget}'
                     result=evaluate(features,worker,cutoff,int(utc_seconds(end)),ledger,name,memory=PatternMemory([x for x in all_groups if x['outcome_at']<=cutoff]))
                     worker.call('checkpoint',score=result['equal_weight_mean_return'],samples=result['periods']*len(c.symbols),evaluation_sha256=digest(result),episode=name,protocol_sha256=protocol['protocol_sha256'])
                     trials[(seed,budget)]['fold_returns'].append(result['equal_weight_mean_return']);trials[(seed,budget)]['folds'].append(result)
-                    trials[(seed,budget)].setdefault('digestion_receipts',[]).append(digestion)
-                    retained.append({'id':name,'file':filename+'.gz','knowledge_cutoff':start,'state':worker.call('status'),'economic_qualification':'DEVELOPMENT_ONLY'})
-                finally:worker.close()
+                    retained.append({'id':name,'file':f'fold-{f}-seed-{seed}.sqlite3.gz','knowledge_cutoff':start,'state':worker.call('status'),'economic_qualification':'DEVELOPMENT_ONLY'})
+            finally:worker.close()
     selected=select(list(trials.values()));lock={'selected_seed':selected['seed'],'selected_budget':selected['budget'],'fold_returns':selected['fold_returns'],'protocol_sha256':protocol['protocol_sha256'],'audit_not_yet_opened':True}
     (output/'selection_lock.json').write_text(json.dumps(lock,indent=2)+'\n');ledger.metadata('selection_lock',lock)
     cutoff=int(utc_seconds(final_start));journal=output/'selected.sqlite3';worker=CandleWorker(core,journal,len(all_examples[0]['vector']),selected['seed'],cutoff)
     try:
         order=np.random.default_rng(selected['seed']).permutation(len(all_examples))
-        selected_digestion=digest_chunks(worker,[all_examples[k] for k in order],
-                                         field='experiences',updates=selected['budget'],
-                                         batch_size=256,transitions_per_item=1)
-        before=worker.call('status')
+        for p in range(0,len(order),256):worker.call('teach',experiences=[all_examples[k] for k in order[p:p+256]])
+        worker.call('train',updates=selected['budget']);before=worker.call('status')
         model=evaluate(features,worker,cutoff,int(utc_seconds(final_end)),ledger,'selected/development_audit',memory=PatternMemory(all_groups))
         worker.call('checkpoint',score=model['equal_weight_mean_return'],samples=model['periods']*len(c.symbols),evaluation_sha256=digest(model),episode='selected-development-audit',protocol_sha256=protocol['protocol_sha256'])
         probe=features.vector(len(c.times)-STEP-1,0,0.);probe_time=int(c.times[-STEP-1])+DAY;prediction=worker.call('values',vectors=[probe],decision_at=probe_time)
@@ -244,13 +234,13 @@ def run(candles,core,output):
     try:baselines['same_architecture_untrained']=evaluate(features,cold,cutoff,int(utc_seconds(final_end)),ledger,'baseline/same_architecture_untrained',memory=PatternMemory(all_groups))
     finally:cold.close()
     qualifies=all(r>0 for r in selected['fold_returns']) and model['equal_weight_mean_return']>0 and model['worst_asset_drawdown']<=.25 and all(model['equal_weight_mean_return']>x['equal_weight_mean_return'] for x in baselines.values())
-    report={'schema':'aiscend.bean.curriculum_results.v1','protocol_sha256':protocol['protocol_sha256'],'development_only':True,'trials':list(trials.values()),'selected':lock,'selected_development_audit':model,'baselines':baselines,'development_qualification_passed':qualifies,'restart_verified':restart,'teaching_examples':len(all_examples),'pattern_groups':len(all_groups),'actual_neural_updates_selected':before['updates'],'selected_digestion':selected_digestion,'selected_state':before,'external_profitability_proven':False,'live_orders':False,'decision_records':ledger.seq,'decision_ledger_tip':ledger.tip}
+    report={'schema':'aiscend.bean.curriculum_results.v1','protocol_sha256':protocol['protocol_sha256'],'development_only':True,'trials':list(trials.values()),'selected':lock,'selected_development_audit':model,'baselines':baselines,'development_qualification_passed':qualifies,'restart_verified':restart,'teaching_examples':len(all_examples),'pattern_groups':len(all_groups),'actual_neural_updates_selected':before['updates'],'selected_state':before,'external_profitability_proven':False,'live_orders':False,'decision_records':ledger.seq,'decision_ledger_tip':ledger.tip}
     (output/'results.json').write_text(json.dumps(report,indent=2)+'\n');ledger.metadata('results',report);ledger.close()
     retained.append({'id':'selected','file':'selected.sqlite3.gz','knowledge_cutoff':final_start,'state':before,'economic_qualification':'DEVELOPMENT_PASS_REQUIRES_FRESH_TEST' if qualifies else 'NOT_QUALIFIED','diagnostic_vector':probe,'diagnostic_time':probe_time,'diagnostic_values':prediction})
     for p in output.glob('*.sqlite3'):
         with p.open('rb') as src,gzip.GzipFile(filename=str(p)+'.gz',mode='wb',mtime=0) as dest:shutil.copyfileobj(src,dest)
     for item in retained:item['file_sha256']=hashlib.sha256((output/item['file']).read_bytes()).hexdigest()
-    (output/'retention_manifest.json').write_text(json.dumps({'schema':'aiscend.bean.curriculum_retention.v1','policies':retained,'journal_history':'Each budget has a separate journal with a frozen policy capsule. Its SHA-linked recovery is independent of other budgets.'},indent=2)+'\n')
+    (output/'retention_manifest.json').write_text(json.dumps({'schema':'aiscend.bean.curriculum_retention.v1','policies':retained,'journal_history':'Each fold journal contains every listed update checkpoint in order; latest recovery returns its final budget. All earlier capsules remain in the SHA-linked Journal.'},indent=2)+'\n')
     with (output/'decisions.jsonl').open('rb') as src,gzip.GzipFile(filename=str(output/'decisions.jsonl.gz'),mode='wb',mtime=0) as dest:shutil.copyfileobj(src,dest)
     print(canonical({'event':'curriculum_complete','teaching_examples':len(all_examples),'selected':lock,'audit_return':model['equal_weight_mean_return'],'qualification':qualifies,'restart_verified':restart}),flush=True);return report
 
