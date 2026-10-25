@@ -22,6 +22,11 @@ def digest(value):return hashlib.sha256(canonical(value).encode()).hexdigest()
 def regime(vector):
     """Only visible exposure, trend, volatility and order-affordability context."""
     if len(vector)!=43:raise ValueError('Expected funded 43-input trade state')
+    try:
+        finite=all(math.isfinite(float(value)) for value in vector)
+    except (TypeError,ValueError,OverflowError):
+        finite=False
+    if not finite:raise ValueError('Nonfinite or invalid funded trade state')
     bits=(vector[35]>=.5,vector[8]>0,vector[9]>1.,vector[41]>.1)
     return pair(sum(int(b)<<i for i,b in enumerate(bits)))
 
