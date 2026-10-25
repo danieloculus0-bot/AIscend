@@ -251,6 +251,22 @@ class AdvancedTradeTests(unittest.TestCase):
         self.assertTrue(status.can_trade)
         self.assertFalse(status.can_transfer)
 
+    def test_malformed_transfer_and_alias_permissions_never_grant_access(self):
+        vault = FakeVault()
+        vault.fake_client.get_api_key_permissions = lambda: FakeResponse({
+            "view": "false", "trade": "true", "transfer": "false"})
+        status = AdvancedTradeSpot(vault).status()
+        self.assertFalse(status.can_view)
+        self.assertFalse(status.can_trade)
+        self.assertFalse(status.can_transfer)
+
+        vault.fake_client.get_api_key_permissions = lambda: FakeResponse({
+            "can_view": True, "can_trade": True, "can_transfer": "false"})
+        status = AdvancedTradeSpot(vault).status()
+        self.assertTrue(status.can_view)
+        self.assertTrue(status.can_trade)
+        self.assertFalse(status.can_transfer)
+
     def test_status_lists_balances_and_tradable_spot_products(self):
         status = AdvancedTradeSpot(FakeVault()).status()
         self.assertEqual(status.tradable_spot_products, 2)
