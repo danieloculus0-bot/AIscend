@@ -294,14 +294,26 @@ class AdvancedSpotEngine:
         return fused, context, human_score, human_weight
 
     def sync(self) -> dict[str, Any]:
-        status = self.rail.status()
-        # status() must authenticate first. Never trust a key fingerprint as
-        # proof the key has permissions until the venue status call succeeds.
+        # Snapshot identity must cover the authenticated account read itself.
+        # If credentials rotate while status() paginates wallets, attributing
+        # the old balances to the new key would defeat the pre-order scope
+        # check and could size an order against the wrong account.
         scope_reader = getattr(self.rail, "account_scope_id", None)
+        try:
+            scope_before = scope_reader() if callable(scope_reader) else None
+        except Exception:
+            scope_before = None
+        status = self.rail.status()
+        # A fingerprint alone is not authentication: status() must succeed.
         try:
             authenticated_scope = scope_reader() if callable(scope_reader) else None
         except Exception:
             authenticated_scope = None
+        if callable(scope_reader) and scope_before != authenticated_scope:
+            raise RuntimeError(
+                "Coinbase credential identity changed during authenticated "
+                "account snapshot; balances discarded and trading paused."
+            )
         if (not isinstance(authenticated_scope, str)
                 or len(authenticated_scope) != 64
                 or any(c not in "0123456789abcdef" for c in authenticated_scope)):
@@ -1220,6 +1232,16 @@ class AdvancedSpotEngine:
             }
         self.store.set_meta("bean_account_latest",
                             json.dumps(account_evidence, sort_keys=True))
+        # A verified credential scope alone does not prove the Coinbase fill
+        # ledger is current. If the authenticated history becomes unavailable,
+        # do not reopen a previously losing asset merely because its loss
+        # lockout cannot be evaluated. Protective exits remain independent.
+        scoped_rail = callable(getattr(
+            getattr(self, "rail", None), "account_scope_id", None))
+        history_ready = (not scoped_rail or (
+            account_evidence.get("account_scope_verified") is True
+            and (account_evidence.get("execution") or {}).get("status")
+                == "COMPLETE"))
         fee_bps, fee_source = self._taker_cost_bps()
         # Actual BEAN Q feedback now competes for live funded allocation.
         # Its selected long/cash signals are not merely advisory telemetry.
@@ -1258,6 +1280,11 @@ class AdvancedSpotEngine:
             eligible_routes.append(route)
         winner = eligible_routes[0] if eligible_routes else None
         plan["rejected_rotation_routes"] = len(plan["routes"]) - len(eligible_routes)
+        if not history_ready:
+            # A candidate is not executable while authenticated loss evidence
+            # is stale, partial or unavailable. Do not trigger rotation sells.
+            winner = None
+            plan["account_history_gate"] = "AUTHENTICATED_HISTORY_UNVERIFIED"
         plan["winner"] = winner
         plan["evaluated_at"] = time.time()
         plan["primary_engine"] = "aiscend_price_action_v1"
@@ -1404,6 +1431,13 @@ class AdvancedSpotEngine:
                     decision = Decision("SELL", product, 1.0,
                                         rationale + f" Execution failed: {exc}")
                 return write(decision, status)
+
+        if not history_ready:
+            return write(Decision("HOLD", None, 0.0,
+                "Coinbase authenticated fill history is missing, partial or "
+                "stale; new entries and rotations paused until a complete "
+                "read. Protective exits of existing holdings remain enabled."),
+                "ACCOUNT_HISTORY_UNVERIFIED")
 
         if winner is None:
             skipped = plan.get("skipped") or {}
