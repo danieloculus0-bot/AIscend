@@ -1,0 +1,117 @@
+name: BEAN Durable Six-Hour Public Paper Evidence
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/bean-durable-sixhour-paper.yml"
+      - "scripts/bean_forward_hosted.py"
+      - "tests/test_bean_forward_hosted.py"
+      - "src/bean_sixhour_forward.py"
+  workflow_dispatch:
+  schedule:
+    - cron: "12 */6 * * *"
+
+# PRs only get read-only offline regressions. Never write evidence from a PR.
+permissions:
+  contents: read
+
+concurrency:
+  group: bean-durable-sixhour-public-paper
+  cancel-in-progress: false
+
+jobs:
+  offline-contracts:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify durable-hosted observer, SQLite recovery, and six-hour causality
+        run: |
+          python -m unittest discover -s tests -p 'test_bean_forward_hosted.py' -v
+          python -m unittest discover -s tests -p 'test_bean_sixhour_persistence.py' -v
+          python -m unittest discover -s tests -p 'test_bean_sixhour_forward.py' -v
+
+  collect-public-paper:
+    # The six-hour schedule exists ONLY after this workflow reaches main.
+    # No wallet keys, authenticated Coinbase calls, real orders, or promotion.
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    permissions:
+      contents: write
+    env:
+      STATE_BRANCH: research/bean-prospective-sixhour-hosted-ledger
+      FREEZE: research/bean_frozen_prospective_20261023_fee90.json
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Restore the SAME durable SQLite ledger from its dedicated research branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          STATE_DIR="$RUNNER_TEMP/bean-public-paper-state"
+          echo "STATE_DIR=$STATE_DIR" >> "$GITHUB_ENV"
+          if git ls-remote --exit-code --heads origin "refs/heads/$STATE_BRANCH" > /dev/null; then
+            git fetch origin "refs/heads/$STATE_BRANCH:refs/remotes/origin/$STATE_BRANCH"
+            git worktree add -B "$STATE_BRANCH" "$STATE_DIR" "refs/remotes/origin/$STATE_BRANCH"
+          else
+            rc=$?
+            if [ "$rc" -ne 2 ]; then
+              echo "GitHub state lookup failed: $rc"
+              exit "$rc"
+            fi
+            # New hosted ledger, never claim to have imported a desktop ledger.
+            git worktree add -b "$STATE_BRANCH" "$STATE_DIR" HEAD
+          fi
+          git -C "$STATE_DIR" config user.name "github-actions[bot]"
+          git -C "$STATE_DIR" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Inspect ONLY newly completed Coinbase candles and verify the frozen chain
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m scripts.bean_forward_hosted \
+            --state-root "$STATE_DIR" \
+            --source-root . \
+            --manifest "$FREEZE" \
+            --run-key "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --backup-to "$RUNNER_TEMP/bean-paper-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.sqlite3"
+          python -m src.bean_sixhour_forward --manifest "$FREEZE" \
+            --db "$STATE_DIR/evidence/prospective.sqlite3" --verify-only
+
+      - name: Commit immutable observation report and updated SQLite to research branch only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C "$STATE_DIR" add -f \
+            evidence/engine.sha256 \
+            evidence/prospective.sqlite3 \
+            evidence/latest.json \
+            "reports/$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.json"
+          git -C "$STATE_DIR" diff --cached --check
+          git -C "$STATE_DIR" commit -m "paper(research): public Coinbase six-hour observation $GITHUB_RUN_ID [skip ci]"
+          git -C "$STATE_DIR" push origin "HEAD:refs/heads/$STATE_BRANCH"
+
+      - name: Retain independent verified SQLite recovery copy and run report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bean-public-paper-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/bean-paper-${{ github.run_id }}-${{ github.run_attempt }}.sqlite3
+            ${{ runner.temp }}/bean-paper-${{ github.run_id }}-${{ github.run_attempt }}.sqlite3.sha256
+            ${{ runner.temp }}/bean-public-paper-state/reports/${{ github.run_id }}-${{ github.run_attempt }}.json
+          if-no-files-found: warn
+          retention-days: 90
