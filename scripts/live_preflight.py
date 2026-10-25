@@ -184,6 +184,14 @@ def inspect_advanced(*, vault=None, rail=None, db_path: Path | None = None,
         state["blockers"].append("COINBASE_ADVANCED_CREDENTIALS_MISSING")
         return state
     rail = rail or AdvancedTradeSpot(vault=vault)
+    # Pin the credential identity before any authenticated account or product
+    # reads. A key rotation between those reads must not combine one account's
+    # balances with another account's permissions or fills.
+    scope_reader = getattr(rail, "account_scope_id", None) if require_history else None
+    try:
+        initial_scope = scope_reader() if callable(scope_reader) else None
+    except Exception:
+        initial_scope = None
     try:
         status = rail.status()
         state["exchange_access"] = True
@@ -246,7 +254,6 @@ def inspect_advanced(*, vault=None, rail=None, db_path: Path | None = None,
         # Actual Python live START requires history and a stable credential
         # identity, in addition to the standard account/order checks.
         reader = getattr(rail, "account_fills", None)
-        scope_reader = getattr(rail, "account_scope_id", None)
         try:
             scope = scope_reader() if callable(scope_reader) else None
         except Exception:
@@ -272,6 +279,13 @@ def inspect_advanced(*, vault=None, rail=None, db_path: Path | None = None,
             except Exception as exc:
                 state["blockers"].append("COINBASE_FILL_HISTORY_UNAVAILABLE")
                 state["fill_history_error_type"] = type(exc).__name__
+        try:
+            final_scope = scope_reader() if callable(scope_reader) else None
+        except Exception:
+            final_scope = None
+        if valid_scope and (initial_scope != scope or final_scope != scope):
+            state["blockers"].append(
+                "COINBASE_ACCOUNT_SCOPE_CHANGED_DURING_PREFLIGHT")
     state["execution_ready"] = not state["blockers"]
     state["note"] = ("Read-only account and journal preflight only; "
                      "no Coinbase order submission, order preview, "
