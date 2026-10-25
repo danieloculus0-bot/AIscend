@@ -206,6 +206,7 @@ class AdvancedTradeSpot:
         account_rows: list[dict[str, Any]] = []
         cursor = None
         seen_cursors: set[str] = set()
+        seen_account_uuids: set[str] = set()
         for _ in range(200):
             payload = self._dict(
                 client.get_accounts(cursor=cursor) if cursor else client.get_accounts()
@@ -215,6 +216,16 @@ class AdvancedTradeSpot:
                 not isinstance(row, dict) for row in page_rows
             ):
                 raise RuntimeError("Coinbase accounts returned malformed page data")
+            # Coinbase may paginate wallets with overlapping pages. Counting a
+            # repeated UUID twice would invent spendable funds, even though
+            # multiple DISTINCT wallets sharing one currency must still sum.
+            for row in page_rows:
+                uuid = str(row.get("uuid") or "").strip()
+                if uuid:
+                    if uuid in seen_account_uuids:
+                        raise RuntimeError(
+                            "Coinbase account pagination repeated a wallet UUID")
+                    seen_account_uuids.add(uuid)
             account_rows.extend(page_rows)
             next_cursor = str(payload.get("cursor") or "").strip()
             if payload.get("has_next") is False:
