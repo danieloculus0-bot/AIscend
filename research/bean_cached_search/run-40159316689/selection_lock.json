@@ -1,0 +1,21 @@
+{
+  "selected": "cash",
+  "selection_source": "CompactScores.rank SQL index",
+  "score_mnemonic": "0000000000000000",
+  "score_receipt": "5c52b07f8751903e2f343533001744b45ebbb91801bd7d2caff68a31ec8dc7b1",
+  "selection_returns": {
+    "cash": 2.220446049250313e-16,
+    "buy_hold": -0.011047287175672493,
+    "price_trend": -0.0658522477757425,
+    "seed7_gamma0.0": -0.04156896527589071,
+    "seed7_gamma0.99": -0.04838488023805776,
+    "seed41_gamma0.0": -0.057231552738909786,
+    "seed41_gamma0.99": -0.07482762926871978,
+    "untrained_seed41": -0.006615120745736003
+  },
+  "selection_end": 1759276800,
+  "later_audit_opened": false,
+  "withheld_assets_used_in_selection": false,
+  "learned_policy_selected": false,
+  "weights_sha256": null
+}
