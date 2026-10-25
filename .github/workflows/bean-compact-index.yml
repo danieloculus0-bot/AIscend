@@ -48,6 +48,10 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add research/bean_compact_scores_20261024
+          if git diff --cached --quiet; then
+            echo 'Exact compact index already archived; no duplicate commit needed'
+            exit 0
+          fi
           git commit -m 'Archive actual full-universe results as exact reversible pair-code scores'
           git fetch origin experiment/bean-fast-ledger-20261024
           git rebase origin/experiment/bean-fast-ledger-20261024

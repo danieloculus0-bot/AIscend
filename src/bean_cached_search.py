@@ -106,8 +106,12 @@ def run(history,corpus,core,output,seeds):
     for name,result in selection.items():
         keys=dict(method=name,dataset=catalog['catalog_hash'],window=dict(phase='internal_training_selection',start=start,end=stop,assets='known'),seed=None if name not in models else models[name].seed,cost=.01,configuration=config,evidence=selection_receipts[name])
         scores.record(keys=keys,candidate=result,baseline=selection['price_trend'],role='training',available_at=stop,source=dict(qualification='Internal selection inside the original training corpus',**selection_receipts[name]))
-    selected=sorted(selection,key=lambda n:(-selection[n]['net_return'],selection[n]['drawdown'],n))[0]
-    lock=dict(selected=selected,selection_returns={n:r['net_return'] for n,r in selection.items()},selection_end=stop,later_audit_opened=False,withheld_assets_used_in_selection=False,learned_policy_selected=selected.startswith('seed'),weights_sha256=models[selected].weights_digest() if selected in models else None)
+    ranked=scores.rank(int(time.time()),window=dict(phase='internal_training_selection',start=start,end=stop,assets='known'),limit=100)
+    if {r['method'] for r in ranked}!=set(selection):raise AssertionError('Compact score table lost a candidate')
+    selected=ranked[0]['method']
+    expected=sorted(selection,key=lambda n:(-selection[n]['net_return'],selection[n]['drawdown'],n))[0]
+    if selected!=expected:raise AssertionError('Compact ranking differs from the declared exact objective')
+    lock=dict(selected=selected,selection_source='CompactScores.rank SQL index',score_mnemonic=ranked[0]['mnemonic'],score_receipt=ranked[0]['receipt'],selection_returns={n:r['net_return'] for n,r in selection.items()},selection_end=stop,later_audit_opened=False,withheld_assets_used_in_selection=False,learned_policy_selected=selected.startswith('seed'),weights_sha256=models[selected].weights_digest() if selected in models else None)
     (output/'selection_lock.json').write_text(json.dumps(lock,indent=2)+'\n')
     for cohort,products in (('all_usd',usd),('withheld_assets',unseen)):
         group={};references={}
