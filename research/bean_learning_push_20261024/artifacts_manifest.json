@@ -11,20 +11,20 @@
       "sha256": "ae144a1a8917e76b36ea6dc04eef2336730bce73418013a101cac4c29fdaad28"
     },
     "README.md": {
-      "bytes": 4594,
-      "sha256": "36f58dc0d88787cecedcde12247abcf47d25cc16ed88cc2ee11ff991cb4f569f"
+      "bytes": 5118,
+      "sha256": "6477973f131a8f619cf62e6813f7642069b53c581bf2564a3ed9ba21edefcbeb"
     },
     "build_summary.py": {
-      "bytes": 8583,
-      "sha256": "5aee5c9388630dcb86daee263b1e15f24e1b4b4294763ff2a858968da6199f78"
+      "bytes": 10670,
+      "sha256": "d8672e3f62cf14fb5f993742d7cf6e0887f3ee8ada7b479bc31323d9b98aca0d"
     },
     "learning_outcomes.sqlite3.gz": {
-      "bytes": 11375,
-      "sha256": "ef5b25babb3245bcc79e55a6a06557ca2455de6412055387865c1d66f810c5b9"
+      "bytes": 11547,
+      "sha256": "949620aa360ff87ec508309847da42135cc0752c0a7c5d0680bfd8f946055ab2"
     },
     "source_summary.json": {
-      "bytes": 54039,
-      "sha256": "323db19a6e68813990754ff23195a7c167aaacb4b0cdeb0f805f199b23965657"
+      "bytes": 58173,
+      "sha256": "45f37484c50eaaffea51136529930755de4ab9cbdc372d9bb83952763258426f"
     }
   }
 }
