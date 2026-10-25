@@ -97,3 +97,78 @@ jobs:
             artifacts/bean-chunked-mentor/*.gz
           if-no-files-found: warn
           retention-days: 90
+
+  multiseed-mentor-development:
+    name: Matched mentor seeds ${{ matrix.seed }} with batches ${{ matrix.batch_lessons }}
+    needs: learning-contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - seed: 7
+            batch_lessons: 32
+          - seed: 73
+            batch_lessons: 32
+          - seed: 41
+            batch_lessons: 128
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements-research.txt
+      - uses: actions/checkout@v4
+        with:
+          repository: danieloculus0-bot/BEAN
+          ref: 887935ae816b4ce6175c6cde54d749f0e5cf3268
+          path: core-bean
+      - name: Train fixed-budget, causal matched learning arms
+        run: |
+          python -m src.bean_strategy_coach \
+            --candles research/bean_strategy_curriculum_20261024/source/candles.jsonl.gz \
+            --core-dir core-bean \
+            --output artifacts/mentor-seed-${{ matrix.seed }}-batch-${{ matrix.batch_lessons }} \
+            --seed ${{ matrix.seed }} \
+            --batch-lessons ${{ matrix.batch_lessons }}
+      - name: Audit all outcomes, checkpoints and reproducible settings
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          path=next(Path('artifacts').glob('mentor-seed-*/results.json'))
+          p=json.loads(path.read_text())
+          protocol=json.loads((path.parent/'protocol.json').read_text())
+          assert protocol['seed']==p['seed']
+          assert protocol['batch_lessons']==p['batch_lessons']
+          assert protocol['schema']=='aiscend.bean.strategy_coaching.v2'
+          assert p['mentor_lessons']==4320 and p['strategy_comparisons']==47520
+          assert p['independent_unseen_profitability_proven'] is False
+          assert p['live_orders'] is False
+          for name in ('matched_raw_reward','coached_advantage'):
+              score=p['results'][name]
+              digest=p['training_digestion'][name]
+              assert score['state']['updates']==1024
+              assert digest['gradient_updates']==1024
+              assert digest['transitions']==47520
+              assert digest['receipts'][0]['updates_through']>0
+              assert digest['receipts'][-1]['updates_through']==1024
+          print(json.dumps({'seed':p['seed'],'batch_lessons':p['batch_lessons'],
+                'scores':{k:v['equal_weight_mean_return'] for k,v in p['results'].items()},
+                'cash_baseline':p['baselines']['cash']['equal_weight_mean_return'],
+                'buy_hold_baseline':p['baselines']['buy_hold']['equal_weight_mean_return']},
+                sort_keys=True))
+          PY
+      - name: Archive independent seed results without overwriting original history
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bean-matched-seed-${{ matrix.seed }}-batch-${{ matrix.batch_lessons }}
+          path: |
+            artifacts/mentor-seed-*/protocol.json
+            artifacts/mentor-seed-*/results.json
+            artifacts/mentor-seed-*/retention_manifest.json
+            artifacts/mentor-seed-*/*.gz
+          retention-days: 90
+          if-no-files-found: warn
