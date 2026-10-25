@@ -1,0 +1,39 @@
+name: BEAN complete Coinbase daily history snapshot
+on:
+  push:
+    branches: ['experiment/bean-wide-multistep-20261024']
+    paths: ['src/bean_wide_history.py', '.github/workflows/bean-wide-history.yml']
+  pull_request:
+    paths: ['src/bean_wide_history.py', 'tests/test_bean_wide_history.py', '.github/workflows/bean-wide-history.yml']
+permissions:
+  contents: write
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements-research.txt
+      - run: python -m unittest tests.test_bean_wide_history -v
+      - name: Capture every public USD and USDC spot market
+        if: github.event_name == 'push'
+        run: python -m src.bean_wide_history --output research/bean_wide_history_20261024
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'push' && always()
+        with:
+          name: bean-wide-history-${{ github.run_id }}
+          path: research/bean_wide_history_20261024/
+          retention-days: 90
+      - name: Keep raw sources and every failed market in Git history
+        if: github.event_name == 'push'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add research/bean_wide_history_20261024
+          git commit -m 'Archive complete Coinbase catalog and actual daily candle responses'
+          git fetch origin experiment/bean-wide-multistep-20261024
+          git rebase origin/experiment/bean-wide-multistep-20261024
+          git push origin HEAD:experiment/bean-wide-multistep-20261024
