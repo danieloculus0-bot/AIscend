@@ -41,11 +41,11 @@ def summaries(lessons):
     return out
 
 class CoachWorker:
-    def __init__(self,core,journal,size,cutoff,mode,memory,output):
+    def __init__(self,core,journal,size,cutoff,mode,memory,output,seed=41):
         env={k:v for k,v in os.environ.items() if k in ('PATH','PYTHONPATH','LD_LIBRARY_PATH','LANG')}
         self.p=subprocess.Popen([sys.executable,'-m','src.bean_mentor_worker'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,bufsize=1,env=env)
         self.memory=memory;self.matrix=np.array([x['vector'] for x in memory]);self.receipts=(Path(output)/(mode+'_mentor_receipts.jsonl')).open('w');self.explanations=(Path(output)/(mode+'_decision_explanations.jsonl')).open('w')
-        self.call('init',core_dir=str(Path(core).resolve()),journal=str(journal),seed=41,size=size,actions=list(ACTIONS),knowledge_cutoff=cutoff,mode=mode)
+        self.call('init',core_dir=str(Path(core).resolve()),journal=str(journal),seed=seed,size=size,actions=list(ACTIONS),knowledge_cutoff=cutoff,mode=mode)
     def call(self,op,**kw):
         if op=='values':
             distances=np.mean((self.matrix-np.array(kw['vectors'][0]))**2,axis=1);ix=np.argsort(distances,kind='stable')[:4];kw['mentor_evidence']=[{k:v for k,v in self.memory[n].items() if k!='vector'} for n in ix]
@@ -61,11 +61,13 @@ class CoachWorker:
         if self.p.poll() is None:self.call('close');self.p.wait(timeout=15)
         for p in (self.p.stdin,self.p.stdout,self.p.stderr,self.receipts,self.explanations):p.close()
 
-def run(candles,core,output):
+def run(candles,core,output,*,seed=41,batch_lessons=32):
+    if type(seed) is not int or not 0<=seed<2**32:raise ValueError('Invalid reproducibility seed')
+    if type(batch_lessons) is not int or not 6<=batch_lessons<=256:raise ValueError('Invalid mentor batch size')
     output=Path(output)
     if output.exists() and any(output.iterdir()):raise FileExistsError('Preserve prior mentor experiment')
     output.mkdir(parents=True);features=Features(load_candles(candles));cutoff=int(utc_seconds('2025-04-01T00:00:00Z'));end=int(utc_seconds('2025-10-01T00:00:00Z'))
-    protocol={'schema':'aiscend.bean.strategy_coaching.v1','scope':'DEVELOPMENT_ONLY_ALREADY_INSPECTED_HISTORY','source_rows_sha256':features.c.source_hash,'train_knowledge_cutoff':cutoff,'audit_end':end,'arms':['matched_raw_reward','coached_advantage'],'seed':41,'updates_per_arm':1024,'shared_configuration':'Actual SpongeDQN gamma0, replay4096, batch64, lr0.0005; same examples/order/costs and inference reserve. The only reward difference is raw net log return versus log advantage over unchanged holding.','coaching':'Every action is explained by market PnL before/after delayed fill, paid costs, net return and matched advantage over hold. Worker validates accounting and maturity before actual updates. Past mentor comparisons accompany inference explanations; realized outcome components are never future decision inputs.','selection':'No candidate selection: report both arms even if coached training loses','training_schedule':'Shuffle mature lessons with fixed seed. Alternate at most 32 mentor lessons (352 transitions) with exact cumulative gradient updates, 1024 total; same schedule in both arms.','source_code_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),'worker_sha256':hashlib.sha256(Path(__file__).with_name('bean_mentor_worker.py').read_bytes()).hexdigest(),'core_revision':subprocess.check_output(['git','-C',str(core),'rev-parse','HEAD'],text=True).strip(),'live_orders':False}
+    protocol={'schema':'aiscend.bean.strategy_coaching.v2','scope':'DEVELOPMENT_ONLY_ALREADY_INSPECTED_HISTORY','source_rows_sha256':features.c.source_hash,'train_knowledge_cutoff':cutoff,'audit_end':end,'arms':['matched_raw_reward','coached_advantage'],'seed':seed,'updates_per_arm':1024,'batch_lessons':batch_lessons,'shared_configuration':'Actual SpongeDQN gamma0, replay4096, batch64, lr0.0005; same examples/order/costs and inference reserve. The only reward difference is raw net log return versus log advantage over unchanged holding.','coaching':'Every action is explained by market PnL before/after delayed fill, paid costs, net return and matched advantage over hold. Worker validates accounting and maturity before actual updates. Past mentor comparisons accompany inference explanations; realized outcome components are never future decision inputs.','selection':'No candidate selection: report both arms even if coached training loses','training_schedule':f'Seed {seed}: shuffle all mature lessons, alternate at most {batch_lessons} lessons per cohort with proportional cumulative gradients, exactly 1024 total; both arms receive identical inputs, cost assumptions and schedule.','source_code_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),'worker_sha256':hashlib.sha256(Path(__file__).with_name('bean_mentor_worker.py').read_bytes()).hexdigest(),'core_revision':subprocess.check_output(['git','-C',str(core),'rev-parse','HEAD'],text=True).strip(),'live_orders':False}
     protocol['protocol_sha256']=digest(protocol);(output/'protocol.json').write_text(json.dumps(protocol,indent=2)+'\n')
     con=sqlite3.connect(output/'matched_mentor_lessons.sqlite3');con.execute('CREATE TABLE lessons(id TEXT PRIMARY KEY,symbol TEXT,decision_at INTEGER,outcome_at INTEGER,payload_json TEXT)');lessons=[]
     for i in range(200,len(features.c.times)-8,8):
@@ -75,13 +77,13 @@ def run(candles,core,output):
             for exposure in (0.,.5,1.):
                 x=mentor_lesson(features,i,j,exposure);con.execute('INSERT INTO lessons VALUES (?,?,?,?,?)',(x['id'],x['symbol'],x['decision_at'],x['outcome_at'],canonical(x)));lessons.append(x)
     con.commit();assert con.execute('pragma integrity_check').fetchone()[0]=='ok';con.close()
-    memory=summaries(lessons);order=np.random.default_rng(41).permutation(len(lessons));results={};policies=[];digestion_receipts={};ledger=DecisionLedger(output/'decisions.sqlite3');ledger.metadata('protocol',protocol)
+    memory=summaries(lessons);order=np.random.default_rng(seed).permutation(len(lessons));results={};policies=[];digestion_receipts={};ledger=DecisionLedger(output/'decisions.sqlite3');ledger.metadata('protocol',protocol)
     for mode in protocol['arms']:
-        journal=output/(mode+'.sqlite3');worker=CoachWorker(core,journal,len(lessons[0]['vector']),cutoff,mode,memory,output)
+        journal=output/(mode+'.sqlite3');worker=CoachWorker(core,journal,len(lessons[0]['vector']),cutoff,mode,memory,output,seed=seed)
         try:
             initial=worker.call('status')
             digestion=digest_chunks(worker,[lessons[n] for n in order],
-                                    field='lessons',updates=1024,batch_size=32,
+                                    field='lessons',updates=1024,batch_size=batch_lessons,
                                     transitions_per_item=len(ACTIONS))
             digestion_receipts[mode]=digestion
             status=worker.call('status')
@@ -91,7 +93,7 @@ def run(candles,core,output):
             results[mode]=result
         finally:worker.close()
     baselines={a:evaluate(features,None,cutoff,end,ledger,'mentor_baseline/'+a,fixed=a) for a in ('cash','buy_hold','sma_trend','donchian_breakout')}
-    report={'schema':'aiscend.bean.strategy_coach_results.v1','protocol_sha256':protocol['protocol_sha256'],'mentor_lessons':len(lessons),'strategy_comparisons':len(lessons)*len(ACTIONS),'training_digestion':digestion_receipts,'results':results,'baselines':baselines,'coaching_effect_on_mean_return':results['coached_advantage']['equal_weight_mean_return']-results['matched_raw_reward']['equal_weight_mean_return'],'independent_unseen_profitability_proven':False,'general_causal_understanding_proven':False,'live_orders':False,'decision_records':ledger.seq,'decision_ledger_tip':ledger.tip};ledger.metadata('results',report);ledger.close();(output/'results.json').write_text(json.dumps(report,indent=2)+'\n')
+    report={'schema':'aiscend.bean.strategy_coach_results.v1','protocol_sha256':protocol['protocol_sha256'],'mentor_lessons':len(lessons),'strategy_comparisons':len(lessons)*len(ACTIONS),'training_digestion':digestion_receipts,'seed':seed,'batch_lessons':batch_lessons,'results':results,'baselines':baselines,'coaching_effect_on_mean_return':results['coached_advantage']['equal_weight_mean_return']-results['matched_raw_reward']['equal_weight_mean_return'],'independent_unseen_profitability_proven':False,'general_causal_understanding_proven':False,'live_orders':False,'decision_records':ledger.seq,'decision_ledger_tip':ledger.tip};ledger.metadata('results',report);ledger.close();(output/'results.json').write_text(json.dumps(report,indent=2)+'\n')
     for p in list(output.iterdir()):
         if p.suffix in ('.sqlite3','.jsonl'):
             with p.open('rb') as src,gzip.GzipFile(filename=str(p)+'.gz',mode='wb',mtime=0) as dest:shutil.copyfileobj(src,dest)
@@ -100,4 +102,4 @@ def run(candles,core,output):
     print(canonical({'event':'mentor_training_complete','lessons':len(lessons),'returns':{k:v['equal_weight_mean_return'] for k,v in results.items()},'coaching_effect':report['coaching_effect_on_mean_return']}),flush=True);return report
 
 if __name__=='__main__':
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--candles',type=Path,required=True);p.add_argument('--core-dir',type=Path,required=True);p.add_argument('--output',type=Path,required=True);a=p.parse_args();run(a.candles,a.core_dir,a.output)
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--candles',type=Path,required=True);p.add_argument('--core-dir',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--seed',type=int,default=41);p.add_argument('--batch-lessons',type=int,default=32);a=p.parse_args();run(a.candles,a.core_dir,a.output,seed=a.seed,batch_lessons=a.batch_lessons)
