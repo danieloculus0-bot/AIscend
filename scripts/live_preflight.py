@@ -184,6 +184,19 @@ def inspect_advanced(*, vault=None, rail=None, db_path: Path | None = None,
         state["blockers"].append("COINBASE_ADVANCED_CREDENTIALS_MISSING")
         return state
     rail = rail or AdvancedTradeSpot(vault=vault)
+    scope_reader = getattr(rail, "account_scope_id", None)
+
+    def credential_scope():
+        if not callable(scope_reader):
+            return None
+        try:
+            return scope_reader()
+        except Exception:
+            return None
+
+    # Capture identity BEFORE the account request. A post-request fingerprint
+    # alone can misattribute old balances to newly selected credentials.
+    scope_before = credential_scope()
     try:
         status = rail.status()
         state["exchange_access"] = True
@@ -191,6 +204,9 @@ def inspect_advanced(*, vault=None, rail=None, db_path: Path | None = None,
         state["blockers"].append("COINBASE_ACCOUNT_QUERY_FAILED")
         state["account_error"] = f"{type(exc).__name__}: {str(exc)[:180]}"
         return state
+    scope_after_status = credential_scope()
+    if callable(scope_reader) and scope_before != scope_after_status:
+        state["blockers"].append("COINBASE_ACCOUNT_SCOPE_CHANGED_DURING_PREFLIGHT")
     state["can_view"] = bool(status.can_view)
     state["can_trade"] = bool(status.can_trade)
     state["tradable_products"] = int(status.tradable_spot_products)
@@ -246,11 +262,7 @@ def inspect_advanced(*, vault=None, rail=None, db_path: Path | None = None,
         # Actual Python live START requires history and a stable credential
         # identity, in addition to the standard account/order checks.
         reader = getattr(rail, "account_fills", None)
-        scope_reader = getattr(rail, "account_scope_id", None)
-        try:
-            scope = scope_reader() if callable(scope_reader) else None
-        except Exception:
-            scope = None
+        scope = scope_after_status
         valid_scope = (isinstance(scope, str) and len(scope) == 64 and
                        all(c in "0123456789abcdef" for c in scope))
         if not valid_scope:
@@ -272,6 +284,11 @@ def inspect_advanced(*, vault=None, rail=None, db_path: Path | None = None,
             except Exception as exc:
                 state["blockers"].append("COINBASE_FILL_HISTORY_UNAVAILABLE")
                 state["fill_history_error_type"] = type(exc).__name__
+    # Read-only sizing and history use separate SDK calls. A credential
+    # rotation during any of them invalidates the combined release evidence.
+    if callable(scope_reader) and credential_scope() != scope_before:
+        if "COINBASE_ACCOUNT_SCOPE_CHANGED_DURING_PREFLIGHT" not in state["blockers"]:
+            state["blockers"].append("COINBASE_ACCOUNT_SCOPE_CHANGED_DURING_PREFLIGHT")
     state["execution_ready"] = not state["blockers"]
     state["note"] = ("Read-only account and journal preflight only; "
                      "no Coinbase order submission, order preview, "
