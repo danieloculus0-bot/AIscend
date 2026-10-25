@@ -1,0 +1,228 @@
+{
+  "files": {
+    "seed7_gamma0.99.training_state.json.gz": {
+      "bytes": 284694,
+      "sha256": "12e416a93202dba9847766f789fbeea9a993318511d7af6ccdbd14bf3a664972"
+    },
+    "protocol.json": {
+      "bytes": 751,
+      "sha256": "be100592963654c810017571e1da773b9276b1d5cb75128143b7a80825e51596"
+    },
+    "retention_manifest.json": {
+      "bytes": 2135,
+      "sha256": "4daff2a74e8b67600645f38452544980c19e945f51c8c211dbd99b09091d2e6e"
+    },
+    "results.json": {
+      "bytes": 1354585,
+      "sha256": "c45a17df35f9747047d83b1e54b8a092e877aad01cf27b8e008fa29f17415704"
+    },
+    "seed41_gamma0.99.training_state.json.gz": {
+      "bytes": 286441,
+      "sha256": "16f2b0bfc58f54de2a5ab865b559c7f6367e6ff59da6e1549d12ae6622321e5b"
+    },
+    "seed41_gamma0.0.training_state.json.gz": {
+      "bytes": 284745,
+      "sha256": "b5871c4b096f5f5eb15c6cbc0d70ba883c06ca9adbf0adcf9ba43374d56e6b62"
+    },
+    "selection_lock.json": {
+      "bytes": 747,
+      "sha256": "73aa20e96979db705d3cd7e5e70046b591aaba3ce69366bd57c8a617379b5733"
+    },
+    "seed7_gamma0.0.training_state.json.gz": {
+      "bytes": 284841,
+      "sha256": "ea85265575e4cbf52e68ca3ef4834ad151345d68afd3a9f79e32f86b7d5c5de4"
+    },
+    "untrained_seed41.training_state.json.gz": {
+      "bytes": 134379,
+      "sha256": "5e5b36899512fd2d2b2b33806f51ae1a1c39f6de2205f256d48b47c66fc61b58"
+    },
+    "ledgers/selection-untrained_seed41.sqlite3.gz": {
+      "bytes": 2674914,
+      "sha256": "df2de828081d70c929c8ed2cc5478f96f9d963e2921b80b9477a6a8d19281740"
+    },
+    "ledgers/selection-seed41_gamma0.0.sqlite3.gz": {
+      "bytes": 2445714,
+      "sha256": "f7fbfffb8ad4feb3d7850b6bcd2bc1785f3364bde18f731834b43ad40832e063"
+    },
+    "ledgers/selection-untrained_seed41.metadata.json": {
+      "bytes": 4238,
+      "sha256": "74b774ba8dfcb471d3868664ce032fef86ee26d07f308d4376cc9034faaf05e8"
+    },
+    "ledgers/audit-withheld_assets-cash.metadata.json": {
+      "bytes": 1553,
+      "sha256": "5f18f939a77bf5944e6ceac82dc286775997bda663bc8944856e312dc4621f9d"
+    },
+    "ledgers/selection-seed41_gamma0.0.jsonl.gz": {
+      "bytes": 2104475,
+      "sha256": "4be63016cff0b221da801cd148586a828d4ce15c19b105ebad7ac5b48011bb23"
+    },
+    "ledgers/selection-buy_hold.metadata.json": {
+      "bytes": 4230,
+      "sha256": "fc703cbffaa1bdd3e12a0dc1a266c2ddc1158611b225951863c942a09ae4b398"
+    },
+    "ledgers/selection-cash.metadata.json": {
+      "bytes": 4226,
+      "sha256": "9164388a9c99adcd086d61684a5ac4bbef763835d228838925e39b8208b865d9"
+    },
+    "ledgers/audit-all_usd-price_trend.jsonl.gz": {
+      "bytes": 6267461,
+      "sha256": "62bd351514f3a20e240da552bd8ab4abe72a187651d9d847b0360087db9e9180"
+    },
+    "ledgers/selection-seed41_gamma0.99.sqlite3.gz": {
+      "bytes": 2444440,
+      "sha256": "606461712e36ff25790ec07fc9fa3a3edcf4e80c4bed5d02745e650a40a6f3f3"
+    },
+    "ledgers/selection-buy_hold.sqlite3.gz": {
+      "bytes": 2584083,
+      "sha256": "ee14fffda24e787dd552e7c80ad34016d1189ef6238c147e79a9d37b32e65c6a"
+    },
+    "ledgers/audit-withheld_assets-price_trend.jsonl.gz": {
+      "bytes": 1133723,
+      "sha256": "1a763a2cbc436d26e114b7d0466e9ac61cd79ce34639bf279f9d71076959b015"
+    },
+    "ledgers/audit-withheld_assets-buy_hold.sqlite3.gz": {
+      "bytes": 1624531,
+      "sha256": "80be6d2d89390dcf0068d0fcc41e4039f23131ec5a14ff70afb51cd5b85293b9"
+    },
+    "ledgers/audit-all_usd-cash.jsonl.gz": {
+      "bytes": 5649324,
+      "sha256": "3e0e64b68fe3d442cc7b274fd29499ff0606adb47fbb95e5ceb5cd545714be19"
+    },
+    "ledgers/audit-withheld_assets-buy_hold.jsonl.gz": {
+      "bytes": 1398397,
+      "sha256": "10cce196db16075aa74597df130e9ec4b00a66150e1818efb8c8cd734903611e"
+    },
+    "ledgers/audit-withheld_assets-cash.jsonl.gz": {
+      "bytes": 1024103,
+      "sha256": "406ebf2ac47c16cb77eeca12b4c489932be403eeba184dd62719017133b4525b"
+    },
+    "ledgers/audit-withheld_assets-cash.sqlite3.gz": {
+      "bytes": 1247094,
+      "sha256": "e2a389a68115a068b75eec3d0200fdf3617a54c720c3d84e1281c9c567e9542a"
+    },
+    "ledgers/selection-price_trend.metadata.json": {
+      "bytes": 4233,
+      "sha256": "391d5009f4dcd6545cd1e9d036f95762bcdac91959cfdcf2d0d6b307e99b3b3d"
+    },
+    "ledgers/audit-withheld_assets-price_trend.metadata.json": {
+      "bytes": 1560,
+      "sha256": "abf5218d72f4c029bacc3cff6c0a3f3f626de7fdc006903796a7da11ae664aa6"
+    },
+    "ledgers/selection-seed7_gamma0.0.jsonl.gz": {
+      "bytes": 2102979,
+      "sha256": "a216d1bd96780e47774b5774bbdd68830015cc0d151e147e035d27fd7f260baa"
+    },
+    "ledgers/selection-untrained_seed41.jsonl.gz": {
+      "bytes": 2338285,
+      "sha256": "a20a03df07d6e46b72b1026a2549a7265c96e6a14bc1d2cde4a65715c885b645"
+    },
+    "ledgers/audit-withheld_assets-buy_hold.metadata.json": {
+      "bytes": 1557,
+      "sha256": "72bed38bb58433851a0688486779f58b36a218ced4c1c09f89f9583fe46d0587"
+    },
+    "ledgers/selection-price_trend.sqlite3.gz": {
+      "bytes": 2167972,
+      "sha256": "6f49552030471f3b2339fa626bb88cc482edc911c7f8c10ca275047d200ed4fe"
+    },
+    "ledgers/audit-all_usd-cash.sqlite3.gz": {
+      "bytes": 6847000,
+      "sha256": "e3c61d723fe019d342497cf7f4e98411de1a1917bbaa5a0b53a6f3aac1b93ab8"
+    },
+    "ledgers/selection-seed41_gamma0.99.metadata.json": {
+      "bytes": 4238,
+      "sha256": "cfde11644534dc566cfe7c7949d024939e4c989244955ed493ce504eca130a6d"
+    },
+    "ledgers/audit-all_usd-buy_hold.sqlite3.gz": {
+      "bytes": 8779618,
+      "sha256": "6a6338996e16effcb9d08c5c6cc85dc2970a8905a4d0755b5697fe9a90ef1f80"
+    },
+    "ledgers/selection-seed7_gamma0.0.sqlite3.gz": {
+      "bytes": 2445091,
+      "sha256": "36d2107045e386e7e81a310633ee1fdd30ced71c594cd7a418ebc6fed2aa0a62"
+    },
+    "ledgers/selection-cash.jsonl.gz": {
+      "bytes": 1687069,
+      "sha256": "a1e384e2d0fc8580f299c93c415747c8ab2522cdfc2c619e2b2d2cc589b4767d"
+    },
+    "ledgers/selection-price_trend.jsonl.gz": {
+      "bytes": 1826759,
+      "sha256": "55be595124ed5393e6d7dc219f364f473b4b1578f73461b54d3e776447e6619b"
+    },
+    "ledgers/selection-seed7_gamma0.99.jsonl.gz": {
+      "bytes": 2066540,
+      "sha256": "603abebb7bd4eb2461b7b5ad099f9e3ff4d3708117302a898200e61a59a047db"
+    },
+    "ledgers/audit-all_usd-price_trend.metadata.json": {
+      "bytes": 5004,
+      "sha256": "325f6be3c7ce635f893a31d344579976d04e431f2783ef1451688a0a8aa92d4c"
+    },
+    "ledgers/selection-seed7_gamma0.99.metadata.json": {
+      "bytes": 4237,
+      "sha256": "039963ef3bfdf857bb81405e395481fe196e34c04a44f1f61f3b1055e588b1de"
+    },
+    "ledgers/selection-buy_hold.jsonl.gz": {
+      "bytes": 2242298,
+      "sha256": "0630ffcf7864411848ab65b3f0a0264e474800c12786249060470d118412b735"
+    },
+    "ledgers/selection-seed7_gamma0.0.metadata.json": {
+      "bytes": 4236,
+      "sha256": "fc5a953b96cb93abcb9428b3a0c185c77e1db7b07b6d1415dfb50cf42001017c"
+    },
+    "ledgers/audit-all_usd-price_trend.sqlite3.gz": {
+      "bytes": 7483791,
+      "sha256": "022aaf5cdf931915db0527581bc9ab2a99516bf6eb3f19391013b4b5cc69b845"
+    },
+    "ledgers/audit-all_usd-buy_hold.jsonl.gz": {
+      "bytes": 7560952,
+      "sha256": "738e1025ccb8775c2175a2046ec3c2c66488b52e4771a055f550e536ec652bcc"
+    },
+    "ledgers/audit-all_usd-buy_hold.metadata.json": {
+      "bytes": 5001,
+      "sha256": "174938df022ba32855dd78b6f9723ff82e598a1651d9c3b04fae367f9d890d71"
+    },
+    "ledgers/selection-seed41_gamma0.99.jsonl.gz": {
+      "bytes": 2102871,
+      "sha256": "79f2a2b8e269b0f7f4adf28dbed4a8b11e474132b9510de696bacd12ca697462"
+    },
+    "ledgers/selection-seed7_gamma0.99.sqlite3.gz": {
+      "bytes": 2408065,
+      "sha256": "8cc22aa42d65a6ce242049dae134e309f1ab879e14a520650559a4d4a5173201"
+    },
+    "ledgers/selection-seed41_gamma0.0.metadata.json": {
+      "bytes": 4237,
+      "sha256": "7c38693c9a881d1837828fc20c598497eb9f18e4b055f0dd14edd2470bbefca9"
+    },
+    "ledgers/audit-all_usd-cash.metadata.json": {
+      "bytes": 4997,
+      "sha256": "aa4f09611baad0d3508333d8aee034fdbbb812d6c2fddbcb3bd02f182e35d900"
+    },
+    "ledgers/audit-withheld_assets-price_trend.sqlite3.gz": {
+      "bytes": 1358986,
+      "sha256": "ee64151d935eb12bc73d21538c9ce428d19758d443396b0b6455d982fda72de5"
+    },
+    "ledgers/selection-cash.sqlite3.gz": {
+      "bytes": 2025680,
+      "sha256": "02295a970fb11f1e980b0c021c2a650966a13e9e4aebc7e341cc2c7673b7fc35"
+    },
+    "compact_scores/events.sqlite3": {
+      "bytes": 49152,
+      "sha256": "e959ed83328077c5711c2b52b3b05ad9ff3ee349a59dcf0b876f86b7e8ca5d1d"
+    },
+    "compact_scores/events.jsonl": {
+      "bytes": 27646,
+      "sha256": "7035ecc57fe50f5cb155407627a622c210004bc2e86c915936c91b8e4673fdeb"
+    },
+    "compact_scores/legend.json": {
+      "bytes": 6411,
+      "sha256": "c6afe264c7a1b9aaa9835a182118f805e796bfa2dff723eae6531ac193805f7a"
+    },
+    "compact_scores/scores.sqlite3": {
+      "bytes": 94208,
+      "sha256": "7ac16e9af143227d1b43a75ae7124433d36a78804ca48d87dd3c9a41285db3f1"
+    },
+    "compact_scores/scoreboard.json": {
+      "bytes": 6555,
+      "sha256": "e1fde3484f7a10a408b35299cfc2fdac0e291f54713e07c2fe42dca719d383b9"
+    }
+  }
+}
