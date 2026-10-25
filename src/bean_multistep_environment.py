@@ -57,6 +57,10 @@ def observation(features,i,account):
     if i not in features._wide_market_cache:features._wide_market_cache[i]=market_vector(features.vector(i,0,0.))
     base=features._wide_market_cache[i]
     extra=[account.exposure(price),min(account.age,180)/30.,0. if not account.entry else (price/account.entry-1)/.25,math.log(max(account.liquidation(price)/account.initial,1e-12))]
+    try:minimum=float(account.metadata.get('min_market_funds',account.metadata.get('quote_min_size')))
+    except (TypeError,ValueError):minimum=float('inf')
+    if not minimum>0 or not math.isfinite(minimum):minimum=float('inf')
+    extra += [math.log1p(account.cash)/math.log(1001),math.log1p(account.initial)/math.log(1001),minimum/max(account.value(price),1e-12),account.cash/(minimum*1.01)]
     return base+[float(np.clip(x,-5,5)) for x in extra]
 
 def fixed_action(name,features,i,account):
@@ -91,14 +95,15 @@ def branch(features,i,account,action,*,terminal=False):
     if abs(sum(effects.values())-(outcome-old))>1e-7:raise AssertionError('Transition reward attribution does not reconcile')
     return after,{'vector':observation(features,i,before),'action':action,'reward':reward,'next_vector':None if terminal else observation(features,i+7,after),'done':terminal,'decision_at':int(features.c.times[i])+DAY,'execution_at':int(features.c.times[i+2]),'outcome_at':int(features.c.times[i+7])+DAY,'wealth_before':old,'wealth_after':outcome,'effects':effects}
 
-def teaching_rows(product,features,metadata,cutoff,experts):
+def teaching_rows(product,features,metadata,cutoff,experts,*,initial_capitals=(1000.,)):
     times=features.c.times;episode=0
+    def fresh():return VenueAccount(initial_capitals[episode%len(initial_capitals)],metadata)
     for name in experts:
-        account=VenueAccount(1000.,metadata);step=0
+        account=fresh();step=0
         for i in range(200,len(times)-7,7):
             if int(times[i+7])+DAY>cutoff:break
             if not valid_path(features,i,i+7):
-                account=VenueAccount(1000.,metadata);step=0;episode+=1;continue
+                step=0;episode+=1;account=fresh();continue
             terminal=step==25 or i+14>=len(times) or int(times[min(i+14,len(times)-1)])+DAY>cutoff or not valid_path(features,i+7,i+14)
             for action in (0,1):
                 after,row=branch(features,i,account,action,terminal=terminal)
@@ -106,4 +111,4 @@ def teaching_rows(product,features,metadata,cutoff,experts):
                 yield row
             account,_=branch(features,i,account,fixed_action(name,features,i,account),terminal=terminal)
             step+=1
-            if terminal:account=VenueAccount(1000.,metadata);step=0;episode+=1
+            if terminal:step=0;episode+=1;account=fresh()

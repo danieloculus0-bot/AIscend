@@ -17,7 +17,7 @@ class MultistepContracts(unittest.TestCase):
         for a in altered.data.values():a[261:]=np.nan
         a=VenueAccount(1000,META)
         self.assertEqual(observation(self.f,260,a),observation(Features(altered),260,a))
-        self.assertEqual(len(observation(self.f,260,a)),39)
+        self.assertEqual(len(observation(self.f,260,a)),43)
     def test_quote_aliases_cannot_cross_asset_split(self):
         for p in ('BTC','ETH','DOGE','SHIB','SOL'):
             self.assertEqual(withheld(p+'-USD'),withheld(p+'-USDC'))
@@ -38,10 +38,14 @@ class MultistepContracts(unittest.TestCase):
         self.assertFalse(row['done']);self.assertEqual(row['next_vector'],observation(self.f,267,following))
         self.assertGreater(row['execution_at'],row['decision_at'])
         self.assertAlmostEqual(sum(row['effects'].values()),row['wealth_after']-row['wealth_before'])
-        self.assertEqual(row['vector'][-4],0);self.assertGreater(row['next_vector'][-4],.99)
+        self.assertEqual(row['vector'][35],0);self.assertGreater(row['next_vector'][35],.99)
         self.assertEqual(following.age,6)
         _,end=branch(self.f,267,following,1,terminal=True)
         self.assertTrue(end['done']);self.assertIsNone(end['next_vector'])
+    def test_actual_cash_and_minimum_order_affordability_are_neural_inputs(self):
+        rich=VenueAccount(1000,META);small=VenueAccount(.5,META)
+        r=observation(self.f,260,rich);s=observation(self.f,260,small)
+        self.assertGreater(r[39],s[39]);self.assertGreater(r[40],s[40]);self.assertGreater(r[42],s[42])
     def test_training_does_not_cross_maturity_cutoff_and_gaps_are_not_imputed(self):
         cutoff=int(self.f.c.times[300])+DAY
         rows=list(teaching_rows('X-USD',self.f,META,cutoff,['cash','buy_hold']))
