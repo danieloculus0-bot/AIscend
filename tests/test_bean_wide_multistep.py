@@ -39,6 +39,7 @@ class MultistepContracts(unittest.TestCase):
         self.assertGreater(row['execution_at'],row['decision_at'])
         self.assertAlmostEqual(sum(row['effects'].values()),row['wealth_after']-row['wealth_before'])
         self.assertEqual(row['vector'][-4],0);self.assertGreater(row['next_vector'][-4],.99)
+        self.assertEqual(following.age,6)
         _,end=branch(self.f,267,following,1,terminal=True)
         self.assertTrue(end['done']);self.assertIsNone(end['next_vector'])
     def test_training_does_not_cross_maturity_cutoff_and_gaps_are_not_imputed(self):
@@ -89,6 +90,7 @@ class ActualCoreMultistepContracts(unittest.TestCase):
             self.assertEqual(models['linked'].gamma,.99);self.assertEqual(models['immediate'].gamma,0)
             self.assertNotEqual(models['linked'].weights_digest(),models['immediate'].weights_digest())
             ledger=DecisionLedger(Path(d)/'eval.sqlite3');before=models['linked'].training_state()
+            with self.assertRaises(ValueError):evaluate({known:f},{known:META},[known],cutoff-DAY,cutoff,'linked',ledger,model=models['linked'])
             evaluate({known:f},{known:META},[known],cutoff,int(f.c.times[320])+DAY,'linked',ledger,model=models['linked'])
             self.assertEqual(models['linked'].training_state(),before);ledger.close()
 
