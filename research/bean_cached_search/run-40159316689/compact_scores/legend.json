@@ -1,0 +1,179 @@
+{
+  "schema": "aiscend.bean.pair_scores.v1",
+  "fields": [
+    "method",
+    "dataset",
+    "window",
+    "seed",
+    "cost",
+    "configuration",
+    "evidence",
+    "reason"
+  ],
+  "reasons": {
+    "P0": "positive return and improves on matched control",
+    "P1": "positive return but trails matched control",
+    "L0": "losing return but improves on matched control",
+    "L1": "losing return and trails matched control",
+    "T0": "exact matched tie",
+    "D0": "incomplete or unmatched evidence"
+  },
+  "dictionaries": {
+    "method": {
+      "00": "cash",
+      "01": "buy_hold",
+      "02": "price_trend",
+      "03": "seed7_gamma0.0",
+      "04": "seed7_gamma0.99",
+      "05": "seed41_gamma0.0",
+      "06": "seed41_gamma0.99",
+      "07": "untrained_seed41"
+    },
+    "dataset": {
+      "00": "ff4c28c66affcc8844eb5730b88101ab409ef8f8851374bfdac52b64c7f23c1f"
+    },
+    "window": {
+      "00": {
+        "assets": "known",
+        "end": 1759276800,
+        "phase": "internal_training_selection",
+        "start": 1743465600
+      },
+      "01": {
+        "cohort": "all_usd",
+        "end": 1792800000,
+        "phase": "later_historical_audit",
+        "start": 1759276800
+      },
+      "02": {
+        "cohort": "withheld_assets",
+        "end": 1792800000,
+        "phase": "later_historical_audit",
+        "start": 1759276800
+      }
+    },
+    "seed": {
+      "00": null,
+      "01": 7,
+      "02": 41
+    },
+    "cost": {
+      "00": 0.01
+    },
+    "configuration": {
+      "00": {
+        "audit_end": 1792800000,
+        "core": "887935ae816b4ce6175c6cde54d749f0e5cf3268",
+        "gammas": [
+          0.0,
+          0.99
+        ],
+        "gradient_training_end": 1743465600,
+        "internal_training_selection_end": 1759276800,
+        "label_availability_guard_days": 7,
+        "live_orders": false,
+        "qualification": "Previously researched historical development data; not independent forward evidence",
+        "ranking": "Incremental net return over fixed price_trend, then lower drawdown, then name; cash and fixed controls also retained",
+        "schema": "aiscend.bean.cached_search.v1",
+        "seeds": [
+          7,
+          41
+        ],
+        "source_protocol_sha256": "e5758e68759ecb1f273d2dd53a2270261fcc86b43dec5156fe9f1aba7c19bcf4",
+        "source_results_ref": "4d9f3bdf22071febe1d23ac62a20402e8119fb03"
+      }
+    },
+    "evidence": {
+      "00": {
+        "path": "ledgers/selection-cash.sqlite3.gz",
+        "records": 4543,
+        "sha256": "02295a970fb11f1e980b0c021c2a650966a13e9e4aebc7e341cc2c7673b7fc35",
+        "tip": "430c589883eff65d053d8cb8da73b7eb874ba029e49d6cc4cd0054daae983216"
+      },
+      "01": {
+        "path": "ledgers/selection-buy_hold.sqlite3.gz",
+        "records": 4543,
+        "sha256": "ee14fffda24e787dd552e7c80ad34016d1189ef6238c147e79a9d37b32e65c6a",
+        "tip": "5c21be5261ab234a93f2f7cb768db32217a4e01e7be2084ff306741c0ac0e08e"
+      },
+      "02": {
+        "path": "ledgers/selection-price_trend.sqlite3.gz",
+        "records": 4543,
+        "sha256": "6f49552030471f3b2339fa626bb88cc482edc911c7f8c10ca275047d200ed4fe",
+        "tip": "3f8d9b9173a6214e0397d8553e5c59cad3f1c5d6b39ee04d171aac704a19ac32"
+      },
+      "03": {
+        "path": "ledgers/selection-seed7_gamma0.0.sqlite3.gz",
+        "records": 4543,
+        "sha256": "36d2107045e386e7e81a310633ee1fdd30ced71c594cd7a418ebc6fed2aa0a62",
+        "tip": "8471054b63b3fbba44d47251d25f0f8dafb9c0293c225659cb2d4c8781faed58"
+      },
+      "04": {
+        "path": "ledgers/selection-seed7_gamma0.99.sqlite3.gz",
+        "records": 4543,
+        "sha256": "8cc22aa42d65a6ce242049dae134e309f1ab879e14a520650559a4d4a5173201",
+        "tip": "8a0769d0d8068b7a29f21ef8e80c96e8ca911b5f97c0cdfbaf25d1dfda11ce72"
+      },
+      "05": {
+        "path": "ledgers/selection-seed41_gamma0.0.sqlite3.gz",
+        "records": 4543,
+        "sha256": "f7fbfffb8ad4feb3d7850b6bcd2bc1785f3364bde18f731834b43ad40832e063",
+        "tip": "d19d0c27054b803046855ce09807b06243162b3cd547819ccdb1fca0c3b9f5dd"
+      },
+      "06": {
+        "path": "ledgers/selection-seed41_gamma0.99.sqlite3.gz",
+        "records": 4543,
+        "sha256": "606461712e36ff25790ec07fc9fa3a3edcf4e80c4bed5d02745e650a40a6f3f3",
+        "tip": "30665adc177d4ab7c1ab468bd615c9152f1e5a2bd3b6c4373b9d14128e0776f1"
+      },
+      "07": {
+        "path": "ledgers/selection-untrained_seed41.sqlite3.gz",
+        "records": 4543,
+        "sha256": "df2de828081d70c929c8ed2cc5478f96f9d963e2921b80b9477a6a8d19281740",
+        "tip": "79d2397b08bc7c6f89b7a86bbed307e2306bb4e59b31936ea44f043384bcae93"
+      },
+      "08": {
+        "path": "ledgers/audit-all_usd-cash.sqlite3.gz",
+        "records": 16248,
+        "sha256": "e3c61d723fe019d342497cf7f4e98411de1a1917bbaa5a0b53a6f3aac1b93ab8",
+        "tip": "5eb3f5af98248fbfe0c6a2809d6dbea45feab19a0f04808aecdc02124d830fbf"
+      },
+      "09": {
+        "path": "ledgers/audit-all_usd-buy_hold.sqlite3.gz",
+        "records": 16248,
+        "sha256": "6a6338996e16effcb9d08c5c6cc85dc2970a8905a4d0755b5697fe9a90ef1f80",
+        "tip": "ad414b5240c0c92f94e13b1c737f87936df64514b397279dbbab09aab937b424"
+      },
+      "0A": {
+        "path": "ledgers/audit-all_usd-price_trend.sqlite3.gz",
+        "records": 16248,
+        "sha256": "022aaf5cdf931915db0527581bc9ab2a99516bf6eb3f19391013b4b5cc69b845",
+        "tip": "13421cb3ff820c73b93ba599172105234b3ee97a24d6e2c64e9618c6187b53df"
+      },
+      "0B": {
+        "path": "ledgers/audit-withheld_assets-cash.sqlite3.gz",
+        "records": 3003,
+        "sha256": "e2a389a68115a068b75eec3d0200fdf3617a54c720c3d84e1281c9c567e9542a",
+        "tip": "860d025f95e1ccc3b77a944641845f175a5620727a42e4824b5cdd852157c317"
+      },
+      "0C": {
+        "path": "ledgers/audit-withheld_assets-buy_hold.sqlite3.gz",
+        "records": 3003,
+        "sha256": "80be6d2d89390dcf0068d0fcc41e4039f23131ec5a14ff70afb51cd5b85293b9",
+        "tip": "e26b0a9195be121af2cee44c7cc695a465f69faa66fbbf3694f8a3f269a9f7c4"
+      },
+      "0D": {
+        "path": "ledgers/audit-withheld_assets-price_trend.sqlite3.gz",
+        "records": 3003,
+        "sha256": "ee64151d935eb12bc73d21538c9ce428d19758d443396b0b6455d982fda72de5",
+        "tip": "1d589fa2966e60dc07a843400ec514d986bd9e507a7acf8e7d11f122bd677b45"
+      }
+    },
+    "reason": {
+      "00": "P0",
+      "01": "L0",
+      "02": "T0",
+      "03": "L1"
+    }
+  }
+}
