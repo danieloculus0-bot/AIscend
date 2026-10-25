@@ -440,6 +440,36 @@ class AccountEvidenceTests(unittest.TestCase):
         self.assertEqual(self.store.conn.execute(
             "SELECT COUNT(*) FROM bean_account_fills").fetchone()[0], 0)
 
+    def test_reader_removed_after_complete_snapshot_revokes_history_and_retries(self):
+        # A previously verified fill cache cannot remain BUY-qualified if
+        # the authenticated fill reader disappears within the freshness TTL.
+        reader = RealReader(self.fills)
+        good = evaluate_account(self.store, self.snap, reader, clock=lambda: 1000)
+        self.assertEqual(good["execution"]["status"], "COMPLETE")
+        self.assertEqual(reader.calls, 1)
+
+        reader.account_fills = None
+        unavailable = evaluate_account(
+            self.store, self.snap, reader, clock=lambda: 1001)
+        self.assertEqual(unavailable["read_status"],
+                         "AUTHENTICATED_FILL_READER_UNAVAILABLE")
+        self.assertEqual(unavailable["execution"]["status"],
+                         "UNVERIFIED_OR_STALE")
+        self.assertFalse(unavailable["execution"]["history_fully_reconciled"])
+        self.assertEqual(unavailable["execution"]["fill_count_retained"], 4)
+        self.assertEqual(self.history(self.store, clock=lambda: 1001)["status"],
+                         "UNVERIFIED_OR_STALE")
+
+        # Restoration must revalidate immediately, without waiting for the
+        # previous 300-second throttle to expire or discarding retained fills.
+        del reader.account_fills
+        recovered = evaluate_account(
+            self.store, self.snap, reader, clock=lambda: 1002)
+        self.assertEqual(reader.calls, 2)
+        self.assertEqual(recovered["read_status"], "PROVIDER_HISTORY_COMPLETE")
+        self.assertTrue(recovered["execution"]["history_fully_reconciled"])
+        self.assertEqual(recovered["execution"]["fill_count_retained"], 4)
+
     def test_broken_fill_reader_reports_problem_without_inventing_fills(self):
         class Broken:
             def account_scope_id(self):
