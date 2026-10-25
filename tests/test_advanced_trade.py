@@ -65,11 +65,13 @@ class FakeClient:
             {
                 "accounts": [
                     {
+                        "uuid": "default-usdc-wallet",
                         "currency": "USDC",
                         "available_balance": {"value": "25.00", "currency": "USDC"},
                         "hold": {"value": "0", "currency": "USDC"},
                     },
                     {
+                        "uuid": "default-btc-wallet",
                         "currency": "BTC",
                         "available_balance": {"value": "0", "currency": "BTC"},
                         "hold": {"value": "0", "currency": "BTC"},
@@ -212,6 +214,59 @@ class AdvancedTradeTests(unittest.TestCase):
                 AdvancedTradeSpot.validate_credentials("id", "secret")
             self.assertNotIn("ADVANCED_TRADE_API_KEY_ID", os.environ)
 
+    def test_missing_view_permission_cannot_be_assumed_from_trade_flag(self):
+        vault = FakeVault()
+        vault.fake_client.get_api_key_permissions = lambda: FakeResponse({
+            "can_trade": True, "can_transfer": False})
+        rail = AdvancedTradeSpot(vault)
+        status = rail.status()
+        self.assertFalse(status.can_view)
+        self.assertTrue(status.can_trade)
+        with patch("src.wallets.advanced_trade.RESTClient",
+                   return_value=vault.fake_client), patch.dict(
+                       os.environ, {}, clear=True):
+            with self.assertRaisesRegex(RuntimeError, "view and trade"):
+                AdvancedTradeSpot.validate_credentials("id", "secret")
+
+    def test_nonboolean_coinbase_permission_flags_fail_closed(self):
+        for field in ("can_view", "can_trade"):
+            for value in ("true", "false", "1", 1, None, [], {}):
+                with self.subTest(field=field, value=value):
+                    vault = FakeVault()
+                    flags = {"can_view": True, "can_trade": True,
+                             "can_transfer": False}
+                    flags[field] = value
+                    vault.fake_client.get_api_key_permissions = (
+                        lambda flags=flags: FakeResponse(flags))
+                    status = AdvancedTradeSpot(vault).status()
+                    self.assertFalse(getattr(status, field))
+                    self.assertFalse(status.can_transfer)
+
+    def test_permission_aliases_require_explicit_booleans(self):
+        vault = FakeVault()
+        vault.fake_client.get_api_key_permissions = lambda: FakeResponse({
+            "view": True, "trade": True, "transfer": False})
+        status = AdvancedTradeSpot(vault).status()
+        self.assertTrue(status.can_view)
+        self.assertTrue(status.can_trade)
+        self.assertFalse(status.can_transfer)
+
+    def test_malformed_transfer_and_alias_permissions_never_grant_access(self):
+        vault = FakeVault()
+        vault.fake_client.get_api_key_permissions = lambda: FakeResponse({
+            "view": "false", "trade": "true", "transfer": "false"})
+        status = AdvancedTradeSpot(vault).status()
+        self.assertFalse(status.can_view)
+        self.assertFalse(status.can_trade)
+        self.assertFalse(status.can_transfer)
+
+        vault.fake_client.get_api_key_permissions = lambda: FakeResponse({
+            "can_view": True, "can_trade": True, "can_transfer": "false"})
+        status = AdvancedTradeSpot(vault).status()
+        self.assertTrue(status.can_view)
+        self.assertTrue(status.can_trade)
+        self.assertFalse(status.can_transfer)
+
     def test_status_lists_balances_and_tradable_spot_products(self):
         status = AdvancedTradeSpot(FakeVault()).status()
         self.assertEqual(status.tradable_spot_products, 2)
@@ -333,13 +388,13 @@ class AdvancedTradeTests(unittest.TestCase):
                 self.account_calls.append(kwargs)
                 if kwargs.get("cursor") == "more":
                     return FakeResponse({"accounts": [
-                        {"currency": "USD",
+                        {"uuid": "paged-usd", "currency": "USD",
                          "available_balance": {"value": "40"}, "hold": {"value": "0"}},
-                        {"currency": "USDC",
+                        {"uuid": "paged-usdc-second", "currency": "USDC",
                          "available_balance": {"value": "4"}, "hold": {"value": "1"}},
                     ], "has_next": False})
                 return FakeResponse({"accounts": [
-                    {"currency": "USDC",
+                    {"uuid": "paged-usdc-first", "currency": "USDC",
                      "available_balance": {"value": "6"}, "hold": {"value": "2"}},
                 ], "has_next": True, "cursor": "more"})
         vault = FakeVault()
@@ -350,6 +405,77 @@ class AdvancedTradeTests(unittest.TestCase):
         self.assertEqual(values["USD"], (Decimal("40"), Decimal("0")))
         self.assertEqual(values["USDC"], (Decimal("10"), Decimal("3")))
         self.assertEqual(len(vault.fake_client.account_calls), 2)
+
+    def test_duplicate_coinbase_wallet_uuid_across_pages_cannot_double_cash(self):
+        vault = FakeVault()
+        calls = []
+        def overlapping(**kwargs):
+            calls.append(kwargs)
+            wallet = {
+                "uuid": "same-wallet",
+                "currency": "USDC",
+                "available_balance": {"value": "500"},
+                "hold": {"value": "0"},
+            }
+            if kwargs.get("cursor"):
+                return FakeResponse({"accounts": [wallet], "has_next": False})
+            return FakeResponse({
+                "accounts": [wallet], "has_next": True, "cursor": "next"})
+        vault.fake_client.get_accounts = overlapping
+        with self.assertRaisesRegex(RuntimeError, "repeated a wallet UUID"):
+            AdvancedTradeSpot(vault).status()
+        self.assertEqual(len(calls), 2)
+
+    def test_missing_or_malformed_wallet_uuid_cannot_inflate_balance(self):
+        for missing in (None, "", "   ", 42, ["not-a-uuid"]):
+            with self.subTest(uuid=missing):
+                vault = FakeVault()
+                wallet = {
+                    "currency": "USDC",
+                    "available_balance": {"value": "500"},
+                    "hold": {"value": "0"},
+                }
+                if missing is not None:
+                    wallet["uuid"] = missing
+                vault.fake_client.get_accounts = lambda **kw: FakeResponse({
+                    "accounts": [wallet, wallet.copy()], "has_next": False})
+                with self.assertRaisesRegex(RuntimeError, "wallet UUID missing or malformed"):
+                    AdvancedTradeSpot(vault).status()
+
+    def test_anonymous_wallet_across_pages_cannot_double_spendable_cash(self):
+        vault = FakeVault()
+        wallet = {"currency": "USDC",
+                  "available_balance": {"value": "1000"},
+                  "hold": {"value": "0"}}
+        def paginated(**kw):
+            if kw.get("cursor") == "next":
+                return FakeResponse({"accounts": [wallet.copy()],
+                                     "has_next": False})
+            return FakeResponse({"accounts": [wallet.copy()],
+                                 "has_next": True, "cursor": "next"})
+        vault.fake_client.get_accounts = paginated
+        with self.assertRaisesRegex(RuntimeError, "wallet UUID missing or malformed"):
+            AdvancedTradeSpot(vault).status()
+
+    def test_distinct_coinbase_wallet_uuids_still_aggregate_same_currency(self):
+        vault = FakeVault()
+        def distinct(**kwargs):
+            if kwargs.get("cursor"):
+                return FakeResponse({"accounts": [{
+                    "uuid": "wallet-two", "currency": "USDC",
+                    "available_balance": {"value": "4"},
+                    "hold": {"value": "1"},
+                }], "has_next": False})
+            return FakeResponse({"accounts": [{
+                "uuid": "wallet-one", "currency": "USDC",
+                "available_balance": {"value": "6"},
+                "hold": {"value": "2"},
+            }], "has_next": True, "cursor": "next"})
+        vault.fake_client.get_accounts = distinct
+        balances = AdvancedTradeSpot(vault).status().balances
+        usdc = next(b for b in balances if b.currency == "USDC")
+        self.assertEqual(usdc.available, Decimal("10"))
+        self.assertEqual(usdc.hold, Decimal("3"))
 
     def test_accounts_missing_next_cursor_block_partial_wallet_view(self):
         vault = FakeVault()
@@ -391,7 +517,7 @@ class AdvancedTradeTests(unittest.TestCase):
     def test_invalid_account_balance_does_not_mark_account_valid(self):
         vault = FakeVault()
         vault.fake_client.get_accounts = lambda **kwargs: FakeResponse({
-            "accounts": [{"currency": "USD",
+            "accounts": [{"uuid": "invalid-usd-wallet", "currency": "USD",
                           "available_balance": {"value": "NaN"},
                           "hold": {"value": "0"}}], "has_next": False})
         with self.assertRaisesRegex(RuntimeError, "nonfinite"):
