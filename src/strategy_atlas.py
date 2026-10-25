@@ -5,6 +5,7 @@ An executable snapshot rule is not a simulator, trained model or trade approval.
 """
 from __future__ import annotations
 import ast
+from contextlib import closing
 import gzip
 import hashlib
 import io
@@ -283,7 +284,7 @@ def append_experiment(database,record):
     if not utc_seconds(record["started_at"])<=utc_seconds(record["finished_at"])<=utc_seconds(record["observed_at"]):raise ValueError("Invalid experiment chronology")
     if record["result"] not in ("POSITIVE","NEGATIVE","INCONCLUSIVE","DATA_UNAVAILABLE","ERROR"):raise ValueError("Unknown result")
     raw=canonical(record)
-    with sqlite3.connect(database) as con:
+    with closing(sqlite3.connect(database)) as con, con:
         con.execute("BEGIN IMMEDIATE")
         if not con.execute("SELECT 1 FROM strategies WHERE id=?",(record["strategy_id"],)).fetchone():raise ValueError("Unregistered strategy")
         previous=con.execute("SELECT entry_hash FROM experiment_events ORDER BY seq DESC LIMIT 1").fetchone()
@@ -294,7 +295,7 @@ def append_experiment(database,record):
 
 def recall_experiments(database,*,as_of,strategy_id=None):
     asof=utc_seconds(as_of);previous="0"*64;out=[]
-    with sqlite3.connect(database) as con:
+    with closing(sqlite3.connect(database)) as con:
         for row in con.execute("SELECT previous_hash,entry_hash,record_json FROM experiment_events ORDER BY seq"):
             if row[0]!=previous or hashlib.sha256((previous+"\n"+row[2]).encode()).hexdigest()!=row[1]:raise ValueError("Experiment ledger tampered")
             previous=row[1];r=json.loads(row[2])

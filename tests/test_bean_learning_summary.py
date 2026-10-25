@@ -1,10 +1,27 @@
 from pathlib import Path
+import gzip
+import hashlib
+import json
+import tempfile
 import unittest
 from research.bean_learning_push_20261024.build_summary import recall_outcomes,recall_checkpoints
 
 class LearningIndexChronologyTests(unittest.TestCase):
     @classmethod
-    def setUpClass(cls):cls.database=Path('research/bean_learning_push_20261024/learning_outcomes.sqlite3')
+    def setUpClass(cls):
+        source=Path(__file__).resolve().parents[1]/'research'/'bean_learning_push_20261024'
+        archive=source/'learning_outcomes.sqlite3.gz'
+        manifest=json.loads((source/'artifacts_manifest.json').read_text())
+        compressed=archive.read_bytes()
+        if hashlib.sha256(compressed).hexdigest()!=manifest['files'][archive.name]['sha256']:
+            raise ValueError('Retained learning index checksum mismatch')
+        cls._temp=tempfile.TemporaryDirectory()
+        cls.database=Path(cls._temp.name)/'learning_outcomes.sqlite3'
+        cls.database.write_bytes(gzip.decompress(compressed))
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._temp.cleanup()
     def test_observed_recall_cannot_backdate_newly_recorded_research(self):
         self.assertEqual(recall_outcomes(self.database,'2025-01-01T00:00:00Z'),[])
         self.assertEqual(recall_checkpoints(self.database,'2025-01-01T00:00:00Z'),[])

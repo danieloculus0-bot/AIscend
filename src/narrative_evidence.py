@@ -9,6 +9,7 @@ import json
 import math
 import re
 import sqlite3
+from contextlib import closing
 from collections import Counter,defaultdict
 from datetime import datetime,timezone
 from email.utils import parsedate_to_datetime
@@ -109,7 +110,7 @@ def document(title,url,*,published_at=None,first_seen_at,source_group=None):
 
 def ingest_documents(database,records):
     added=0
-    with sqlite3.connect(database) as con:
+    with closing(sqlite3.connect(database)) as con, con:
         for r in records:
             # Reconstruct instead of trusting caller-supplied sentiment, time or identifiers.
             checked=document(r["title"],r["url"],published_at=r.get("published_at"),first_seen_at=r["first_seen_at"],source_group=r.get("source_group"))

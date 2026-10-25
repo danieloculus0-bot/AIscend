@@ -45,7 +45,7 @@ def match_lesson(cash,long):
 def load_lessons(corpus,cutoff):
     corpus=Path(corpus);manifest=json.loads((corpus/'artifacts_manifest.json').read_text())['files'];lessons=[];seen=set();source=hashlib.sha256()
     for path in sorted((corpus/'teaching').glob('*.jsonl.gz')):
-        relative=str(path.relative_to(corpus));blob=path.read_bytes()
+        relative=path.relative_to(corpus).as_posix();blob=path.read_bytes()
         if relative not in manifest or hashlib.sha256(blob).hexdigest()!=manifest[relative]['sha256']:raise ValueError('Changed teaching source')
         pending=[]
         for line in gzip.decompress(blob).splitlines():
