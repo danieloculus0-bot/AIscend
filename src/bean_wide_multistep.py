@@ -19,7 +19,7 @@ import sys
 import time
 import numpy as np
 from .bean_causal_simulation import DecisionLedger
-from .bean_multistep_environment import VenueAccount,features_for,observation,fixed_action,teaching_rows,withheld,branch,valid_path
+from .bean_multistep_environment import VenueAccount,features_for,observation,fixed_action,teaching_rows,withheld,branch,valid_path,valid_history
 from .bean_wide_history import DAY,canonical,save_gzip
 from .strategy_atlas import utc_seconds
 
@@ -99,7 +99,7 @@ def evaluate(features,metadata,products,start,end,name,ledger,*,model=None,refer
             ready=[]
             for p in products:
                 f=features[p];i=int((day-int(f.c.times[0]))//DAY)-1
-                if 200<=i<len(f.c.times) and f.valid(i,0):
+                if 200<=i<len(f.c.times) and valid_history(f,i):
                     ready.append((p,i,observation(f,i,allocations[p])))
             predictions=None
             if model and ready:
@@ -108,7 +108,7 @@ def evaluate(features,metadata,products,start,end,name,ledger,*,model=None,refer
                 f=features[p];account=allocations[p];values=predictions[k] if predictions else None
                 action=int(np.argmax(values)) if values else fixed_action(name,f,i,account)
                 ref=fixed_action(reference,f,i,account)
-                pending[p]=dict(product=p,signal_index=i,decision_at=day,execution_at=day+DAY,outcome_at=day+7*DAY,action=action,reference_action=ref,q_values=values,vector=vector,wealth_before=account.liquidation(float(f.c.data['close'][i,0])),before=copy.deepcopy(account),old_costs=account.costs)
+                pending[p]=dict(product=p,signal_index=i,decision_at=day,execution_at=day+DAY,outcome_at=day+7*DAY,action=action,reference_action=ref,q_values=values,vector=vector,wealth_before=account.liquidation(float(f.c.data['close'][i,0])),before=account.clone(),old_costs=account.costs)
         for p in products:
             account=allocations[p];f=features[p];i=int((day-int(f.c.times[0]))//DAY)
             op=float(f.c.data['open'][i,0]);close=float(f.c.data['close'][i,0])

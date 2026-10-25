@@ -42,6 +42,10 @@ class VenueAccount(Account):
         return fee
     def liquidation(self,price,cost=.01):
         return self.cash+self.quantity*price*(1-cost)
+    def clone(self):
+        other=type(self).__new__(type(self));other.__dict__=self.__dict__.copy()
+        other.rejects=self.rejects.copy()
+        return other
 
 def features_for(product,rows,start,end):
     times=np.arange(start,end,DAY,dtype=np.int64);arrays={k:np.full((len(times),1),np.nan) for k in ('open','high','low','close','volume')}
@@ -49,7 +53,11 @@ def features_for(product,rows,start,end):
         i=(row['open_time']-start)//DAY
         if 0<=i<len(times):
             for key in arrays:arrays[key][i,0]=row[key]
-    return Features(Candles((product,),times,arrays,'current-vintage-raw-source'))
+    for a in arrays.values():a.flags.writeable=False
+    features=Features(Candles((product,),times,arrays,'current-vintage-raw-source'))
+    finite=np.logical_and.reduce([np.isfinite(a[:,0]) for a in arrays.values()])
+    features._wide_missing_prefix=np.concatenate(([0],np.cumsum(~finite)))
+    return features
 
 def observation(features,i,account):
     price=float(features.c.data['close'][i,0])
@@ -61,7 +69,7 @@ def observation(features,i,account):
     except (TypeError,ValueError):minimum=float('inf')
     if not minimum>0 or not math.isfinite(minimum):minimum=float('inf')
     extra += [math.log1p(account.cash)/math.log(1001),math.log1p(account.initial)/math.log(1001),minimum/max(account.value(price),1e-12),account.cash/(minimum*1.01)]
-    return base+[float(np.clip(x,-5,5)) for x in extra]
+    return base+[float(-5 if x < -5 else 5 if x > 5 else x) for x in extra]
 
 def fixed_action(name,features,i,account):
     if name=='cash':return 0
@@ -72,13 +80,22 @@ def fixed_action(name,features,i,account):
         return int(p>features.hi20[i,0] or (account.quantity>0 and p>=features.lo10[i,0]))
     raise ValueError('Unknown fixed control')
 
+def valid_history(features,i):
+    if hasattr(features,'_wide_missing_prefix'):
+        p=features._wide_missing_prefix
+        return i>=200 and i+1<len(p) and p[i+1]==p[i-200]
+    return features.valid(i,0)
+
 def valid_path(features,i,stop):
+    if hasattr(features,'_wide_missing_prefix'):
+        p=features._wide_missing_prefix
+        return 200<=i<=stop<len(features.c.times) and p[stop+1]==p[i-200]
     return features.valid(i,0) and stop<len(features.c.times) and all(np.isfinite(a[i:stop+1,0]).all() for a in features.c.data.values())
 
 def branch(features,i,account,action,*,terminal=False):
     """Seven-day transition; fill follows the completed signal by one full day."""
     if not valid_path(features,i,i+7):raise ValueError('Cannot teach across missing candles')
-    before=copy.deepcopy(account);after=copy.deepcopy(account)
+    before=account;after=account.clone()
     p=float(features.c.data['close'][i,0]);fill=float(features.c.data['open'][i+2,0]);end=float(features.c.data['close'][i+7,0]);old=before.liquidation(p)
     paid=after.trade(action,fill)
     if after.quantity:after.age+=6 if not before.quantity else 7
@@ -90,7 +107,7 @@ def branch(features,i,account,action,*,terminal=False):
     effects={'pre_fill_market_pnl':before.quantity*(fill-p),'post_fill_market_pnl':(0. if terminal else after.quantity)*(end-fill),'paid_costs':-paid,'exit_reserve_change':before_reserve-after_reserve}
     # If the terminal close sold the position, retain its held-period PnL.
     if terminal:
-        pre_exit=copy.deepcopy(before);pre_exit.trade(action,fill)
+        pre_exit=before.clone();pre_exit.trade(action,fill)
         effects['post_fill_market_pnl']=pre_exit.quantity*(end-fill)
     if abs(sum(effects.values())-(outcome-old))>1e-7:raise AssertionError('Transition reward attribution does not reconcile')
     return after,{'vector':observation(features,i,before),'action':action,'reward':reward,'next_vector':None if terminal else observation(features,i+7,after),'done':terminal,'decision_at':int(features.c.times[i])+DAY,'execution_at':int(features.c.times[i+2]),'outcome_at':int(features.c.times[i+7])+DAY,'wealth_before':old,'wealth_after':outcome,'effects':effects}
@@ -105,10 +122,12 @@ def teaching_rows(product,features,metadata,cutoff,experts,*,initial_capitals=(1
             if not valid_path(features,i,i+7):
                 step=0;episode+=1;account=fresh();continue
             terminal=step==25 or i+14>=len(times) or int(times[min(i+14,len(times)-1)])+DAY>cutoff or not valid_path(features,i+7,i+14)
+            alternatives=[]
             for action in (0,1):
                 after,row=branch(features,i,account,action,terminal=terminal)
+                alternatives.append(after)
                 row.update(product=product,teacher=name,episode=episode,id=hashlib.sha256(f'{product}/{name}/{i}/{episode}/{action}'.encode()).hexdigest())
                 yield row
-            account,_=branch(features,i,account,fixed_action(name,features,i,account),terminal=terminal)
+            account=alternatives[fixed_action(name,features,i,account)]
             step+=1
             if terminal:step=0;episode+=1;account=fresh()
