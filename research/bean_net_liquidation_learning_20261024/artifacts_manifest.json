@@ -1,0 +1,64 @@
+{
+  "files": {
+    ".gitignore": {
+      "bytes": 56,
+      "sha256": "1508eca47a1100055c7e1a5501f3d1616c677c6158c019d77469c174541f8e29"
+    },
+    "RESULTS.md": {
+      "bytes": 806,
+      "sha256": "a77fe59871c88aaf16cfda493638fb9b72c30a885a8980ed928a42fd70e61b52"
+    },
+    "decisions.jsonl.gz": {
+      "bytes": 244532,
+      "sha256": "60e689ada7f38957418fc8b100171ce744e14be386b3b81efad637211d3582ee"
+    },
+    "decisions.metadata.json": {
+      "bytes": 37534,
+      "sha256": "c8d24becf0d6d444554f53a7936b4eb4187b257242f47d6a0ec9d1130b42dc98"
+    },
+    "decisions.sqlite3.gz": {
+      "bytes": 290533,
+      "sha256": "411730a36591a86ea9d36498ee67963451ec82bea652d1640411f453ffe2adba"
+    },
+    "fold-0-net-liquidation.sqlite3.gz": {
+      "bytes": 2215,
+      "sha256": "a6f6ba71e07c2bd403ff6f7389f9fe9b39ff902b741fe8e821bbc423769137c0"
+    },
+    "fold-0-net-liquidation.training_state.json.gz": {
+      "bytes": 1576996,
+      "sha256": "f1c1c665d3e50d39adcbd14667dd0d6b4efd6888ced1532e02f22fe4adc4cec4"
+    },
+    "fold-1-net-liquidation.sqlite3.gz": {
+      "bytes": 2681,
+      "sha256": "cf8206d2b2c5d8f1514f256f8d0033110e34db5aa9d40bda214824ee42b02d68"
+    },
+    "fold-1-net-liquidation.training_state.json.gz": {
+      "bytes": 1598772,
+      "sha256": "1788653c0348738af9de8ad7ae0526172e158693b49f73deefe7515c0ff29480"
+    },
+    "fold-2-net-liquidation.sqlite3.gz": {
+      "bytes": 3113,
+      "sha256": "8e666999a5a602ece1330783a83f353459cd9086e639f9bc1a5304fa880b507d"
+    },
+    "fold-2-net-liquidation.training_state.json.gz": {
+      "bytes": 1618102,
+      "sha256": "a067a2e9a03d863690d1874a6366399adfd0c7c963e27af60393760ec0e7508d"
+    },
+    "protocol.json": {
+      "bytes": 1510,
+      "sha256": "a0b7887eb657fc6b8665ee2e74406aa91362772ae6c75295e8a6c4bd24d1c44e"
+    },
+    "reconciled_training_cases.jsonl.gz": {
+      "bytes": 5321497,
+      "sha256": "fa119d0a214415d7b2d9180f7eab657521598ef6be7858210320e12472536787"
+    },
+    "results.json": {
+      "bytes": 69292,
+      "sha256": "8d17ec3fb8702e2d399569309c700b44fd83ae55a551dca1b9d778cfff981c77"
+    },
+    "retention_manifest.json": {
+      "bytes": 64718,
+      "sha256": "23f878c801817af78cb8e5c932968a37914fea26574bdbbe1b87442aec56acb5"
+    }
+  }
+}
