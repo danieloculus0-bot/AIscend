@@ -1,0 +1,26 @@
+{
+  "selected": "cash",
+  "selection_source": "CompactScores.rank",
+  "score_mnemonic": "0000000000000000",
+  "score_receipt": "8bc3cd100ad47f4e1a27a1a45691d065e36353afd5ca71b722e27882bb159842",
+  "later_audit_opened": false,
+  "withheld_assets_used": false,
+  "weights_sha256": null,
+  "selection_returns": {
+    "cash": 2.220446049250313e-16,
+    "buy_hold": -0.011047287175672493,
+    "price_trend": -0.0658522477757425,
+    "seed7-grouped_raw": -0.04156896527589071,
+    "seed7-shuffled_raw": -0.07046130294175745,
+    "seed7-paired_advantage": -0.05485076698275637,
+    "seed41-grouped_raw": -0.057231552738909786,
+    "seed41-shuffled_raw": -0.05939613872909322,
+    "seed41-paired_advantage": -0.047679623634281576,
+    "seed7-paired_plus_memory": -0.04013881609804815,
+    "seed7-paired_plus_placebo": -0.04225598410993614,
+    "seed41-paired_plus_memory": -0.04366043578153089,
+    "seed41-paired_plus_placebo": -0.045270917896205964,
+    "memory_only": -0.030372249060863554,
+    "untrained": -0.006615120745736003
+  }
+}

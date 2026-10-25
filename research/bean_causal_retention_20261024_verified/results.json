@@ -1,0 +1,230 @@
+{
+  "schema": "aiscend.bean.causal_results.v1",
+  "protocol_sha256": "72c78aacefd5d0a9c48f7d784fe45e564d02f86cde5f6fdab3095678318952c8",
+  "source_database_sha256": "fe018a2e857c7007b562561501e458ff4be708f34453987bb8ef47c984e1bbcc",
+  "core_revision": "887935ae816b4ce6175c6cde54d749f0e5cf3268",
+  "core_source_sha256": "55c4b369bd9412e21e45cddf34e6f9dbd6b1ed6120679c62b92f3c3f595ecb71",
+  "selected_candidate": "td-7",
+  "all_candidates_retained": 4,
+  "restart_verified": true,
+  "actual_weight_or_q_changes": {
+    "td-7": true,
+    "dqn-7": true,
+    "dqn-41": true,
+    "dqn-20261024": true
+  },
+  "historical_final_period_results": {
+    "selected_frozen": {
+      "phase": "selected_frozen",
+      "starting_equity": 1000.0,
+      "ending_equity": 47.98602450425379,
+      "net_return": -0.9520139754957462,
+      "max_drawdown": 0.9603638724056357,
+      "modeled_costs": 579.9915785087973,
+      "orders": 819,
+      "decisions": 182,
+      "action_counts": {
+        "buy_hold_btc": 27,
+        "sma_cross": 57,
+        "bollinger_breakout": 5,
+        "ema_cross": 2,
+        "cash": 2,
+        "hold": 42,
+        "vol_scaled_tsm": 15,
+        "equal_weight": 23,
+        "streak_reversal": 9
+      },
+      "gap_marks": 0,
+      "first_decision": 1761264000,
+      "last_data_time": 1792713600,
+      "initial_learner": {
+        "updates": 447,
+        "q_states": 54,
+        "weights_sha256": "ec5e4fe9313ef1d587486c2927e39ff416bb790c4793b1d5d4889dc22e8d0e5b"
+      },
+      "final_learner": {
+        "updates": 447,
+        "q_states": 54,
+        "weights_sha256": "ec5e4fe9313ef1d587486c2927e39ff416bb790c4793b1d5d4889dc22e8d0e5b"
+      },
+      "observation_chain_sha256": "a4b607ef4c024a3b6420b9a39f593b7c08df13e750345b52558c60f035e5a50d"
+    },
+    "selected_online_matured_feedback": {
+      "phase": "selected_online_matured_feedback",
+      "starting_equity": 1000.0,
+      "ending_equity": 55.381946489446456,
+      "net_return": -0.9446180535105535,
+      "max_drawdown": 0.9446180535105535,
+      "modeled_costs": 531.8915757995836,
+      "orders": 1016,
+      "decisions": 182,
+      "action_counts": {
+        "buy_hold_btc": 12,
+        "sma_cross": 22,
+        "bollinger_breakout": 5,
+        "lowvol_factor": 2,
+        "inverse_vol": 13,
+        "zscore_revert": 12,
+        "cash": 13,
+        "macd": 8,
+        "roc": 3,
+        "equal_weight": 17,
+        "price_sma": 17,
+        "streak_reversal": 12,
+        "hold": 18,
+        "vol_scaled_tsm": 5,
+        "ema_cross": 11,
+        "relative_strength_rotation": 11,
+        "volume_breakout": 1
+      },
+      "gap_marks": 0,
+      "first_decision": 1761264000,
+      "last_data_time": 1792713600,
+      "initial_learner": {
+        "updates": 447,
+        "q_states": 54,
+        "weights_sha256": "ec5e4fe9313ef1d587486c2927e39ff416bb790c4793b1d5d4889dc22e8d0e5b"
+      },
+      "final_learner": {
+        "updates": 629,
+        "q_states": 54,
+        "weights_sha256": "2387ec5b9ba317e9b5497755d5f4370c5b0f889b8cd3c2ca8525278e967c4e72"
+      },
+      "observation_chain_sha256": "c187fde1bfb4efb2c2a054ee6fe29b9a7fb03f18c87eb0782f33a2d6a1f5e069"
+    },
+    "same_architecture_untrained": {
+      "phase": "same_architecture_untrained",
+      "starting_equity": 1000.0,
+      "ending_equity": 1000.0,
+      "net_return": 0.0,
+      "max_drawdown": 0.0,
+      "modeled_costs": 0.0,
+      "orders": 0,
+      "decisions": 182,
+      "action_counts": {
+        "cash": 182
+      },
+      "gap_marks": 0,
+      "first_decision": 1761264000,
+      "last_data_time": 1792713600,
+      "initial_learner": {
+        "updates": 0,
+        "q_states": 0,
+        "weights_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+      },
+      "final_learner": {
+        "updates": 0,
+        "q_states": 0,
+        "weights_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+      },
+      "observation_chain_sha256": "eb1de55ef20ab4adb08cf079b2c42b8b3d535015136b5b97063874759c40d3a0"
+    },
+    "past_reward_placebo": {
+      "phase": "past_reward_placebo",
+      "starting_equity": 1000.0,
+      "ending_equity": 78.97588339002785,
+      "net_return": -0.9210241166099722,
+      "max_drawdown": 0.9260696822910393,
+      "modeled_costs": 471.10164661604074,
+      "orders": 818,
+      "decisions": 182,
+      "action_counts": {
+        "equal_weight": 19,
+        "bollinger_breakout": 4,
+        "hold": 10,
+        "cash": 46,
+        "sma_cross": 40,
+        "volume_breakout": 20,
+        "inverse_vol": 8,
+        "buy_hold_btc": 26,
+        "price_sma": 8,
+        "streak_reversal": 1
+      },
+      "gap_marks": 0,
+      "first_decision": 1761264000,
+      "last_data_time": 1792713600,
+      "initial_learner": {
+        "updates": 447,
+        "q_states": 47,
+        "weights_sha256": "dfad4cd6b0e8ff8364a831ff08c6eeddcbf79f8a903d970910a240c081ebc88f"
+      },
+      "final_learner": {
+        "updates": 447,
+        "q_states": 47,
+        "weights_sha256": "dfad4cd6b0e8ff8364a831ff08c6eeddcbf79f8a903d970910a240c081ebc88f"
+      },
+      "observation_chain_sha256": "69d16e7949d78974c11fd2cf528fc61610f31ee7450eb02084f9d0222f236edc"
+    },
+    "cash": {
+      "phase": "cash",
+      "starting_equity": 1000.0,
+      "ending_equity": 1000.0,
+      "net_return": 0.0,
+      "max_drawdown": 0.0,
+      "modeled_costs": 0.0,
+      "orders": 0,
+      "decisions": 182,
+      "action_counts": {
+        "cash": 182
+      },
+      "gap_marks": 0,
+      "first_decision": 1761264000,
+      "last_data_time": 1792713600,
+      "initial_learner": null,
+      "final_learner": null,
+      "observation_chain_sha256": "eb1de55ef20ab4adb08cf079b2c42b8b3d535015136b5b97063874759c40d3a0"
+    },
+    "buy_hold_btc": {
+      "phase": "buy_hold_btc",
+      "starting_equity": 1000.0,
+      "ending_equity": 717.3880523762721,
+      "net_return": -0.2826119476237279,
+      "max_drawdown": 0.48911874404817635,
+      "modeled_costs": 17.14733406240659,
+      "orders": 2,
+      "decisions": 182,
+      "action_counts": {
+        "buy_hold_btc": 182
+      },
+      "gap_marks": 0,
+      "first_decision": 1761264000,
+      "last_data_time": 1792713600,
+      "initial_learner": null,
+      "final_learner": null,
+      "observation_chain_sha256": "4e14db9bfceaa2f7101db344329947710deb2abb514f62c2aeb3791ef58d409a"
+    },
+    "relative_strength_rotation": {
+      "phase": "relative_strength_rotation",
+      "starting_equity": 1000.0,
+      "ending_equity": 6.000304303603896,
+      "net_return": -0.9939996956963961,
+      "max_drawdown": 0.9959516063886837,
+      "modeled_costs": 287.043354873976,
+      "orders": 849,
+      "decisions": 182,
+      "action_counts": {
+        "relative_strength_rotation": 182
+      },
+      "gap_marks": 0,
+      "first_decision": 1761264000,
+      "last_data_time": 1792713600,
+      "initial_learner": null,
+      "final_learner": null,
+      "observation_chain_sha256": "57fadbd4a60580f2e9ac9013265e4a8e1759c12a99a03c51dde46b54af6d2f76"
+    }
+  },
+  "successful_method_under_preregistered_rule": false,
+  "independent_external_replication": false,
+  "live_profitability_proven": false,
+  "live_orders": false,
+  "decision_ledger_tip": "37cdb5e2bc86a712bbc57d572914203401fb1aeba6d14a2bcb2354dbb26e781e",
+  "decision_records": 4237,
+  "retained_policy": "/tmp/aiscend-causal-retention-20261024/completed_run/selected_frozen.sqlite3",
+  "retained_online_policy": "/tmp/aiscend-causal-retention-20261024/completed_run/selected_online_matured_feedback.sqlite3",
+  "limitations": [
+    "Historical current-vintage reference prices, not executable venue fills",
+    "Present archive coverage has survivorship and availability limits",
+    "Only the price/volume-feasible catalog subset is implemented in this experiment",
+    "No historical first-seen narrative input was available"
+  ]
+}

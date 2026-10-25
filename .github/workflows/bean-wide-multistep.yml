@@ -1,0 +1,84 @@
+name: BEAN broad Coinbase multi-step learning and retention
+on:
+  push:
+    branches: ['experiment/bean-wide-multistep-20261024']
+    paths:
+      - 'src/bean_multistep_environment.py'
+      - 'src/bean_wide_multistep.py'
+      - 'tests/test_bean_wide_multistep.py'
+      - '.github/workflows/bean-wide-multistep.yml'
+  pull_request:
+    paths:
+      - 'src/bean_multistep_environment.py'
+      - 'src/bean_wide_multistep.py'
+      - 'tests/test_bean_wide_multistep.py'
+      - '.github/workflows/bean-wide-multistep.yml'
+permissions:
+  contents: write
+concurrency:
+  group: bean-wide-multistep-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  learn:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements-research.txt
+      - uses: actions/checkout@v4
+        with:
+          repository: danieloculus0-bot/BEAN
+          ref: 887935ae816b4ce6175c6cde54d749f0e5cf3268
+          path: core-bean
+      - name: Verify funded state transitions, no future inputs, actual Core gradients and recovery
+        env:
+          BEAN_CORE_DIR: core-bean
+        run: python -m unittest tests.test_bean_wide_history tests.test_bean_wide_multistep -v
+      - name: Obtain the immutable full-catalog snapshot from the collector
+        if: github.event_name == 'push'
+        run: |
+          for attempt in $(seq 1 60); do
+            git fetch origin experiment/bean-wide-multistep-20261024
+            if git cat-file -e FETCH_HEAD:research/bean_wide_history_20261024/manifest.json 2>/dev/null; then
+              git checkout FETCH_HEAD -- research/bean_wide_history_20261024
+              git rev-parse FETCH_HEAD > /tmp/bean-history-source-ref
+              break
+            fi
+            sleep 20
+          done
+          test -f research/bean_wide_history_20261024/manifest.json
+      - name: Train matched immediate and multi-step Core models; preserve every evaluation
+        if: github.event_name == 'push'
+        run: |
+          python -m src.bean_wide_multistep --history research/bean_wide_history_20261024 --core-dir core-bean --protocol research/bean_wide_multistep_20261024/protocol_v2.json --output /tmp/bean-wide-multistep
+          cp /tmp/bean-history-source-ref /tmp/bean-wide-multistep/history_source_ref.txt
+      - name: Preserve completed and partial experiment evidence
+        if: github.event_name == 'push' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bean-wide-multistep-${{ github.run_id }}
+          path: /tmp/bean-wide-multistep/
+          retention-days: 90
+      - name: Archive all losses, individual decisions and recoverable Core states
+        if: github.event_name == 'push'
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import shutil
+          source=Path('/tmp/bean-wide-multistep');target=Path('research/bean_wide_multistep_capital_20261024')
+          shutil.copytree(source,target)
+          for p in target.rglob('*'):
+            if p.is_file() and p.suffix in ('.sqlite3','.jsonl'):p.unlink()
+          (target/'.gitignore').write_text('*.sqlite3\n*.sqlite3-*\n*.jsonl\n!*.sqlite3.gz\n!*.jsonl.gz\n')
+          PY
+          git reset
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add research/bean_wide_multistep_capital_20261024
+          git commit -m 'Archive broad Coinbase multi-step learning, counterfactuals and complete models'
+          git fetch origin experiment/bean-wide-multistep-20261024
+          git rebase origin/experiment/bean-wide-multistep-20261024
+          git push origin HEAD:experiment/bean-wide-multistep-20261024
