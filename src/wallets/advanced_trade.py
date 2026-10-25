@@ -327,10 +327,13 @@ class AdvancedTradeSpot:
 
     def permissions(self) -> dict[str, bool]:
         payload = self._dict(self.vault.client().get_api_key_permissions())
+        # Permissions must be affirmative provider booleans. Missing view
+        # permission used to default True, and bool("false") is also True.
+        # Neither is evidence that this key may read the funded account.
         return {
-            "can_view": bool(payload.get("can_view", payload.get("view", True))),
-            "can_trade": bool(payload.get("can_trade", payload.get("trade", False))),
-            "can_transfer": bool(payload.get("can_transfer", payload.get("transfer", False))),
+            "can_view": payload.get("can_view", payload.get("view")) is True,
+            "can_trade": payload.get("can_trade", payload.get("trade")) is True,
+            "can_transfer": payload.get("can_transfer", payload.get("transfer")) is True,
         }
 
     @staticmethod
