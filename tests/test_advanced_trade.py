@@ -389,6 +389,21 @@ class AdvancedTradeTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "wallet UUID missing or malformed"):
                     AdvancedTradeSpot(vault).status()
 
+    def test_anonymous_wallet_across_pages_cannot_double_spendable_cash(self):
+        vault = FakeVault()
+        wallet = {"currency": "USDC",
+                  "available_balance": {"value": "1000"},
+                  "hold": {"value": "0"}}
+        def paginated(**kw):
+            if kw.get("cursor") == "next":
+                return FakeResponse({"accounts": [wallet.copy()],
+                                     "has_next": False})
+            return FakeResponse({"accounts": [wallet.copy()],
+                                 "has_next": True, "cursor": "next"})
+        vault.fake_client.get_accounts = paginated
+        with self.assertRaisesRegex(RuntimeError, "wallet UUID missing or malformed"):
+            AdvancedTradeSpot(vault).status()
+
     def test_distinct_coinbase_wallet_uuids_still_aggregate_same_currency(self):
         vault = FakeVault()
         def distinct(**kwargs):
