@@ -141,6 +141,12 @@ def preserve_fills(store, response, *, account_scope, clock=time.time):
     scope = _require_scope(account_scope)
     _fill_table(store)
     normalized = [_normalize_fill(item) for item in response["fills"]]
+    # A single authenticated pagination result must not repeat a fill ID.
+    # Idempotent re-reads across separate snapshots remain valid, but repeated
+    # IDs within one response can hide overlapping or malformed pages.
+    ids = [item["fill_id"] for item in normalized]
+    if len(ids) != len(set(ids)):
+        raise ValueError("Coinbase authenticated fill history repeats a fill ID")
     if response.get("complete") is True:
         # A fully paginated account snapshot must include every previously
         # observed ID. Otherwise credentials, portfolio scope, or retention
