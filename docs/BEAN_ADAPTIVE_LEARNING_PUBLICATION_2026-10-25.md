@@ -22,6 +22,10 @@ A follow-up source change adds finite-input rejection to prevent NaN/Infinity fr
 
 A useful gain requires a trained model to improve against **matched fixed-rule, cash, untrained, memory-only and label-shuffled controls**, with all net fees and drawdowns counted. Only a *later*, preregistered, truly new forward period can justify an independent profitability claim. Losses and inconclusive trials stay in the ledger; repeat evaluation does not create new evidence or reward credit.
 
+## Exact-head regression result
+
+At research head `16ca54989bc9ae9ba4a5f24876b916a7a322a508`, all four pull-request workflow suites passed: [retained learning and source integrity](https://github.com/danieloculus0-bot/AIscend/actions/runs/40167008085), [cached search](https://github.com/danieloculus0-bot/AIscend/actions/runs/40167008031), [broad multi-step market contracts](https://github.com/danieloculus0-bot/AIscend/actions/runs/40167008116), and [strategy-teaching contracts](https://github.com/danieloculus0-bot/AIscend/actions/runs/40167008030). The first version of the newly added archive test failed at an earlier test-only revision; its incorrectly escaped JSONL separator was fixed, not erased. Passing the four contract suites verifies engineering behavior, **not** the 389-market full research study or subsequent economic outcomes. The [full push-triggered study](https://github.com/danieloculus0-bot/AIscend/actions/runs/40167005185) is separately tracked and must finish and archive its real results before any new market-performance conclusion is reported.
+
 ## Release boundary
 
 - Core learner: integrated to BEAN main, research-capable, optional.
