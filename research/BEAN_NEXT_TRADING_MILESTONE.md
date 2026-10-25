@@ -23,6 +23,13 @@ It compares limited and complete replay using the same input order, architecture
 and update budget. Full states are stored externally with Journal hashes when
 the old 16 MB expanded capsule limit would otherwise prevent retention.
 
+The parent branch advanced during this work: 75bd175c added bounded chunked
+teaching/gradient digestion. That implementation is reused unchanged as a fourth
+comparison arm. Coverage is tracked by exact source IDs across replay eviction,
+so having a gradient step for each cohort is distinguished from sampling each
+individual row. The initial three-arm run remains separately archived; the
+four-arm result is stored under `bean_economic_values_chunked_20261024`.
+
 ## Locked comparison
 
 Three chronological development splits compare raw action values with limited

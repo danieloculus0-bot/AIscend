@@ -10,7 +10,7 @@ from .bean_economic_values import funded_values,market_vector
 def canonical(x):return json.dumps(x,sort_keys=True,separators=(',',':'),allow_nan=False)
 
 def main():
-    model=None;cutoff=None;scheme=None;journal=None;seen=set();sampled=set();positions={};source_ids=[]
+    model=None;cutoff=None;scheme=None;journal=None;seen=set();sampled=set();replay_sources={};source_ids=[]
     for line in sys.stdin:
         try:
             r=json.loads(line);op=r['op']
@@ -28,21 +28,22 @@ def main():
                 if len(set(ids))!=len(ids) or any(x in seen for x in ids):raise ValueError('Repeated teaching example')
                 if any(not x['decision_at']<x['outcome_at']<=cutoff for x in batch):raise ValueError('Future or unmatured example')
                 for x in batch:
+                    if len(model.replay)==model.replay.maxlen:replay_sources.pop(id(model.replay[0]),None)
                     model.observe(x['vector'],x['action'],x['reward'],None,True);seen.add(x['id']);source_ids.append(x['id'])
+                    replay_sources[id(model.replay[-1])]=x['id']
                 out={'frames':model.frames,'retained':len(model.replay),'updates':model.updates}
             elif op=='train':
                 if type(r['updates']) is not int or not model.updates<=r['updates']<=100000 or len(model.replay)<64:raise ValueError('Invalid complete-data training budget')
-                positions={id(x):n for n,x in enumerate(model.replay)}
                 original_sample=model.rng.sample
                 def counted_sample(population,k):
                     selected=original_sample(population,k)
-                    sampled.update(positions[id(x)] for x in selected)
+                    sampled.update(replay_sources[id(x)] for x in selected)
                     return selected
                 model.rng.sample=counted_sample
                 try:
                     while model.updates<r['updates']:model.train_batch()
                 finally:model.rng.sample=original_sample
-                out={'updates':model.updates,'last_loss':model.last_loss,'sampled_replay_entries':len(sampled),'available_replay_entries':len(model.replay),'discarded_before_training':model.frames-len(model.replay)}
+                out={'updates':model.updates,'last_loss':model.last_loss,'sampled_replay_entries':len(sampled),'distinct_source_examples_sampled':len(sampled),'available_replay_entries':len(model.replay),'discarded_before_training':len(seen-sampled-set(replay_sources.values())),'evicted_total':model.frames-len(model.replay)}
             elif op=='values':
                 if r['decision_at']<cutoff:raise ValueError('Policy contains later knowledge')
                 vectors=r['vectors'];inputs=[market_vector(v) for v in vectors] if scheme=='factor' else vectors

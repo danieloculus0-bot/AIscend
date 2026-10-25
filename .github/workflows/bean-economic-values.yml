@@ -4,6 +4,7 @@ on:
     branches: ['experiment/bean-economic-values-20261024']
     paths:
       - 'src/bean_economic_*.py'
+      - 'src/bean_training_batches.py'
       - 'tests/test_bean_economic_values.py'
       - '.github/workflows/bean-economic-values.yml'
   pull_request:
@@ -32,18 +33,18 @@ jobs:
       - name: Economic identities, future rejection, actual gradients and complete recovery
         env:
           BEAN_CORE_DIR: core-bean
-        run: python -m unittest tests.test_bean_economic_values -v
+        run: python -m unittest tests.test_bean_economic_values tests.test_bean_strategy_curriculum tests.test_bean_strategy_coach -v
       - name: Run preregistered replay and economic-value ablations
         if: github.event_name != 'pull_request'
-        run: python -m src.bean_economic_experiment --candles research/bean_strategy_curriculum_20261024/source/candles.jsonl.gz --core-dir core-bean --output /tmp/bean-economic-values-20261024 --updates 1024
+        run: python -m src.bean_economic_experiment --candles research/bean_strategy_curriculum_20261024/source/candles.jsonl.gz --core-dir core-bean --output /tmp/bean-economic-values-chunked-20261024 --updates 1024
       - name: Save all negative and positive results and complete model states
         if: github.event_name != 'pull_request'
         run: |
-          mkdir -p research/bean_economic_values_20261024
+          mkdir -p research/bean_economic_values_chunked_20261024
           python - <<'PY'
           from pathlib import Path
           import hashlib,json,shutil
-          source=Path('/tmp/bean-economic-values-20261024');target=Path('research/bean_economic_values_20261024')
+          source=Path('/tmp/bean-economic-values-chunked-20261024');target=Path('research/bean_economic_values_chunked_20261024')
           for p in source.iterdir():
               if p.name.endswith(('.sqlite3','.jsonl')):continue
               shutil.copy2(p,target/p.name)
@@ -53,15 +54,15 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: github.event_name != 'pull_request'
         with:
-          name: bean-economic-values-all-results-20261024
-          path: research/bean_economic_values_20261024/
+          name: bean-economic-values-chunked-all-results-20261024
+          path: research/bean_economic_values_chunked_20261024/
           retention-days: 90
       - name: Archive full experiment on its research branch
         if: github.event_name == 'push' && github.ref == 'refs/heads/experiment/bean-economic-values-20261024'
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add research/bean_economic_values_20261024
+          git add research/bean_economic_values_chunked_20261024
           if ! git diff --cached --quiet; then
             git commit -m 'Archive complete replay and economic-value ablations including failures'
             git push origin HEAD:experiment/bean-economic-values-20261024

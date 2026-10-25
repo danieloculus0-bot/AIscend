@@ -5,12 +5,102 @@ import tempfile
 import unittest
 from src.bean_strategy_coach import CoachWorker,mentor_lesson,summaries
 from src.bean_mentor_worker import validate_lesson
+from src.bean_training_batches import digest_chunks
 from src.bean_strategy_curriculum import ACTIONS,Features
 from src.strategy_atlas import digest
 from scripts.consolidate_bean_mentor_feedback import matched_comparison
 from tests.test_bean_strategy_curriculum import data
 
+class ReceiptWorker:
+    """Checks that every taught cohort is followed by optimizer updates."""
+    def __init__(self, transitions_per_item):
+        self.transitions_per_item = transitions_per_item
+        self.frames = 0
+        self.updates = 0
+        self.calls = []
+        self.first_digest_at = None
+        self.awaiting_train = False
+
+    def call(self, operation, **arguments):
+        if operation == 'status':
+            return {'frames': self.frames, 'updates': self.updates}
+        if operation == 'teach':
+            if self.awaiting_train:
+                raise AssertionError('Next cohort evicted untrained lessons')
+            batch = arguments.get('lessons', arguments.get('experiences'))
+            self.frames += len(batch) * self.transitions_per_item
+            self.calls.append(('teach', len(batch), self.frames))
+            self.awaiting_train = True
+            return {'frames': self.frames}
+        if operation == 'train':
+            if not self.awaiting_train or self.frames < 64:
+                raise AssertionError('Optimizer did not receive a full cohort')
+            target = arguments['updates']
+            if target <= self.updates:
+                raise AssertionError('Expected new gradient updates after each cohort')
+            self.updates = target
+            self.calls.append(('train', self.updates, self.frames))
+            if self.first_digest_at is None:
+                self.first_digest_at = self.frames
+            self.awaiting_train = False
+            return {'updates': self.updates}
+        raise AssertionError(operation)
+
+
 class StrategyCoachTests(unittest.TestCase):
+    def test_all_mentor_chunks_are_digested_before_replay_eviction(self):
+        # 47,520 observations cannot fit in BEAN's 4,096-transition replay.
+        # Every cohort must train before the next cohort is accepted.
+        order = list(range(4320))
+        worker = ReceiptWorker(len(ACTIONS))
+        receipt = digest_chunks(worker, order, field='lessons', updates=1024,
+                                batch_size=32, transitions_per_item=len(ACTIONS))
+        self.assertEqual(receipt['transitions'], 47520)
+        self.assertEqual(receipt['gradient_updates'], 1024)
+        self.assertEqual(worker.first_digest_at, 32 * len(ACTIONS))
+        self.assertLess(worker.first_digest_at, 4096)
+        self.assertEqual(len(worker.calls), 2 * receipt['cohort_count'])
+        self.assertEqual([x[0] for x in worker.calls], ['teach', 'train'] * receipt['cohort_count'])
+        self.assertEqual(receipt['receipts'][-1]['updates_through'], 1024)
+
+    def test_matched_coaching_arms_get_identical_digestion_budgets(self):
+        sequence = list(range(4320))
+        a, b = ReceiptWorker(len(ACTIONS)), ReceiptWorker(len(ACTIONS))
+        left = digest_chunks(a, sequence, field='lessons', updates=1024,
+                             batch_size=32, transitions_per_item=len(ACTIONS))
+        right = digest_chunks(b, sequence, field='lessons', updates=1024,
+                              batch_size=32, transitions_per_item=len(ACTIONS))
+        self.assertEqual(left, right)
+        self.assertEqual(a.calls, b.calls)
+
+    def test_digest_rejects_cohort_bigger_than_replay_without_teaching(self):
+        worker = ReceiptWorker(len(ACTIONS))
+        with self.assertRaisesRegex(ValueError, 'Replay budget'):
+            digest_chunks(worker, list(range(10000)), field='lessons',
+                          updates=1, batch_size=32, transitions_per_item=len(ACTIONS))
+        self.assertEqual(worker.calls, [])
+
+    @unittest.skipUnless(os.environ.get('BEAN_CORE_DIR'), 'Actual pinned BEAN Core required')
+    def test_real_core_trains_while_earlier_mentor_examples_remain_present(self):
+        f = Features(data())
+        lessons = [mentor_lesson(f, i, 0, .5) for i in range(260, 356, 8)]
+        with tempfile.TemporaryDirectory() as temp:
+            worker = CoachWorker(Path(os.environ['BEAN_CORE_DIR']),
+                                 Path(temp) / 'chunked.sqlite3',
+                                 len(lessons[0]['vector']), 10**10,
+                                 'coached_advantage', summaries(lessons), temp)
+            try:
+                original = worker.call('status')
+                receipt = digest_chunks(worker, lessons, field='lessons', updates=6,
+                                        batch_size=6, transitions_per_item=len(ACTIONS))
+                learned = worker.call('status')
+                self.assertEqual(receipt['cohort_count'], 2)
+                self.assertEqual(learned['updates'], 6)
+                self.assertEqual(learned['frames'], len(lessons) * len(ACTIONS))
+                self.assertNotEqual(learned['weights_sha256'], original['weights_sha256'])
+            finally:
+                worker.close()
+
     def test_profit_and_loss_reconcile_market_moves_and_costs(self):
         f=Features(data())
         for exposure in (0.,.5,1.):
