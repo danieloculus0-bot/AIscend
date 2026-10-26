@@ -681,7 +681,7 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(
             """
             QWidget {
-                background: #0f1115;
+                background: #050607;
                 color: #e8ebf0;
                 font-family: "Segoe UI";
                 font-size: 10pt;
@@ -703,7 +703,7 @@ class MainWindow(QMainWindow):
                 font-weight: 700;
             }
             QFrame#statCard, QFrame#panel {
-                background: #171a20;
+                background: #111518;
                 border: 1px solid #272c35;
                 border-radius: 9px;
             }
@@ -713,52 +713,52 @@ class MainWindow(QMainWindow):
                 font-weight: 700;
             }
             QLabel#statusStopped {
-                background: #2a2d33;
+                background: #1a1d20;
                 color: #b3bac6;
             }
             QLabel#statusRunning {
-                background: #163525;
+                background: #1c2422;
                 color: #8ee2ad;
             }
             QPushButton {
-                background: #222730;
+                background: #1a1f21;
                 border: 1px solid #333a46;
                 border-radius: 6px;
                 padding: 9px;
                 font-weight: 600;
             }
             QPushButton:hover {
-                background: #2b313c;
+                background: #252b2d;
             }
             QPushButton:disabled {
                 color: #5e6672;
-                background: #181b20;
+                background: #111518;
             }
             QPushButton#primaryButton {
-                background: #205d43;
+                background: #263a2d;
                 border-color: #2a7958;
             }
             QPushButton#primaryButton:hover {
-                background: #287353;
+                background: #305b39;
             }
             QPushButton#dangerButton {
                 color: #eab0b0;
             }
             QLineEdit, QComboBox, QDoubleSpinBox {
-                background: #111419;
+                background: #090c0e;
                 border: 1px solid #303641;
                 border-radius: 5px;
                 padding: 6px;
             }
             QTableWidget {
-                background: #14171c;
-                alternate-background-color: #171b21;
+                background: #0e1113;
+                alternate-background-color: #15191c;
                 border: 1px solid #272c35;
                 gridline-color: #242932;
                 border-radius: 6px;
             }
             QHeaderView::section {
-                background: #1d2128;
+                background: #191e21;
                 color: #aeb6c3;
                 border: none;
                 border-right: 1px solid #2a3039;
@@ -766,7 +766,7 @@ class MainWindow(QMainWindow):
                 font-weight: 600;
             }
             QLabel#boundary {
-                background: #111419;
+                background: #090c0e;
                 border: 1px solid #292f38;
                 border-radius: 6px;
                 padding: 10px;
