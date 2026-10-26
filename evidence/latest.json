@@ -1,15 +1,15 @@
 {
-  "as_of_unix": 1792959781,
-  "event_count": 11,
+  "as_of_unix": 1792989412,
+  "event_count": 16,
   "funded_orders": false,
-  "ledger_tip": "a2a184003b18a51d554a527dcb20e0cea4f161c469386ceb65aff98ab79a103d",
+  "ledger_tip": "95990bd0a1837fcd724c64f97fd015976b3a1196db414de4f130dfdf24de1be5",
   "limitations": "Public completed candles and hypothetical next-open orders; no actual Coinbase fills or forward profit claim.",
   "manifest_sha": "8700c2a853cecac6c0ca267e4bc4acd605b56cacb600ac9609d7585684b9d868",
   "markets": {
     "BIRB-USD": {
-      "buy_hold_net": null,
+      "buy_hold_net": -0.04942637,
       "fee_net_paper_return": 0.0,
-      "forward_bars": 0,
+      "forward_bars": 1,
       "max_drawdown": 0.0,
       "orders": 0,
       "pending": {
@@ -25,9 +25,9 @@
       "status": "COLLECTING"
     },
     "GWEI-USD": {
-      "buy_hold_net": null,
+      "buy_hold_net": -0.01269233,
       "fee_net_paper_return": 0.0,
-      "forward_bars": 0,
+      "forward_bars": 1,
       "max_drawdown": 0.0,
       "orders": 0,
       "pending": {
@@ -43,9 +43,9 @@
       "status": "COLLECTING"
     },
     "MPLX-USD": {
-      "buy_hold_net": null,
+      "buy_hold_net": -0.01830994,
       "fee_net_paper_return": 0.0,
-      "forward_bars": 0,
+      "forward_bars": 1,
       "max_drawdown": 0.0,
       "orders": 0,
       "pending": {
@@ -61,9 +61,9 @@
       "status": "COLLECTING"
     },
     "PEPE-USD": {
-      "buy_hold_net": null,
+      "buy_hold_net": -0.04349288,
       "fee_net_paper_return": 0.0,
-      "forward_bars": 0,
+      "forward_bars": 1,
       "max_drawdown": 0.0,
       "orders": 0,
       "pending": {
@@ -79,9 +79,9 @@
       "status": "COLLECTING"
     },
     "SHDW-USD": {
-      "buy_hold_net": null,
+      "buy_hold_net": -0.03598946,
       "fee_net_paper_return": 0.0,
-      "forward_bars": 0,
+      "forward_bars": 1,
       "max_drawdown": 0.0,
       "orders": 0,
       "pending": {
@@ -98,8 +98,8 @@
     }
   },
   "promotion_authorized": false,
-  "run_key": "40230344922-1",
+  "run_key": "40269941361-1",
   "schema": "aiscend.bean.hosted.public.paper.v1",
   "source_sha256": "0781aa210a799e11e92e1ddf8ba671dcdbc8c2ebc1cc8f644a92e317577ee30e",
-  "sqlite_backup_sha256": "72b548df08fbd6b4c9507e97e622e22cbf4b418123e21529ce2b2ac81cc03510"
+  "sqlite_backup_sha256": "33d04469b8a2db37bc0466c682387756cb368bd9381944be37016878b0901dd2"
 }
