@@ -196,11 +196,11 @@ class ForwardPaperTests(unittest.TestCase):
                 "(product,policy_sha,signal_ts,observed_at,entry_ts,exit_ts,"
                 "state,entry_price,exit_price,net_return,reason) "
                 "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-                ("BTC-USD",identity,100*BAR,101*BAR+1,102*BAR,174*BAR,
+                ("BTC-USD",identity,514*BAR,515*BAR+1,516*BAR,588*BAR,
                  "SCORED",1,1e200,1e200,
                  "hypothetical_next_candle_open_fee_net"))
             db.commit()
-        report=self.simulate_tick(514)
+        report=self.simulate_tick(600)
         score=report["scorecard"]["BTC-USD"]
         self.assertEqual(score["scored_trades"],2)
         self.assertEqual(score["wins"],2)
