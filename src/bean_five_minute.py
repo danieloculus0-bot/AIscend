@@ -244,10 +244,11 @@ class FastPaperBook:
                     btc_close/data["first_btc"]*(1-COST)**2-1, 6)
                 target = _choose(bars, len(bars), data["pairs"], data["candidate"])
                 observed_at = float(self.clock())
-                if (not math.isfinite(observed_at) or observed_at < end
+                if (not math.isfinite(observed_at)
+                        or not end <= observed_at < end + BAR
                         or observed_at < float(row["created"])):
-                    # Even an unchanged target cannot count a sample if the
-                    # clock moved before the input candle's completion.
+                    # Clock rollback and slow fetches crossing the next bar
+                    # both invalidate the claimed live observation slot.
                     raise ValueError("Noncausal paper signal observation clock")
                 if (target != data["pending"]
                         or data.get("pending_recorded_at") is None):
