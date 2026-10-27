@@ -242,6 +242,38 @@ class FiveMinuteTests(unittest.TestCase):
             self.assertEqual(persisted["equity"], 25.0)
             json.dumps(persisted, allow_nan=False)
 
+    def test_nonfinite_benchmark_ratio_cannot_be_persisted(self):
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as td:
+            now = [1000*BAR+60]
+            def extreme(product, start, end):
+                data = candles(product, start, end)
+                if product == "BTC-USD":
+                    for tick, price in ((1001, 1e-300), (1002, 1e300)):
+                        if tick*BAR in data:
+                            data[tick*BAR] = {"open": price, "close": price}
+                return data
+            book = FastPaperBook(path=Path(td)/"paper.db",
+                                 fetcher=extreme, clock=lambda: now[0])
+            self.assertTrue(book.enqueue({
+                "id": "benchmark-overflow", "ordinal": 1,
+                "state": "AUTO_SELECTED",
+                "report": {"candidate": ["momentum",6,0.003,3],
+                           "pairs": ["BTC-USD", "ETH-USD"]}}))
+            with patch("src.bean_five_minute._choose", return_value=None):
+                now[0] = 1002*BAR+60
+                self.assertEqual(book.step(end=1002*BAR)["samples"], 1)
+                now[0] = 1003*BAR+60
+                failed = book.step(end=1003*BAR)
+            self.assertEqual(failed["status"], "DATA_UNAVAILABLE")
+            self.assertIn("Nonfinite forward paper accounting",
+                          failed["last_error"])
+            persisted = book.status()
+            self.assertEqual(persisted["samples"], 1)
+            self.assertEqual(persisted["orders"], 0)
+            json.dumps(persisted, allow_nan=False)
+
     def test_forward_paper_never_turns_into_wallet_action(self):
         with tempfile.TemporaryDirectory() as td:
             book = FastPaperBook(path=Path(td)/"paper.db",
