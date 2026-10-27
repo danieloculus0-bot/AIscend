@@ -146,6 +146,16 @@ def _db(conn):
         conn.execute("ALTER TABLE paper_decisions ADD COLUMN entry_ts INTEGER")
     # Old entries were marked at an open that preceded signal observation.
     # Quarantine those records rather than retaining misleading returns.
+    # Existing nonfinite scores cannot be counted as profitable evidence.
+    # SQLite accepts Infinity in REAL columns, even though JSON does not.
+    conn.execute(
+        "UPDATE paper_decisions SET state='DATA_GAP',"
+        "entry_price=NULL,exit_price=NULL,net_return=NULL,"
+        "reason='nonfinite_paper_return' "
+        "WHERE state='SCORED' AND (net_return IS NULL OR "
+        "net_return NOT BETWEEN ? AND ?)",
+        (-float('1.7976931348623157e308'), float('1.7976931348623157e308')))
+
     conn.execute(
         "UPDATE paper_decisions SET state='NONCAUSAL_ENTRY',"
         "entry_price=NULL,exit_price=NULL,net_return=NULL,"
@@ -237,6 +247,8 @@ def observe_and_score(*, manifest, db_path=None, fetcher=fetch_5m,
                         if not all(math.isfinite(x) and x>0 for x in (buy,sell)):
                             raise ValueError("Invalid Coinbase paper fill price")
                         net=(sell/buy)*(1-cost)**2-1
+                        if not math.isfinite(net):
+                            raise ValueError('Nonfinite modeled paper return')
                         con.execute(
                             "UPDATE paper_decisions SET state='SCORED',entry_price=?,"
                             "exit_price=?,net_return=?,reason=? WHERE product=?"
