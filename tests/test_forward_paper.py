@@ -393,6 +393,48 @@ class ForwardPaperTests(unittest.TestCase):
         self.assertEqual(reason,"signal_observed_before_source_bar_completed")
         self.assertIsNone(net)
 
+    def test_clock_rollback_within_signal_slot_cannot_predate_policy_freeze(self):
+        current=[440*BAR+200]
+        def rollback_fetch(product,start,end):
+            rows=self.fetch(product,start,end)
+            current[0]=440*BAR+100
+            return rows
+        report=observe_and_score(
+            manifest=MANIFEST,db_path=self.path,fetcher=rollback_fetch,
+            clock=lambda:current[0])
+        self.assertEqual(
+            report["products"]["BTC-USD"]["status"],"NONCAUSAL_ENTRY")
+        self.assertEqual(report["scorecard"]["BTC-USD"]["scored_trades"],0)
+        with closing(sqlite3.connect(self.path)) as db:
+            observed,freeze_at,entry,state,reason=db.execute(
+                "SELECT d.observed_at,f.frozen_at,d.entry_ts,d.state,d.reason "
+                "FROM paper_decisions d JOIN frozen_policy f "
+                "ON d.product=f.product AND d.policy_sha=f.policy_sha"
+            ).fetchone()
+        self.assertGreater(observed,440*BAR)
+        self.assertLess(observed,freeze_at)
+        self.assertLess(observed,entry)
+        self.assertEqual(state,"NONCAUSAL_ENTRY")
+        self.assertEqual(reason,"signal_observed_before_policy_freeze")
+
+    def test_legacy_score_before_policy_freeze_is_quarantined(self):
+        self.simulate_tick(440)
+        with closing(sqlite3.connect(self.path)) as db:
+            db.execute(
+                "UPDATE paper_decisions SET state='SCORED',observed_at=?,"
+                "entry_price=1,exit_price=100,net_return=99",
+                (440*BAR+0.5,))
+            db.commit()
+        report=self.simulate_tick(515)
+        self.assertEqual(report["scorecard"]["BTC-USD"]["scored_trades"],0)
+        with closing(sqlite3.connect(self.path)) as db:
+            state,reason,ret=db.execute(
+                "SELECT state,reason,net_return FROM paper_decisions "
+                "WHERE signal_ts=?", (439*BAR,)).fetchone()
+        self.assertEqual(state,"NONCAUSAL_ENTRY")
+        self.assertEqual(reason,"signal_observed_before_policy_freeze")
+        self.assertIsNone(ret)
+
     def test_legacy_precompletion_score_is_quarantined(self):
         self.simulate_tick(440)
         with closing(sqlite3.connect(self.path)) as db:
