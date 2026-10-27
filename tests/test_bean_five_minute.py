@@ -178,6 +178,25 @@ class FiveMinuteTests(unittest.TestCase):
             self.assertEqual(book.status()["samples"],0)
             self.assertEqual(book.status()["orders"],0)
 
+    def test_slow_fetch_crossing_next_slot_does_not_count_sample(self):
+        with tempfile.TemporaryDirectory() as td:
+            now=[1000*BAR+60]
+            def slow(product,start,end):
+                data=candles(product,start,end)
+                now[0]=1002*BAR+1
+                return data
+            book=FastPaperBook(path=Path(td)/"paper.db",
+                               fetcher=slow,clock=lambda:now[0])
+            self.assertTrue(book.enqueue({
+                "id":"slow-fetch","ordinal":1,"state":"AUTO_SELECTED",
+                "report":{"candidate":["momentum",6,0.003,3],
+                          "pairs":["BTC-USD","ETH-USD"]}}))
+            now[0] += BAR
+            result=book.step(end=1001*BAR)
+            self.assertEqual(result["status"],"DATA_UNAVAILABLE")
+            self.assertEqual(book.status()["samples"],0)
+            self.assertEqual(book.status()["orders"],0)
+
     def test_forward_paper_never_turns_into_wallet_action(self):
         with tempfile.TemporaryDirectory() as td:
             book = FastPaperBook(path=Path(td)/"paper.db",
