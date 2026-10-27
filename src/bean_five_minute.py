@@ -167,16 +167,23 @@ class FastPaperBook:
             raise ValueError("Invalid forward-paper observation clock")
         completed_end = int(now // BAR) * BAR
         end = completed_end if end is None else int(end)
-        # An explicit test/replay boundary must never let forward-paper
-        # accounting read candles that have not completed in real time.
-        if end % BAR or end > completed_end:
-            raise ValueError("Forward-paper end is unaligned or in the future")
+        # Every paper sample must be observed in its own live completed-bar
+        # slot. An older explicit end would silently backfill past candles as
+        # prospective evidence, even when no order was placed on those bars.
+        if end % BAR:
+            raise ValueError("Forward-paper end is unaligned")
+        if end != completed_end:
+            raise ValueError("Forward-paper end is not the current completed boundary")
         with self._lock, self._connect() as db:
             row = db.execute("SELECT * FROM paper WHERE state='ACTIVE' "
                              "ORDER BY created ASC LIMIT 1").fetchone()
             if row is None:
                 return {"status": "NO_ACTIVE_FORWARD_TRIAL"}
             data = json.loads(row["data"])
+            # The trial is frozen at enqueue. The candle already completed
+            # before enqueue is historical, not a prospective paper sample.
+            if end <= float(row["created"]):
+                return {"status": "WAITING", **data}
             last = end-BAR
             if data["last_bar"] is not None and last <= data["last_bar"]:
                 return {"status": "WAITING", **data}
@@ -239,8 +246,11 @@ class FastPaperBook:
                 if (target != data["pending"]
                         or data.get("pending_recorded_at") is None):
                     observed_at = float(self.clock())
-                    if not math.isfinite(observed_at):
-                        raise ValueError("Invalid paper signal observation clock")
+                    if (not math.isfinite(observed_at) or observed_at < end
+                            or observed_at < float(row["created"])):
+                        # A clock rollback during fetching cannot place a
+                        # decision before its input candle was complete.
+                        raise ValueError("Noncausal paper signal observation clock")
                     data["pending_recorded_at"] = observed_at
                 data["pending"] = target
                 data["last_target"] = target
