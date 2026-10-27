@@ -1,5 +1,5 @@
 {
-  "as_of_unix": 1793102530,
+  "as_of_unix": 1793123797,
   "event_count": 67,
   "funded_orders": false,
   "ledger_tip": "5addeb0135b8e7c8472b30dbc1f66fb2da3d431921974aae115fb299a606412c",
@@ -98,7 +98,7 @@
     }
   },
   "promotion_authorized": false,
-  "run_key": "40500559826-1",
+  "run_key": "40555065576-1",
   "schema": "aiscend.bean.hosted.public.paper.v1",
   "source_sha256": "0781aa210a799e11e92e1ddf8ba671dcdbc8c2ebc1cc8f644a92e317577ee30e",
   "sqlite_backup_sha256": "71f127f8534538d8f8a1cdfe1c02d8366808d4b3909db07362c1597c0aca8a2f"
