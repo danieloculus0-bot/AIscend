@@ -142,6 +142,42 @@ class ForwardPaperTests(unittest.TestCase):
         self.assertEqual(done["scorecard"]["BTC-USD"]["net_return"],0)
         self.assertEqual(done["scorecard"]["BTC-USD"]["scored_trades"],0)
 
+    def test_nonfinite_fee_net_return_is_rejected_before_scoring(self):
+        self.simulate_tick(440)
+        # Both individual prices are finite, but their ratio overflows.
+        self.rows[441*BAR]["open"] = 1e-300
+        self.rows[513*BAR]["open"] = 1e300
+        report = self.simulate_tick(514)
+        self.assertEqual(report["products"]["BTC-USD"]["status"], "DATA_GAP")
+        self.assertEqual(report["scorecard"]["BTC-USD"]["scored_trades"], 0)
+        self.assertEqual(report["scorecard"]["BTC-USD"]["net_return"], 0)
+        json.dumps(report, allow_nan=False)
+        with closing(sqlite3.connect(self.path)) as db:
+            state, ret = db.execute(
+                "SELECT state,net_return FROM paper_decisions "
+                "WHERE signal_ts=?", (439*BAR,)).fetchone()
+        self.assertEqual(state, "DATA_GAP")
+        self.assertIsNone(ret)
+
+    def test_existing_nonfinite_paper_score_is_quarantined(self):
+        self.simulate_tick(440)
+        with closing(sqlite3.connect(self.path)) as db:
+            db.execute(
+                "UPDATE paper_decisions SET state='SCORED',entry_price=1,"
+                "exit_price=100,net_return=? WHERE signal_ts=?",
+                (float("inf"), 439*BAR))
+            db.commit()
+        report = self.simulate_tick(514)
+        self.assertEqual(report["scorecard"]["BTC-USD"]["scored_trades"], 0)
+        self.assertEqual(report["scorecard"]["BTC-USD"]["net_return"], 0)
+        json.dumps(report, allow_nan=False)
+        with closing(sqlite3.connect(self.path)) as db:
+            state, reason, ret = db.execute(
+                "SELECT state,reason,net_return FROM paper_decisions "
+                "WHERE signal_ts=?", (439*BAR,)).fetchone()
+        self.assertEqual((state, reason, ret),
+                         ("DATA_GAP", "nonfinite_paper_return", None))
+
     def test_repeated_observation_in_same_slot_cannot_duplicate_signal(self):
         self.simulate_tick(440)
         self.simulate_tick(440)
