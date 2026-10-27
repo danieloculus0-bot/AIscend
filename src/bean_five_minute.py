@@ -243,6 +243,16 @@ class FastPaperBook:
                 btc_close = candle["BTC-USD"]["close"]
                 data["btc_return"] = round(
                     btc_close/data["first_btc"]*(1-COST)**2-1, 6)
+                # Individually finite market prices can still overflow a
+                # portfolio multiplication or benchmark ratio. Never persist
+                # Infinity/NaN as forward evidence or emit invalid JSON.
+                if not all(
+                        isinstance(data.get(field), (int, float))
+                        and math.isfinite(data[field])
+                        for field in ("cash", "units", "equity", "peak",
+                                      "drawdown", "net_return", "btc_return",
+                                      "first_btc")):
+                    raise ValueError("Nonfinite forward paper accounting")
                 target = _choose(bars, len(bars), data["pairs"], data["candidate"])
                 observed_at = float(self.clock())
                 if (not math.isfinite(observed_at)
