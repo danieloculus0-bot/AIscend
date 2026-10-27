@@ -30,8 +30,9 @@ HORIZONS = {"trend": 72, "breakout": 12, "reversal": 3,
 def _implementation_sha():
     """Fingerprint signal tokens across Python versions and operating systems.
 
-    Ignore comments, layout whitespace and line numbers, but preserve control
-    flow indentation and all executable tokens. Missing source fails closed.
+    Ignore comments, continuation whitespace and line numbers, but retain
+    logical statement boundaries, control flow indentation and executable
+    tokens. Missing source fails closed.
     """
     try:
         functions = []
@@ -40,7 +41,7 @@ def _implementation_sha():
             source = inspect.getsource(func).replace("\r\n", "\n")
             for tok in tokenize.generate_tokens(io.StringIO(source).readline):
                 if tok.type in (tokenize.COMMENT, tokenize.NL,
-                                tokenize.NEWLINE, tokenize.ENDMARKER):
+                                tokenize.ENDMARKER):
                     continue
                 if tok.type in (tokenize.INDENT, tokenize.DEDENT):
                     tokens.append((tok.type, ""))
