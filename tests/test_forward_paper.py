@@ -181,7 +181,7 @@ class ForwardPaperTests(unittest.TestCase):
             source = getsource(func)
             if func.__name__ == "_signals":
                 return source.replace("    times = sorted(",
-                                      "    # no executable change\\n    times = sorted(", 1)
+                                      "    # no executable change\n    times = sorted(", 1)
             return source
         with patch("src.forward_paper.inspect.getsource",
                    side_effect=comment_only):
