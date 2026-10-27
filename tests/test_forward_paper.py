@@ -5,6 +5,7 @@ from pathlib import Path
 import sqlite3
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from src.bean_five_minute import BAR
 from src.forward_paper import observe_and_score, freeze_training_candidates, freeze
@@ -95,6 +96,9 @@ class ForwardPaperTests(unittest.TestCase):
         self.assertEqual(frozen[0]["policy"],"trend")
         self.assertEqual(frozen[1]["product"],"ETH-USDC")
         self.assertTrue(all(x["training_only_frozen"] for x in frozen))
+        self.assertEqual(len(frozen[0]["implementation_sha"]), 64)
+        self.assertEqual(frozen[0]["implementation_sha"],
+                         frozen[1]["implementation_sha"])
         report["promotion_authorized"]=True
         with self.assertRaises(ValueError):
             freeze_training_candidates(report)
@@ -159,6 +163,34 @@ class ForwardPaperTests(unittest.TestCase):
                            "training_only_frozen":False}],
                 db_path=self.path,fetcher=self.fetch,
                 clock=lambda:441*BAR+1)
+
+    def test_frozen_ledger_rejects_strategy_revision_without_mixing_returns(self):
+        self.simulate_tick(440)
+        with closing(sqlite3.connect(self.path)) as db:
+            original = db.execute(
+                "SELECT policy_sha FROM frozen_policy").fetchone()[0]
+            count = db.execute("SELECT COUNT(*) FROM paper_decisions").fetchone()[0]
+        with patch("src.forward_paper._implementation_sha", return_value="f"*64):
+            with self.assertRaisesRegex(ValueError, "Frozen strategy/cost assumptions"):
+                self.simulate_tick(441)
+        with closing(sqlite3.connect(self.path)) as db:
+            self.assertEqual(db.execute(
+                "SELECT policy_sha FROM frozen_policy").fetchone()[0], original)
+            self.assertEqual(db.execute(
+                "SELECT COUNT(*) FROM paper_decisions").fetchone()[0], count)
+
+    def test_frozen_manifest_rejects_changed_strategy_before_first_signal(self):
+        report = {"schema":"aiscend.universe_research_aggregate.v1",
+                  "promotion_authorized":False,
+                  "training_preselected":[{"product":"BTC-USD","policy":"trend"}]}
+        manifest = freeze_training_candidates(report)
+        with patch("src.forward_paper._implementation_sha", return_value="0"*64):
+            with self.assertRaisesRegex(
+                    ValueError, "Frozen manifest strategy implementation changed"):
+                observe_and_score(
+                    manifest=manifest, db_path=self.path, fetcher=self.fetch,
+                    clock=lambda:440*BAR+1)
+        self.assertFalse(self.path.exists())
 
     def test_no_signals_on_incomplete_initial_lookback(self):
         short=lambda p,s,e:{t:v for t,v in self.rows.items()
@@ -268,7 +300,9 @@ class ForwardPaperTests(unittest.TestCase):
             "--freeze-aggregate",str(aggregate),"--output",str(manifest)]),0)
         written=manifest.read_text(encoding="utf-8")
         self.assertTrue(written.endswith("\n"))
-        self.assertEqual(json.loads(written)[0]["product"],"BTC-USD")
+        parsed=json.loads(written)
+        self.assertEqual(parsed[0]["product"],"BTC-USD")
+        self.assertEqual(len(parsed[0]["implementation_sha"]),64)
 
 
 if __name__=="__main__":
