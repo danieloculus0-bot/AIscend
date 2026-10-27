@@ -209,6 +209,39 @@ class FiveMinuteTests(unittest.TestCase):
             self.assertEqual(book.status()["samples"],0)
             self.assertEqual(book.status()["orders"],0)
 
+    def test_nonfinite_paper_equity_cannot_be_persisted_as_forward_profit(self):
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as td:
+            now = [1000*BAR+60]
+            def extreme(product, start, end):
+                data = candles(product, start, end)
+                if product == "ETH-USD" and 1003*BAR in data:
+                    # Finite input prices, but quantity times close overflows.
+                    data[1003*BAR] = {"open": 1e-300, "close": 1e300}
+                return data
+            book = FastPaperBook(path=Path(td)/"paper.db",
+                                 fetcher=extreme, clock=lambda: now[0])
+            self.assertTrue(book.enqueue({
+                "id": "overflow", "ordinal": 1, "state": "AUTO_SELECTED",
+                "report": {"candidate": ["momentum",6,0.003,3],
+                           "pairs": ["BTC-USD", "ETH-USD"]}}))
+            with patch("src.bean_five_minute._choose", return_value="ETH-USD"):
+                for tick in (1000, 1001, 1002, 1003):
+                    now[0] = tick*BAR+60
+                    book.step(end=tick*BAR)
+                now[0] = 1004*BAR+60
+                result = book.step(end=1004*BAR)
+            self.assertEqual(result["status"], "DATA_UNAVAILABLE")
+            self.assertIn("Nonfinite forward paper accounting",
+                          result["last_error"])
+            persisted = book.status()
+            self.assertEqual(persisted["status"], "ACTIVE")
+            self.assertEqual(persisted["orders"], 0)
+            self.assertEqual(persisted["samples"], 2)
+            self.assertEqual(persisted["equity"], 25.0)
+            json.dumps(persisted, allow_nan=False)
+
     def test_forward_paper_never_turns_into_wallet_action(self):
         with tempfile.TemporaryDirectory() as td:
             book = FastPaperBook(path=Path(td)/"paper.db",
