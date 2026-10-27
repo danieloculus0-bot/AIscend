@@ -1,15 +1,15 @@
 {
-  "as_of_unix": 1793123797,
-  "event_count": 67,
+  "as_of_unix": 1793138865,
+  "event_count": 72,
   "funded_orders": false,
-  "ledger_tip": "5addeb0135b8e7c8472b30dbc1f66fb2da3d431921974aae115fb299a606412c",
+  "ledger_tip": "c17f48007e7b6ba4265a2f0f1379d90fb006d2e969ca83fb8d29b80ae15809ec",
   "limitations": "Public completed candles and hypothetical next-open orders; no actual Coinbase fills or forward profit claim.",
   "manifest_sha": "8700c2a853cecac6c0ca267e4bc4acd605b56cacb600ac9609d7585684b9d868",
   "markets": {
     "BIRB-USD": {
-      "buy_hold_net": -0.11375185,
-      "fee_net_paper_return": -0.07768292,
-      "forward_bars": 7,
+      "buy_hold_net": -0.05715049,
+      "fee_net_paper_return": -0.01877797,
+      "forward_bars": 8,
       "max_drawdown": 0.07768292,
       "orders": 1,
       "pending": {
@@ -25,9 +25,9 @@
       "status": "COLLECTING"
     },
     "GWEI-USD": {
-      "buy_hold_net": -0.01273908,
+      "buy_hold_net": 0.01203711,
       "fee_net_paper_return": 0.0,
-      "forward_bars": 7,
+      "forward_bars": 8,
       "max_drawdown": 0.0,
       "orders": 0,
       "pending": {
@@ -43,9 +43,9 @@
       "status": "COLLECTING"
     },
     "MPLX-USD": {
-      "buy_hold_net": -0.04970003,
+      "buy_hold_net": -0.02230868,
       "fee_net_paper_return": 0.0,
-      "forward_bars": 7,
+      "forward_bars": 8,
       "max_drawdown": 0.0,
       "orders": 0,
       "pending": {
@@ -61,9 +61,9 @@
       "status": "COLLECTING"
     },
     "PEPE-USD": {
-      "buy_hold_net": -0.04796254,
+      "buy_hold_net": -0.00103111,
       "fee_net_paper_return": 0.0,
-      "forward_bars": 7,
+      "forward_bars": 8,
       "max_drawdown": 0.0,
       "orders": 0,
       "pending": {
@@ -79,9 +79,9 @@
       "status": "COLLECTING"
     },
     "SHDW-USD": {
-      "buy_hold_net": -0.04909714,
+      "buy_hold_net": -0.0264566,
       "fee_net_paper_return": 0.0,
-      "forward_bars": 7,
+      "forward_bars": 8,
       "max_drawdown": 0.0,
       "orders": 0,
       "pending": {
@@ -98,8 +98,8 @@
     }
   },
   "promotion_authorized": false,
-  "run_key": "40555065576-1",
+  "run_key": "40592314828-1",
   "schema": "aiscend.bean.hosted.public.paper.v1",
   "source_sha256": "0781aa210a799e11e92e1ddf8ba671dcdbc8c2ebc1cc8f644a92e317577ee30e",
-  "sqlite_backup_sha256": "71f127f8534538d8f8a1cdfe1c02d8366808d4b3909db07362c1597c0aca8a2f"
+  "sqlite_backup_sha256": "8577be9b9c94d68fbdc6f240cbc80f36394efdc1498c46cea849a4d46472fc5b"
 }
