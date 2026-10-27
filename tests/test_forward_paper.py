@@ -178,6 +178,43 @@ class ForwardPaperTests(unittest.TestCase):
         self.assertEqual((state, reason, ret),
                          ("DATA_GAP", "nonfinite_paper_return", None))
 
+    def test_finite_paper_trades_cannot_overflow_cumulative_scorecard(self):
+        self.simulate_tick(440)
+        # Each observed paper return fits SQLite REAL and passes the
+        # individual finite-return guard. Their compounded value does not.
+        with closing(sqlite3.connect(self.path)) as db:
+            identity=db.execute(
+                "SELECT policy_sha FROM frozen_policy WHERE product='BTC-USD'"
+            ).fetchone()[0]
+            db.execute(
+                "UPDATE paper_decisions SET state='SCORED',"
+                "entry_price=1,exit_price=?,net_return=?,"
+                "reason='hypothetical_next_candle_open_fee_net'",
+                (1e200,1e200))
+            db.execute(
+                "INSERT INTO paper_decisions "
+                "(product,policy_sha,signal_ts,observed_at,entry_ts,exit_ts,"
+                "state,entry_price,exit_price,net_return,reason) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                ("BTC-USD",identity,100*BAR,101*BAR+1,102*BAR,174*BAR,
+                 "SCORED",1,1e200,1e200,
+                 "hypothetical_next_candle_open_fee_net"))
+            db.commit()
+        report=self.simulate_tick(514)
+        score=report["scorecard"]["BTC-USD"]
+        self.assertEqual(score["scored_trades"],2)
+        self.assertEqual(score["wins"],2)
+        self.assertIsNone(score["net_return"])
+        self.assertEqual(score["max_realized_drawdown"],0)
+        self.assertEqual(
+            score["scorecard_issue"],"cumulative_return_exceeds_finite_range")
+        self.assertFalse(score["candidate_validated"])
+        json.dumps(report,allow_nan=False)
+        with closing(sqlite3.connect(self.path)) as db:
+            self.assertEqual(db.execute(
+                "SELECT COUNT(*) FROM paper_decisions WHERE state='SCORED'"
+            ).fetchone()[0],2)
+
     def test_repeated_observation_in_same_slot_cannot_duplicate_signal(self):
         self.simulate_tick(440)
         self.simulate_tick(440)
