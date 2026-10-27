@@ -187,6 +187,32 @@ class ForwardPaperTests(unittest.TestCase):
                    side_effect=comment_only):
             self.assertEqual(_implementation_sha(), original)
 
+    def test_fingerprint_detects_logical_newline_changes(self):
+        # Both variants are valid Python with identical non-newline tokens,
+        # but the first returns 2 and the second returns False.
+        getsource = inspect.getsource
+        def variant(joined):
+            def get_variant(func):
+                source = getsource(func)
+                if func.__name__ == "_signals":
+                    replacement = ("return False + 2" if joined
+                                   else "return False\n        + 2")
+                    source = source.replace("return False", replacement, 1)
+                    namespace = {}
+                    exec(compile(source, "<signal-variant>", "exec"), namespace)
+                    self.assertEqual(
+                        namespace["_signals"]("BTC-USD", "trend", {}, 0),
+                        2 if joined else False)
+                return source
+            return get_variant
+        with patch("src.forward_paper.inspect.getsource",
+                   side_effect=variant(True)):
+            joined_sha = _implementation_sha()
+        with patch("src.forward_paper.inspect.getsource",
+                   side_effect=variant(False)):
+            split_sha = _implementation_sha()
+        self.assertNotEqual(joined_sha, split_sha)
+
     def test_frozen_ledger_rejects_strategy_revision_without_mixing_returns(self):
         self.simulate_tick(440)
         with closing(sqlite3.connect(self.path)) as db:
