@@ -213,6 +213,37 @@ class ForwardPaperTests(unittest.TestCase):
             split_sha = _implementation_sha()
         self.assertNotEqual(joined_sha, split_sha)
 
+    def test_frozen_policy_identity_detects_settlement_fee_formula_change(self):
+        # A revised fee-net paper settlement must never reuse prior frozen
+        # evidence, even when the trading signal itself is unchanged.
+        original = _implementation_sha()
+        getsource = inspect.getsource
+
+        def altered_settlement(func):
+            source = getsource(func)
+            if func.__name__ == "observe_and_score":
+                old = "net=(sell/buy)*(1-cost)**2-1"
+                self.assertIn(old, source)
+                return source.replace(old, "net=(sell/buy)*(1-cost)-1", 1)
+            return source
+
+        self.simulate_tick(440)
+        with closing(sqlite3.connect(self.path)) as db:
+            frozen_sha = db.execute(
+                "SELECT policy_sha FROM frozen_policy").fetchone()[0]
+        with patch("src.forward_paper.inspect.getsource",
+                   side_effect=altered_settlement):
+            self.assertNotEqual(_implementation_sha(), original)
+            with self.assertRaisesRegex(
+                    ValueError, "Frozen strategy/cost assumptions changed"):
+                self.simulate_tick(441)
+        with closing(sqlite3.connect(self.path)) as db:
+            self.assertEqual(db.execute(
+                "SELECT policy_sha FROM frozen_policy").fetchone()[0],
+                frozen_sha)
+            self.assertEqual(db.execute(
+                "SELECT COUNT(*) FROM paper_decisions").fetchone()[0], 1)
+
     def test_frozen_ledger_rejects_strategy_revision_without_mixing_returns(self):
         self.simulate_tick(440)
         with closing(sqlite3.connect(self.path)) as db:
