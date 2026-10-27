@@ -329,8 +329,12 @@ def observe_and_score(*, manifest, db_path=None, fetcher=fetch_5m,
                 "SELECT state,net_return FROM paper_decisions "
                 "WHERE product=? AND policy_sha=? ORDER BY signal_ts",
                 (product,identity)).fetchall()
-            equity=peak=1.0
+            # Compound in log space: individually finite fee-net returns
+            # can overflow a float when multiplied across many paper trades.
+            # Never serialize Infinity as evidence of profitable performance.
+            log_equity=log_peak=0.0
             dd=0.0
+            wiped_out=False
             wins=trades=0
             states={}
             for state,ret in rows:
@@ -339,14 +343,29 @@ def observe_and_score(*, manifest, db_path=None, fetcher=fetch_5m,
                     continue
                 trades+=1
                 wins+=int(ret>0)
-                equity*=1+ret
-                peak=max(peak,equity)
-                dd=max(dd,1-equity/peak)
+                if ret<=-1.0:
+                    wiped_out=True
+                    dd=1.0
+                elif not wiped_out:
+                    log_equity+=math.log1p(ret)
+                    log_peak=max(log_peak,log_equity)
+                    dd=max(dd,-math.expm1(log_equity-log_peak))
+            if wiped_out:
+                net_return=-1.0
+            else:
+                try:
+                    net_return=round(math.expm1(log_equity),8)
+                except OverflowError:
+                    # Preserve individual finite scores but refuse to invent
+                    # a representable cumulative return where none exists.
+                    net_return=None
             summary[product]={"policy":policy,
                 "scored_trades":trades,"wins":wins,
-                "net_return":round(equity-1,8),
+                "net_return":net_return,
                 "max_realized_drawdown":round(dd,8),
                 "states":states,
                 "candidate_validated":False}
+            if net_return is None:
+                summary[product]["scorecard_issue"]="cumulative_return_exceeds_finite_range"
         out["scorecard"]=summary
     return out
