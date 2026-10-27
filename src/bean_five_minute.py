@@ -180,9 +180,10 @@ class FastPaperBook:
             if row is None:
                 return {"status": "NO_ACTIVE_FORWARD_TRIAL"}
             data = json.loads(row["data"])
-            # The trial is frozen at enqueue. The candle already completed
-            # before enqueue is historical, not a prospective paper sample.
-            if end <= float(row["created"]):
+            # Require the entire observed candle to open AFTER the trial
+            # was frozen. A bar already in progress at enqueue is not a
+            # full prospective five-minute sample.
+            if end - BAR < float(row["created"]):
                 return {"status": "WAITING", **data}
             last = end-BAR
             if data["last_bar"] is not None and last <= data["last_bar"]:
