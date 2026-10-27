@@ -317,6 +317,51 @@ class ForwardPaperTests(unittest.TestCase):
             self.assertEqual(db.execute(
                 "SELECT COUNT(*) FROM paper_decisions").fetchone()[0], 1)
 
+    def test_candle_ingestion_parser_change_invalidates_frozen_evidence(self):
+        # Parsing open/close differently changes both signal inputs and paper
+        # settlement. The frozen ledger and manifest must not silently reuse it.
+        report = {"schema": "aiscend.universe_research_aggregate.v1",
+                  "promotion_authorized": False,
+                  "training_preselected": [{"product": "BTC-USD", "policy": "trend"}]}
+        manifest = freeze_training_candidates(report)
+        self.simulate_tick(440)
+        with closing(sqlite3.connect(self.path)) as db:
+            original_sha = db.execute(
+                "SELECT policy_sha FROM frozen_policy WHERE product='BTC-USD'"
+            ).fetchone()[0]
+            original_count = db.execute(
+                "SELECT COUNT(*) FROM paper_decisions").fetchone()[0]
+        original_fingerprint = _implementation_sha()
+        original_getsource = inspect.getsource
+
+        def changed_candle_parser(func):
+            source = original_getsource(func)
+            if func.__name__ == "fetch_5m":
+                old = "ts, op, cl = int(row[0]), float(row[3]), float(row[4])"
+                self.assertIn(old, source)
+                return source.replace(
+                    old, "ts, op, cl = int(row[0]), float(row[4]), float(row[3])", 1)
+            return source
+
+        with patch("src.forward_paper.inspect.getsource",
+                   side_effect=changed_candle_parser):
+            self.assertNotEqual(_implementation_sha(), original_fingerprint)
+            with self.assertRaisesRegex(
+                    ValueError, "Frozen strategy/cost assumptions changed"):
+                self.simulate_tick(441)
+            with self.assertRaisesRegex(
+                    ValueError, "Frozen manifest strategy implementation changed"):
+                observe_and_score(
+                    manifest=manifest, db_path=self.path, fetcher=self.fetch,
+                    clock=lambda: 441*BAR+1)
+        with closing(sqlite3.connect(self.path)) as db:
+            self.assertEqual(db.execute(
+                "SELECT policy_sha FROM frozen_policy WHERE product='BTC-USD'"
+            ).fetchone()[0], original_sha)
+            self.assertEqual(db.execute(
+                "SELECT COUNT(*) FROM paper_decisions").fetchone()[0],
+                original_count)
+
     def test_frozen_ledger_rejects_strategy_revision_without_mixing_returns(self):
         self.simulate_tick(440)
         with closing(sqlite3.connect(self.path)) as db:
