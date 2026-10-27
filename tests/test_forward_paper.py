@@ -298,6 +298,46 @@ class ForwardPaperTests(unittest.TestCase):
         self.assertGreater(entry_ts, observed)
         self.assertEqual(entry, self.rows[441*BAR]["open"])
 
+    def test_clock_rollback_before_source_close_cannot_create_paper_fill(self):
+        # A clock correction after fetching completed candles must not make
+        # the signal appear to have existed before its input bar completed.
+        current=[440*BAR+1]
+        def rollback_fetch(product,start,end):
+            rows=self.fetch(product,start,end)
+            current[0]=439*BAR+1
+            return rows
+        result=observe_and_score(
+            manifest=MANIFEST,db_path=self.path,fetcher=rollback_fetch,
+            clock=lambda:current[0])
+        self.assertEqual(result["products"]["BTC-USD"]["status"],"NONCAUSAL_ENTRY")
+        self.assertEqual(result["scorecard"]["BTC-USD"]["scored_trades"],0)
+        with closing(sqlite3.connect(self.path)) as db:
+            state,observed,reason,net=db.execute(
+                "SELECT state,observed_at,reason,net_return "
+                "FROM paper_decisions").fetchone()
+        self.assertEqual(state,"NONCAUSAL_ENTRY")
+        self.assertLess(observed,440*BAR)
+        self.assertEqual(reason,"signal_observed_before_source_bar_completed")
+        self.assertIsNone(net)
+
+    def test_legacy_precompletion_score_is_quarantined(self):
+        self.simulate_tick(440)
+        with closing(sqlite3.connect(self.path)) as db:
+            db.execute(
+                "UPDATE paper_decisions SET state='SCORED',observed_at=?,"
+                "entry_price=1,exit_price=100,net_return=99",
+                (439*BAR+1,))
+            db.commit()
+        report=self.simulate_tick(515)
+        self.assertEqual(report["scorecard"]["BTC-USD"]["scored_trades"],0)
+        with closing(sqlite3.connect(self.path)) as db:
+            state,reason,net=db.execute(
+                "SELECT state,reason,net_return FROM paper_decisions "
+                "WHERE signal_ts=?", (439*BAR,)).fetchone()
+        self.assertEqual(state,"NONCAUSAL_ENTRY")
+        self.assertEqual(reason,"signal_observed_before_source_bar_completed")
+        self.assertIsNone(net)
+
     def test_slow_fetch_crossing_entry_open_never_creates_paper_fill(self):
         # The initial clock is still inside the signal slot, but fetching
         # historical bars takes us past the planned next-candle opening.
