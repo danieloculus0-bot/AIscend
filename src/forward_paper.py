@@ -161,10 +161,19 @@ def _db(conn):
         "entry_price=NULL,exit_price=NULL,net_return=NULL,"
         "reason=CASE WHEN observed_at < signal_ts + ? "
         "THEN 'signal_observed_before_source_bar_completed' "
+        "WHEN NOT EXISTS (SELECT 1 FROM frozen_policy f "
+        "WHERE f.product=paper_decisions.product "
+        "AND f.policy_sha=paper_decisions.policy_sha "
+        "AND f.frozen_at<=paper_decisions.observed_at) "
+        "THEN 'signal_observed_before_policy_freeze' "
         "ELSE 'entry_open_precedes_signal_observation' END "
         "WHERE state IN ('PENDING','SCORED') AND "
         "(entry_ts IS NULL OR entry_ts<=observed_at OR entry_ts>=exit_ts "
-        "OR observed_at < signal_ts + ?)", (BAR, BAR))
+        "OR observed_at < signal_ts + ? "
+        "OR NOT EXISTS (SELECT 1 FROM frozen_policy f "
+        "WHERE f.product=paper_decisions.product "
+        "AND f.policy_sha=paper_decisions.policy_sha "
+        "AND f.frozen_at<=paper_decisions.observed_at))", (BAR, BAR))
 
 
 def freeze(conn, *, product, policy, now, fee_bps, spread_bps):
@@ -293,11 +302,13 @@ def observe_and_score(*, manifest, db_path=None, fetcher=fetch_5m,
                         raise ValueError("Invalid signal observation clock")
                     # A backwards clock jump can timestamp the decision before
                     # the candle's close was available. That is also noncausal.
-                    causal=complete_at <= observed_at < entry_ts
+                    causal=max(complete_at,frozen_at) <= observed_at < entry_ts
                     state="PENDING" if causal else "NONCAUSAL_ENTRY"
                     reason=("" if causal else
                             "signal_observed_before_source_bar_completed"
                             if observed_at < complete_at else
+                            "signal_observed_before_policy_freeze"
+                            if observed_at < frozen_at else
                             "entry_open_precedes_signal_observation")
                     cur=con.execute(
                         "INSERT OR IGNORE INTO paper_decisions "
