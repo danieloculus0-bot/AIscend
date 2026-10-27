@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import shutil
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -75,6 +76,39 @@ class HostedProspectiveTests(unittest.TestCase):
                 entry)
             self.assertTrue((self.root / ("backup-" + str(i) + ".sqlite3")).exists())
             self.assertTrue((self.root / ("backup-" + str(i) + ".sqlite3.sha256")).exists())
+
+    def test_missing_pinned_database_refuses_silent_restart(self):
+        first = self.run_observation(1, 60)
+        (self.state / "evidence/prospective.sqlite3").unlink()
+        with self.assertRaisesRegex(ValueError, "database missing"):
+            self.run_observation(2, 62)
+        self.assertEqual(json.loads(
+            (self.state / "evidence/latest.json").read_text())["ledger_tip"],
+            first["ledger_tip"])
+        self.assertFalse((self.state / "reports/test-2.json").exists())
+
+    def test_older_valid_sqlite_backup_cannot_rollback_history(self):
+        first = self.run_observation(1, 60)
+        second = self.run_observation(2, 62)
+        database = self.state / "evidence/prospective.sqlite3"
+        # Simulate restoring an internally valid but stale SQLite backup.
+        for suffix in ("-wal", "-shm"):
+            Path(str(database) + suffix).unlink(missing_ok=True)
+        shutil.copyfile(self.root / "backup-1.sqlite3", database)
+        self.assertEqual(verify_database(self.manifest, database)["ledger_tip"],
+                         first["ledger_tip"])
+        with self.assertRaisesRegex(ValueError, "continuity mismatch"):
+            self.run_observation(3, 64)
+        self.assertEqual(json.loads(
+            (self.state / "evidence/latest.json").read_text())["ledger_tip"],
+            second["ledger_tip"])
+        self.assertFalse((self.state / "reports/test-3.json").exists())
+
+    def test_missing_latest_report_cannot_adopt_unanchored_database(self):
+        self.run_observation(1, 60)
+        (self.state / "evidence/latest.json").unlink()
+        with self.assertRaisesRegex(ValueError, "no retained latest report"):
+            self.run_observation(2, 62)
 
     def test_reused_run_identity_cannot_overwrite_evidence(self):
         first = self.run_observation(1, 60)
