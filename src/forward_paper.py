@@ -28,7 +28,7 @@ HORIZONS = {"trend": 72, "breakout": 12, "reversal": 3,
 
 
 def _implementation_sha():
-    """Fingerprint signal tokens across Python versions and operating systems.
+    """Fingerprint signal and paper-settlement tokens across Python versions.
 
     Ignore comments, continuation whitespace and line numbers, but retain
     logical statement boundaries, control flow indentation and executable
@@ -36,7 +36,7 @@ def _implementation_sha():
     """
     try:
         functions = []
-        for func in (_signals, proposals):
+        for func in (_signals, proposals, observe_and_score):
             tokens = []
             source = inspect.getsource(func).replace("\r\n", "\n")
             for tok in tokenize.generate_tokens(io.StringIO(source).readline):
@@ -52,6 +52,7 @@ def _implementation_sha():
         raise RuntimeError("Cannot fingerprint frozen paper strategy source") from exc
     payload = json.dumps({
         "signal_logic": functions[0], "primary_proposals": functions[1],
+        "paper_settlement": functions[2],
         "horizons": HORIZONS, "policies": sorted(POLICIES), "bar": BAR,
     }, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
