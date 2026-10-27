@@ -1,4 +1,5 @@
 """No real orders; test causal forward paper decisions with deterministic bars."""
+import inspect
 import json
 from contextlib import closing
 from pathlib import Path
@@ -8,7 +9,8 @@ import unittest
 from unittest.mock import patch
 
 from src.bean_five_minute import BAR
-from src.forward_paper import observe_and_score, freeze_training_candidates, freeze
+from src.forward_paper import (observe_and_score, freeze_training_candidates,
+                               freeze, _implementation_sha)
 from scripts.forward_paper import main as forward_paper_cli_main
 
 MANIFEST=[{"product":"BTC-USD","policy":"trend",
@@ -163,6 +165,27 @@ class ForwardPaperTests(unittest.TestCase):
                            "training_only_frozen":False}],
                 db_path=self.path,fetcher=self.fetch,
                 clock=lambda:441*BAR+1)
+
+    def test_fingerprint_ignores_comments_but_detects_signal_code_changes(self):
+        original = _implementation_sha()
+        getsource = inspect.getsource
+        def changed_source(func):
+            source = getsource(func)
+            if func.__name__ == "_signals":
+                return source.replace("return False", "return True", 1)
+            return source
+        with patch("src.forward_paper.inspect.getsource",
+                   side_effect=changed_source):
+            self.assertNotEqual(_implementation_sha(), original)
+        def comment_only(func):
+            source = getsource(func)
+            if func.__name__ == "_signals":
+                return source.replace("    times = sorted(",
+                                      "    # no executable change\\n    times = sorted(", 1)
+            return source
+        with patch("src.forward_paper.inspect.getsource",
+                   side_effect=comment_only):
+            self.assertEqual(_implementation_sha(), original)
 
     def test_frozen_ledger_rejects_strategy_revision_without_mixing_returns(self):
         self.simulate_tick(440)
