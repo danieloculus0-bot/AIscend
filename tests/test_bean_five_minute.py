@@ -54,22 +54,26 @@ class FiveMinuteTests(unittest.TestCase):
             self.assertEqual(book.step(end=1000*BAR)["status"], "WAITING")
             now[0] += BAR
             second = book.step(end=1001*BAR)
-            self.assertEqual(second["status"], "ACTIVE")
-            self.assertEqual(second["samples"], 1)
-            self.assertEqual(second["orders"], 0)
-            self.assertIsNone(second["held"])
+            self.assertEqual(second["status"], "WAITING")
+            self.assertEqual(second["samples"], 0)
             now[0] += BAR
             third = book.step(end=1002*BAR)
             self.assertEqual(third["status"], "ACTIVE")
-            # The first pending signal was recorded after this candle opened.
+            self.assertEqual(third["samples"], 1)
             self.assertEqual(third["orders"], 0)
             self.assertIsNone(third["held"])
             now[0] += BAR
             fourth = book.step(end=1003*BAR)
             self.assertEqual(fourth["status"], "ACTIVE")
-            self.assertEqual(fourth["orders"], 1)
-            self.assertEqual(fourth["held"], "ETH-USD")
-            self.assertGreaterEqual(fourth["samples"], 3)
+            # The first pending signal was recorded after this candle opened.
+            self.assertEqual(fourth["orders"], 0)
+            self.assertIsNone(fourth["held"])
+            now[0] += BAR
+            fifth = book.step(end=1004*BAR)
+            self.assertEqual(fifth["status"], "ACTIVE")
+            self.assertEqual(fifth["orders"], 1)
+            self.assertEqual(fifth["held"], "ETH-USD")
+            self.assertGreaterEqual(fifth["samples"], 3)
             self.assertEqual(third["source"],
                              "Forward paper, next-bar open fills, modeled costs")
             self.assertEqual(FastPaperBook(path=path, fetcher=candles).status()["orders"], 1)
@@ -91,7 +95,9 @@ class FiveMinuteTests(unittest.TestCase):
             self.assertEqual(book.status()["orders"],0)
             self.assertEqual(book.step(end=1000*BAR)["samples"],0)
             now[0] += BAR
-            self.assertEqual(book.step(end=1001*BAR)["samples"],1)
+            self.assertEqual(book.step(end=1001*BAR)["samples"],0)
+            now[0] += BAR
+            self.assertEqual(book.step(end=1002*BAR)["samples"],1)
 
     def test_legacy_pending_without_observation_time_cannot_backfill(self):
         with tempfile.TemporaryDirectory() as td:
@@ -103,7 +109,9 @@ class FiveMinuteTests(unittest.TestCase):
                                     "pairs":["BTC-USD","ETH-USD"]}})
             self.assertEqual(book.step(end=1000*BAR)["status"],"WAITING")
             now[0] += BAR
-            first=book.step(end=1001*BAR)
+            self.assertEqual(book.step(end=1001*BAR)["status"],"WAITING")
+            now[0] += BAR
+            first=book.step(end=1002*BAR)
             self.assertIsNotNone(first["pending"])
             with closing(sqlite3.connect(path)) as db:
                 raw=db.execute("SELECT data FROM paper WHERE id='legacy'").fetchone()[0]
@@ -113,10 +121,10 @@ class FiveMinuteTests(unittest.TestCase):
                            (json.dumps(legacy),))
                 db.commit()
             now[0]+=BAR
-            second=book.step(end=1002*BAR)
+            second=book.step(end=1003*BAR)
             self.assertEqual(second["orders"],0)
             self.assertIsNone(second["held"])
-            self.assertGreater(second["pending_recorded_at"],1001*BAR)
+            self.assertGreater(second["pending_recorded_at"],1002*BAR)
 
     def test_missing_market_bar_is_not_synthetic_profit(self):
         with tempfile.TemporaryDirectory() as td:
@@ -133,7 +141,9 @@ class FiveMinuteTests(unittest.TestCase):
                                     "pairs":["BTC-USD","ETH-USD"]}})
             self.assertEqual(book.step(end=1000*BAR)["status"],"WAITING")
             now[0] += BAR
-            snapshot = book.step(end=1001*BAR)
+            self.assertEqual(book.step(end=1001*BAR)["status"],"WAITING")
+            now[0] += BAR
+            snapshot = book.step(end=1002*BAR)
             self.assertEqual(snapshot["status"], "DATA_UNAVAILABLE")
             self.assertEqual(snapshot["orders"], 0)
             self.assertEqual(snapshot["samples"], 0)
@@ -152,7 +162,9 @@ class FiveMinuteTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,"current completed boundary"):
                 book.step(end=900*BAR)
             now[0] += BAR
-            first=book.step(end=1001*BAR)
+            self.assertEqual(book.step(end=1001*BAR)["status"],"WAITING")
+            now[0] += BAR
+            first=book.step(end=1002*BAR)
             self.assertEqual(first["status"],"ACTIVE")
             self.assertEqual(first["samples"],1)
             with self.assertRaisesRegex(ValueError,"current completed boundary"):
@@ -164,7 +176,7 @@ class FiveMinuteTests(unittest.TestCase):
             now=[1000*BAR+60]
             def rollback(product,start,end):
                 data=candles(product,start,end)
-                now[0]=1000*BAR+1
+                now[0]=1001*BAR+1
                 return data
             book=FastPaperBook(path=Path(td)/"paper.db",
                                fetcher=rollback,clock=lambda:now[0])
@@ -172,8 +184,8 @@ class FiveMinuteTests(unittest.TestCase):
                 "id":"rollback","ordinal":1,"state":"AUTO_SELECTED",
                 "report":{"candidate":["momentum",6,0.003,3],
                           "pairs":["BTC-USD","ETH-USD"]}}))
-            now[0] += BAR
-            result=book.step(end=1001*BAR)
+            now[0] += 2*BAR
+            result=book.step(end=1002*BAR)
             self.assertEqual(result["status"],"DATA_UNAVAILABLE")
             self.assertEqual(book.status()["samples"],0)
             self.assertEqual(book.status()["orders"],0)
@@ -183,7 +195,7 @@ class FiveMinuteTests(unittest.TestCase):
             now=[1000*BAR+60]
             def slow(product,start,end):
                 data=candles(product,start,end)
-                now[0]=1002*BAR+1
+                now[0]=1003*BAR+1
                 return data
             book=FastPaperBook(path=Path(td)/"paper.db",
                                fetcher=slow,clock=lambda:now[0])
@@ -191,8 +203,8 @@ class FiveMinuteTests(unittest.TestCase):
                 "id":"slow-fetch","ordinal":1,"state":"AUTO_SELECTED",
                 "report":{"candidate":["momentum",6,0.003,3],
                           "pairs":["BTC-USD","ETH-USD"]}}))
-            now[0] += BAR
-            result=book.step(end=1001*BAR)
+            now[0] += 2*BAR
+            result=book.step(end=1002*BAR)
             self.assertEqual(result["status"],"DATA_UNAVAILABLE")
             self.assertEqual(book.status()["samples"],0)
             self.assertEqual(book.status()["orders"],0)
