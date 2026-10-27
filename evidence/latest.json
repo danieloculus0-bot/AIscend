@@ -1,58 +1,58 @@
 {
-  "as_of_unix": 1793076889,
-  "event_count": 50,
+  "as_of_unix": 1793102530,
+  "event_count": 67,
   "funded_orders": false,
-  "ledger_tip": "07f598125d5fe8738495b8a3678a33ee1d33b38243e8d02efcf6b3cfe43a9625",
+  "ledger_tip": "5addeb0135b8e7c8472b30dbc1f66fb2da3d431921974aae115fb299a606412c",
   "limitations": "Public completed candles and hypothetical next-open orders; no actual Coinbase fills or forward profit claim.",
   "manifest_sha": "8700c2a853cecac6c0ca267e4bc4acd605b56cacb600ac9609d7585684b9d868",
   "markets": {
     "BIRB-USD": {
-      "buy_hold_net": -0.05208549,
-      "fee_net_paper_return": 0.0,
-      "forward_bars": 5,
-      "max_drawdown": 0.0,
-      "orders": 0,
+      "buy_hold_net": -0.11375185,
+      "fee_net_paper_return": -0.07768292,
+      "forward_bars": 7,
+      "max_drawdown": 0.07768292,
+      "orders": 1,
       "pending": {
         "context": "down/volatile",
-        "entry_ts": 1793080800,
-        "observed_cutoff": 1793059200,
-        "selected_at": 1793076889.5319917,
+        "entry_ts": 1793124000,
+        "observed_cutoff": 1793102400,
+        "selected_at": 1793102531.1210916,
         "target": 1
       },
       "promotion_authorized": false,
-      "q_updates": 2,
+      "q_updates": 3,
       "roundtrips": 0,
       "status": "COLLECTING"
     },
     "GWEI-USD": {
-      "buy_hold_net": -0.00530622,
+      "buy_hold_net": -0.01273908,
       "fee_net_paper_return": 0.0,
-      "forward_bars": 5,
+      "forward_bars": 7,
       "max_drawdown": 0.0,
       "orders": 0,
       "pending": {
-        "context": "flat/calm",
-        "entry_ts": 1793080800,
-        "observed_cutoff": 1793059200,
-        "selected_at": 1793076889.9502337,
+        "context": "up/calm",
+        "entry_ts": 1793124000,
+        "observed_cutoff": 1793102400,
+        "selected_at": 1793102531.262373,
         "target": 0
       },
       "promotion_authorized": false,
-      "q_updates": 2,
+      "q_updates": 3,
       "roundtrips": 0,
       "status": "COLLECTING"
     },
     "MPLX-USD": {
-      "buy_hold_net": -0.02870666,
+      "buy_hold_net": -0.04970003,
       "fee_net_paper_return": 0.0,
-      "forward_bars": 5,
+      "forward_bars": 7,
       "max_drawdown": 0.0,
       "orders": 0,
       "pending": {
         "context": null,
-        "entry_ts": 1793080800,
-        "observed_cutoff": 1793059200,
-        "selected_at": 1793076890.1557045,
+        "entry_ts": 1793124000,
+        "observed_cutoff": 1793102400,
+        "selected_at": 1793102531.3933003,
         "target": 0
       },
       "promotion_authorized": false,
@@ -61,16 +61,16 @@
       "status": "COLLECTING"
     },
     "PEPE-USD": {
-      "buy_hold_net": -0.03678839,
+      "buy_hold_net": -0.04796254,
       "fee_net_paper_return": 0.0,
-      "forward_bars": 5,
+      "forward_bars": 7,
       "max_drawdown": 0.0,
       "orders": 0,
       "pending": {
         "context": null,
-        "entry_ts": 1793080800,
-        "observed_cutoff": 1793059200,
-        "selected_at": 1793076890.363615,
+        "entry_ts": 1793124000,
+        "observed_cutoff": 1793102400,
+        "selected_at": 1793102531.7633579,
         "target": 0
       },
       "promotion_authorized": false,
@@ -79,16 +79,16 @@
       "status": "COLLECTING"
     },
     "SHDW-USD": {
-      "buy_hold_net": -0.0419475,
+      "buy_hold_net": -0.04909714,
       "fee_net_paper_return": 0.0,
-      "forward_bars": 5,
+      "forward_bars": 7,
       "max_drawdown": 0.0,
       "orders": 0,
       "pending": {
         "context": null,
-        "entry_ts": 1793080800,
-        "observed_cutoff": 1793059200,
-        "selected_at": 1793076890.7991488,
+        "entry_ts": 1793124000,
+        "observed_cutoff": 1793102400,
+        "selected_at": 1793102531.8995645,
         "target": 0
       },
       "promotion_authorized": false,
@@ -98,8 +98,8 @@
     }
   },
   "promotion_authorized": false,
-  "run_key": "40452298302-1",
+  "run_key": "40500559826-1",
   "schema": "aiscend.bean.hosted.public.paper.v1",
   "source_sha256": "0781aa210a799e11e92e1ddf8ba671dcdbc8c2ebc1cc8f644a92e317577ee30e",
-  "sqlite_backup_sha256": "984edf16837bbbda49537590da856aff10433950b1db4f5d1ad69315b1ab9c2a"
+  "sqlite_backup_sha256": "71f127f8534538d8f8a1cdfe1c02d8366808d4b3909db07362c1597c0aca8a2f"
 }
