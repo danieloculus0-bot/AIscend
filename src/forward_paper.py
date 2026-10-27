@@ -7,7 +7,9 @@ fills and NEVER authorize promotion or trading.
 from __future__ import annotations
 
 from contextlib import closing
+import ast
 import hashlib
+import inspect
 import json
 import math
 from pathlib import Path
@@ -22,6 +24,26 @@ POLICIES = {"trend", "breakout", "reversal",
             "trend_4h_hold", "trend_1d_hold"}
 HORIZONS = {"trend": 72, "breakout": 12, "reversal": 3,
             "trend_4h_hold": 48, "trend_1d_hold": 288}
+
+
+def _implementation_sha():
+    """Fingerprint executable paper signal rules, not unrelated UI changes.
+
+    AST normalization ignores comments, whitespace and source line numbers.
+    Missing Python source fails closed rather than silently reusing an identity.
+    """
+    try:
+        functions = [
+            ast.dump(ast.parse(inspect.getsource(func)), include_attributes=False)
+            for func in (_signals, proposals)
+        ]
+    except (OSError, TypeError, SyntaxError) as exc:
+        raise RuntimeError("Cannot fingerprint frozen paper strategy source") from exc
+    payload = json.dumps({
+        "signal_logic": functions[0], "primary_proposals": functions[1],
+        "horizons": HORIZONS, "policies": sorted(POLICIES), "bar": BAR,
+    }, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def freeze_training_candidates(aggregate, *, limit=10):
@@ -39,13 +61,15 @@ def freeze_training_candidates(aggregate, *, limit=10):
         raise ValueError("No valid training-only candidates or invalid limit")
     chosen = []
     seen = set()
+    implementation_sha = _implementation_sha()
     for row in rows:
         product = str(row.get("product") or "").upper()
         policy = row.get("policy")
         policy_identity(product, policy)
         if product not in seen:
             chosen.append({"product": product, "policy": policy,
-                           "training_only_frozen": True})
+                           "training_only_frozen": True,
+                           "implementation_sha": implementation_sha})
             seen.add(product)
         if len(chosen) >= limit:
             break
@@ -59,7 +83,8 @@ def policy_identity(product, policy):
             or policy not in POLICIES):
         raise ValueError("Expected frozen USD/USDC spot product and known policy")
     return hashlib.sha256(
-        ("aiscend.paper.policy.v1:" + product + ":" + policy).encode()).hexdigest()
+        ("aiscend.paper.policy.v2:" + _implementation_sha() + ":"
+         + product + ":" + policy).encode()).hexdigest()
 
 
 def _signals(product, policy, bars, signal_ts):
@@ -148,6 +173,17 @@ def observe_and_score(*, manifest, db_path=None, fetcher=fetch_5m,
         raise ValueError("Invalid modeled trading costs")
     if not isinstance(manifest, list) or not 1 <= len(manifest) <= 20:
         raise ValueError("Supply 1-20 explicitly frozen training candidates")
+    implementation_sha = _implementation_sha()
+    for item in manifest:
+        if not isinstance(item, dict):
+            raise ValueError("Expected frozen candidate objects")
+        # Newly generated manifests pin the signal implementation before
+        # observation. Legacy manifests still pin it on their first DB freeze.
+        expected = item.get("implementation_sha")
+        if expected is not None and expected != implementation_sha:
+            raise ValueError(
+                "Frozen manifest strategy implementation changed; "
+                "start a new manifest and paper ledger")
     now = float(clock())
     last_completed = int(now//BAR)*BAR - BAR
     db_path = Path(db_path or app_data_dir()/"forward-paper.sqlite3")
