@@ -149,9 +149,12 @@ def _db(conn):
     conn.execute(
         "UPDATE paper_decisions SET state='NONCAUSAL_ENTRY',"
         "entry_price=NULL,exit_price=NULL,net_return=NULL,"
-        "reason='entry_open_precedes_signal_observation' "
+        "reason=CASE WHEN observed_at < signal_ts + ? "
+        "THEN 'signal_observed_before_source_bar_completed' "
+        "ELSE 'entry_open_precedes_signal_observation' END "
         "WHERE state IN ('PENDING','SCORED') AND "
-        "(entry_ts IS NULL OR entry_ts<=observed_at OR entry_ts>=exit_ts)")
+        "(entry_ts IS NULL OR entry_ts<=observed_at OR entry_ts>=exit_ts "
+        "OR observed_at < signal_ts + ?)", (BAR, BAR))
 
 
 def freeze(conn, *, product, policy, now, fee_bps, spread_bps):
@@ -276,9 +279,14 @@ def observe_and_score(*, manifest, db_path=None, fetcher=fetch_5m,
                     observed_at=float(clock())
                     if not math.isfinite(observed_at):
                         raise ValueError("Invalid signal observation clock")
-                    causal=observed_at < entry_ts
+                    # A backwards clock jump can timestamp the decision before
+                    # the candle's close was available. That is also noncausal.
+                    causal=complete_at <= observed_at < entry_ts
                     state="PENDING" if causal else "NONCAUSAL_ENTRY"
-                    reason="" if causal else "entry_open_precedes_signal_observation"
+                    reason=("" if causal else
+                            "signal_observed_before_source_bar_completed"
+                            if observed_at < complete_at else
+                            "entry_open_precedes_signal_observation")
                     cur=con.execute(
                         "INSERT OR IGNORE INTO paper_decisions "
                         "(product,policy_sha,signal_ts,observed_at,entry_ts,exit_ts,state,reason) "
