@@ -7,14 +7,15 @@ fills and NEVER authorize promotion or trading.
 from __future__ import annotations
 
 from contextlib import closing
-import ast
 import hashlib
 import inspect
+import io
 import json
 import math
 from pathlib import Path
 import sqlite3
 import time
+import tokenize
 
 from .bean_five_minute import BAR, fetch_5m
 from .core import app_data_dir
@@ -27,17 +28,26 @@ HORIZONS = {"trend": 72, "breakout": 12, "reversal": 3,
 
 
 def _implementation_sha():
-    """Fingerprint executable paper signal rules, not unrelated UI changes.
+    """Fingerprint signal tokens across Python versions and operating systems.
 
-    AST normalization ignores comments, whitespace and source line numbers.
-    Missing Python source fails closed rather than silently reusing an identity.
+    Ignore comments, layout whitespace and line numbers, but preserve control
+    flow indentation and all executable tokens. Missing source fails closed.
     """
     try:
-        functions = [
-            ast.dump(ast.parse(inspect.getsource(func)), include_attributes=False)
-            for func in (_signals, proposals)
-        ]
-    except (OSError, TypeError, SyntaxError) as exc:
+        functions = []
+        for func in (_signals, proposals):
+            tokens = []
+            source = inspect.getsource(func).replace("\r\n", "\n")
+            for tok in tokenize.generate_tokens(io.StringIO(source).readline):
+                if tok.type in (tokenize.COMMENT, tokenize.NL,
+                                tokenize.NEWLINE, tokenize.ENDMARKER):
+                    continue
+                if tok.type in (tokenize.INDENT, tokenize.DEDENT):
+                    tokens.append((tok.type, ""))
+                else:
+                    tokens.append((tok.type, tok.string))
+            functions.append(tokens)
+    except (OSError, TypeError, tokenize.TokenError, IndentationError) as exc:
         raise RuntimeError("Cannot fingerprint frozen paper strategy source") from exc
     payload = json.dumps({
         "signal_logic": functions[0], "primary_proposals": functions[1],
