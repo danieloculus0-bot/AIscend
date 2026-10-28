@@ -344,6 +344,7 @@ class FiveMinuteTests(unittest.TestCase):
             now = [1000*BAR+60]
             with (patch("src.bean_five_minute.PAPER_MIN_SAMPLES", 4),
                   patch("src.bean_five_minute.MIN_EDGE", 0.0),
+                  patch("src.bean_five_minute.MIN_TRADE_COUNT", 1),
                   patch("src.bean_five_minute.COST", 0.0)):
                 complete = FastPaperBook(
                     path=Path(td)/"complete.db", fetcher=trending,
