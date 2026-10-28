@@ -146,6 +146,7 @@ class FastPaperBook:
         data = {"candidate": candidate, "pairs": pairs,
                 "experiment": selected.get("ordinal"), "last_bar": None,
                 "pending": None, "pending_recorded_at": None,
+                "signal_queue": [],
                 "held": None, "units": 0.0,
                 "cash": CAPITAL, "equity": CAPITAL, "peak": CAPITAL,
                 "drawdown": 0.0, "orders": 0, "samples": 0,
@@ -193,6 +194,7 @@ class FastPaperBook:
             if data["last_bar"] is not None and last-data["last_bar"] != BAR:
                 data["pending"] = None
                 data["pending_recorded_at"] = None
+                data["signal_queue"] = []
                 data["last_bar"] = last
                 data["last_error"] = "Missing forward candle interval; no paper fill credited"
                 db.execute("UPDATE paper SET data=?,updated=? WHERE id=?",
@@ -214,25 +216,42 @@ class FastPaperBook:
                     data["first_btc"] = candle["BTC-USD"]["close"]
                 # Previous close's target can fill at this candle's opening,
                 # never at a previously observed bar's price.
-                pending = data["pending"]
-                recorded_at = data.get("pending_recorded_at")
-                # The current completed candle opened before this step. Only
-                # an earlier, persisted signal can use that opening price.
-                # Missing timestamps on legacy ledgers fail closed.
-                causal_open = (
-                    isinstance(recorded_at, (int, float))
-                    and math.isfinite(recorded_at)
-                    and recorded_at < last)
-                if (pending != data["held"] and data["last_bar"] is not None
-                        and causal_open):
+                # A changed target must not erase an older signal that has
+                # not yet reached its first causally eligible candle opening.
+                # Keep a short FIFO of signal changes until each eligible
+                # opening is observed. Legacy pending timestamps migrate once.
+                queue = data.get("signal_queue")
+                if queue is None:
+                    queue = []
+                    recorded_at = data.get("pending_recorded_at")
+                    if recorded_at is not None:
+                        queue.append({"target": data["pending"],
+                                      "recorded_at": recorded_at})
+                remaining = []
+                for signal in queue:
+                    if not isinstance(signal, dict):
+                        continue
+                    signal_at = signal.get("recorded_at")
+                    if (not isinstance(signal_at, (int, float))
+                            or not math.isfinite(signal_at)
+                            or signal_at < float(row["created"])):
+                        continue  # Invalid/legacy timestamps fail closed.
+                    if signal_at >= last:
+                        remaining.append(signal)
+                        continue
+                    target_to_fill = signal.get("target")
+                    if (data["last_bar"] is None
+                            or target_to_fill == data["held"]):
+                        continue
                     if data["held"] is not None:
                         data["cash"] += data["units"]*candle[data["held"]]["open"]*(1-COST)
                         data["orders"] += 1
                         data["held"], data["units"] = None, 0.0
-                    if pending is not None and data["cash"] >= 2.0:
-                        data["units"] = data["cash"]*(1-COST)/candle[pending]["open"]
-                        data["cash"], data["held"] = 0.0, pending
+                    if target_to_fill is not None and data["cash"] >= 2.0:
+                        data["units"] = data["cash"]*(1-COST)/candle[target_to_fill]["open"]
+                        data["cash"], data["held"] = 0.0, target_to_fill
                         data["orders"] += 1
+                data["signal_queue"] = remaining
                 held = data["held"]
                 equity = (data["cash"] + data["units"]*candle[held]["close"]*(1-COST)
                           if held else data["cash"])
@@ -264,6 +283,8 @@ class FastPaperBook:
                 if (target != data["pending"]
                         or data.get("pending_recorded_at") is None):
                     data["pending_recorded_at"] = observed_at
+                    data["signal_queue"].append(
+                        {"target": target, "recorded_at": observed_at})
                 data["pending"] = target
                 data["last_target"] = target
                 data["last_bar"] = last
