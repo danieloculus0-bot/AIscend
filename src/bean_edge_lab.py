@@ -7,6 +7,7 @@ paying the fee. No credentials, orders, live activation or promotion.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -200,6 +201,13 @@ def main(argv=None):
     history = fetch_history(args.product.upper(), days=args.days,
                             clock=lambda: fixed_now)
     report = experiment(history)
+    # Preserve every fetched public candle so that the historical outcome,
+    # execution assumptions and the source digest can be replayed independently.
+    source_rows = [history[k] for k in sorted(history)]
+    report["source_candles"] = source_rows
+    report["source_sha256"] = hashlib.sha256(
+        json.dumps(source_rows, sort_keys=True, separators=(",", ":"),
+                   allow_nan=False).encode("utf-8")).hexdigest()
     report["product"] = args.product.upper()
     report["data_end_exclusive"] = fixed_now
     args.output.parent.mkdir(parents=True, exist_ok=True)
