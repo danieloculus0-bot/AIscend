@@ -260,6 +260,29 @@ class ForwardPaperTests(unittest.TestCase):
                    side_effect=comment_only):
             self.assertEqual(_implementation_sha(), original)
 
+    def test_fingerprint_pins_quarantine_freeze_and_identity_rules(self):
+        # Changes to migration/quarantine or frozen-cost admission affect the
+        # meaning of existing evidence even if signal/settlement is unchanged.
+        original = _implementation_sha()
+        getsource = inspect.getsource
+        variants = (
+            ("_db", "state='NONCAUSAL_ENTRY'", "state='SCORED'"),
+            ("freeze", "0 <= fee_bps <= 1000", "0 <= fee_bps <= 2000"),
+            ("policy_identity", "aiscend.paper.policy.v2:",
+             "aiscend.paper.policy.v3:"),
+        )
+        for name, old, new in variants:
+            with self.subTest(changed_function=name):
+                def changed_source(func):
+                    source = getsource(func)
+                    if func.__name__ == name:
+                        self.assertIn(old, source)
+                        return source.replace(old, new, 1)
+                    return source
+                with patch("src.forward_paper.inspect.getsource",
+                           side_effect=changed_source):
+                    self.assertNotEqual(_implementation_sha(), original)
+
     def test_fingerprint_detects_logical_newline_changes(self):
         # Both variants are valid Python with identical non-newline tokens,
         # but the first returns 2 and the second returns False.
