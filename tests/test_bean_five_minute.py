@@ -326,6 +326,62 @@ class FiveMinuteTests(unittest.TestCase):
             self.assertEqual(snapshot["orders"], 0)
             self.assertEqual(snapshot["samples"], 0)
 
+    def test_missed_forward_interval_cannot_validate_hidden_drawdown(self):
+        """An unobserved bar invalidates completeness, even if later P&L wins."""
+        from unittest.mock import patch
+
+        def trending(product, start, end):
+            slope = 0.4 if product == "ETH-USD" else 0.05
+            return {ts: {"open": 100 + (ts//BAR-900)*slope,
+                         "close": 100 + (ts//BAR-900)*slope}
+                    for ts in range(start, end, BAR)}
+
+        selected = {
+            "id": "gap-evidence", "ordinal": 1, "state": "AUTO_SELECTED",
+            "report": {"candidate": ["momentum", 6, 0.003, 3],
+                       "pairs": ["BTC-USD", "ETH-USD"]}}
+        with tempfile.TemporaryDirectory() as td:
+            now = [1000*BAR+60]
+            with (patch("src.bean_five_minute.PAPER_MIN_SAMPLES", 4),
+                  patch("src.bean_five_minute.MIN_EDGE", 0.0),
+                  patch("src.bean_five_minute.COST", 0.0)):
+                complete = FastPaperBook(
+                    path=Path(td)/"complete.db", fetcher=trending,
+                    clock=lambda: now[0])
+                self.assertTrue(complete.enqueue(selected))
+                for tick in (1002, 1003, 1004, 1005):
+                    now[0] = tick*BAR+60
+                    good = complete.step(end=tick*BAR)
+                self.assertEqual(good["status"], "VALIDATED_FORWARD_PAPER")
+                self.assertEqual(good["evidence_gaps"], 0)
+
+                now[0] = 1000*BAR+60
+                gapped = FastPaperBook(
+                    path=Path(td)/"gapped.db", fetcher=trending,
+                    clock=lambda: now[0])
+                self.assertTrue(gapped.enqueue(selected))
+                for tick in (1002, 1003, 1004):
+                    now[0] = tick*BAR+60
+                    before = gapped.step(end=tick*BAR)
+                self.assertEqual(before["held"], "ETH-USD")
+                self.assertEqual(before["samples"], 3)
+                # No step for 1005: an unobserved bar can conceal a severe
+                # intraperiod drawdown or a missed strategy decision.
+                now[0] = 1006*BAR+60
+                gap = gapped.step(end=1006*BAR)
+                self.assertEqual(gap["status"], "DATA_GAP")
+                self.assertEqual(gap["samples"], 3)
+                self.assertEqual(gap["evidence_gaps"], 1)
+                self.assertEqual(gap["held"], "ETH-USD")
+                now[0] = 1007*BAR+60
+                after = gapped.step(end=1007*BAR)
+                self.assertGreater(after["net_return"], 0.0)
+                self.assertEqual(after["samples"], 4)
+                self.assertEqual(after["evidence_gaps"], 1)
+                self.assertEqual(after["status"], "INCOMPLETE_FORWARD_PAPER")
+                self.assertEqual(gapped.status()["status"],
+                                 "INCOMPLETE_FORWARD_PAPER")
+
     def test_precreation_and_backfilled_candles_are_not_forward_evidence(self):
         with tempfile.TemporaryDirectory() as td:
             now=[1000*BAR+60]
