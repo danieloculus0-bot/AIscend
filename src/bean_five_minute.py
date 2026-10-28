@@ -18,8 +18,8 @@ from urllib.parse import urlencode, quote
 
 from . import bean_strategy_lab as strategy_lab
 from .bean_strategy_lab import (
-    BASELINE, CAPITAL, COST, HOUR, _choose, _get_json,
-    discover_products, select_markets,
+    BASELINE, CAPITAL, COST, HOUR, MODES, LOOKBACKS, THRESHOLDS,
+    REBALANCES, _choose, _get_json, discover_products, select_markets,
 )
 from .core import app_data_dir
 
@@ -157,6 +157,11 @@ class FastPaperBook:
         candidate = report.get("candidate")
         pairs = report.get("pairs")
         if (not isinstance(candidate, list) or len(candidate) != 4 or
+                candidate[0] not in MODES or
+                type(candidate[1]) is not int or candidate[1] not in LOOKBACKS or
+                type(candidate[2]) not in (int, float) or
+                candidate[2] not in THRESHOLDS or
+                type(candidate[3]) is not int or candidate[3] not in REBALANCES or
                 not isinstance(pairs, list) or "BTC-USD" not in pairs or
                 not 1 <= len(pairs) <= 12):
             return False
@@ -301,7 +306,24 @@ class FastPaperBook:
                                       "drawdown", "net_return", "btc_return",
                                       "first_btc")):
                     raise ValueError("Nonfinite forward paper accounting")
-                target = _choose(bars, len(bars), data["pairs"], data["candidate"])
+                # Mirror simulate(): a frozen candidate decides only on its
+                # configured rebalance bars. Calling _choose every five minutes
+                # would forward-test a different strategy from the one selected.
+                rebalance = data["candidate"][3]
+                due = data["samples"] % rebalance == 0
+                target = data["pending"]
+                if due:
+                    target = _choose(bars, len(bars), data["pairs"], data["candidate"])
+                    # The historical simulator's persistent mode retains an
+                    # incumbent while its lookback return remains acceptable.
+                    if data["candidate"][0] == "persistent" and data["held"] is not None:
+                        incumbent = data["held"]
+                        lookback = data["candidate"][1]
+                        threshold = data["candidate"][2]
+                        previous = bars[-1]["prices"][incumbent]["close"]
+                        old = bars[-lookback-1]["prices"][incumbent]["close"]
+                        if previous / old - 1 >= -threshold:
+                            target = incumbent
                 observed_at = float(self.clock())
                 if (not math.isfinite(observed_at)
                         or not end <= observed_at < end + BAR
@@ -309,8 +331,8 @@ class FastPaperBook:
                     # Clock rollback and slow fetches crossing the next bar
                     # both invalidate the claimed live observation slot.
                     raise ValueError("Noncausal paper signal observation clock")
-                if (target != data["pending"]
-                        or data.get("pending_recorded_at") is None):
+                if due and (target != data["pending"]
+                            or data.get("pending_recorded_at") is None):
                     data["pending_recorded_at"] = observed_at
                     data["signal_queue"].append(
                         {"target": target, "recorded_at": observed_at})
