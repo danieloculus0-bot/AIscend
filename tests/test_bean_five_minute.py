@@ -118,6 +118,46 @@ class FiveMinuteTests(unittest.TestCase):
                 self.assertIsNone(exited["held"])
                 self.assertEqual(exited["samples"], 4)
 
+    def test_changed_or_legacy_source_cannot_reuse_forward_trial(self):
+        """Never mix paper evidence from different source implementations."""
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td)/"paper.db"
+            now = [1000*BAR+60]
+            book = FastPaperBook(path=path, fetcher=candles,
+                                 clock=lambda: now[0])
+            selected = {"id": "source-v1", "ordinal": 1,
+                        "state": "AUTO_SELECTED",
+                        "report": {"candidate": ["momentum", 6, 0.003, 3],
+                                   "pairs": ["BTC-USD", "ETH-USD"]}}
+            self.assertTrue(book.enqueue(selected))
+            self.assertEqual(len(book.status()["source_sha"]), 64)
+            with patch("src.bean_five_minute._paper_source_sha",
+                       return_value="0"*64):
+                changed = book.step(end=1000*BAR)
+            self.assertEqual(changed["status"], "INVALIDATED_SOURCE")
+            self.assertEqual(changed["samples"], 0)
+            self.assertEqual(changed["orders"], 0)
+            self.assertEqual(book.status()["status"], "INVALIDATED_SOURCE")
+
+            # Pre-fingerprint trials are also untrusted, not silently
+            # migrated into a ledger governed by different trading rules.
+            selected["id"] = "legacy-source"
+            self.assertTrue(book.enqueue(selected))
+            with closing(sqlite3.connect(path)) as db:
+                record = json.loads(db.execute(
+                    "SELECT data FROM paper WHERE id='legacy-source'"
+                ).fetchone()[0])
+                record.pop("source_sha")
+                db.execute("UPDATE paper SET data=? WHERE id='legacy-source'",
+                           (json.dumps(record),))
+                db.commit()
+            legacy = book.step(end=1000*BAR)
+            self.assertEqual(legacy["status"], "INVALIDATED_SOURCE")
+            self.assertEqual(legacy["samples"], 0)
+            self.assertEqual(book.status()["status"], "INVALIDATED_SOURCE")
+
     def test_future_or_unaligned_end_cannot_fabricate_forward_samples(self):
         with tempfile.TemporaryDirectory() as td:
             now = [1000*BAR+60]
