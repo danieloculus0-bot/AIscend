@@ -157,6 +157,8 @@ class FiveMinuteTests(unittest.TestCase):
 
             # Pre-fingerprint trials are also untrusted, not silently
             # migrated into a ledger governed by different trading rules.
+            # Distinct update times make status() ordering deterministic.
+            now[0] += 1
             selected["id"] = "legacy-source"
             self.assertTrue(book.enqueue(selected))
             with closing(sqlite3.connect(path)) as db:
