@@ -251,6 +251,7 @@ class FiveMinuteTests(unittest.TestCase):
                 raw=db.execute("SELECT data FROM paper WHERE id='legacy'").fetchone()[0]
                 legacy=json.loads(raw)
                 legacy.pop("pending_recorded_at",None)
+                legacy.pop("signal_queue",None)
                 db.execute("UPDATE paper SET data=? WHERE id='legacy'",
                            (json.dumps(legacy),))
                 db.commit()
