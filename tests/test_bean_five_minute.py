@@ -141,6 +141,20 @@ class FiveMinuteTests(unittest.TestCase):
             self.assertEqual(changed["orders"], 0)
             self.assertEqual(book.status()["status"], "INVALIDATED_SOURCE")
 
+            # A previously finished verdict must not appear to validate
+            # the current revision after source code changes.
+            with closing(sqlite3.connect(path)) as db:
+                db.execute(
+                    "UPDATE paper SET state='VALIDATED_FORWARD_PAPER' "
+                    "WHERE id='source-v1'")
+                db.commit()
+            with patch("src.bean_five_minute._paper_source_sha",
+                       return_value="0"*64):
+                stale = book.status()
+            self.assertEqual(stale["status"], "INVALIDATED_SOURCE")
+            self.assertEqual(stale["historical_status"],
+                             "VALIDATED_FORWARD_PAPER")
+
             # Pre-fingerprint trials are also untrusted, not silently
             # migrated into a ledger governed by different trading rules.
             selected["id"] = "legacy-source"
