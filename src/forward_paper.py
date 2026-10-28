@@ -36,7 +36,8 @@ def _implementation_sha():
     """
     try:
         functions = []
-        for func in (_signals, proposals, observe_and_score, fetch_5m):
+        for func in (_signals, proposals, observe_and_score, fetch_5m,
+                     _db, freeze, policy_identity):
             tokens = []
             source = inspect.getsource(func).replace("\r\n", "\n")
             for tok in tokenize.generate_tokens(io.StringIO(source).readline):
@@ -53,6 +54,8 @@ def _implementation_sha():
     payload = json.dumps({
         "signal_logic": functions[0], "primary_proposals": functions[1],
         "paper_settlement": functions[2], "candle_ingestion": functions[3],
+        "ledger_quarantine": functions[4], "frozen_cost_admission": functions[5],
+        "policy_identity_rules": functions[6],
         "horizons": HORIZONS, "policies": sorted(POLICIES), "bar": BAR,
     }, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
