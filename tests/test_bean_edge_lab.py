@@ -82,5 +82,20 @@ class OpportunityTests(unittest.TestCase):
             lab.forecast(rows, 240, confidence_z=float("nan"))
 
 
+    def test_regime_reversal_abstains_and_keeps_initial_loss(self):
+        raw, price = {}, 100.
+        for i in range(360):
+            opening = price
+            price *= 1.007 if i < 240 else .985
+            raw[i*lab.BAR] = {"ts": i*lab.BAR, "open": opening,
+                              "close": price, "volume": 100.}
+        report = lab.experiment(raw)
+        down = [d for d in report["decisions"] if d["context"].startswith("down/")]
+        self.assertTrue(down)
+        self.assertTrue(all(d["decision"] == "CASH" for d in down))
+        # The engine must retain the loss on its earlier mistimed entry.
+        self.assertLess(report["fee_net_return"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()
