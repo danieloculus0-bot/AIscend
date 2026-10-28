@@ -110,6 +110,16 @@ class HostedProspectiveTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "no retained latest report"):
             self.run_observation(2, 62)
 
+    def test_missing_hosted_state_branch_never_bootstraps_new_ledger(self):
+        # The first hosted ledger was created on 2026-10-25. Losing that
+        # branch must stop collection, not silently reset forward evidence.
+        workflow = (self.source / ".github/workflows/bean-durable-sixhour-paper.yml"
+                    ).read_text(encoding="utf-8")
+        self.assertIn('git ls-remote --exit-code --heads origin', workflow)
+        self.assertIn("RESEARCH_STATE_MISSING", workflow)
+        self.assertIn("refusing ledger reset", workflow)
+        self.assertNotIn('git worktree add -b "$STATE_BRANCH"', workflow)
+
     def test_reused_run_identity_cannot_overwrite_evidence(self):
         first = self.run_observation(1, 60)
         with self.assertRaises(FileExistsError):
