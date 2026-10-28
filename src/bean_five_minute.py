@@ -7,6 +7,7 @@ forward accounting only consumes candles first observed after trial creation.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import hashlib
 import json
 import math
 import sqlite3
@@ -15,6 +16,7 @@ import time
 from pathlib import Path
 from urllib.parse import urlencode, quote
 
+from . import bean_strategy_lab as strategy_lab
 from .bean_strategy_lab import (
     BASELINE, CAPITAL, COST, HOUR, _choose, _get_json,
     discover_products, select_markets,
@@ -27,6 +29,23 @@ PAPER_MIN_SAMPLES = 288      # at least 24 hours of genuinely forward 5m candles
 MIN_TRADE_COUNT = 2
 MIN_EDGE = 0.02
 MAX_DRAWDOWN = 0.10
+
+
+def _paper_source_sha():
+    """Pin a forward trial to its actual paper and strategy implementation.
+
+    A source change during a trial must not silently combine old and new
+    trading rules into one supposedly prospective performance record.
+    """
+    digest = hashlib.sha256()
+    try:
+        for source in (Path(__file__), Path(strategy_lab.__file__)):
+            payload = source.read_bytes()
+            digest.update(len(payload).to_bytes(8, "big"))
+            digest.update(payload)
+    except OSError as exc:
+        raise RuntimeError("Cannot fingerprint forward paper source") from exc
+    return digest.hexdigest()
 
 
 def fetch_5m(product, start, end):
@@ -145,6 +164,7 @@ class FastPaperBook:
         now = float(self.clock())
         data = {"candidate": candidate, "pairs": pairs,
                 "experiment": selected.get("ordinal"), "last_bar": None,
+                "source_sha": _paper_source_sha(),
                 "pending": None, "pending_recorded_at": None,
                 "signal_queue": [],
                 "held": None, "units": 0.0,
@@ -181,6 +201,15 @@ class FastPaperBook:
             if row is None:
                 return {"status": "NO_ACTIVE_FORWARD_TRIAL"}
             data = json.loads(row["data"])
+            # Legacy trials have no implementation provenance. Never count
+            # their prior samples under newly revised paper/strategy rules.
+            if data.get("source_sha") != _paper_source_sha():
+                data["last_error"] = (
+                    "Forward paper implementation changed or was not pinned; "
+                    "start a new independent trial")
+                db.execute("UPDATE paper SET state=?,data=?,updated=? WHERE id=?",
+                           ("INVALIDATED_SOURCE", json.dumps(data), now, row["id"]))
+                return {"status": "INVALIDATED_SOURCE", **data}
             # Require the entire observed candle to open AFTER the trial
             # was frozen. A bar already in progress at enqueue is not a
             # full prospective five-minute sample.
