@@ -122,6 +122,48 @@ class FiveMinuteTests(unittest.TestCase):
                 self.assertIsNone(result["held"])
                 self.assertEqual(chooser.call_count, 2)
 
+    def test_queued_alternating_signals_keep_causal_fifo_fills(self):
+        """A persisted second signal must not erase an earlier eligible fill."""
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td)/"paper.db"
+            now = [1000*BAR+60]
+            book = FastPaperBook(path=path, fetcher=candles,
+                                 clock=lambda: now[0])
+            self.assertTrue(book.enqueue({
+                "id": "fifo", "ordinal": 1, "state": "AUTO_SELECTED",
+                "report": {"candidate": ["momentum", 6, 0.003, 3],
+                           "pairs": ["BTC-USD", "ETH-USD"]}}))
+            with patch("src.bean_five_minute._choose",
+                       side_effect=["ETH-USD", None]):
+                for tick in (1000, 1001, 1002, 1003):
+                    now[0] = tick*BAR+60
+                    book.step(end=tick*BAR)
+                # A second already-recorded signal is restored from a durable
+                # queue, simulating a restart with overlapping observations.
+                with closing(sqlite3.connect(path)) as db:
+                    raw = db.execute("SELECT data FROM paper WHERE id='fifo'").fetchone()[0]
+                    data = json.loads(raw)
+                    self.assertEqual(len(data["signal_queue"]), 1)
+                    data["signal_queue"].append(
+                        {"target": None, "recorded_at": 1003*BAR+60})
+                    data["pending"] = None
+                    data["pending_recorded_at"] = 1003*BAR+60
+                    db.execute("UPDATE paper SET data=? WHERE id='fifo'",
+                               (json.dumps(data),))
+                    db.commit()
+                book = FastPaperBook(path=path, fetcher=candles,
+                                     clock=lambda: now[0])
+                now[0] = 1004*BAR+60
+                entered = book.step(end=1004*BAR)
+                self.assertEqual(entered["orders"], 1)
+                self.assertEqual(entered["held"], "ETH-USD")
+                now[0] = 1005*BAR+60
+                exited = book.step(end=1005*BAR)
+                self.assertEqual(exited["orders"], 2)
+                self.assertIsNone(exited["held"])
+
     def test_persistent_candidate_retains_incumbent_as_in_simulate(self):
         """A persistent gene cannot liquidate on a transient alternate pick."""
         from unittest.mock import patch
