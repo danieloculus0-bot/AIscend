@@ -175,6 +175,7 @@ class FastPaperBook:
                 "held": None, "units": 0.0,
                 "cash": CAPITAL, "equity": CAPITAL, "peak": CAPITAL,
                 "drawdown": 0.0, "orders": 0, "samples": 0,
+                 "evidence_gaps": 0,
                 "first_btc": None, "last_target": None,
                 "last_error": None, "net_return": 0.0, "btc_return": None,
                 "source": "Forward paper, next-bar open fills, modeled costs"}
@@ -230,7 +231,12 @@ class FastPaperBook:
                 data["pending_recorded_at"] = None
                 data["signal_queue"] = []
                 data["last_bar"] = last
-                data["last_error"] = "Missing forward candle interval; no paper fill credited"
+                # Missing observations hide intervening drawdown and decisions.
+                # Preserve the trial for diagnosis, but never certify it as
+                # complete prospective evidence after an unobserved interval.
+                data["evidence_gaps"] = int(data.get("evidence_gaps", 0)) + 1
+                data["last_error"] = (
+                    "Missing forward candle interval; trade and drawdown evidence incomplete")
                 db.execute("UPDATE paper SET data=?,updated=? WHERE id=?",
                            (json.dumps(data), self.clock(), row["id"]))
                 return {"status": "DATA_GAP", **data}
@@ -346,10 +352,15 @@ class FastPaperBook:
                 return {"status": "DATA_UNAVAILABLE", **data}
             status = "ACTIVE"
             if data["samples"] >= PAPER_MIN_SAMPLES:
-                passed = (data["orders"] >= MIN_TRADE_COUNT and
-                          data["net_return"] >= max(0.0, data["btc_return"]+MIN_EDGE) and
-                          data["drawdown"] <= MAX_DRAWDOWN)
-                status = "VALIDATED_FORWARD_PAPER" if passed else "REJECTED_FORWARD_PAPER"
+                if data.get("evidence_gaps", 0):
+                    # A favorable observed-only path cannot prove max
+                    # drawdown or decision parity across missing candles.
+                    status = "INCOMPLETE_FORWARD_PAPER"
+                else:
+                    passed = (data["orders"] >= MIN_TRADE_COUNT and
+                              data["net_return"] >= max(0.0, data["btc_return"]+MIN_EDGE) and
+                              data["drawdown"] <= MAX_DRAWDOWN)
+                    status = "VALIDATED_FORWARD_PAPER" if passed else "REJECTED_FORWARD_PAPER"
             db.execute("UPDATE paper SET state=?,data=?,updated=? WHERE id=?",
                        (status, json.dumps(data), self.clock(), row["id"]))
             return {"status": status, **data}
