@@ -337,5 +337,12 @@ class FastPaperBook:
             row = db.execute("SELECT * FROM paper ORDER BY "
                              "CASE state WHEN 'ACTIVE' THEN 0 ELSE 1 END,"
                              "updated DESC LIMIT 1").fetchone()
-        return {"status": row["state"], **json.loads(row["data"])} if row else {
-            "status": "NO_ACTIVE_FORWARD_TRIAL"}
+        if row is None:
+            return {"status": "NO_ACTIVE_FORWARD_TRIAL"}
+        data = json.loads(row["data"])
+        if data.get("source_sha") != _paper_source_sha():
+            # Preserve the historical verdict for inspection, but never
+            # present old-code evidence as validation of the current code.
+            return {"status": "INVALIDATED_SOURCE",
+                    "historical_status": row["state"], **data}
+        return {"status": row["state"], **data}
