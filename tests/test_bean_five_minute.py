@@ -78,6 +78,46 @@ class FiveMinuteTests(unittest.TestCase):
                              "Forward paper, next-bar open fills, modeled costs")
             self.assertEqual(FastPaperBook(path=path, fetcher=candles).status()["orders"], 1)
 
+    def test_alternating_signals_keep_their_eligible_opening_fills(self):
+        """A new signal cannot erase an older one before its eligible open."""
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td)/"paper.db"
+            now = [1000*BAR+60]
+            selected = {
+                "id": "alternating", "ordinal": 1, "state": "AUTO_SELECTED",
+                "report": {"candidate": ["momentum", 6, 0.003, 3],
+                           "pairs": ["BTC-USD", "ETH-USD"]}}
+            book = FastPaperBook(path=path, fetcher=candles,
+                                 clock=lambda: now[0])
+            self.assertTrue(book.enqueue(selected))
+            with patch("src.bean_five_minute._choose",
+                       side_effect=["ETH-USD", None, "ETH-USD", None]):
+                for tick in (1000, 1001):
+                    now[0] = tick*BAR+60
+                    self.assertEqual(book.step(end=tick*BAR)["status"], "WAITING")
+                now[0] = 1002*BAR+60
+                first = book.step(end=1002*BAR)
+                self.assertEqual(first["orders"], 0)
+                now[0] = 1003*BAR+60
+                changed = book.step(end=1003*BAR)
+                self.assertEqual(changed["orders"], 0)
+                self.assertIsNone(changed["pending"])
+                # Reopen the persisted ledger to verify that queued signals
+                # survive process restarts, not merely in-memory state.
+                book = FastPaperBook(path=path, fetcher=candles,
+                                     clock=lambda: now[0])
+                now[0] = 1004*BAR+60
+                entered = book.step(end=1004*BAR)
+                self.assertEqual(entered["orders"], 1)
+                self.assertEqual(entered["held"], "ETH-USD")
+                now[0] = 1005*BAR+60
+                exited = book.step(end=1005*BAR)
+                self.assertEqual(exited["orders"], 2)
+                self.assertIsNone(exited["held"])
+                self.assertEqual(exited["samples"], 4)
+
     def test_future_or_unaligned_end_cannot_fabricate_forward_samples(self):
         with tempfile.TemporaryDirectory() as td:
             now = [1000*BAR+60]
