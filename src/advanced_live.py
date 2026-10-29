@@ -1634,10 +1634,9 @@ class AdvancedSpotEngine:
                 # hours; its acknowledgement is not the entry timestamp.
                 self.store.set_meta(_position_meta_key("primary_maturity_at:", product, scope),
                                     str(now + 60 * winner["maturity_minutes"]))
-                if status == "FILLED_VERIFIED":
-                    for prefix in ("primary_peak:", "primary_fill_basis:",
-                                   "primary_fill_basis_checked_at:"):
-                        self.store.set_meta(_position_meta_key(prefix, product, scope), "")
+                for prefix in ("primary_peak:", "primary_fill_basis:",
+                               "primary_fill_basis_checked_at:"):
+                    self.store.set_meta(_position_meta_key(prefix, product, scope), "")
         except Exception as exc:
             # Transport failures and ambiguous provider responses may have
             # placed an order. Make unresolved state visible, never "failed".
