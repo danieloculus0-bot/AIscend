@@ -997,12 +997,19 @@ class AdvancedSpotEngine:
             )
 
     def _record_order_intent(self, *, product: str, side: str,
-                             client_id: str, account_scope=None) -> None:
+                             client_id: str, account_scope=None,
+                             maturity_minutes=None) -> None:
         """Persist the idempotency key BEFORE a potentially irreversible order.
 
         A network timeout after Coinbase accepts a trade is ambiguous.
         We never automatically repeat it with a newly generated client ID.
         """
+        if maturity_minutes is not None and (side != "BUY" or
+                isinstance(maturity_minutes, bool) or
+                not isinstance(maturity_minutes, (int, float)) or
+                not math.isfinite(maturity_minutes) or
+                not 0 < maturity_minutes <= 525600):
+            raise ValueError("Invalid planned BUY maturity")
         if not callable(getattr(self.rail, "order_detail", None)):
             # Mock rails are not authenticated Coinbase and have no reconciliation.
             return
@@ -1013,7 +1020,8 @@ class AdvancedSpotEngine:
             "order_id": None, "client_order_id": client_id,
             "product": product, "side": side,
             "account_scope": account_scope,
-            "submitted_at": time.time(), "state": "SUBMISSION_OUTCOME_UNKNOWN"})
+            "submitted_at": time.time(), "state": "SUBMISSION_OUTCOME_UNKNOWN",
+            "maturity_minutes": maturity_minutes})
         with self.store.conn:
             claimed = self.store.conn.execute(
                 "INSERT INTO meta(key,value) VALUES('pending_coinbase_order',?) "
@@ -1039,7 +1047,17 @@ class AdvancedSpotEngine:
             if changed.rowcount != 1:
                 return False
             if verified_fill is not None:
-                product, side, scope = verified_fill
+                product, side, scope, maturity_minutes = verified_fill
+                deadline = "0"
+                if str(side).upper() == "BUY" and maturity_minutes is not None:
+                    if (isinstance(maturity_minutes, bool) or
+                            not isinstance(maturity_minutes, (int, float)) or
+                            not math.isfinite(maturity_minutes) or
+                            not 0 < maturity_minutes <= 525600):
+                        raise ValueError("Invalid frozen BUY maturity")
+                    # Preserve the original strategy horizon across delayed
+                    # order verification. The timer cannot start at ACK.
+                    deadline = str(time.time() + 60 * maturity_minutes)
                 for prefix in ("primary_peak:", "primary_fill_basis:",
                                "primary_fill_basis_checked_at:"):
                     key = _position_meta_key(prefix, product, scope)
@@ -1052,9 +1070,9 @@ class AdvancedSpotEngine:
                 # inherit a timer started at the earlier order acknowledgement.
                 key = _position_meta_key("primary_maturity_at:", product, scope)
                 self.store.conn.execute(
-                    "INSERT INTO meta(key,value) VALUES(?,'0') "
+                    "INSERT INTO meta(key,value) VALUES(?,?) "
                     "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-                    (key,))
+                    (key, deadline))
         return True
 
     def _clear_pending_for_client(self, client_id: str) -> bool:
@@ -1156,7 +1174,8 @@ class AdvancedSpotEngine:
             receipt["order_id"] = order_id
             replacement = ("" if state in {"FILLED_VERIFIED", "VENUE_NOT_FILLED"}
                            else json.dumps(receipt))
-            verified_fill = ((product, side, account_scope)
+            verified_fill = ((product, side, account_scope,
+                              receipt.get("maturity_minutes"))
                              if state == "FILLED_VERIFIED" else None)
             if not self._replace_pending_receipt(
                     raw_receipt, replacement, verified_fill=verified_fill):
@@ -1279,7 +1298,8 @@ class AdvancedSpotEngine:
             return changed_scope_hold()
         state = observed["state"]
         if state in {"FILLED_VERIFIED", "VENUE_NOT_FILLED"}:
-            verified_fill = ((product, pending.get("side"), scope)
+            verified_fill = ((product, pending.get("side"), scope,
+                              pending.get("maturity_minutes"))
                              if state == "FILLED_VERIFIED" else None)
             if not self._replace_pending_receipt(
                     raw, "", verified_fill=verified_fill):
@@ -1624,7 +1644,8 @@ class AdvancedSpotEngine:
             f"{winner['estimated_growth_bps']:+.1f}bps, all-in route cost "
             f"{winner['total_route_cost_bps']:.1f}bps, net "
             f"{winner['net_projected_bps']:+.1f}bps; provisional "
-            f"maturity {winner['maturity_minutes']}m.")
+            f"maturity {winner['maturity_minutes']}m.",
+            maturity_minutes=winner["maturity_minutes"])
         plan["order_attempted"] = True
         try:
             status = self._execute_buy(decision, snapshot) or "ORDER_ACCEPTED_UNVERIFIED"
@@ -1677,7 +1698,8 @@ class AdvancedSpotEngine:
         client_order_id = f"aiscend-{uuid.uuid4()}"
         self._record_order_intent(product=product_id, side="BUY",
                                   client_id=client_order_id,
-                                  account_scope=snapshot.get("authenticated_scope"))
+                                  account_scope=snapshot.get("authenticated_scope"),
+                                  maturity_minutes=decision.maturity_minutes)
         try:
             if isinstance(self.rail, AdvancedTradeSpot):
                 # Real Coinbase rail must bind the exact credentials used by
