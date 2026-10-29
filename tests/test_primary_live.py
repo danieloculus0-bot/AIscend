@@ -68,6 +68,61 @@ class PrimaryLiveTests(unittest.TestCase):
         self.assertGreater(float(self.store.get_meta(
             "primary_maturity_at:unverified:ALEO-USD")), 0)
 
+    def test_verified_buy_does_not_overwrite_newer_receipt_metadata(self):
+        # A competing desktop may settle another order after this process's
+        # receipt is cleared. Never overwrite that newer lot's lifecycle.
+        class ReceiptRail:
+            def order_detail(self, order_id):
+                return {}
+
+        self.engine.rail = ReceiptRail()
+        product = "ALEO-USD"
+        suffix = ":unverified:" + product
+        latest = {
+            "primary_maturity_at" + suffix: "9876543210",
+            "primary_peak" + suffix: "11",
+            "primary_fill_basis" + suffix: '{"avg_cost": 7}',
+            "primary_fill_basis_checked_at" + suffix: "999",
+        }
+
+        def settled_then_another_fill(decision, snapshot):
+            for key, value in latest.items():
+                self.store.set_meta(key, value)
+            return "FILLED_VERIFIED"
+
+        self.engine._execute_buy = settled_then_another_fill
+        self.engine._primary_trade_step(self.snapshot(cash={"USD": 19}))
+        for key, value in latest.items():
+            self.assertEqual(self.store.get_meta(key), value, key)
+
+    def test_verified_sell_does_not_overwrite_newer_receipt_metadata(self):
+        class ReceiptRail:
+            def order_detail(self, order_id):
+                return {}
+
+        self.engine.rail = ReceiptRail()
+        product = "GROVE-USDC"
+        suffix = ":unverified:" + product
+        self.store.set_meta("primary_maturity_at" + suffix, "1")
+        latest = {
+            "primary_maturity_at" + suffix: "9876543210",
+            "primary_peak" + suffix: "11",
+            "primary_fill_basis" + suffix: '{"avg_cost": 7}',
+            "primary_fill_basis_checked_at" + suffix: "999",
+        }
+
+        def settled_then_another_fill(decision, snapshot):
+            for key, value in latest.items():
+                self.store.set_meta(key, value)
+            return "FILLED_VERIFIED"
+
+        self.engine._execute_sell = settled_then_another_fill
+        self.engine._primary_trade_step(self.snapshot(
+            cash={"USDC": 0.88276},
+            held={product: {"qty": 10, "available_qty": 10}}))
+        for key, value in latest.items():
+            self.assertEqual(self.store.get_meta(key), value, key)
+
     def test_ambiguous_quote_bridge_reports_unknown_and_retains_intent(self):
         # The bridge might have reached Coinbase before the timeout.
         from src.wallets.advanced_trade import CoinbaseSubmissionUnconfirmed
