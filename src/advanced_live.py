@@ -1575,7 +1575,11 @@ class AdvancedSpotEngine:
                 plan["order_attempted"] = True
                 try:
                     status = self._execute_sell(decision, snapshot) or "ORDER_ACCEPTED_UNVERIFIED"
-                    if status == "FILLED_VERIFIED":
+                    if (status == "FILLED_VERIFIED" and
+                            not callable(getattr(getattr(self, "rail", None), "order_detail", None))):
+                        # Only receipt-free offline mocks need this fallback.
+                        # Production metadata is already reset atomically
+                        # with the verified fill receipt.
                         self.store.set_meta(key, "0")
                         self.store.set_meta(peak_key, "0")
                         self.store.set_meta(basis_key, "")
@@ -1649,10 +1653,11 @@ class AdvancedSpotEngine:
         plan["order_attempted"] = True
         try:
             status = self._execute_buy(decision, snapshot) or "ORDER_ACCEPTED_UNVERIFIED"
-            if status == "FILLED_VERIFIED":
-                # Start the new lot's horizon only after a verified fill.
-                # An accepted-but-unverified order can remain unresolved for
-                # hours; its acknowledgement is not the entry timestamp.
+            if (status == "FILLED_VERIFIED" and
+                    not callable(getattr(getattr(self, "rail", None), "order_detail", None))):
+                # Offline mock rails have no durable receipt. Real Coinbase
+                # fills already settled this metadata atomically with their
+                # receipt. Rewriting it here could race a newer filled order.
                 self.store.set_meta(_position_meta_key("primary_maturity_at:", product, scope),
                                     str(time.time() + 60 * winner["maturity_minutes"]))
                 for prefix in ("primary_peak:", "primary_fill_basis:",
