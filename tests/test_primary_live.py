@@ -58,8 +58,15 @@ class PrimaryLiveTests(unittest.TestCase):
 
         self.engine._primary_trade_step(self.snapshot(cash={"USD":19}))
         self.assertEqual(self.actions[-1],("BUY","ALEO-USD"))
+        # An unverified submission has no confirmed entry time.
+        self.assertIsNone(self.store.get_meta(
+            "primary_maturity_at:unverified:ALEO-USD"))
+
+    def test_verified_buy_starts_maturity_after_fill(self):
+        self.engine._execute_buy = lambda decision, snapshot: "FILLED_VERIFIED"
+        self.engine._primary_trade_step(self.snapshot(cash={"USD": 19}))
         self.assertGreater(float(self.store.get_meta(
-            "primary_maturity_at:unverified:ALEO-USD")),0)
+            "primary_maturity_at:unverified:ALEO-USD")), 0)
 
     def test_ambiguous_quote_bridge_reports_unknown_and_retains_intent(self):
         # The bridge might have reached Coinbase before the timeout.
