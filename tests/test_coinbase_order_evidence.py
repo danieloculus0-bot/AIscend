@@ -1,5 +1,6 @@
 import json
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -61,7 +62,7 @@ class OrderEvidenceTests(unittest.TestCase):
                 finally:
                     store.close()
 
-    def test_delayed_verified_buy_discards_ack_based_maturity(self):
+    def test_delayed_verified_buy_restores_selected_horizon(self):
         from src.advanced_live import _position_meta_key
 
         class Rail:
@@ -88,13 +89,62 @@ class OrderEvidenceTests(unittest.TestCase):
                 receipt = {"order_id": "venue-1",
                            "client_order_id": "client-1",
                            "product": "BTC-USD", "side": "BUY",
-                           "account_scope": scope}
+                           "account_scope": scope, "maturity_minutes": 90}
                 store.set_meta("pending_coinbase_order", json.dumps(receipt))
+                before = time.time()
                 decision, status = engine._pending_order_decision(scope=scope)
                 self.assertEqual((decision.action, status),
                                  ("HOLD", "FILLED_VERIFIED"))
                 self.assertEqual(store.get_meta("pending_coinbase_order"), "")
-                self.assertEqual(store.get_meta(maturity_key), "0")
+                self.assertGreaterEqual(float(store.get_meta(maturity_key)), before + 90 * 60)
+                self.assertLess(float(store.get_meta(maturity_key)), before + 90 * 60 + 10)
+            finally:
+                store.close()
+
+    def test_unverified_buy_preserves_frozen_maturity_until_fill(self):
+        from src.advanced_live import _position_meta_key
+
+        class Rail:
+            status = "OPEN"
+
+            def account_scope_id(self):
+                return "a" * 64
+
+            def order_detail(self, order_id):
+                return {"order": {"order_id": order_id, "status": self.status,
+                                  "filled_size": "0.1" if self.status == "FILLED" else "0",
+                                  "filled_value": "10" if self.status == "FILLED" else "0"}}
+
+        class Audit:
+            def record_event(self, **kwargs):
+                return None
+
+        scope = "a" * 64
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "frozen-maturity.db")
+            try:
+                rail = Rail()
+                engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                engine.store, engine.rail, engine.audit = store, rail, Audit()
+                key = _position_meta_key("primary_maturity_at:", "BTC-USD", scope)
+                engine._record_order_intent(
+                    product="BTC-USD", side="BUY", client_id="client-1",
+                    account_scope=scope, maturity_minutes=120)
+                state, _ = engine._check_or_track_submission(
+                    {"success": True, "success_response": {"order_id": "venue-1"}},
+                    product="BTC-USD", side="BUY", client_id="client-1",
+                    account_scope=scope)
+                self.assertEqual(state, "ORDER_ACCEPTED_UNVERIFIED")
+                self.assertIsNone(store.get_meta(key))
+                receipt = json.loads(store.get_meta("pending_coinbase_order"))
+                self.assertEqual(receipt["maturity_minutes"], 120)
+                rail.status = "FILLED"
+                before = time.time()
+                decision, state = engine._pending_order_decision(scope=scope)
+                self.assertEqual((decision.action, state), ("HOLD", "FILLED_VERIFIED"))
+                self.assertEqual(store.get_meta("pending_coinbase_order"), "")
+                self.assertGreaterEqual(float(store.get_meta(key)), before + 120 * 60)
+                self.assertLess(float(store.get_meta(key)), before + 120 * 60 + 10)
             finally:
                 store.close()
 
