@@ -1031,6 +1031,34 @@ class AdvancedSpotEngine:
                 "snapshot; no order was submitted. Refresh account evidence."
             )
 
+    def _write_position_meta_if_current(self, snapshot: dict[str, Any],
+                                        key: str, value: str) -> None:
+        """Prevent stale holding reviews from restoring pre-fill stop metadata.
+
+        Another desktop may verify a fill after this process reads balances.
+        Guard each position-metadata write with the same account revision
+        advanced atomically when a Coinbase fill settles.
+        """
+        revision_key = _account_position_revision_key(
+            snapshot.get("authenticated_scope"))
+        if revision_key is None:
+            # Offline mock snapshots have no authenticated Coinbase scope.
+            self.store.set_meta(key, value)
+            return
+        expected = snapshot.get("account_position_revision", 0)
+        if type(expected) is not int or expected < 0:
+            raise RuntimeError("Invalid authenticated account snapshot revision")
+        with self.store.conn:
+            changed = self.store.conn.execute(
+                "INSERT INTO meta(key,value) SELECT ?,? "
+                "WHERE COALESCE((SELECT value FROM meta WHERE key=?),'0')=? "
+                "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                (key, value, revision_key, str(expected)))
+            if changed.rowcount != 1:
+                raise RuntimeError(
+                    "Coinbase account position changed during position review; "
+                    "refresh balances before continuing")
+
     def _record_order_intent(self, *, product: str, side: str,
                              client_id: str, account_scope=None,
                              maturity_minutes=None, expected_revision=None) -> None:
@@ -1553,7 +1581,7 @@ class AdvancedSpotEngine:
                 signals = proposals(current_row)
                 horizon = max((s["maturity_minutes"] for s in signals), default=60)
                 deadline = now + horizon * 60
-                self.store.set_meta(key, str(deadline))
+                self._write_position_meta_if_current(snapshot, key, str(deadline))
             # Observe a real high-water mark on every trading cycle.
             mark = float(holding.get("mark_price") or
                          (snapshot.get("prices") or {}).get(product) or 0)
@@ -1563,12 +1591,12 @@ class AdvancedSpotEngine:
             quote = self._split_product(product)[1]
             peak_unit_key = _position_meta_key("primary_peak_unit:", product, scope)
             if self.store.get_meta(peak_unit_key) != quote:
-                self.store.set_meta(peak_key, "0")
-                self.store.set_meta(peak_unit_key, quote)
+                self._write_position_meta_if_current(snapshot, peak_key, "0")
+                self._write_position_meta_if_current(snapshot, peak_unit_key, quote)
             prior_peak = float(self.store.get_meta(peak_key) or "0")
             peak = max(prior_peak, mark) if math.isfinite(mark) and mark > 0 else prior_peak
             if peak > prior_peak:
-                self.store.set_meta(peak_key, str(peak))
+                self._write_position_meta_if_current(snapshot, peak_key, str(peak))
 
             # Reconstruct cost using authenticated Coinbase execution fills.
             # If transfers, missing history or incomplete pages prevent matching
@@ -1601,8 +1629,8 @@ class AdvancedSpotEngine:
                         f"fill history for {product}; cost basis discarded and "
                         "trading paused until a fresh authenticated snapshot."),
                         "ACCOUNT_SCOPE_CHANGED_DURING_POSITION_HISTORY")
-                self.store.set_meta(basis_key, json.dumps(basis))
-                self.store.set_meta(check_key, str(now))
+                self._write_position_meta_if_current(snapshot, basis_key, json.dumps(basis))
+                self._write_position_meta_if_current(snapshot, check_key, str(now))
             verified_cost = (basis.get("avg_cost")
                              if basis.get("cost_basis_status") == "verified_coinbase_fills"
                              else None)
