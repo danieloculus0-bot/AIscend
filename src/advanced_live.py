@@ -1059,6 +1059,54 @@ class AdvancedSpotEngine:
                     "Coinbase account position changed during position review; "
                     "refresh balances before continuing")
 
+    def _observe_position_peak_if_current(self, snapshot: dict[str, Any],
+                                          product: str, mark: float) -> float:
+        """Atomically preserve a holding's high-water mark across desktops.
+
+        A position revision protects against newer fills, but two concurrent
+        reviews of the SAME revision must not lower each other's observed peak.
+        The quote-unit migration and peak update share one SQLite write lock.
+        """
+        scope = snapshot.get("authenticated_scope")
+        revision_key = _account_position_revision_key(scope)
+        peak_key = _position_meta_key("primary_peak:", product, scope)
+        unit_key = _position_meta_key("primary_peak_unit:", product, scope)
+        quote = self._split_product(product)[1]
+        expected = snapshot.get("account_position_revision", 0)
+        if revision_key is not None and (type(expected) is not int or expected < 0):
+            raise RuntimeError("Invalid authenticated account snapshot revision")
+        with self.store.conn:
+            if revision_key is not None:
+                claimed = self.store.conn.execute(
+                    "INSERT INTO meta(key,value) SELECT ?,'' "
+                    "WHERE COALESCE((SELECT value FROM meta WHERE key=?),'0')=? "
+                    "ON CONFLICT(key) DO UPDATE SET value=meta.value",
+                    (unit_key, revision_key, str(expected)))
+                if claimed.rowcount != 1:
+                    raise RuntimeError(
+                        "Coinbase account position changed during position review; "
+                        "refresh balances before continuing")
+            else:
+                self.store.conn.execute(
+                    "INSERT INTO meta(key,value) VALUES(?,'') "
+                    "ON CONFLICT(key) DO UPDATE SET value=meta.value",
+                    (unit_key,))
+            if self.store.get_meta(unit_key) != quote:
+                self.store.conn.execute(
+                    "UPDATE meta SET value=? WHERE key=?", (quote, unit_key))
+                self.store.conn.execute(
+                    "INSERT INTO meta(key,value) VALUES(?,'0') "
+                    "ON CONFLICT(key) DO UPDATE SET value='0'",
+                    (peak_key,))
+            prior_peak = float(self.store.get_meta(peak_key) or "0")
+            peak = max(prior_peak, mark) if math.isfinite(mark) and mark > 0 else prior_peak
+            if peak > prior_peak:
+                self.store.conn.execute(
+                    "INSERT INTO meta(key,value) VALUES(?,?) "
+                    "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (peak_key, str(peak)))
+            return peak
+
     def _record_order_intent(self, *, product: str, side: str,
                              client_id: str, account_scope=None,
                              maturity_minutes=None, expected_revision=None) -> None:
@@ -1586,17 +1634,7 @@ class AdvancedSpotEngine:
             mark = float(holding.get("mark_price") or
                          (snapshot.get("prices") or {}).get(product) or 0)
             peak_key = _position_meta_key("primary_peak:", product, scope)
-            # Earlier code persisted USD-marked peaks even for non-USD quote
-            # products. One-time unit migration must discard those peaks.
-            quote = self._split_product(product)[1]
-            peak_unit_key = _position_meta_key("primary_peak_unit:", product, scope)
-            if self.store.get_meta(peak_unit_key) != quote:
-                self._write_position_meta_if_current(snapshot, peak_key, "0")
-                self._write_position_meta_if_current(snapshot, peak_unit_key, quote)
-            prior_peak = float(self.store.get_meta(peak_key) or "0")
-            peak = max(prior_peak, mark) if math.isfinite(mark) and mark > 0 else prior_peak
-            if peak > prior_peak:
-                self._write_position_meta_if_current(snapshot, peak_key, str(peak))
+            peak = self._observe_position_peak_if_current(snapshot, product, mark)
 
             # Reconstruct cost using authenticated Coinbase execution fills.
             # If transfers, missing history or incomplete pages prevent matching
