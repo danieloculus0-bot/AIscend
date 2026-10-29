@@ -41,6 +41,13 @@ def _position_meta_key(prefix: str, product: str, scope: str | None) -> str:
     return f"{prefix}{scope}:{product}"
 
 
+def _account_position_revision_key(scope: str | None) -> str | None:
+    """One durable position generation per authenticated Coinbase account."""
+    if (not isinstance(scope, str) or len(scope) != 64
+            or any(c not in "0123456789abcdef" for c in scope)):
+        return None
+    return "coinbase_position_revision:" + scope
+
 
 class AdvancedSpotEngine:
     """
@@ -306,6 +313,9 @@ class AdvancedSpotEngine:
             raise RuntimeError(
                 "Coinbase credential identity unavailable before account snapshot"
             ) from exc
+        # Capture the generation BEFORE reading balances. A fill that settles
+        # during the provider read must not be paired with old balances.
+        revision_before = self._account_position_revision(scope_before)
         status = self.rail.status()
         # A fingerprint alone is not authentication: status() must succeed.
         try:
@@ -323,6 +333,10 @@ class AdvancedSpotEngine:
                 or len(authenticated_scope) != 64
                 or any(c not in "0123456789abcdef" for c in authenticated_scope)):
             authenticated_scope = None
+        if revision_before != self._account_position_revision(authenticated_scope):
+            raise RuntimeError(
+                "Coinbase account position changed during authenticated snapshot; "
+                "balances discarded. Refresh account evidence.")
         listing = self.listing_sentinel.poll()
         priority_products = [
             str(event.get("product") or "").upper()
@@ -489,6 +503,7 @@ class AdvancedSpotEngine:
             "unpriced_balances": {currency: qty for currency, qty in raw_balances.items() if currency not in balance_values_usd},
             "starting_cash": start,
             "authenticated_scope": authenticated_scope,
+            "account_position_revision": revision_before,
             "positions": positions,
             "prices": prices,
             "returns": {
@@ -531,6 +546,13 @@ class AdvancedSpotEngine:
             "market_radar": radar,
             "execution_rail": "coinbase-advanced",
         }
+        # Universe research can take time. Do not return a stale balance read
+        # if another desktop process verified a fill during that interval.
+        if revision_before != self._account_position_revision(authenticated_scope):
+            self._snapshot = None
+            raise RuntimeError(
+                "Coinbase account position changed during authenticated snapshot; "
+                "balances discarded. Refresh account evidence.")
         return self._snapshot
 
     def _radar(
@@ -971,6 +993,19 @@ class AdvancedSpotEngine:
         self.store.add_decision(decision, status)
         return self.sync()
 
+    def _account_position_revision(self, scope: str | None) -> int | None:
+        """Read the monotonic account generation, failing closed on corruption."""
+        key = _account_position_revision_key(scope)
+        if key is None:
+            return None
+        raw = self.store.get_meta(key)
+        if raw is None:
+            return 0
+        if (not raw or len(raw) > 20 or not raw.isascii()
+                or not raw.isdigit() or str(int(raw)) != raw):
+            raise RuntimeError("Invalid durable Coinbase account position revision")
+        return int(raw)
+
     def _require_snapshot_order_scope(self, snapshot: dict[str, Any]) -> None:
         """Reject a trade if credentials changed after the authenticated sync.
 
@@ -998,7 +1033,7 @@ class AdvancedSpotEngine:
 
     def _record_order_intent(self, *, product: str, side: str,
                              client_id: str, account_scope=None,
-                             maturity_minutes=None) -> None:
+                             maturity_minutes=None, expected_revision=None) -> None:
         """Persist the idempotency key BEFORE a potentially irreversible order.
 
         A network timeout after Coinbase accepts a trade is ambiguous.
@@ -1022,12 +1057,33 @@ class AdvancedSpotEngine:
             "account_scope": account_scope,
             "submitted_at": time.time(), "state": "SUBMISSION_OUTCOME_UNKNOWN",
             "maturity_minutes": maturity_minutes})
-        with self.store.conn:
-            claimed = self.store.conn.execute(
+        revision_key = _account_position_revision_key(account_scope)
+        if revision_key is not None and expected_revision is not None:
+            if type(expected_revision) is not int or expected_revision < 0:
+                raise RuntimeError("Invalid authenticated account snapshot revision")
+            # One SQLite statement checks both the snapshot generation and
+            # the empty receipt slot. A different process can settle a fill
+            # between planning and this claim, but cannot bypass the CAS.
+            query = (
+                "INSERT INTO meta(key,value) SELECT 'pending_coinbase_order', ? "
+                "WHERE COALESCE((SELECT value FROM meta WHERE key=?), '0')=? "
+                "ON CONFLICT(key) DO UPDATE SET value=excluded.value "
+                "WHERE meta.value=''")
+            params = (receipt, revision_key, str(expected_revision))
+        else:
+            query = (
                 "INSERT INTO meta(key,value) VALUES('pending_coinbase_order',?) "
                 "ON CONFLICT(key) DO UPDATE SET value=excluded.value "
-                "WHERE meta.value=''", (receipt,))
+                "WHERE meta.value=''")
+            params = (receipt,)
+        with self.store.conn:
+            claimed = self.store.conn.execute(query, params)
             if claimed.rowcount != 1:
+                if (revision_key is not None and expected_revision is not None
+                        and self._account_position_revision(account_scope) != expected_revision):
+                    raise RuntimeError(
+                        "Coinbase account position changed since the authenticated "
+                        "snapshot; refresh balances before any new order")
                 raise RuntimeError(
                     "Unresolved Coinbase order intent already exists; "
                     "refusing to replace its idempotency key")
@@ -1073,6 +1129,15 @@ class AdvancedSpotEngine:
                     "INSERT INTO meta(key,value) VALUES(?,?) "
                     "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                     (key, deadline))
+                revision_key = _account_position_revision_key(scope)
+                if revision_key is not None:
+                    # The same transaction that clears the filled receipt
+                    # invalidates every earlier account balance snapshot.
+                    next_revision = self._account_position_revision(scope) + 1
+                    self.store.conn.execute(
+                        "INSERT INTO meta(key,value) VALUES(?,?) "
+                        "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                        (revision_key, str(next_revision)))
         return True
 
     def _clear_pending_for_client(self, client_id: str) -> bool:
@@ -1704,7 +1769,8 @@ class AdvancedSpotEngine:
         self._record_order_intent(product=product_id, side="BUY",
                                   client_id=client_order_id,
                                   account_scope=snapshot.get("authenticated_scope"),
-                                  maturity_minutes=decision.maturity_minutes)
+                                  maturity_minutes=decision.maturity_minutes,
+                                  expected_revision=snapshot.get("account_position_revision", 0))
         try:
             if isinstance(self.rail, AdvancedTradeSpot):
                 # Real Coinbase rail must bind the exact credentials used by
@@ -1814,7 +1880,8 @@ class AdvancedSpotEngine:
         client_order_id = f"aiscend-{uuid.uuid4()}"
         self._record_order_intent(product=product_id, side="SELL",
                                   client_id=client_order_id,
-                                  account_scope=snapshot.get("authenticated_scope"))
+                                  account_scope=snapshot.get("authenticated_scope"),
+                                  expected_revision=snapshot.get("account_position_revision", 0))
         try:
             if isinstance(self.rail, AdvancedTradeSpot):
                 # Real Coinbase rail must bind the exact credentials used by
