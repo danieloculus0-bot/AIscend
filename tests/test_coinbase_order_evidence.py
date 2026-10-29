@@ -1154,5 +1154,64 @@ class OrderEvidenceTests(unittest.TestCase):
             finally:
                 store.close()
 
+
+    def test_stale_position_review_cannot_restore_metadata_after_verified_fill(self):
+        """A second desktop must not resurrect stops or basis from old balances."""
+        from src.advanced_live import _position_meta_key
+        scope = "a" * 64
+        product = "BTC-USD"
+
+        class Rail:
+            def order_detail(self, order_id):
+                return {"order": {"order_id": order_id, "status": "OPEN"}}
+
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "stale-position-review.db"
+            first, second = StateStore(path), StateStore(path)
+            try:
+                first_engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                first_engine.store, first_engine.rail = first, Rail()
+                second_engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                second_engine.store, second_engine.rail = second, Rail()
+                stale = {"authenticated_scope": scope,
+                         "account_position_revision": 0}
+                old_values = {
+                    "primary_peak:": "900",
+                    "primary_fill_basis:": '{"avg_cost": 900}',
+                    "primary_fill_basis_checked_at:": "123",
+                    "primary_maturity_at:": "456",
+                }
+                for prefix, value in old_values.items():
+                    first.set_meta(_position_meta_key(prefix, product, scope), value)
+                # The second desktop has already read these old values.
+                first_engine._record_order_intent(
+                    product=product, side="SELL", client_id="first",
+                    account_scope=scope, expected_revision=0)
+                receipt = first.get_meta("pending_coinbase_order")
+                self.assertTrue(first_engine._replace_pending_receipt(
+                    receipt, "", verified_fill=(product, "SELL", scope, None)))
+                self.assertEqual(first_engine._account_position_revision(scope), 1)
+
+                for prefix, old_value in old_values.items():
+                    key = _position_meta_key(prefix, product, scope)
+                    reset = "0" if prefix == "primary_maturity_at:" else ""
+                    with self.subTest(prefix=prefix):
+                        self.assertEqual(first.get_meta(key), reset)
+                        with self.assertRaisesRegex(
+                                RuntimeError, "position changed during position review"):
+                            second_engine._write_position_meta_if_current(
+                                stale, key, old_value)
+                        self.assertEqual(first.get_meta(key), reset)
+
+                fresh = {"authenticated_scope": scope,
+                         "account_position_revision": 1}
+                peak_key = _position_meta_key("primary_peak:", product, scope)
+                second_engine._write_position_meta_if_current(
+                    fresh, peak_key, "12")
+                self.assertEqual(first.get_meta(peak_key), "12")
+            finally:
+                second.close()
+                first.close()
+
 if __name__=="__main__":
     unittest.main()
