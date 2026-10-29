@@ -1047,12 +1047,14 @@ class AdvancedSpotEngine:
                         "INSERT INTO meta(key,value) VALUES(?,'') "
                         "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                         (key,))
-                if str(side).upper() == "SELL":
-                    key = _position_meta_key("primary_maturity_at:", product, scope)
-                    self.store.conn.execute(
-                        "INSERT INTO meta(key,value) VALUES(?,'0') "
-                        "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-                        (key,))
+                # Both a newly bought lot and a sold lot must discard the
+                # prior position's deadline. A delayed BUY fill must not
+                # inherit a timer started at the earlier order acknowledgement.
+                key = _position_meta_key("primary_maturity_at:", product, scope)
+                self.store.conn.execute(
+                    "INSERT INTO meta(key,value) VALUES(?,'0') "
+                    "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (key,))
         return True
 
     def _clear_pending_for_client(self, client_id: str) -> bool:
@@ -1626,7 +1628,10 @@ class AdvancedSpotEngine:
         plan["order_attempted"] = True
         try:
             status = self._execute_buy(decision, snapshot) or "ORDER_ACCEPTED_UNVERIFIED"
-            if status in {"FILLED_VERIFIED", "ORDER_ACCEPTED_UNVERIFIED"}:
+            if status == "FILLED_VERIFIED":
+                # Start the new lot's horizon only after a verified fill.
+                # An accepted-but-unverified order can remain unresolved for
+                # hours; its acknowledgement is not the entry timestamp.
                 self.store.set_meta(_position_meta_key("primary_maturity_at:", product, scope),
                                     str(now + 60 * winner["maturity_minutes"]))
                 if status == "FILLED_VERIFIED":
