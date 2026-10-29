@@ -95,6 +95,66 @@ class PrimaryLiveTests(unittest.TestCase):
         for key, value in latest.items():
             self.assertEqual(self.store.get_meta(key), value, key)
 
+    def test_verified_fill_mid_holding_review_cannot_restore_old_peak(self):
+        """A concurrent settlement must invalidate metadata writes mid-cycle."""
+        from unittest.mock import patch
+        from src.advanced_live import _position_meta_key
+        scope = "a" * 64
+        product = "GROVE-USDC"
+        peak_key = _position_meta_key("primary_peak:", product, scope)
+        deadline_key = _position_meta_key("primary_maturity_at:", product, scope)
+        unit_key = _position_meta_key("primary_peak_unit:", product, scope)
+
+        class Rail:
+            def account_scope_id(self):
+                return scope
+            def order_detail(self, order_id):
+                return {"order": {"order_id": order_id, "status": "OPEN"}}
+
+        other = StateStore(self.store.path)
+        try:
+            other_engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+            other_engine.store, other_engine.rail = other, Rail()
+            self.engine.rail = Rail()
+            self.store.set_meta(peak_key, "1")
+            self.store.set_meta(deadline_key, "9999999999")
+            self.store.set_meta(unit_key, "USDC")
+            snapshot = self.snapshot(held={
+                product: {"qty": 10, "available_qty": 10, "mark_price": 2}})
+            snapshot["authenticated_scope"] = scope
+            snapshot["account_position_revision"] = 0
+            original_get_meta = self.store.get_meta
+            settled = []
+
+            def read_with_concurrent_fill(key):
+                if key == peak_key and not settled:
+                    other_engine._record_order_intent(
+                        product=product, side="SELL", client_id="concurrent",
+                        account_scope=scope, expected_revision=0)
+                    receipt = other.get_meta("pending_coinbase_order")
+                    self.assertTrue(other_engine._replace_pending_receipt(
+                        receipt, "", verified_fill=(product, "SELL", scope, None)))
+                    settled.append(True)
+                    return "1"  # Value observed before the other desktop filled.
+                return original_get_meta(key)
+
+            account = {"account_scope_verified": True,
+                       "capital": {"current_equity_usd": 20},
+                       "read_status": "PROVIDER_HISTORY_COMPLETE",
+                       "execution": {"status": "COMPLETE", "products": {}}}
+            with patch("src.advanced_live.evaluate_account", return_value=account):
+                with patch.object(self.store, "get_meta",
+                                  side_effect=read_with_concurrent_fill):
+                    with self.assertRaisesRegex(
+                            RuntimeError, "position changed during position review"):
+                        self.engine._primary_trade_step(snapshot)
+            self.assertTrue(settled)
+            self.assertEqual(other.get_meta(peak_key), "")
+            self.assertEqual(other.get_meta(deadline_key), "0")
+            self.assertEqual(self.actions, [])
+        finally:
+            other.close()
+
     def test_verified_sell_does_not_overwrite_newer_receipt_metadata(self):
         class ReceiptRail:
             def order_detail(self, order_id):
