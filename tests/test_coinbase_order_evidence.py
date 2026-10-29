@@ -1012,5 +1012,147 @@ class OrderEvidenceTests(unittest.TestCase):
             finally:
                 store.close()
 
+
+    def test_verified_fill_invalidates_another_desktops_order_snapshot(self):
+        """A settled fill can clear the pending slot, but not revive stale cash."""
+        scope = "a" * 64
+
+        class Rail:
+            def __init__(self):
+                self.orders = []
+
+            def account_scope_id(self):
+                return scope
+
+            def order_detail(self, order_id):
+                return {"order": {"order_id": order_id, "status": "OPEN",
+                                  "filled_size": "0"}}
+
+            def product(self, product_id):
+                return {"quote_increment": "0.01", "quote_min_size": "1"}
+
+            def preview_market_buy(self, product_id, amount):
+                return {"preview_id": "offline"}
+
+            def market_buy(self, product_id, amount, client_order_id):
+                self.orders.append(client_order_id)
+                raise AssertionError("Stale snapshot must never reach Coinbase")
+
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "two-desktops-revision.db"
+            first, second = StateStore(path), StateStore(path)
+            try:
+                rail = Rail()
+                first_engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                first_engine.store, first_engine.rail = first, rail
+                second_engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                second_engine.store, second_engine.rail = second, rail
+
+                stale = {"authenticated_scope": scope,
+                         "account_position_revision": 0,
+                         "cash_by_quote": {"USD": 25}}
+                first_engine._record_order_intent(
+                    product="BTC-USD", side="BUY", client_id="first",
+                    account_scope=scope, expected_revision=0)
+                original = first.get_meta("pending_coinbase_order")
+                self.assertTrue(first_engine._replace_pending_receipt(
+                    original, "", verified_fill=("BTC-USD", "BUY", scope, 90)))
+                self.assertEqual(second_engine._account_position_revision(scope), 1)
+                self.assertEqual(second.get_meta("pending_coinbase_order"), "")
+
+                with self.assertRaisesRegex(RuntimeError, "position changed since"):
+                    second_engine._execute_buy(
+                        Decision("BUY", "BTC-USD", 1.0, "stale account snapshot"),
+                        stale)
+                self.assertEqual(rail.orders, [])
+                self.assertEqual(second.get_meta("pending_coinbase_order"), "")
+                second_engine._record_order_intent(
+                    product="BTC-USD", side="BUY", client_id="fresh",
+                    account_scope=scope, expected_revision=1)
+                self.assertEqual(json.loads(
+                    second.get_meta("pending_coinbase_order"))["client_order_id"],
+                    "fresh")
+            finally:
+                second.close()
+                first.close()
+
+    def test_sync_discards_balances_when_other_desktop_fills_during_read(self):
+        scope = "a" * 64
+
+        class Rail:
+            def __init__(self, settle):
+                self.settle = settle
+
+            def account_scope_id(self):
+                return scope
+
+            def order_detail(self, order_id):
+                return {"order": {"order_id": order_id, "status": "OPEN"}}
+
+            def status(self):
+                self.settle()
+                return object()  # Must be rejected before using these balances.
+
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "snapshot-fill-race.db"
+            first, second = StateStore(path), StateStore(path)
+            try:
+                first_engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                first_engine.store = first
+                first_engine.rail = Rail(lambda: None)
+                first_engine._record_order_intent(
+                    product="BTC-USD", side="BUY", client_id="first",
+                    account_scope=scope, expected_revision=0)
+                original = first.get_meta("pending_coinbase_order")
+
+                def settle():
+                    self.assertTrue(first_engine._replace_pending_receipt(
+                        original, "", verified_fill=("BTC-USD", "BUY", scope, 60)))
+
+                second_engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                second_engine.store, second_engine.rail = second, Rail(settle)
+                with self.assertRaisesRegex(RuntimeError, "during authenticated snapshot"):
+                    second_engine.sync()
+                self.assertEqual(second_engine._account_position_revision(scope), 1)
+            finally:
+                second.close()
+                first.close()
+
+    def test_failed_position_revision_write_rolls_back_fill_settlement(self):
+        import sqlite3
+        from src.advanced_live import _position_meta_key
+
+        scope = "a" * 64
+
+        class Rail:
+            def order_detail(self, order_id):
+                return {"order": {"order_id": order_id, "status": "OPEN"}}
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "revision-rollback.db")
+            try:
+                engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                engine.store, engine.rail = store, Rail()
+                peak_key = _position_meta_key("primary_peak:", "BTC-USD", scope)
+                store.set_meta(peak_key, "900")
+                engine._record_order_intent(
+                    product="BTC-USD", side="BUY", client_id="first",
+                    account_scope=scope, expected_revision=0)
+                original = store.get_meta("pending_coinbase_order")
+                revision_key = "coinbase_position_revision:" + scope
+                with store.conn:
+                    store.conn.execute(
+                        "CREATE TRIGGER reject_revision BEFORE INSERT ON meta "
+                        "WHEN NEW.key='" + revision_key + "' "
+                        "BEGIN SELECT RAISE(ABORT, 'revision write failed'); END")
+                with self.assertRaises(sqlite3.IntegrityError):
+                    engine._replace_pending_receipt(
+                        original, "", verified_fill=("BTC-USD", "BUY", scope, 60))
+                self.assertEqual(store.get_meta("pending_coinbase_order"), original)
+                self.assertEqual(store.get_meta(peak_key), "900")
+                self.assertEqual(engine._account_position_revision(scope), 0)
+            finally:
+                store.close()
+
 if __name__=="__main__":
     unittest.main()
