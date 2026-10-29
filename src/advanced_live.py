@@ -1024,17 +1024,36 @@ class AdvancedSpotEngine:
                     "Unresolved Coinbase order intent already exists; "
                     "refusing to replace its idempotency key")
 
-    def _replace_pending_receipt(self, expected: str, replacement: str) -> bool:
-        """Change the one-order journal only if its exact snapshot still exists.
+    def _replace_pending_receipt(self, expected: str, replacement: str,
+                                 *, verified_fill=None) -> bool:
+        """Atomically settle a receipt and invalidate any old position metadata.
 
-        Another desktop process may reconcile the previous order and claim the
-        slot while this process waits for Coinbase. Never erase that receipt.
+        A crash after clearing a filled order but before resetting its prior
+        lot's peak, cost basis or maturity could apply old stops to a new lot.
+        Keep the compare-and-swap and resets in the same SQLite transaction.
         """
         with self.store.conn:
             changed = self.store.conn.execute(
                 "UPDATE meta SET value=? WHERE key='pending_coinbase_order' "
                 "AND value=?", (replacement, expected))
-        return changed.rowcount == 1
+            if changed.rowcount != 1:
+                return False
+            if verified_fill is not None:
+                product, side, scope = verified_fill
+                for prefix in ("primary_peak:", "primary_fill_basis:",
+                               "primary_fill_basis_checked_at:"):
+                    key = _position_meta_key(prefix, product, scope)
+                    self.store.conn.execute(
+                        "INSERT INTO meta(key,value) VALUES(?,'') "
+                        "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                        (key,))
+                if str(side).upper() == "SELL":
+                    key = _position_meta_key("primary_maturity_at:", product, scope)
+                    self.store.conn.execute(
+                        "INSERT INTO meta(key,value) VALUES(?,'0') "
+                        "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                        (key,))
+        return True
 
     def _clear_pending_for_client(self, client_id: str) -> bool:
         """Explicit venue rejection releases only the rejecting client ID."""
@@ -1135,7 +1154,10 @@ class AdvancedSpotEngine:
             receipt["order_id"] = order_id
             replacement = ("" if state in {"FILLED_VERIFIED", "VENUE_NOT_FILLED"}
                            else json.dumps(receipt))
-            if not self._replace_pending_receipt(raw_receipt, replacement):
+            verified_fill = ((product, side, account_scope)
+                             if state == "FILLED_VERIFIED" else None)
+            if not self._replace_pending_receipt(
+                    raw_receipt, replacement, verified_fill=verified_fill):
                 return "ORDER_ACCEPTED_UNVERIFIED", {
                     "state": "ORDER_ACCEPTED_UNVERIFIED",
                     "reason": "Pending Coinbase order journal changed during receipt verification"}
@@ -1255,7 +1277,10 @@ class AdvancedSpotEngine:
             return changed_scope_hold()
         state = observed["state"]
         if state in {"FILLED_VERIFIED", "VENUE_NOT_FILLED"}:
-            if not self._replace_pending_receipt(raw, ""):
+            verified_fill = ((product, pending.get("side"), scope)
+                             if state == "FILLED_VERIFIED" else None)
+            if not self._replace_pending_receipt(
+                    raw, "", verified_fill=verified_fill):
                 return Decision("HOLD", None, 0.0,
                     "Coinbase order journal changed during order verification; "
                     "preserving the newer receipt."), "ORDER_JOURNAL_CHANGED"
@@ -1265,17 +1290,8 @@ class AdvancedSpotEngine:
             self.store.set_meta("last_coinbase_submission_evidence", json.dumps(observed))
         if state in {"FILLED_VERIFIED", "VENUE_NOT_FILLED"}:
             if state == "FILLED_VERIFIED":
-                # A completed SELL or BUY changes the position's lifecycle.
-                # Reset observed peaks and cached entry costs so an old lot's
-                # peak cannot mistakenly trigger a new position's stop.
-                if str(pending.get("side") or "").upper() in {"BUY", "SELL"}:
-                    for prefix in ("primary_peak:", "primary_fill_basis:",
-                                   "primary_fill_basis_checked_at:"):
-                        self.store.set_meta(
-                            _position_meta_key(prefix, product, scope), "")
-                if str(pending.get("side") or "").upper() == "SELL":
-                    self.store.set_meta(
-                        _position_meta_key("primary_maturity_at:", product, scope), "0")
+                # Position lifecycle metadata was reset atomically with the
+                # filled receipt above, before any crash or subsequent sync.
                 # Final receipt is appended separately from the original
                 # submitted-order audit; never retroactively rewrite history.
                 try:
