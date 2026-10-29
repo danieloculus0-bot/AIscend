@@ -57,10 +57,46 @@ class OrderEvidenceTests(unittest.TestCase):
                         self.assertEqual(store.get_meta(
                             _position_meta_key(prefix, "BTC-USD", scope)), "")
                     self.assertEqual(store.get_meta(_position_meta_key(
-                        "primary_maturity_at:", "BTC-USD", scope)),
-                        "0" if side == "SELL" else "456")
+                        "primary_maturity_at:", "BTC-USD", scope)), "0")
                 finally:
                     store.close()
+
+    def test_delayed_verified_buy_discards_ack_based_maturity(self):
+        from src.advanced_live import _position_meta_key
+
+        class Rail:
+            def account_scope_id(self):
+                return "a" * 64
+
+            def order_detail(self, order_id):
+                return {"order": {"order_id": order_id, "status": "FILLED",
+                                  "filled_size": "0.1", "filled_value": "10"}}
+
+        class Audit:
+            def record_event(self, **kwargs):
+                return None
+
+        scope = "a" * 64
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "delayed-buy-maturity.db")
+            try:
+                engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                engine.store, engine.rail, engine.audit = store, Rail(), Audit()
+                maturity_key = _position_meta_key(
+                    "primary_maturity_at:", "BTC-USD", scope)
+                store.set_meta(maturity_key, "123")  # Expired while awaiting fill.
+                receipt = {"order_id": "venue-1",
+                           "client_order_id": "client-1",
+                           "product": "BTC-USD", "side": "BUY",
+                           "account_scope": scope}
+                store.set_meta("pending_coinbase_order", json.dumps(receipt))
+                decision, status = engine._pending_order_decision(scope=scope)
+                self.assertEqual((decision.action, status),
+                                 ("HOLD", "FILLED_VERIFIED"))
+                self.assertEqual(store.get_meta("pending_coinbase_order"), "")
+                self.assertEqual(store.get_meta(maturity_key), "0")
+            finally:
+                store.close()
 
     def test_failed_fill_metadata_reset_rolls_back_receipt_clear(self):
         import sqlite3
