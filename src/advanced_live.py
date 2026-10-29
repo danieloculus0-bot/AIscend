@@ -1633,7 +1633,7 @@ class AdvancedSpotEngine:
                 # An accepted-but-unverified order can remain unresolved for
                 # hours; its acknowledgement is not the entry timestamp.
                 self.store.set_meta(_position_meta_key("primary_maturity_at:", product, scope),
-                                    str(now + 60 * winner["maturity_minutes"]))
+                                    str(time.time() + 60 * winner["maturity_minutes"]))
                 for prefix in ("primary_peak:", "primary_fill_basis:",
                                "primary_fill_basis_checked_at:"):
                     self.store.set_meta(_position_meta_key(prefix, product, scope), "")
