@@ -15,6 +15,93 @@ class OrderEvidenceTests(unittest.TestCase):
         self.assertEqual(accepted_order_id(response), "cb-order-123")
         self.assertIsNone(accepted_order_id({"success":True}))
 
+    def test_immediate_verified_fill_resets_scoped_position_lifecycle(self):
+        from src.advanced_live import _position_meta_key
+
+        class Rail:
+            def account_scope_id(self):
+                return "a" * 64
+
+            def order_detail(self, order_id):
+                return {"order": {"order_id": order_id, "status": "FILLED",
+                                  "filled_size": "0.1", "filled_value": "10"}}
+
+        scope = "a" * 64
+        for side in ("BUY", "SELL"):
+            with self.subTest(side=side), tempfile.TemporaryDirectory() as td:
+                store = StateStore(Path(td) / "immediate-fill.db")
+                try:
+                    engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                    engine.store, engine.rail = store, Rail()
+                    old = {
+                        "primary_peak:": "900",
+                        "primary_fill_basis:": '{"avg_cost": 900}',
+                        "primary_fill_basis_checked_at:": "123",
+                        "primary_maturity_at:": "456",
+                    }
+                    for prefix, value in old.items():
+                        store.set_meta(
+                            _position_meta_key(prefix, "BTC-USD", scope), value)
+                    engine._record_order_intent(
+                        product="BTC-USD", side=side, client_id="client-1",
+                        account_scope=scope)
+                    state, _ = engine._check_or_track_submission(
+                        {"success": True,
+                         "success_response": {"order_id": "venue-1"}},
+                        product="BTC-USD", side=side, client_id="client-1",
+                        account_scope=scope)
+                    self.assertEqual(state, "FILLED_VERIFIED")
+                    self.assertEqual(store.get_meta("pending_coinbase_order"), "")
+                    for prefix in ("primary_peak:", "primary_fill_basis:",
+                                   "primary_fill_basis_checked_at:"):
+                        self.assertEqual(store.get_meta(
+                            _position_meta_key(prefix, "BTC-USD", scope)), "")
+                    self.assertEqual(store.get_meta(_position_meta_key(
+                        "primary_maturity_at:", "BTC-USD", scope)),
+                        "0" if side == "SELL" else "456")
+                finally:
+                    store.close()
+
+    def test_failed_fill_metadata_reset_rolls_back_receipt_clear(self):
+        import sqlite3
+        from src.advanced_live import _position_meta_key
+
+        class Rail:
+            def account_scope_id(self):
+                return "a" * 64
+
+            def order_detail(self, order_id):
+                return {"order": {"order_id": order_id, "status": "FILLED",
+                                  "filled_size": "0.1", "filled_value": "10"}}
+
+        scope = "a" * 64
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "atomic-fill.db")
+            try:
+                engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                engine.store, engine.rail = store, Rail()
+                peak_key = _position_meta_key("primary_peak:", "BTC-USD", scope)
+                store.set_meta(peak_key, "900")
+                engine._record_order_intent(
+                    product="BTC-USD", side="BUY", client_id="client-1",
+                    account_scope=scope)
+                original = store.get_meta("pending_coinbase_order")
+                with store.conn:
+                    store.conn.execute(
+                        "CREATE TRIGGER reject_peak_clear BEFORE UPDATE ON meta "
+                        "WHEN OLD.key='" + peak_key + "' AND NEW.value='' "
+                        "BEGIN SELECT RAISE(ABORT, 'simulated reset failure'); END")
+                with self.assertRaises(sqlite3.IntegrityError):
+                    engine._check_or_track_submission(
+                        {"success": True,
+                         "success_response": {"order_id": "venue-1"}},
+                        product="BTC-USD", side="BUY", client_id="client-1",
+                        account_scope=scope)
+                self.assertEqual(store.get_meta("pending_coinbase_order"), original)
+                self.assertEqual(store.get_meta(peak_key), "900")
+            finally:
+                store.close()
+
     def test_submission_does_not_mean_fill(self):
         detail={"order":{"order_id":"123","status":"OPEN",
                          "filled_size":"0"}}
