@@ -156,6 +156,9 @@ class RealToolchainBoundaryTests(unittest.TestCase):
                 current["snapshot"] = {
                     **snapshot({"USD": 19.0}),
                     "authenticated_scope": scope,
+                    # The mocked next authenticated sync observes the
+                    # generation incremented by the verified conversion.
+                    "account_position_revision": engine._account_position_revision(scope),
                 }
                 engine._primary_trade_step(current["snapshot"])
                 second = dict(store.latest_decisions(1)[0])
