@@ -17,7 +17,8 @@ jobs:
         run: |
           python - <<'PY'
           import base64, os, io, zipfile, re, json
-          terms=[re.sub('[^a-z0-9]','',s.lower()) for s in base64.b64decode(os.environ['TERMS_B64']).decode().split('|')]
+          terms=base64.b64decode(os.environ['TERMS_B64']).decode().split('|')
+          checks=[re.compile(r'(?<![a-z0-9])'+r'[\\s._-]*'.join(map(re.escape,re.split(r'[\\s._-]+',t)))+r'(?![a-z0-9])',re.I) for t in terms]
           paths=[
            'research/bean-five-year/run-40112062839.zip',
            'research/bean-five-year/run-40114799875.zip',
@@ -44,8 +45,8 @@ jobs:
                 print('ARCHIVE_UNSCANNED '+json.dumps({'entry':label+'/'+f.filename,'reason':type(exc).__name__}),flush=True)
            else:
             if len(raw)<=100000000:
-             s=re.sub('[^a-z0-9]','',(label+' '+raw.decode('utf-8','replace')).lower())
-             if any(t in s for t in terms):hits.append(label)
+             s=label+'\\n'+raw.decode('latin-1','ignore')
+             if any(p.search(s) for p in checks):hits.append(label)
            return hits,errors,files
           for p in paths:
            try:
