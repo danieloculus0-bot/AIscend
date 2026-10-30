@@ -1,0 +1,52 @@
+name: BEAN Causal Fee-Net Opportunity Research
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/bean_edge_lab.py'
+      - 'tests/test_bean_edge_lab.py'
+      - 'docs/BEAN_CAUSAL_EDGE_LAB.md'
+      - '.github/workflows/bean-edge-research.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  causal-mechanics:
+    name: Causal estimator tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check economic abstention and delayed labels
+        run: python -m unittest discover -s tests -p test_bean_edge_lab.py -v
+
+  public-candle-development:
+    name: Public six-hour development - ${{ matrix.product }}
+    needs: causal-mechanics
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        product: [BTC-USD, ETH-USD, SOL-USD]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Evaluate all predeclared markets without selection
+        run: python -m src.bean_edge_lab --product ${{ matrix.product }} --days 90 --output evidence/${{ matrix.product }}.json
+      - name: Retain full public candles, decisions and failures if any
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bean-edge-development-${{ matrix.product }}-${{ github.run_id }}
+          path: evidence/${{ matrix.product }}.json
+          if-no-files-found: warn
+          retention-days: 30
