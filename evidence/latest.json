@@ -1,15 +1,15 @@
 {
-  "as_of_unix": 1793364239,
-  "event_count": 169,
+  "as_of_unix": 1793398420,
+  "event_count": 174,
   "funded_orders": false,
-  "ledger_tip": "132e8d5348ababcb72ad8b02bf1964cab0449bd77cc36ebc6c19c1d6ad3c2677",
+  "ledger_tip": "8f9bd257a44dcfb7b2edcc85a1644c4487e813c7f1c8ad10f85ed9089d7bfc88",
   "limitations": "Public completed candles and hypothetical next-open orders; no actual Coinbase fills or forward profit claim.",
   "manifest_sha": "8700c2a853cecac6c0ca267e4bc4acd605b56cacb600ac9609d7585684b9d868",
   "markets": {
     "BIRB-USD": {
-      "buy_hold_net": -0.05613749,
-      "fee_net_paper_return": -0.01772374,
-      "forward_bars": 19,
+      "buy_hold_net": 0.15140083,
+      "fee_net_paper_return": 0.19826107,
+      "forward_bars": 20,
       "max_drawdown": 0.11471805,
       "orders": 1,
       "pending": {
@@ -25,9 +25,9 @@
       "status": "COLLECTING"
     },
     "GWEI-USD": {
-      "buy_hold_net": -0.1094597,
-      "fee_net_paper_return": 0.04998704,
-      "forward_bars": 19,
+      "buy_hold_net": -0.00222088,
+      "fee_net_paper_return": 0.17642642,
+      "forward_bars": 20,
       "max_drawdown": 0.0,
       "orders": 1,
       "pending": {
@@ -43,9 +43,9 @@
       "status": "COLLECTING"
     },
     "MPLX-USD": {
-      "buy_hold_net": 0.38356318,
+      "buy_hold_net": 0.3169842,
       "fee_net_paper_return": -0.1160982,
-      "forward_bars": 19,
+      "forward_bars": 20,
       "max_drawdown": 0.1160982,
       "orders": 2,
       "pending": {
@@ -61,9 +61,9 @@
       "status": "COLLECTING"
     },
     "PEPE-USD": {
-      "buy_hold_net": 0.16211146,
+      "buy_hold_net": 0.1352935,
       "fee_net_paper_return": 0.0,
-      "forward_bars": 19,
+      "forward_bars": 20,
       "max_drawdown": 0.0,
       "orders": 0,
       "pending": {
@@ -79,9 +79,9 @@
       "status": "COLLECTING"
     },
     "SHDW-USD": {
-      "buy_hold_net": -0.0745181,
+      "buy_hold_net": -0.09199502,
       "fee_net_paper_return": 0.0,
-      "forward_bars": 19,
+      "forward_bars": 20,
       "max_drawdown": 0.0,
       "orders": 0,
       "pending": {
@@ -98,8 +98,8 @@
     }
   },
   "promotion_authorized": false,
-  "run_key": "41057508569-1",
+  "run_key": "41136648818-1",
   "schema": "aiscend.bean.hosted.public.paper.v1",
   "source_sha256": "0781aa210a799e11e92e1ddf8ba671dcdbc8c2ebc1cc8f644a92e317577ee30e",
-  "sqlite_backup_sha256": "e766e271b3ad362de406fddab229f46ef1f814afe7b18bf676d28a3940924144"
+  "sqlite_backup_sha256": "b60806e2fa5b37f3bc479a9ce5c14b168c1096a1ff802233f18c4a0aee7ef31a"
 }
