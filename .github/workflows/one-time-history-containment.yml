@@ -1,0 +1,73 @@
+name: One-time employer identifier history containment
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/one-time-history-containment.yml
+permissions:
+  contents: write
+jobs:
+  scrub:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - name: Rewrite historical employer names in every Git ref
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m venv /tmp/historyenv
+          /tmp/historyenv/bin/pip install -q 'git-filter-repo>=2.47.0'
+          export PATH="/tmp/historyenv/bin:$PATH"
+          cat > /tmp/prepare.py <<'PYCODE'
+          from pathlib import Path
+          PATTERNS=[ "283f6929283f3c215b612d7a302d395d29283f3a57617368696e67746f6e7c576973636f6e73696e295b5c732e5f2d5d2b4d6574616c5b5c732e5f2d5d2b46616272696361746f72733f283f215b612d7a302d395d29", "283f6929283f3c215b612d7a302d395d29455a5b5c732e5f2d5d2a4661627269636174696e67283f215b612d7a302d395d29", "283f6929283f3c215b612d7a302d395d29455a5b5c732e5f2d5d2a4661627269636174696f6e283f215b612d7a302d395d29", "283f6929283f3c215b612d7a302d395d29455a5b5c732e5f2d5d2a466162733f283f215b612d7a302d395d29", "283f6929283f3c215b612d7a302d395d29455a5b5c732e5f2d5d2a574d46283f215b612d7a302d395d29", "283f6929283f3c215b612d7a302d395d29574d46283f215b612d7a302d395d29" ]
+          rules = ''.join('regex:' + bytes.fromhex(s).decode() + '==>company\n' for s in PATTERNS)
+          Path('/tmp/replace.txt').write_text(rules)
+          code = 'import re\nfor s in ' + repr(PATTERNS) + ':\n    filename = re.sub(bytes.fromhex(s), b"company", filename)\nreturn filename\n'
+          Path('/tmp/rename_callback.txt').write_text(code)
+          PYCODE
+          python3 /tmp/prepare.py
+          git clone --quiet --mirror "https://github.com/$GITHUB_REPOSITORY.git" /tmp/history.git
+          cd /tmp/history.git
+          original=$(git rev-parse refs/heads/main)
+          if [ "$original" != "$GITHUB_SHA" ]; then echo "REDACTION_ABORT HEAD changed"; exit 2; fi
+          printf '%s\n' 6eadc8de9ca1d2ea07f98c9aa937e2774e1895a3 f35ecf7225ef128b89caaa1bfa2a2fc77a8b3ccf d56cc9271fbe8fde985f22dc3bc6c0e39c0acf10 daced847cac3627abc85374366211b213313c0c8 cdbe29ea19ebfeae82d1f9a26de12624428b4389 b76fb885819c85b5c905a69dccdc63e169ac9b4c 8978fb38e92cdc9162033f2da94cf227215cbd65 b7246a6819d79137761613aeba98e64eae98c5a0 1a53ee2c7bb2f5a7eec0eacba944e8351d067ff3 866871d0d101e0c3d561d22dba22b7ba7c94e8d1 > /tmp/strip-ids.txt
+          git filter-repo --force --prune-empty never --strip-blobs-with-ids /tmp/strip-ids.txt --replace-text /tmp/replace.txt --replace-message /tmp/replace.txt --filename-callback "$(cat /tmp/rename_callback.txt)"
+          python3 - <<'PYCODE'
+          import re, subprocess, sys
+          patterns = [bytes.fromhex(s) for s in [ "283f6929283f3c215b612d7a302d395d29283f3a57617368696e67746f6e7c576973636f6e73696e295b5c732e5f2d5d2b4d6574616c5b5c732e5f2d5d2b46616272696361746f72733f283f215b612d7a302d395d29", "283f6929283f3c215b612d7a302d395d29455a5b5c732e5f2d5d2a4661627269636174696e67283f215b612d7a302d395d29", "283f6929283f3c215b612d7a302d395d29455a5b5c732e5f2d5d2a4661627269636174696f6e283f215b612d7a302d395d29", "283f6929283f3c215b612d7a302d395d29455a5b5c732e5f2d5d2a466162733f283f215b612d7a302d395d29", "283f6929283f3c215b612d7a302d395d29455a5b5c732e5f2d5d2a574d46283f215b612d7a302d395d29", "283f6929283f3c215b612d7a302d395d29574d46283f215b612d7a302d395d29" ]]
+          rex = re.compile(b'|'.join(b'(?:' + p[4:] + b')' for p in patterns), re.I)
+          def cmd(*argv):
+              return subprocess.check_output(list(argv), stderr=subprocess.DEVNULL)
+          log = cmd('git','log','--all','--format=%B')
+          records = cmd('git','rev-list','--objects','--all').splitlines()
+          names = sum(bool(rex.search(x.split(b' ',1)[1])) for x in records if b' ' in x)
+          ids = list(dict.fromkeys(x.split(b' ',1)[0] for x in records))
+          proc = subprocess.Popen(['git','cat-file','--batch'],stdin=subprocess.PIPE,stdout=subprocess.PIPE)
+          bad = 0
+          try:
+              for obj in ids:
+                  proc.stdin.write(obj+b'\n')
+                  proc.stdin.flush()
+                  meta=proc.stdout.readline().split()
+                  if len(meta)<3: raise ValueError('invalid object')
+                  data=proc.stdout.read(int(meta[2]))
+                  proc.stdout.read(1)
+                  if meta[1] == b'blob' and rex.search(data) and not any(x.endswith((b'.gz',b'.zip')) for x in (r.partition(b' ')[2] for r in records if r.startswith(obj+b' '))): bad+=1
+          finally:
+              proc.stdin.close()
+              proc.stdout.close()
+              proc.wait()
+          commits=bool(rex.search(log))
+          print('REDACTION_CHECK unmatched_path_names',names,'unmatched_blobs',bad,'unmatched_commit_messages',int(commits),flush=True)
+          if names or bad or commits: sys.exit(3)
+          PYCODE
+          gh auth setup-git
+          git remote add origin "https://github.com/$GITHUB_REPOSITORY.git"
+          remote=$(git ls-remote origin refs/heads/main | cut -f1)
+          if [ "$remote" != "$original" ]; then echo "REDACTION_ABORT remote moved"; exit 4; fi
+          git push --force origin 'refs/heads/*:refs/heads/*'
+          if git show-ref --tags --quiet; then git push --force origin 'refs/tags/*:refs/tags/*'; fi
+          echo "REDACTION_COMPLETE repo=$GITHUB_REPOSITORY"
