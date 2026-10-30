@@ -46,7 +46,10 @@ jobs:
            else:
             if len(raw)<=100000000:
              s=label+'\\n'+raw.decode('latin-1','ignore')
-             if any(p.search(s) for p in checks):hits.append(label)
+             matched=[i for i,p in enumerate(checks) if p.search(s)]
+             if matched:
+              hits.append(label)
+              print('ARCHIVE_MATCH_TYPES '+json.dumps({'file':label,'term_indices':matched}),flush=True)
            return hits,errors,files
           for p in paths:
            try:
