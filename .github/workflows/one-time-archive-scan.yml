@@ -33,10 +33,15 @@ jobs:
               if f.is_dir():continue
               files+=1
               try:
-               if f.file_size>50000000: errors+=1;continue
+               if f.file_size>50000000:
+                errors+=1
+                print('ARCHIVE_UNSCANNED '+json.dumps({'entry':label+'/'+f.filename,'reason':'large','bytes':f.file_size}),flush=True)
+                continue
                sub,er,n=inspect(z.read(f),label+'/'+f.filename,depth+1)
                hits+=sub; errors+=er; files+=n
-              except Exception: errors+=1
+              except Exception as exc:
+                errors+=1
+                print('ARCHIVE_UNSCANNED '+json.dumps({'entry':label+'/'+f.filename,'reason':type(exc).__name__}),flush=True)
            else:
             if b'\x00' not in raw[:8192]:
              s=re.sub('[^a-z0-9]','',(label+' '+raw.decode('utf-8','replace')).lower())
