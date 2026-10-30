@@ -1,0 +1,53 @@
+name: One-time confidential archive SQLite validation
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/one-time-sqlite-check.yml]
+permissions:
+  contents: read
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect SQL values without printing records
+        run: |
+          python - <<'PY'
+          import zipfile, tempfile, sqlite3, os, json, re
+          refs = {
+            "research/bean_causal_aborted_runs_20261024.zip": ["bean_causal_retention_20261024/dqn-7.sqlite3","bean_causal_retention_20261024_aborted_decision_sqlite_corruption/dqn-7.sqlite3"],
+            "research/bean_curriculum_aborted_numeric_20261024.zip": ["fold-0-seed-7.sqlite3"]
+          }
+          for zipname, members in refs.items():
+            with zipfile.ZipFile(zipname) as z:
+              for member in members:
+                summary={"archive":zipname,"member":member,"sql_matches":{},"tables":0,"rows_seen":0,"error":None}
+                temp=None
+                try:
+                  with tempfile.NamedTemporaryFile(suffix=".sqlite3",delete=False) as f:
+                    temp=f.name
+                    f.write(z.read(member))
+                  db=sqlite3.connect("file:"+temp+"?mode=ro",uri=True)
+                  tables=[x[0] for x in db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")]
+                  summary["tables"]=len(tables)
+                  for table in tables:
+                    safe='"'+table.replace('"','""')+'"'
+                    try:
+                      cur=db.execute("SELECT * FROM "+safe)
+                      for row in cur:
+                        summary["rows_seen"]+=1
+                        for val in row:
+                          if isinstance(val,bytes): continue
+                          if not isinstance(val,str):continue
+                          for term in ["company","company","company","company","company"]:
+                            if re.search(r'(?<![A-Za-z0-9])'+re.escape(term)+r'(?![A-Za-z0-9])',val,re.I):
+                              summary["sql_matches"][term]=summary["sql_matches"].get(term,0)+1
+                    except sqlite3.DatabaseError as e:
+                      summary["error"]=type(e).__name__
+                  db.close()
+                except Exception as e:
+                  summary["error"]=type(e).__name__
+                finally:
+                  if temp and os.path.exists(temp):os.unlink(temp)
+                print("SQLITE_SCAN "+json.dumps(summary,separators=(',',':')),flush=True)
+          PY
