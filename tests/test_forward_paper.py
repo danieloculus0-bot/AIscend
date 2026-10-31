@@ -1,13 +1,16 @@
 """No real orders; test causal forward paper decisions with deterministic bars."""
+import inspect
 import json
 from contextlib import closing
 from pathlib import Path
 import sqlite3
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from src.bean_five_minute import BAR
-from src.forward_paper import observe_and_score, freeze_training_candidates, freeze
+from src.forward_paper import (observe_and_score, freeze_training_candidates,
+                               freeze, _implementation_sha)
 from scripts.forward_paper import main as forward_paper_cli_main
 
 MANIFEST=[{"product":"BTC-USD","policy":"trend",
@@ -95,6 +98,9 @@ class ForwardPaperTests(unittest.TestCase):
         self.assertEqual(frozen[0]["policy"],"trend")
         self.assertEqual(frozen[1]["product"],"ETH-USDC")
         self.assertTrue(all(x["training_only_frozen"] for x in frozen))
+        self.assertEqual(len(frozen[0]["implementation_sha"]), 64)
+        self.assertEqual(frozen[0]["implementation_sha"],
+                         frozen[1]["implementation_sha"])
         report["promotion_authorized"]=True
         with self.assertRaises(ValueError):
             freeze_training_candidates(report)
@@ -136,6 +142,79 @@ class ForwardPaperTests(unittest.TestCase):
         self.assertEqual(done["scorecard"]["BTC-USD"]["net_return"],0)
         self.assertEqual(done["scorecard"]["BTC-USD"]["scored_trades"],0)
 
+    def test_nonfinite_fee_net_return_is_rejected_before_scoring(self):
+        self.simulate_tick(440)
+        # Both individual prices are finite, but their ratio overflows.
+        self.rows[441*BAR]["open"] = 1e-300
+        self.rows[513*BAR]["open"] = 1e300
+        report = self.simulate_tick(514)
+        self.assertEqual(report["products"]["BTC-USD"]["status"], "DATA_GAP")
+        self.assertEqual(report["scorecard"]["BTC-USD"]["scored_trades"], 0)
+        self.assertEqual(report["scorecard"]["BTC-USD"]["net_return"], 0)
+        json.dumps(report, allow_nan=False)
+        with closing(sqlite3.connect(self.path)) as db:
+            state, ret = db.execute(
+                "SELECT state,net_return FROM paper_decisions "
+                "WHERE signal_ts=?", (439*BAR,)).fetchone()
+        self.assertEqual(state, "DATA_GAP")
+        self.assertIsNone(ret)
+
+    def test_existing_nonfinite_paper_score_is_quarantined(self):
+        self.simulate_tick(440)
+        with closing(sqlite3.connect(self.path)) as db:
+            db.execute(
+                "UPDATE paper_decisions SET state='SCORED',entry_price=1,"
+                "exit_price=100,net_return=? WHERE signal_ts=?",
+                (float("inf"), 439*BAR))
+            db.commit()
+        report = self.simulate_tick(514)
+        self.assertEqual(report["scorecard"]["BTC-USD"]["scored_trades"], 0)
+        self.assertEqual(report["scorecard"]["BTC-USD"]["net_return"], 0)
+        json.dumps(report, allow_nan=False)
+        with closing(sqlite3.connect(self.path)) as db:
+            state, reason, ret = db.execute(
+                "SELECT state,reason,net_return FROM paper_decisions "
+                "WHERE signal_ts=?", (439*BAR,)).fetchone()
+        self.assertEqual((state, reason, ret),
+                         ("DATA_GAP", "nonfinite_paper_return", None))
+
+    def test_finite_paper_trades_cannot_overflow_cumulative_scorecard(self):
+        self.simulate_tick(440)
+        # Each observed paper return fits SQLite REAL and passes the
+        # individual finite-return guard. Their compounded value does not.
+        with closing(sqlite3.connect(self.path)) as db:
+            identity=db.execute(
+                "SELECT policy_sha FROM frozen_policy WHERE product='BTC-USD'"
+            ).fetchone()[0]
+            db.execute(
+                "UPDATE paper_decisions SET state='SCORED',"
+                "entry_price=1,exit_price=?,net_return=?,"
+                "reason='hypothetical_next_candle_open_fee_net'",
+                (1e200,1e200))
+            db.execute(
+                "INSERT INTO paper_decisions "
+                "(product,policy_sha,signal_ts,observed_at,entry_ts,exit_ts,"
+                "state,entry_price,exit_price,net_return,reason) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                ("BTC-USD",identity,514*BAR,515*BAR+1,516*BAR,588*BAR,
+                 "SCORED",1,1e200,1e200,
+                 "hypothetical_next_candle_open_fee_net"))
+            db.commit()
+        report=self.simulate_tick(600)
+        score=report["scorecard"]["BTC-USD"]
+        self.assertEqual(score["scored_trades"],2)
+        self.assertEqual(score["wins"],2)
+        self.assertIsNone(score["net_return"])
+        self.assertEqual(score["max_realized_drawdown"],0)
+        self.assertEqual(
+            score["scorecard_issue"],"cumulative_return_exceeds_finite_range")
+        self.assertFalse(score["candidate_validated"])
+        json.dumps(report,allow_nan=False)
+        with closing(sqlite3.connect(self.path)) as db:
+            self.assertEqual(db.execute(
+                "SELECT COUNT(*) FROM paper_decisions WHERE state='SCORED'"
+            ).fetchone()[0],2)
+
     def test_repeated_observation_in_same_slot_cannot_duplicate_signal(self):
         self.simulate_tick(440)
         self.simulate_tick(440)
@@ -159,6 +238,180 @@ class ForwardPaperTests(unittest.TestCase):
                            "training_only_frozen":False}],
                 db_path=self.path,fetcher=self.fetch,
                 clock=lambda:441*BAR+1)
+
+    def test_fingerprint_ignores_comments_but_detects_signal_code_changes(self):
+        original = _implementation_sha()
+        getsource = inspect.getsource
+        def changed_source(func):
+            source = getsource(func)
+            if func.__name__ == "_signals":
+                return source.replace("return False", "return True", 1)
+            return source
+        with patch("src.forward_paper.inspect.getsource",
+                   side_effect=changed_source):
+            self.assertNotEqual(_implementation_sha(), original)
+        def comment_only(func):
+            source = getsource(func)
+            if func.__name__ == "_signals":
+                return source.replace("    times = sorted(",
+                                      "    # no executable change\n    times = sorted(", 1)
+            return source
+        with patch("src.forward_paper.inspect.getsource",
+                   side_effect=comment_only):
+            self.assertEqual(_implementation_sha(), original)
+
+    def test_fingerprint_pins_quarantine_freeze_and_identity_rules(self):
+        # Changes to migration/quarantine or frozen-cost admission affect the
+        # meaning of existing evidence even if signal/settlement is unchanged.
+        original = _implementation_sha()
+        getsource = inspect.getsource
+        variants = (
+            ("_db", "state='NONCAUSAL_ENTRY'", "state='SCORED'"),
+            ("freeze", "0 <= fee_bps <= 1000", "0 <= fee_bps <= 2000"),
+            ("policy_identity", "aiscend.paper.policy.v2:",
+             "aiscend.paper.policy.v3:"),
+        )
+        for name, old, new in variants:
+            with self.subTest(changed_function=name):
+                def changed_source(func):
+                    source = getsource(func)
+                    if func.__name__ == name:
+                        self.assertIn(old, source)
+                        return source.replace(old, new, 1)
+                    return source
+                with patch("src.forward_paper.inspect.getsource",
+                           side_effect=changed_source):
+                    self.assertNotEqual(_implementation_sha(), original)
+
+    def test_fingerprint_detects_logical_newline_changes(self):
+        # Both variants are valid Python with identical non-newline tokens,
+        # but the first returns 2 and the second returns False.
+        getsource = inspect.getsource
+        def variant(joined):
+            def get_variant(func):
+                source = getsource(func)
+                if func.__name__ == "_signals":
+                    replacement = ("return False + 2" if joined
+                                   else "return False\n        + 2")
+                    source = source.replace("return False", replacement, 1)
+                    namespace = {}
+                    exec(compile(source, "<signal-variant>", "exec"), namespace)
+                    self.assertEqual(
+                        namespace["_signals"]("BTC-USD", "trend", {}, 0),
+                        2 if joined else False)
+                return source
+            return get_variant
+        with patch("src.forward_paper.inspect.getsource",
+                   side_effect=variant(True)):
+            joined_sha = _implementation_sha()
+        with patch("src.forward_paper.inspect.getsource",
+                   side_effect=variant(False)):
+            split_sha = _implementation_sha()
+        self.assertNotEqual(joined_sha, split_sha)
+
+    def test_frozen_policy_identity_detects_settlement_fee_formula_change(self):
+        # A revised fee-net paper settlement must never reuse prior frozen
+        # evidence, even when the trading signal itself is unchanged.
+        original = _implementation_sha()
+        getsource = inspect.getsource
+
+        def altered_settlement(func):
+            source = getsource(func)
+            if func.__name__ == "observe_and_score":
+                old = "net=(sell/buy)*(1-cost)**2-1"
+                self.assertIn(old, source)
+                return source.replace(old, "net=(sell/buy)*(1-cost)-1", 1)
+            return source
+
+        self.simulate_tick(440)
+        with closing(sqlite3.connect(self.path)) as db:
+            frozen_sha = db.execute(
+                "SELECT policy_sha FROM frozen_policy").fetchone()[0]
+        with patch("src.forward_paper.inspect.getsource",
+                   side_effect=altered_settlement):
+            self.assertNotEqual(_implementation_sha(), original)
+            with self.assertRaisesRegex(
+                    ValueError, "Frozen strategy/cost assumptions changed"):
+                self.simulate_tick(441)
+        with closing(sqlite3.connect(self.path)) as db:
+            self.assertEqual(db.execute(
+                "SELECT policy_sha FROM frozen_policy").fetchone()[0],
+                frozen_sha)
+            self.assertEqual(db.execute(
+                "SELECT COUNT(*) FROM paper_decisions").fetchone()[0], 1)
+
+    def test_candle_ingestion_parser_change_invalidates_frozen_evidence(self):
+        # Parsing open/close differently changes both signal inputs and paper
+        # settlement. The frozen ledger and manifest must not silently reuse it.
+        report = {"schema": "aiscend.universe_research_aggregate.v1",
+                  "promotion_authorized": False,
+                  "training_preselected": [{"product": "BTC-USD", "policy": "trend"}]}
+        manifest = freeze_training_candidates(report)
+        self.simulate_tick(440)
+        with closing(sqlite3.connect(self.path)) as db:
+            original_sha = db.execute(
+                "SELECT policy_sha FROM frozen_policy WHERE product='BTC-USD'"
+            ).fetchone()[0]
+            original_count = db.execute(
+                "SELECT COUNT(*) FROM paper_decisions").fetchone()[0]
+        original_fingerprint = _implementation_sha()
+        original_getsource = inspect.getsource
+
+        def changed_candle_parser(func):
+            source = original_getsource(func)
+            if func.__name__ == "fetch_5m":
+                old = "ts, op, cl = int(row[0]), float(row[3]), float(row[4])"
+                self.assertIn(old, source)
+                return source.replace(
+                    old, "ts, op, cl = int(row[0]), float(row[4]), float(row[3])", 1)
+            return source
+
+        with patch("src.forward_paper.inspect.getsource",
+                   side_effect=changed_candle_parser):
+            self.assertNotEqual(_implementation_sha(), original_fingerprint)
+            with self.assertRaisesRegex(
+                    ValueError, "Frozen strategy/cost assumptions changed"):
+                self.simulate_tick(441)
+            with self.assertRaisesRegex(
+                    ValueError, "Frozen manifest strategy implementation changed"):
+                observe_and_score(
+                    manifest=manifest, db_path=self.path, fetcher=self.fetch,
+                    clock=lambda: 441*BAR+1)
+        with closing(sqlite3.connect(self.path)) as db:
+            self.assertEqual(db.execute(
+                "SELECT policy_sha FROM frozen_policy WHERE product='BTC-USD'"
+            ).fetchone()[0], original_sha)
+            self.assertEqual(db.execute(
+                "SELECT COUNT(*) FROM paper_decisions").fetchone()[0],
+                original_count)
+
+    def test_frozen_ledger_rejects_strategy_revision_without_mixing_returns(self):
+        self.simulate_tick(440)
+        with closing(sqlite3.connect(self.path)) as db:
+            original = db.execute(
+                "SELECT policy_sha FROM frozen_policy").fetchone()[0]
+            count = db.execute("SELECT COUNT(*) FROM paper_decisions").fetchone()[0]
+        with patch("src.forward_paper._implementation_sha", return_value="f"*64):
+            with self.assertRaisesRegex(ValueError, "Frozen strategy/cost assumptions"):
+                self.simulate_tick(441)
+        with closing(sqlite3.connect(self.path)) as db:
+            self.assertEqual(db.execute(
+                "SELECT policy_sha FROM frozen_policy").fetchone()[0], original)
+            self.assertEqual(db.execute(
+                "SELECT COUNT(*) FROM paper_decisions").fetchone()[0], count)
+
+    def test_frozen_manifest_rejects_changed_strategy_before_first_signal(self):
+        report = {"schema":"aiscend.universe_research_aggregate.v1",
+                  "promotion_authorized":False,
+                  "training_preselected":[{"product":"BTC-USD","policy":"trend"}]}
+        manifest = freeze_training_candidates(report)
+        with patch("src.forward_paper._implementation_sha", return_value="0"*64):
+            with self.assertRaisesRegex(
+                    ValueError, "Frozen manifest strategy implementation changed"):
+                observe_and_score(
+                    manifest=manifest, db_path=self.path, fetcher=self.fetch,
+                    clock=lambda:440*BAR+1)
+        self.assertFalse(self.path.exists())
 
     def test_no_signals_on_incomplete_initial_lookback(self):
         short=lambda p,s,e:{t:v for t,v in self.rows.items()
@@ -185,6 +438,88 @@ class ForwardPaperTests(unittest.TestCase):
                 "WHERE state='SCORED'").fetchone()
         self.assertGreater(entry_ts, observed)
         self.assertEqual(entry, self.rows[441*BAR]["open"])
+
+    def test_clock_rollback_before_source_close_cannot_create_paper_fill(self):
+        # A clock correction after fetching completed candles must not make
+        # the signal appear to have existed before its input bar completed.
+        current=[440*BAR+1]
+        def rollback_fetch(product,start,end):
+            rows=self.fetch(product,start,end)
+            current[0]=439*BAR+1
+            return rows
+        result=observe_and_score(
+            manifest=MANIFEST,db_path=self.path,fetcher=rollback_fetch,
+            clock=lambda:current[0])
+        self.assertEqual(result["products"]["BTC-USD"]["status"],"NONCAUSAL_ENTRY")
+        self.assertEqual(result["scorecard"]["BTC-USD"]["scored_trades"],0)
+        with closing(sqlite3.connect(self.path)) as db:
+            state,observed,reason,net=db.execute(
+                "SELECT state,observed_at,reason,net_return "
+                "FROM paper_decisions").fetchone()
+        self.assertEqual(state,"NONCAUSAL_ENTRY")
+        self.assertLess(observed,440*BAR)
+        self.assertEqual(reason,"signal_observed_before_source_bar_completed")
+        self.assertIsNone(net)
+
+    def test_clock_rollback_within_signal_slot_cannot_predate_policy_freeze(self):
+        current=[440*BAR+200]
+        def rollback_fetch(product,start,end):
+            rows=self.fetch(product,start,end)
+            current[0]=440*BAR+100
+            return rows
+        report=observe_and_score(
+            manifest=MANIFEST,db_path=self.path,fetcher=rollback_fetch,
+            clock=lambda:current[0])
+        self.assertEqual(
+            report["products"]["BTC-USD"]["status"],"NONCAUSAL_ENTRY")
+        self.assertEqual(report["scorecard"]["BTC-USD"]["scored_trades"],0)
+        with closing(sqlite3.connect(self.path)) as db:
+            observed,freeze_at,entry,state,reason=db.execute(
+                "SELECT d.observed_at,f.frozen_at,d.entry_ts,d.state,d.reason "
+                "FROM paper_decisions d JOIN frozen_policy f "
+                "ON d.product=f.product AND d.policy_sha=f.policy_sha"
+            ).fetchone()
+        self.assertGreater(observed,440*BAR)
+        self.assertLess(observed,freeze_at)
+        self.assertLess(observed,entry)
+        self.assertEqual(state,"NONCAUSAL_ENTRY")
+        self.assertEqual(reason,"signal_observed_before_policy_freeze")
+
+    def test_legacy_score_before_policy_freeze_is_quarantined(self):
+        self.simulate_tick(440)
+        with closing(sqlite3.connect(self.path)) as db:
+            db.execute(
+                "UPDATE paper_decisions SET state='SCORED',observed_at=?,"
+                "entry_price=1,exit_price=100,net_return=99",
+                (440*BAR+0.5,))
+            db.commit()
+        report=self.simulate_tick(515)
+        self.assertEqual(report["scorecard"]["BTC-USD"]["scored_trades"],0)
+        with closing(sqlite3.connect(self.path)) as db:
+            state,reason,ret=db.execute(
+                "SELECT state,reason,net_return FROM paper_decisions "
+                "WHERE signal_ts=?", (439*BAR,)).fetchone()
+        self.assertEqual(state,"NONCAUSAL_ENTRY")
+        self.assertEqual(reason,"signal_observed_before_policy_freeze")
+        self.assertIsNone(ret)
+
+    def test_legacy_precompletion_score_is_quarantined(self):
+        self.simulate_tick(440)
+        with closing(sqlite3.connect(self.path)) as db:
+            db.execute(
+                "UPDATE paper_decisions SET state='SCORED',observed_at=?,"
+                "entry_price=1,exit_price=100,net_return=99",
+                (439*BAR+1,))
+            db.commit()
+        report=self.simulate_tick(515)
+        self.assertEqual(report["scorecard"]["BTC-USD"]["scored_trades"],0)
+        with closing(sqlite3.connect(self.path)) as db:
+            state,reason,net=db.execute(
+                "SELECT state,reason,net_return FROM paper_decisions "
+                "WHERE signal_ts=?", (439*BAR,)).fetchone()
+        self.assertEqual(state,"NONCAUSAL_ENTRY")
+        self.assertEqual(reason,"signal_observed_before_source_bar_completed")
+        self.assertIsNone(net)
 
     def test_slow_fetch_crossing_entry_open_never_creates_paper_fill(self):
         # The initial clock is still inside the signal slot, but fetching
@@ -268,7 +603,9 @@ class ForwardPaperTests(unittest.TestCase):
             "--freeze-aggregate",str(aggregate),"--output",str(manifest)]),0)
         written=manifest.read_text(encoding="utf-8")
         self.assertTrue(written.endswith("\n"))
-        self.assertEqual(json.loads(written)[0]["product"],"BTC-USD")
+        parsed=json.loads(written)
+        self.assertEqual(parsed[0]["product"],"BTC-USD")
+        self.assertEqual(len(parsed[0]["implementation_sha"]),64)
 
 
 if __name__=="__main__":

@@ -18,6 +18,7 @@ class Decision:
     symbol: str | None
     fraction: float
     rationale: str
+    maturity_minutes: float | None = None
 
 
 class Decider(Protocol):
