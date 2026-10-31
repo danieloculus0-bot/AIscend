@@ -1,58 +1,58 @@
 {
-  "as_of_unix": 1793398420,
-  "event_count": 174,
+  "as_of_unix": 1793424464,
+  "event_count": 186,
   "funded_orders": false,
-  "ledger_tip": "8f9bd257a44dcfb7b2edcc85a1644c4487e813c7f1c8ad10f85ed9089d7bfc88",
+  "ledger_tip": "e5f7bf55dca246d109f9e1b3b6b46771742c544a413f2cad0714ac638f4a9ff9",
   "limitations": "Public completed candles and hypothetical next-open orders; no actual Coinbase fills or forward profit claim.",
   "manifest_sha": "8700c2a853cecac6c0ca267e4bc4acd605b56cacb600ac9609d7585684b9d868",
   "markets": {
     "BIRB-USD": {
-      "buy_hold_net": 0.15140083,
-      "fee_net_paper_return": 0.19826107,
-      "forward_bars": 20,
+      "buy_hold_net": 0.16456983,
+      "fee_net_paper_return": 0.21196602,
+      "forward_bars": 21,
       "max_drawdown": 0.11471805,
       "orders": 1,
       "pending": {
-        "context": "down/volatile",
-        "entry_ts": 1793383200,
-        "observed_cutoff": 1793361600,
-        "selected_at": 1793364239.6335716,
-        "target": 1
+        "context": "up/volatile",
+        "entry_ts": 1793426400,
+        "observed_cutoff": 1793404800,
+        "selected_at": 1793424464.154311,
+        "target": 0
       },
       "promotion_authorized": false,
-      "q_updates": 9,
+      "q_updates": 10,
       "roundtrips": 0,
       "status": "COLLECTING"
     },
     "GWEI-USD": {
-      "buy_hold_net": -0.00222088,
-      "fee_net_paper_return": 0.17642642,
-      "forward_bars": 20,
+      "buy_hold_net": 0.03933766,
+      "fee_net_paper_return": 0.22542582,
+      "forward_bars": 21,
       "max_drawdown": 0.0,
       "orders": 1,
       "pending": {
         "context": "down/volatile",
-        "entry_ts": 1793383200,
-        "observed_cutoff": 1793361600,
-        "selected_at": 1793364239.683133,
+        "entry_ts": 1793426400,
+        "observed_cutoff": 1793404800,
+        "selected_at": 1793424464.2018733,
         "target": 1
       },
       "promotion_authorized": false,
-      "q_updates": 9,
+      "q_updates": 10,
       "roundtrips": 0,
       "status": "COLLECTING"
     },
     "MPLX-USD": {
-      "buy_hold_net": 0.3169842,
+      "buy_hold_net": 0.3375777,
       "fee_net_paper_return": -0.1160982,
-      "forward_bars": 20,
+      "forward_bars": 21,
       "max_drawdown": 0.1160982,
       "orders": 2,
       "pending": {
         "context": null,
-        "entry_ts": 1793383200,
-        "observed_cutoff": 1793361600,
-        "selected_at": 1793364239.735953,
+        "entry_ts": 1793426400,
+        "observed_cutoff": 1793404800,
+        "selected_at": 1793424464.2475226,
         "target": 0
       },
       "promotion_authorized": false,
@@ -61,16 +61,16 @@
       "status": "COLLECTING"
     },
     "PEPE-USD": {
-      "buy_hold_net": 0.1352935,
+      "buy_hold_net": 0.09283174,
       "fee_net_paper_return": 0.0,
-      "forward_bars": 20,
+      "forward_bars": 21,
       "max_drawdown": 0.0,
       "orders": 0,
       "pending": {
         "context": null,
-        "entry_ts": 1793383200,
-        "observed_cutoff": 1793361600,
-        "selected_at": 1793364239.806613,
+        "entry_ts": 1793426400,
+        "observed_cutoff": 1793404800,
+        "selected_at": 1793424464.3312333,
         "target": 0
       },
       "promotion_authorized": false,
@@ -79,16 +79,16 @@
       "status": "COLLECTING"
     },
     "SHDW-USD": {
-      "buy_hold_net": -0.09199502,
+      "buy_hold_net": -0.07888733,
       "fee_net_paper_return": 0.0,
-      "forward_bars": 20,
+      "forward_bars": 21,
       "max_drawdown": 0.0,
       "orders": 0,
       "pending": {
         "context": null,
-        "entry_ts": 1793383200,
-        "observed_cutoff": 1793361600,
-        "selected_at": 1793364239.8554854,
+        "entry_ts": 1793426400,
+        "observed_cutoff": 1793404800,
+        "selected_at": 1793424464.3728247,
         "target": 0
       },
       "promotion_authorized": false,
@@ -98,8 +98,8 @@
     }
   },
   "promotion_authorized": false,
-  "run_key": "41136648818-1",
+  "run_key": "41172655838-1",
   "schema": "aiscend.bean.hosted.public.paper.v1",
   "source_sha256": "0781aa210a799e11e92e1ddf8ba671dcdbc8c2ebc1cc8f644a92e317577ee30e",
-  "sqlite_backup_sha256": "b60806e2fa5b37f3bc479a9ce5c14b168c1096a1ff802233f18c4a0aee7ef31a"
+  "sqlite_backup_sha256": "fdca70dd2eb3a9ece6d7bd83d62783b2bbe9b46df4bcd1eb33db612750cab811"
 }
