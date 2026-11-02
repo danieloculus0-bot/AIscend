@@ -1,58 +1,58 @@
 {
-  "as_of_unix": 1793570278,
-  "event_count": 242,
+  "as_of_unix": 1793598782,
+  "event_count": 254,
   "funded_orders": false,
-  "ledger_tip": "ca19a413344ec6ccf20516ef98a233d641f14e987f7472bc8d6fca27459424cc",
+  "ledger_tip": "b1b8b875df170dd711ac9e9a750337ad60dfaaa236d44ae910a2be76bf0611d7",
   "limitations": "Public completed candles and hypothetical next-open orders; no actual Coinbase fills or forward profit claim.",
   "manifest_sha": "8700c2a853cecac6c0ca267e4bc4acd605b56cacb600ac9609d7585684b9d868",
   "markets": {
     "BIRB-USD": {
-      "buy_hold_net": -0.02498775,
+      "buy_hold_net": -0.02941962,
       "fee_net_paper_return": 0.13224008,
-      "forward_bars": 28,
+      "forward_bars": 29,
       "max_drawdown": 0.11471805,
       "orders": 2,
       "pending": {
         "context": "up/volatile",
-        "entry_ts": 1793556000,
-        "observed_cutoff": 1793534400,
-        "selected_at": 1793538768.4096036,
+        "entry_ts": 1793599200,
+        "observed_cutoff": 1793577600,
+        "selected_at": 1793598782.271511,
         "target": 0
       },
       "promotion_authorized": false,
-      "q_updates": 13,
+      "q_updates": 14,
       "roundtrips": 1,
       "status": "COLLECTING"
     },
     "GWEI-USD": {
-      "buy_hold_net": -0.01816179,
-      "fee_net_paper_return": 0.17135562,
-      "forward_bars": 28,
+      "buy_hold_net": 0.00320183,
+      "fee_net_paper_return": 0.17259184,
+      "forward_bars": 29,
       "max_drawdown": 0.0441236,
-      "orders": 2,
+      "orders": 3,
       "pending": {
-        "context": "flat/volatile",
-        "entry_ts": 1793556000,
-        "observed_cutoff": 1793534400,
-        "selected_at": 1793538768.5248551,
-        "target": 1
+        "context": "up/volatile",
+        "entry_ts": 1793599200,
+        "observed_cutoff": 1793577600,
+        "selected_at": 1793598782.3671312,
+        "target": 0
       },
       "promotion_authorized": false,
-      "q_updates": 13,
+      "q_updates": 14,
       "roundtrips": 1,
       "status": "COLLECTING"
     },
     "MPLX-USD": {
-      "buy_hold_net": 0.26380099,
+      "buy_hold_net": 0.29958969,
       "fee_net_paper_return": -0.1160982,
-      "forward_bars": 28,
+      "forward_bars": 29,
       "max_drawdown": 0.1160982,
       "orders": 2,
       "pending": {
         "context": null,
-        "entry_ts": 1793556000,
-        "observed_cutoff": 1793534400,
-        "selected_at": 1793538768.6228702,
+        "entry_ts": 1793599200,
+        "observed_cutoff": 1793577600,
+        "selected_at": 1793598782.472083,
         "target": 0
       },
       "promotion_authorized": false,
@@ -61,16 +61,16 @@
       "status": "COLLECTING"
     },
     "PEPE-USD": {
-      "buy_hold_net": 0.08836208,
+      "buy_hold_net": 0.09059691,
       "fee_net_paper_return": 0.0,
-      "forward_bars": 28,
+      "forward_bars": 29,
       "max_drawdown": 0.0,
       "orders": 0,
       "pending": {
         "context": null,
-        "entry_ts": 1793556000,
-        "observed_cutoff": 1793534400,
-        "selected_at": 1793538768.6819265,
+        "entry_ts": 1793599200,
+        "observed_cutoff": 1793577600,
+        "selected_at": 1793598782.5889995,
         "target": 0
       },
       "promotion_authorized": false,
@@ -79,16 +79,16 @@
       "status": "COLLECTING"
     },
     "SHDW-USD": {
-      "buy_hold_net": -0.07134048,
+      "buy_hold_net": -0.08563978,
       "fee_net_paper_return": 0.0,
-      "forward_bars": 28,
+      "forward_bars": 29,
       "max_drawdown": 0.0,
       "orders": 0,
       "pending": {
         "context": null,
-        "entry_ts": 1793556000,
-        "observed_cutoff": 1793534400,
-        "selected_at": 1793538768.722881,
+        "entry_ts": 1793599200,
+        "observed_cutoff": 1793577600,
+        "selected_at": 1793598782.6901376,
         "target": 0
       },
       "promotion_authorized": false,
@@ -98,8 +98,8 @@
     }
   },
   "promotion_authorized": false,
-  "run_key": "41354634953-1",
+  "run_key": "41396545189-1",
   "schema": "aiscend.bean.hosted.public.paper.v1",
   "source_sha256": "0781aa210a799e11e92e1ddf8ba671dcdbc8c2ebc1cc8f644a92e317577ee30e",
-  "sqlite_backup_sha256": "9665b8817f1b38a8eefe30ca075d8efcd0b625331d9df4fd90bf4cc9c3310d45"
+  "sqlite_backup_sha256": "01ba22bc127bdb989b31a2c81681cc478e059d192881d32203ceb2297679b889"
 }
