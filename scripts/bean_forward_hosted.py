@@ -46,6 +46,8 @@ def pin_source(state_dir, source_root, files=SOURCE_PATHS):
     if pin.exists():
         if pin.read_text(encoding="ascii").strip() != calculated:
             raise ValueError("Prospective paper engine changed; review before continuing frozen ledger")
+        if not database.is_file():
+            raise ValueError("Pinned prospective SQLite database missing; refusing silent ledger reset")
     else:
         if database.exists():
             raise ValueError("Existing prospective SQLite is missing its engine pin")
@@ -75,6 +77,22 @@ def collect(state_root, manifest_path, source_root, run_key, backup_to):
 
     engine_sha = pin_source(evidence, source_root)
     database = evidence / "prospective.sqlite3"
+    latest_path = evidence / "latest.json"
+    # A valid older SQLite backup still has a valid internal hash chain.
+    # Anchor it to the last independently committed report BEFORE appending.
+    if database.exists():
+        if not latest_path.is_file():
+            raise ValueError("Existing prospective SQLite has no retained latest report")
+        previous = json.loads(latest_path.read_text(encoding="utf-8"))
+        verified_previous = verify_database(manifest_path, database)
+        if (verified_previous["status"] != "LEDGER_VERIFIED"
+                or verified_previous["ledger_tip"] != previous.get("ledger_tip")
+                or verified_previous["events"] != previous.get("event_count")
+                or verified_previous["manifest_sha"] != previous.get("manifest_sha")
+                or previous.get("source_sha256") != engine_sha):
+            raise ValueError("Prospective SQLite continuity mismatch with retained report")
+    elif latest_path.exists():
+        raise ValueError("Retained prospective report has no SQLite database")
     observed = inspect(manifest_path, database)
     if (observed.get("status") != "OBSERVED" or
             observed.get("promotion_authorized") is not False or

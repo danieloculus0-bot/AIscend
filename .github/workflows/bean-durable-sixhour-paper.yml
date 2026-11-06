@@ -8,7 +8,7 @@ on:
       - "scripts/bean_forward_hosted.py"
       - "tests/test_bean_forward_hosted.py"
       - "src/bean_sixhour_forward.py"
-  # Initialize the hosted ledger when this reviewed workflow first reaches main.
+  # Hosted ledger was initialized on 2026-10-25. Never bootstrap a replacement.
   push:
     branches: [main]
     paths:
@@ -73,12 +73,10 @@ jobs:
             git worktree add -B "$STATE_BRANCH" "$STATE_DIR" "refs/remotes/origin/$STATE_BRANCH"
           else
             rc=$?
-            if [ "$rc" -ne 2 ]; then
-              echo "GitHub state lookup failed: $rc"
-              exit "$rc"
-            fi
-            # New hosted ledger, never claim to have imported a desktop ledger.
-            git worktree add -b "$STATE_BRANCH" "$STATE_DIR" HEAD
+            # This state branch already exists with actual prospective observations.
+            # If deleted, hidden, or inaccessible, NEVER start a new paper ledger.
+            echo "RESEARCH_STATE_MISSING: hosted BEAN paper branch unavailable (git status $rc); refusing ledger reset."
+            exit 1
           fi
           git -C "$STATE_DIR" config user.name "github-actions[bot]"
           git -C "$STATE_DIR" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
