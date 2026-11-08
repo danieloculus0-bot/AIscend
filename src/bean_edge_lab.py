@@ -33,7 +33,7 @@ def normalize(raw):
             raise ValueError("INVALID_CANDLE") from exc
         if (ts % BAR or (last is not None and ts != last + BAR) or
                 not all(math.isfinite(x) for x in (o, c, v)) or
-                min(o, c) <= 0 or v < 0):
+                min(o, c) <= 0 or v <= 0):
             raise ValueError("INVALID_OR_MISSING_CANDLE")
         row.update(ts=ts, open=o, close=c, volume=v)
         last = ts
