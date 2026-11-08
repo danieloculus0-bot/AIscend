@@ -57,6 +57,17 @@ class OpportunityTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "INVALID_OR_MISSING_CANDLE"):
             lab.experiment(raw)
 
+    def test_zero_volume_candle_fails_closed_before_paper_fills(self):
+        raw = candles()
+        raw[225*lab.BAR]["volume"] = 0
+        with self.assertRaisesRegex(ValueError, "INVALID_OR_MISSING_CANDLE"):
+            lab.experiment(raw)
+
+        raw = candles()
+        raw[225*lab.BAR]["volume"] = -1
+        with self.assertRaisesRegex(ValueError, "INVALID_OR_MISSING_CANDLE"):
+            lab.experiment(raw)
+
     def test_non_overlapping_maturity_and_cost_math(self):
         rows = lab.normalize(candles())
         samples = lab.matured_samples(rows, 200, hold_bars=8)
