@@ -68,6 +68,29 @@ class OpportunityTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "INVALID_OR_MISSING_CANDLE"):
             lab.experiment(raw)
 
+    def test_passive_comparator_uses_terminal_open_not_unfilled_close(self):
+        raw = candles()
+        report = lab.experiment(raw)
+        rows = lab.normalize(raw)
+        start = int(len(rows) * .65)
+        side = lab.side_cost()
+        expected = (rows[-1]["open"] / rows[start+2]["open"]
+                    * (1-side)**2 - 1)
+        self.assertAlmostEqual(report["passive_fee_net_return"], expected)
+
+        # A close spike in the final bar is not an executable open fill.
+        raw[(len(rows)-1)*lab.BAR]["close"] *= 10
+        changed = lab.experiment(raw)
+        self.assertAlmostEqual(changed["passive_fee_net_return"], expected)
+        self.assertAlmostEqual(changed["fee_net_return"], report["fee_net_return"])
+
+    def test_passive_comparator_counts_both_sides_of_cost(self):
+        raw = candles(per_bar=0)
+        report = lab.experiment(raw)
+        self.assertAlmostEqual(report["passive_fee_net_return"],
+                               (1-lab.side_cost())**2-1)
+        self.assertEqual(report["cash_return"], 0.)
+
     def test_non_overlapping_maturity_and_cost_math(self):
         rows = lab.normalize(candles())
         samples = lab.matured_samples(rows, 200, hold_bars=8)
