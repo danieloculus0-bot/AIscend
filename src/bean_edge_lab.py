@@ -169,7 +169,9 @@ def experiment(raw, *, hold_bars=DEFAULT_HOLD_BARS, fee_bps=DEFAULT_FEE_BPS,
             abstentions += 1
     if quantity or pending or any("exit_ts" not in t for t in trades):
         raise AssertionError("An unfinished paper position escaped the evaluation boundary")
-    baseline = rows[end-1]["close"]/rows[start+2]["open"]*(1-side)**2-1
+    # Both arms use the same last-bar OPEN liquidation boundary. The final
+    # close is not an executable next-open fill inside this evaluation window.
+    baseline = rows[end-1]["open"]/rows[start+2]["open"]*(1-side)**2-1
     net = cash-1
     return {"schema": "aiscend.bean.edge_lab.v1",
             "study_type": "REUSED_HISTORICAL_DEVELOPMENT_NOT_FRESH_OOS",
