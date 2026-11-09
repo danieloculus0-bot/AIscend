@@ -20,6 +20,7 @@ jobs:
       - name: Checkout AIscend proposed revision
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Checkout pinned separate BEAN Core
         uses: actions/checkout@v4
