@@ -112,3 +112,133 @@ def observation(market, i, position):
         vector.extend(((current-logs[-5])*10, (current-logs[0])*4, volatility*20))
     vector.extend((float(position is None),float(position == 0),float(position == 1)))
     return [max(-5.,min(5.,float(x))) for x in vector]
+
+def net_liquidation(cash, quantity, position, closes, cost=COST):
+    value = cash if position is None else cash + quantity*closes[position]*(1-cost)
+    if not math.isfinite(value) or value <= 0:
+        raise ValueError("INVALID_NAV")
+    return value
+
+
+def step(market, i, position, cash, quantity, action, *, cost=COST):
+    """Causal executed target at i+2 open, scored only after i+H close.
+
+    Rejected/insufficient-liquidity fill leaves original inventory unchanged;
+    never invent a completed sale. Returns an auditable transition receipt.
+    """
+    if type(action) is not int or not 0 <= action < len(ACTIONS):
+        raise ValueError("INVALID_ACTION")
+    if i < LOOKBACK or i+HORIZON >= len(market["times"]):
+        raise ValueError("UNMATURED_STEP")
+    if not 0 <= cost < .5 or not all(math.isfinite(x) for x in (cash,quantity,cost)) or min(cash,quantity) < 0:
+        raise ValueError("INVALID_ACCOUNT")
+    before = net_liquidation(cash,quantity,position,[close(market,a,i) for a in range(2)],cost)
+    prior_position = position
+    ranks = targets(market,i)
+    target = ranks[action]
+    fill_at = i+DELAY
+    fills = []
+    rejected = None
+    if target != position:
+        # Preflight *both* legs atomically: do not sell an incumbent unless its
+        # replacement can also be bought with modeled candle participation.
+        sell = None
+        if position is not None:
+            sell = market["bars"][position][fill_at]
+            if quantity > sell[4]*PARTICIPATION:
+                rejected = "SELL_CAPACITY"
+        proceeds = cash + (quantity*sell[0]*(1-cost) if sell else 0)
+        candidate_qty = 0.
+        if target is not None:
+            buy = market["bars"][target][fill_at]
+            candidate_qty = proceeds*(1-cost)/buy[0]
+            if not math.isfinite(candidate_qty) or candidate_qty <= 0 or candidate_qty > buy[4]*PARTICIPATION:
+                rejected = rejected or "BUY_CAPACITY"
+        if not math.isfinite(proceeds) or proceeds <= 0:
+            rejected = rejected or "NONFINITE_SETTLEMENT"
+        if rejected is None:
+            if position is not None:
+                fills.append({"side":"sell","asset":position,"price":sell[0],"quantity":quantity})
+            if target is not None:
+                fills.append({"side":"buy","asset":target,"price":market["bars"][target][fill_at][0],"quantity":candidate_qty})
+                cash, quantity, position = 0., candidate_qty, target
+            else:
+                cash, quantity, position = proceeds, 0., None
+    after = net_liquidation(cash,quantity,position,[close(market,a,i+HORIZON) for a in range(2)],cost)
+    reward = 100*math.log(after/before)
+    if not math.isfinite(reward):
+        raise ValueError("NONFINITE_REWARD")
+    behavior = ("UNFILLED" if rejected else
+                "ABSTAIN" if target == prior_position and prior_position is None else
+                "HOLD" if target == prior_position else
+                "DEFEND" if target is None else
+                "REENTER" if prior_position is None else "ROTATE")
+    event = {"signal_ts":market["times"][i]+BAR,
+             "feature_sha256":sha(observation(market,i,prior_position)),
+             "ranked_target_assets":list(ranks),
+             "entry_ts":market["times"][fill_at],
+             "matured_ts":market["times"][i+HORIZON]+BAR,
+             "action":ACTIONS[action],"behavior":behavior,
+             "requested_target":target,"position":position,
+             "fills":fills,"unfilled_reason":rejected,
+             "nav_before":before,"nav_after":after,"reward":reward}
+    if not event["signal_ts"] < event["entry_ts"] < event["matured_ts"]:
+        raise AssertionError("CAUSAL_TIMING")
+    return position,cash,quantity,event
+
+
+def rollout(market, begin, end, chooser, *, learn=None):
+    position,cash,quantity = None,1000.,0.
+    events=[];nav=[cash]
+    for i in range(begin,end-HORIZON,HORIZON):
+        before = observation(market,i,position)
+        a=chooser(before,position,i)
+        position,cash,quantity,event=step(market,i,position,cash,quantity,a)
+        if learn is not None and event["unfilled_reason"] is None:
+            # The agent receives its reward only AFTER the causal outcome matures.
+            # Terminal training windows do not bootstrap into an unobserved episode.
+            done = i + 2*HORIZON >= end
+            learn(before,a,event["reward"],observation(market,i+HORIZON,position),done)
+        events.append(event);nav.append(event["nav_after"])
+    peak = nav[0]
+    drawdown = 0.
+    for v in nav:
+        peak=max(peak,v)
+        drawdown=max(drawdown,1-v/peak)
+    return {"net_return":nav[-1]/nav[0]-1,"max_drawdown":drawdown,
+            "periods":len(events),"unfilled":sum(bool(e["unfilled_reason"]) for e in events),
+            "events":events,"event_sha256":sha(events),"final_nav":nav[-1],
+            "period_log_returns":[math.log(e["nav_after"]/e["nav_before"]) for e in events]}
+
+
+def fixed(market,name):
+    def choose(_vector,position,i):
+        ranks=targets(market,i)
+        if name=="cash":return 0
+        if name=="buy_hold_first":return ranks.index(0)
+        if name=="leader":return 1
+        if name=="trend_exit":return 1 if math.log(close(market,ranks[1],i)/close(market,ranks[1],i-16))>0 else 0
+        raise ValueError("UNKNOWN_CONTROL")
+    return choose
+
+
+def core_learner(core_dir,seed):
+    """No fallback: import ONLY an exact pinned, separate BEAN Git checkout."""
+    root=Path(core_dir).expanduser().resolve()
+    if not (root/".git").exists():
+        raise ValueError("SEPARATE_BEAN_GIT_CHECKOUT_REQUIRED")
+    actual=subprocess.check_output(["git","-C",str(root),"rev-parse","HEAD"],text=True).strip()
+    if actual!=CORE_REVISION:
+        raise ValueError("UNPINNED_BEAN_CORE")
+    file=root/"bean/optimization/sponge_dqn.py"
+    blob=subprocess.check_output(["git","-C",str(root),"hash-object",str(file)],text=True).strip()
+    if blob!=CORE_BLOB:
+        raise ValueError("MODIFIED_BEAN_LEARNER")
+    if str(root) not in sys.path:sys.path.insert(0,str(root))
+    import torch
+    torch.set_num_threads(1)
+    torch.use_deterministic_algorithms(True)
+    from bean.optimization import sponge_dqn
+    if not Path(sponge_dqn.__file__).resolve().is_relative_to(root):
+        raise ValueError("BEAN_IMPORT_FROM_WRONG_CHECKOUT")
+    return sponge_dqn.SpongeDQN(seed=seed,observation_size=9,actions=ACTIONS,
