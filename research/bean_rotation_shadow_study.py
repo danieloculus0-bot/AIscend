@@ -113,6 +113,7 @@ def observation(market, i, position):
     vector.extend((float(position is None),float(position == 0),float(position == 1)))
     return [max(-5.,min(5.,float(x))) for x in vector]
 
+
 def net_liquidation(cash, quantity, position, closes, cost=COST):
     value = cash if position is None else cash + quantity*closes[position]*(1-cost)
     if not math.isfinite(value) or value <= 0:
