@@ -242,3 +242,148 @@ def core_learner(core_dir,seed):
     if not Path(sponge_dqn.__file__).resolve().is_relative_to(root):
         raise ValueError("BEAN_IMPORT_FROM_WRONG_CHECKOUT")
     return sponge_dqn.SpongeDQN(seed=seed,observation_size=9,actions=ACTIONS,
+                                domain="aiscend.shadow.rotation.v1",batch_size=16,
+                                replay_capacity=2048,warmup=32,learn_every=1,
+                                target_sync=100,gamma=.95,lr=.0005)
+
+
+def synthetic_fixture(seed=83,count=1400):
+    """Synthetic scenarios, not sampled or representative real market history."""
+    rng=random.Random(seed)
+    prices=[100.,100.]
+    out=[]
+    for t in range(count):
+        for a in (0,1):
+            # Switches, crashes and recoveries make a deliberately contrived curriculum.
+            phase=(t//175)%4
+            drift=((.007,-.002),(-.003,.008),(-.008,-.012),(.004,.007))[phase][a]
+            change=drift+rng.gauss(0,.016)
+            opening=prices[a]
+            closing=opening*math.exp(change)
+            high=max(opening,closing)*1.003
+            low=min(opening,closing)*.997
+            out.append({"symbol":("ALPHA-USD","BETA-USD")[a],"open_time":BAR*t,
+                        "open":opening,"high":high,"low":low,"close":closing,"volume":50000.})
+            prices[a]=closing
+    return out
+
+
+def block_interval(period_logs, *, seed, block=4, repeats=500):
+    """Synthetic/development diagnostic ONLY: dependent, tiny window bootstrap."""
+    if not period_logs:
+        raise ValueError("NO_EVAL_PERIODS")
+    blocks=[period_logs[i:i+block] for i in range(0,len(period_logs),block)]
+    rng=random.Random(seed)
+    estimates=sorted(math.expm1(math.fsum(x for k in range(len(blocks))
+                        for x in blocks[rng.randrange(len(blocks))]))
+                     for _ in range(repeats))
+    return {"low":estimates[int(.05*repeats)],"high":estimates[int(.95*repeats)],
+            "blocks":len(blocks),"diagnostic_only":True}
+
+
+def train(core_dir,market,output,*,seeds=(7,41),epochs=4):
+    """Experimental learning, no promotion. Only past matured decisions train.
+
+    All arms share the same observation, decision cadence, price path and costs.
+    Evaluation begins after the last training outcome. No holdout feedback.
+    """
+    output=Path(output)
+    if output.exists():
+        raise FileExistsError("EXPERIMENT_OUTPUT_MUST_BE_NEW")
+    output.mkdir(parents=True)
+    cutoff=(int(len(market["times"])*.70)//HORIZON)*HORIZON
+    begin=((LOOKBACK+HORIZON-1)//HORIZON)*HORIZON
+    if cutoff-begin < 20*HORIZON or len(market["times"])-cutoff < 10*HORIZON:
+        raise ValueError("INSUFFICIENT_WINDOWS")
+    protocol={"schema":SCHEMA,"assets":market["symbols"],
+              "source_sha256":market["source_sha256"],"core_revision":CORE_REVISION,
+              "core_file_git_blob":CORE_BLOB,"actions":list(ACTIONS),
+              "first_eval_index":cutoff,"training_last_outcome_index":cutoff,
+              "execution_delay_bars":DELAY,"horizon_bars":HORIZON,
+              "cost_per_side":COST,"fee_bps_per_side":90,"spread_bps_round_trip":10,
+              "participation_limit":PARTICIPATION,
+              "seeds":list(seeds),"epochs":epochs,"not_fresh_real_market_oos":True,
+              "live_orders":False,"promotion_authorized":False}
+    protocol["protocol_sha256"]=sha(protocol)
+    (output/"protocol.json").write_text(canonical(protocol)+"\n")
+    controls={n:rollout(market,cutoff,len(market["times"]),fixed(market,n))
+              for n in ("cash","buy_hold_first","leader","trend_exit")}
+    results=[]
+    for seed in seeds:
+        model=core_learner(core_dir,seed)
+        initial=model.weights_digest()
+        unique=(cutoff-begin-HORIZON)//HORIZON+1
+        training_events=[]
+        for epoch in range(epochs):
+            # Repetition trains the same finite history, not independent examples.
+            trial=rollout(market,begin,cutoff,
+                    lambda state,pos,i:model.choose(state,epsilon=.16),
+                    learn=lambda s,a,r,n,d:model.observe(s,a,r,n,d))
+            if trial["unfilled"]:
+                raise ValueError("UNEQUAL_BUDGET_UNFILLED_TRAINING")
+            for event in trial["events"]:
+                training_events.append({"seed":seed,"epoch":epoch,**event})
+        with (output/f"seed-{seed}.training_events.jsonl.gz").open("wb") as raw:
+            with gzip.GzipFile(filename="",mode="wb",fileobj=raw,mtime=0) as zipped:
+                for event in training_events:zipped.write((canonical(event)+"\n").encode())
+        status={"seed":seed,"unique_training_decision_windows":unique,
+                "training_passes":epochs,"training_frames":model.frames,
+                "gradient_updates":model.updates,
+                "weights_sha256_before":initial,
+                "weights_sha256_after":model.weights_digest()}
+        if not model.updates or initial==status["weights_sha256_after"]:
+            raise AssertionError("NO_REAL_CORE_WEIGHT_UPDATES")
+        result=rollout(market,cutoff,len(market["times"]),
+                       lambda s,p,i:model.choose(s,epsilon=0.))
+        status["evaluation"]=result
+        untouched=core_learner(core_dir,seed)
+        if untouched.weights_digest()!=initial:
+            raise AssertionError("UNTRAINED_CONTROL_CHANGED")
+        status["untrained_evaluation"]=rollout(market,cutoff,len(market["times"]),
+                                                lambda s,p,i:untouched.choose(s,epsilon=0.))
+        state=model.training_state()
+        restored=type(model).from_training_state(state)
+        if restored.weights_digest()!=model.weights_digest():
+            raise AssertionError("BEAN_CHECKPOINT_WEIGHT_MISMATCH")
+        repeated=rollout(market,cutoff,len(market["times"]),
+                         lambda s,p,i:restored.choose(s,epsilon=0.))
+        if repeated["event_sha256"] != result["event_sha256"]:
+            raise AssertionError("BEAN_CHECKPOINT_REPLAY_MISMATCH")
+        status["checkpoint_replay_verified"]=True
+        status["diagnostic_bootstrap_90pct"] = block_interval(
+            result["period_log_returns"],seed=seed)
+        status["excess_vs_cash"] = result["net_return"] - controls["cash"]["net_return"]
+        status["excess_vs_buy_hold"] = result["net_return"] - controls["buy_hold_first"]["net_return"]
+        with (output/f"seed-{seed}.training_state.json.gz").open("wb") as raw:
+            with gzip.GzipFile(filename="",mode="wb",fileobj=raw,mtime=0) as zipped:
+                zipped.write(canonical(state).encode())
+        status["checkpoint_sha256"]=hashlib.sha256((output/f"seed-{seed}.training_state.json.gz").read_bytes()).hexdigest()
+        results.append(status)
+    if len({x["training_frames"] for x in results})>1:
+        raise ValueError("UNEQUAL_LEARNER_SAMPLE_BUDGETS")
+    report={"protocol":protocol,"controls":controls,"learned":results,
+            "result_status":"EXPERIMENTAL_SYNTHETIC_NO_PROFITABILITY_CLAIM",
+            "train_heldout_leakage":False,"promotion_authorized":False,"live_orders":False}
+    (output/"results.json").write_text(canonical(report)+"\n")
+    return report
+
+
+def main(argv=None):
+    p=argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--bean-core",type=Path,required=True)
+    p.add_argument("--output",type=Path,required=True)
+    p.add_argument("--source-jsonl",type=Path)
+    p.add_argument("--synthetic-fixture",action="store_true")
+    opts=p.parse_args(argv)
+    if bool(opts.source_jsonl)==bool(opts.synthetic_fixture):
+        p.error("Choose exactly one public JSONL source or synthetic fixture")
+    if opts.synthetic_fixture: rows=synthetic_fixture()
+    else:
+        with opts.source_jsonl.open() as f:rows=[json.loads(line) for line in f if line.strip()]
+    report=train(opts.bean_core,load_bars(rows),opts.output)
+    print(canonical({"protocol_sha256":report["protocol"]["protocol_sha256"],
+                     "learned_returns":[x["evaluation"]["net_return"] for x in report["learned"]],
+                     "cash_return":report["controls"]["cash"]["net_return"],
+                     "promotion_authorized":False,"live_orders":False}))
+
+if __name__=="__main__":main()
