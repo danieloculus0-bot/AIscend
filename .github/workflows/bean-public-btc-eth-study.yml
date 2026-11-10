@@ -1,0 +1,88 @@
+name: BEAN retrospective public BTC ETH shadow learning (paper only)
+
+on:
+  pull_request:
+    paths:
+      - "research/coinbase_public_paired_sixhour.py"
+      - "research/bean_rotation_shadow_study.py"
+      - "research/BEAN_PUBLIC_HUMAN_STRATEGY_PROTOCOL.md"
+      - "tests/test_coinbase_public_paired_sixhour.py"
+      - "tests/test_bean_rotation_shadow_study.py"
+      - ".github/workflows/bean-public-btc-eth-study.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  historical-public-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout exact AIscend PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Checkout separate pinned BEAN Core
+        uses: actions/checkout@v4
+        with:
+          repository: danieloculus0-bot/BEAN
+          ref: d13ea68fd2d0fd4cd7af1cd297e1fbec75a954fe
+          path: pinned_bean_core
+          persist-credentials: false
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Test public collection and causal BEAN research contracts
+        run: |
+          python -m unittest discover -s tests -p "test_coinbase_public_paired_sixhour.py" -v
+          python -m unittest discover -s tests -p "test_bean_rotation_shadow_study.py" -v
+      - name: Install CPU-only neural Core dependency
+        run: python -m pip install --index-url https://download.pytorch.org/whl/cpu "torch==2.8.0+cpu"
+      - name: Fetch public Coinbase BTC ETH closed six-hour candles
+        run: python -m research.coinbase_public_paired_sixhour --output artifacts/bean-public-btc-eth-source
+      - name: Train real BEAN Core and evaluate unseen-to-gradient historical tail
+        run: |
+          python -m research.bean_rotation_shadow_study \
+            --bean-core pinned_bean_core \
+            --source-jsonl artifacts/bean-public-btc-eth-source/public_btc_eth.jsonl \
+            --source-manifest artifacts/bean-public-btc-eth-source/source_manifest.json \
+            --output artifacts/bean-public-btc-eth-study
+      - name: Verify source, full learner updates and non-promotable evidence
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path("artifacts/bean-public-btc-eth-study")
+          r=json.loads((root/"results.json").read_text())
+          source=json.loads(Path("artifacts/bean-public-btc-eth-source/source_manifest.json").read_text())
+          assert r["result_status"]=="RETROSPECTIVE_PUBLIC_MARKET_NOT_PROSPECTIVE_PROFITABILITY"
+          assert not r["live_orders"] and not r["promotion_authorized"]
+          assert r["protocol"]["source_kind"]=="public_historical"
+          assert r["protocol"]["source_sha256"]==source["rows_sha256"]
+          assert r["protocol"]["first_eval_index"]==r["protocol"]["training_last_outcome_index"]
+          assert source["row_count"]==source["bars_per_product"]*2
+          assert len(r["learned"])==2 and "btc_200d_12m_defensive" in r["controls"]
+          for arm in r["learned"]:
+              assert arm["gradient_updates"]>0 and arm["checkpoint_replay_verified"]
+              assert arm["weights_sha256_after"]!=arm["weights_sha256_before"]
+              assert (root/f"seed-{arm['seed']}.training_events.jsonl.gz").exists()
+          assert len({arm["training_frames"] for arm in r["learned"]})==1
+          print("PUBLIC_RETROSPECTIVE_SOURCE_AND_TRAINING_VERIFIED_NOT_PROSPECTIVE_PROFITABILITY")
+          print(json.dumps({"cash":r["controls"]["cash"]["net_return"],
+                            "btc_buy_hold":r["controls"]["buy_hold_first"]["net_return"],
+                            "btc_defensive":r["controls"]["btc_200d_12m_defensive"]["net_return"],
+                            "trained":[a["evaluation"]["net_return"] for a in r["learned"]]},
+                           sort_keys=True))
+          PY
+      - name: Preserve lawful public source hashes and all study outcomes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bean-public-btc-eth-retrospective-receipts
+          path: |
+            artifacts/bean-public-btc-eth-source/
+            artifacts/bean-public-btc-eth-study/
+          if-no-files-found: warn
