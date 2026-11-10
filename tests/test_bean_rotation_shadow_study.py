@@ -98,6 +98,52 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(r['unfilled'],0)
         self.assertTrue(all(e['behavior']=='ABSTAIN' for e in r['events']))
 
+
+    def test_long_horizon_features_causal_and_present(self):
+        rows=m.synthetic_fixture(count=1720)
+        market=m.load_bars(rows)
+        early=m.observation(market,700,None)
+        self.assertEqual(len(early),15)
+        self.assertEqual(early[-2:],[0.,0.])
+        at=m.observation(market,1500,None)
+        self.assertEqual(at[-2:],[1.,1.])
+        import copy
+        modified=copy.deepcopy(rows)
+        for row in modified:
+            if row['open_time']>1500*m.BAR:
+                row['open']*=3;row['high']*=3;row['low']*=3;row['close']*=3
+        future=m.load_bars(modified)
+        self.assertEqual(at,m.observation(future,1500,None))
+
+    def test_human_defensive_btc_trend_control(self):
+        rows=m.synthetic_fixture(count=1900)
+        for r in rows:
+            if r['symbol']=='ALPHA-USD':
+                r['symbol']='BTC-USD'
+            else:
+                r['symbol']='ETH-USD'
+            if r['symbol']=='BTC-USD':
+                scale=math.exp(-.001*(r['open_time']//m.BAR))
+                r['open']=100.*scale
+                r['close']=r['open']*.999
+                r['high']=r['open']*1.01
+                r['low']=r['close']*.99
+        market=m.load_bars(rows)
+        state=m.observation(market,1650,None)
+        self.assertEqual(len(state),15)
+        self.assertEqual(m.fixed(market,'btc_200d_12m_defensive')(state,None,1650),0)
+        # A years-long recovery must reopen BTC exposure.
+        for r in rows:
+            if r['symbol']=='BTC-USD':
+                scale=math.exp(.001*(r['open_time']//m.BAR))
+                r['open']=100.*scale
+                r['close']=r['open']*1.001
+                r['high']=r['close']*1.01
+                r['low']=r['open']*.99
+        market=m.load_bars(rows)
+        action=m.fixed(market,'btc_200d_12m_defensive')(state,None,1650)
+        self.assertEqual(m.targets(market,1650)[action],market['symbols'].index('BTC-USD'))
+
     def test_wrong_core_checkout_fails_closed(self):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaisesRegex(ValueError,'SEPARATE_BEAN_GIT_CHECKOUT_REQUIRED'):
@@ -108,7 +154,7 @@ class ContractTests(unittest.TestCase):
             def __init__(self,seed):self.seed=seed;self.frames=0;self.updates=0
             def weights_digest(self):return ('0' if self.updates==0 else 'a')*64
             def choose(self,obs,epsilon=0):
-                assert len(obs)==9
+                assert len(obs)==15
                 return 1
             def observe(self,obs,a,r,next_obs,done):
                 assert math.isfinite(r)
