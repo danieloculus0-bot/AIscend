@@ -100,6 +100,20 @@ def targets(market, i):
     return (None, ordered[0][2], ordered[1][2])
 
 
+def long_horizon_regime(market, i, asset):
+    """200-day average gap and 365-day momentum from completed six-hour bars."""
+    if i < 0 or i >= len(market["times"]) or asset not in (0,1):
+        raise ValueError("INVALID_REGIME_OBSERVATION")
+    gap = 0.
+    momentum = 0.
+    if i >= 799:
+        sma = math.fsum(close(market,asset,j) for j in range(i-799,i+1))/800.
+        gap = math.log(close(market,asset,i)/sma)
+    if i >= 1460:
+        momentum = math.log(close(market,asset,i)/close(market,asset,i-1460))
+    return gap,momentum
+
+
 def observation(market, i, position):
     if i < LOOKBACK or i >= len(market["times"]):
         raise ValueError("FEATURE_WINDOW")
@@ -111,6 +125,12 @@ def observation(market, i, position):
         volatility = math.sqrt(math.fsum(x*x for x in step)/len(step))
         vector.extend(((current-logs[-5])*10, (current-logs[0])*4, volatility*20))
     vector.extend((float(position is None),float(position == 0),float(position == 1)))
+    # Human-investor lesson: long-horizon trend persistence and bear markets.
+    # Both signals are computed ONLY from completed bars up through i.
+    for a in range(2):
+        gap, momentum = long_horizon_regime(market, i, a)
+        vector.extend((gap*4, momentum*2))
+    vector.extend((float(i>=799), float(i>=1460)))
     return [max(-5.,min(5.,float(x))) for x in vector]
 
 
@@ -219,6 +239,14 @@ def fixed(market,name):
         if name=="buy_hold_first":return ranks.index(0)
         if name=="leader":return 1
         if name=="trend_exit":return 1 if math.log(close(market,ranks[1],i)/close(market,ranks[1],i-16))>0 else 0
+        if name=="btc_200d_12m_defensive":
+            if "BTC-USD" not in market["symbols"]:
+                raise ValueError("BTC_CONTROL_REQUIRES_BTC")
+            if i < 1460:
+                return 0  # no invented prehistory
+            btc = market["symbols"].index("BTC-USD")
+            gap,momentum = long_horizon_regime(market,i,btc)
+            return 0 if gap < 0 and momentum < 0 else ranks.index(btc)
         raise ValueError("UNKNOWN_CONTROL")
     return choose
 
@@ -242,7 +270,7 @@ def core_learner(core_dir,seed):
     from bean.optimization import sponge_dqn
     if not Path(sponge_dqn.__file__).resolve().is_relative_to(root):
         raise ValueError("BEAN_IMPORT_FROM_WRONG_CHECKOUT")
-    return sponge_dqn.SpongeDQN(seed=seed,observation_size=9,actions=ACTIONS,
+    return sponge_dqn.SpongeDQN(seed=seed,observation_size=15,actions=ACTIONS,
                                 domain="aiscend.shadow.rotation.v1",batch_size=16,
                                 replay_capacity=2048,warmup=32,learn_every=1,
                                 target_sync=100,gamma=.95,lr=.0005)
@@ -282,12 +310,16 @@ def block_interval(period_logs, *, seed, block=4, repeats=500):
             "blocks":len(blocks),"diagnostic_only":True}
 
 
-def train(core_dir,market,output,*,seeds=(7,41),epochs=4):
+def train(core_dir,market,output,*,seeds=(7,41),epochs=4,source_kind="synthetic"):
     """Experimental learning, no promotion. Only past matured decisions train.
 
     All arms share the same observation, decision cadence, price path and costs.
     Evaluation begins after the last training outcome. No holdout feedback.
     """
+    if source_kind not in ("synthetic","public_historical"):
+        raise ValueError("INVALID_SOURCE_KIND")
+    if source_kind=="public_historical" and market["symbols"]!=["BTC-USD","ETH-USD"]:
+        raise ValueError("WRONG_PUBLIC_MARKET_PAIR")
     output=Path(output)
     if output.exists():
         raise FileExistsError("EXPERIMENT_OUTPUT_MUST_BE_NEW")
@@ -303,12 +335,14 @@ def train(core_dir,market,output,*,seeds=(7,41),epochs=4):
               "execution_delay_bars":DELAY,"horizon_bars":HORIZON,
               "cost_per_side":COST,"fee_bps_per_side":90,"spread_bps_round_trip":10,
               "participation_limit":PARTICIPATION,
-              "seeds":list(seeds),"epochs":epochs,"not_fresh_real_market_oos":True,
+              "seeds":list(seeds),"epochs":epochs,"source_kind":source_kind,
+              "not_fresh_real_market_oos":True,
               "live_orders":False,"promotion_authorized":False}
     protocol["protocol_sha256"]=sha(protocol)
     (output/"protocol.json").write_text(canonical(protocol)+"\n")
     controls={n:rollout(market,cutoff,len(market["times"]),fixed(market,n))
-              for n in ("cash","buy_hold_first","leader","trend_exit")}
+              for n in ("cash","buy_hold_first","leader","trend_exit")+
+              (("btc_200d_12m_defensive",) if "BTC-USD" in market["symbols"] else ())}
     results=[]
     for seed in seeds:
         model=core_learner(core_dir,seed)
@@ -363,7 +397,9 @@ def train(core_dir,market,output,*,seeds=(7,41),epochs=4):
     if len({x["training_frames"] for x in results})>1:
         raise ValueError("UNEQUAL_LEARNER_SAMPLE_BUDGETS")
     report={"protocol":protocol,"controls":controls,"learned":results,
-            "result_status":"EXPERIMENTAL_SYNTHETIC_NO_PROFITABILITY_CLAIM",
+            "result_status":("EXPERIMENTAL_SYNTHETIC_NO_PROFITABILITY_CLAIM"
+                             if source_kind=="synthetic" else
+                             "RETROSPECTIVE_PUBLIC_MARKET_NOT_PROSPECTIVE_PROFITABILITY"),
             "train_heldout_leakage":False,"promotion_authorized":False,"live_orders":False}
     (output/"results.json").write_text(canonical(report)+"\n")
     return report
@@ -374,14 +410,28 @@ def main(argv=None):
     p.add_argument("--bean-core",type=Path,required=True)
     p.add_argument("--output",type=Path,required=True)
     p.add_argument("--source-jsonl",type=Path)
+    p.add_argument("--source-manifest",type=Path)
     p.add_argument("--synthetic-fixture",action="store_true")
     opts=p.parse_args(argv)
     if bool(opts.source_jsonl)==bool(opts.synthetic_fixture):
         p.error("Choose exactly one public JSONL source or synthetic fixture")
-    if opts.synthetic_fixture: rows=synthetic_fixture()
+    if opts.synthetic_fixture:
+        if opts.source_manifest is not None:p.error("Synthetic fixture cannot have a public source manifest")
+        rows=synthetic_fixture()
+        kind="synthetic"
     else:
+        if opts.source_manifest is None:p.error("Public source requires its immutable manifest")
         with opts.source_jsonl.open() as f:rows=[json.loads(line) for line in f if line.strip()]
-    report=train(opts.bean_core,load_bars(rows),opts.output)
+        from research.coinbase_public_paired_sixhour import START,END,PRODUCTS,digest
+        manifest=json.loads(opts.source_manifest.read_text())
+        if (manifest.get("schema")!="aiscend.public_coinbase.sixhour.snapshot.v1" or
+                manifest.get("products")!=list(PRODUCTS) or
+                manifest.get("start")!=START or manifest.get("end_exclusive")!=END or
+                manifest.get("rows_sha256")!=digest(rows) or
+                manifest.get("manifest_sha256")!=digest({k:v for k,v in manifest.items() if k!="manifest_sha256"})):
+            raise ValueError("MISMATCHED_PUBLIC_SOURCE_MANIFEST")
+        kind="public_historical"
+    report=train(opts.bean_core,load_bars(rows),opts.output,source_kind=kind)
     print(canonical({"protocol_sha256":report["protocol"]["protocol_sha256"],
                      "learned_returns":[x["evaluation"]["net_return"] for x in report["learned"]],
                      "cash_return":report["controls"]["cash"]["net_return"],
