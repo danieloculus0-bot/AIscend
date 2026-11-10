@@ -1,0 +1,105 @@
+{
+  "as_of_unix": 1794352394,
+  "event_count": 534,
+  "funded_orders": false,
+  "ledger_tip": "e4d47eb7b2ed3c294abbdbd7d23d90f59e3e420e982c9d50c933cc3f9d786dee",
+  "limitations": "Public completed candles and hypothetical next-open orders; no actual Coinbase fills or forward profit claim.",
+  "manifest_sha": "8700c2a853cecac6c0ca267e4bc4acd605b56cacb600ac9609d7585684b9d868",
+  "markets": {
+    "BIRB-USD": {
+      "buy_hold_net": 0.03705849,
+      "fee_net_paper_return": -0.05925235,
+      "forward_bars": 64,
+      "max_drawdown": 0.23202915,
+      "orders": 4,
+      "pending": {
+        "context": "down/volatile",
+        "entry_ts": 1794333600,
+        "observed_cutoff": 1794312000,
+        "selected_at": 1794322002.9446712,
+        "target": 1
+      },
+      "promotion_authorized": false,
+      "q_updates": 29,
+      "roundtrips": 2,
+      "status": "COLLECTING"
+    },
+    "GWEI-USD": {
+      "buy_hold_net": -0.19243655,
+      "fee_net_paper_return": 0.00194826,
+      "forward_bars": 64,
+      "max_drawdown": 0.20660043,
+      "orders": 7,
+      "pending": {
+        "context": "down/volatile",
+        "entry_ts": 1794333600,
+        "observed_cutoff": 1794312000,
+        "selected_at": 1794322003.1686013,
+        "target": 1
+      },
+      "promotion_authorized": false,
+      "q_updates": 29,
+      "roundtrips": 3,
+      "status": "COLLECTING"
+    },
+    "MPLX-USD": {
+      "buy_hold_net": 0.20461968,
+      "fee_net_paper_return": 0.05059029,
+      "forward_bars": 64,
+      "max_drawdown": 0.12914228,
+      "orders": 4,
+      "pending": {
+        "context": null,
+        "entry_ts": 1794333600,
+        "observed_cutoff": 1794312000,
+        "selected_at": 1794322003.31046,
+        "target": 0
+      },
+      "promotion_authorized": false,
+      "q_updates": 0,
+      "roundtrips": 2,
+      "status": "COLLECTING"
+    },
+    "PEPE-USD": {
+      "buy_hold_net": 0.17775527,
+      "fee_net_paper_return": 0.0,
+      "forward_bars": 64,
+      "max_drawdown": 0.0,
+      "orders": 0,
+      "pending": {
+        "context": null,
+        "entry_ts": 1794333600,
+        "observed_cutoff": 1794312000,
+        "selected_at": 1794322003.4687965,
+        "target": 1
+      },
+      "promotion_authorized": false,
+      "q_updates": 0,
+      "roundtrips": 0,
+      "status": "COLLECTING"
+    },
+    "SHDW-USD": {
+      "buy_hold_net": -0.17898237,
+      "fee_net_paper_return": 0.0,
+      "forward_bars": 64,
+      "max_drawdown": 0.0,
+      "orders": 0,
+      "pending": {
+        "context": null,
+        "entry_ts": 1794333600,
+        "observed_cutoff": 1794312000,
+        "selected_at": 1794322003.5819159,
+        "target": 0
+      },
+      "promotion_authorized": false,
+      "q_updates": 0,
+      "roundtrips": 0,
+      "status": "COLLECTING"
+    }
+  },
+  "promotion_authorized": false,
+  "run_key": "42921402141-1",
+  "schema": "aiscend.bean.hosted.public.paper.v1",
+  "source_sha256": "0781aa210a799e11e92e1ddf8ba671dcdbc8c2ebc1cc8f644a92e317577ee30e",
+  "sqlite_backup_sha256": "d06b392c0dedb6ad103987c3b5361140bcbff0aa528b01843684547d74bc0683"
+}
