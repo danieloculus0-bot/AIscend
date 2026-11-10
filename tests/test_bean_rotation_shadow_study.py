@@ -147,10 +147,11 @@ class ContractTests(unittest.TestCase):
 
     def test_mentor_rejected_for_unqualified_synthetic_run(self):
         with tempfile.TemporaryDirectory() as tmp:
-            with self.assertRaisesRegex(ValueError,"MENTOR_REQUIRES_EXACT_PUBLIC"):
-                m.train("no-core",self.market,Path(tmp)/"not_created",
-                        training_policy="mentor")
-            self.assertFalse((Path(tmp)/"not_created").exists())
+            for mode in ("mentor","shuffled_mentor","mentor_bc","shuffled_mentor_bc"):
+                with self.subTest(mode=mode),self.assertRaisesRegex(ValueError,"MENTOR_REQUIRES_EXACT_PUBLIC"):
+                    m.train("no-core",self.market,Path(tmp)/"not_created",
+                            training_policy=mode)
+                self.assertFalse((Path(tmp)/"not_created").exists())
 
     def test_teacher_decisions_train_real_interface_without_future_labels(self):
         # TEST DOUBLE ONLY. Actual BEAN Core is separately checked in GitHub CI.
