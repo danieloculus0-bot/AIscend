@@ -1,0 +1,109 @@
+name: BEAN behavior cloning of historical BTC defensive expert (paper only)
+
+on:
+  pull_request:
+    paths:
+      - "research/bean_rotation_shadow_study.py"
+      - "research/BEAN_BTC_BEHAVIOR_CLONING_PROTOCOL.md"
+      - "tests/test_bean_rotation_shadow_study.py"
+      - ".github/workflows/bean-btc-behavior-cloning.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  actual-core-supervised-training:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: danieloculus0-bot/BEAN
+          ref: d13ea68fd2d0fd4cd7af1cd297e1fbec75a954fe
+          path: pinned_bean_core
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Offline source and causal no-account tests
+        run: |
+          python -m unittest discover -s tests -p "test_coinbase_public_paired_sixhour.py" -v
+          python -m unittest discover -s tests -p "test_bean_rotation_shadow_study.py" -v
+      - name: Real BEAN Core CPU dependency
+        run: python -m pip install --index-url https://download.pytorch.org/whl/cpu "torch==2.8.0+cpu"
+      - name: Lock exact already-inspected public research source
+        run: |
+          python -m research.coinbase_public_paired_sixhour --output artifacts/clone-source
+          python - <<'PY'
+          import json
+          m=json.load(open("artifacts/clone-source/source_manifest.json"))
+          assert m["rows_sha256"]=="6600af461bada8b7e345353b3db9399fab1d66e262fbbe00a0f9d6defbf4e963"
+          assert m["row_count"]==8280
+          print("FROZEN_PUBLIC_RESEARCH_VINTAGE_VERIFIED")
+          PY
+      - name: Self-exploring DQN equal-budget control
+        run: |
+          python -m research.bean_rotation_shadow_study --bean-core pinned_bean_core \
+            --source-jsonl artifacts/clone-source/public_btc_eth.jsonl \
+            --source-manifest artifacts/clone-source/source_manifest.json \
+            --training-policy self --output artifacts/clone-self
+      - name: Genuine Core neural supervised imitation of historical BTC expert
+        run: |
+          python -m research.bean_rotation_shadow_study --bean-core pinned_bean_core \
+            --source-jsonl artifacts/clone-source/public_btc_eth.jsonl \
+            --source-manifest artifacts/clone-source/source_manifest.json \
+            --training-policy mentor_bc --output artifacts/clone-mentor
+      - name: Same-budget shifted expert-label placebo imitation
+        run: |
+          python -m research.bean_rotation_shadow_study --bean-core pinned_bean_core \
+            --source-jsonl artifacts/clone-source/public_btc_eth.jsonl \
+            --source-manifest artifacts/clone-source/source_manifest.json \
+            --training-policy shuffled_mentor_bc --output artifacts/clone-placebo
+      - name: Verify equal training budgets and preserve every loser
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          models={}
+          for mode,dirname in (("self","clone-self"),("mentor_bc","clone-mentor"),("shuffled_mentor_bc","clone-placebo")):
+              folder=Path("artifacts")/dirname
+              report=json.loads((folder/"results.json").read_text())
+              assert report["protocol"]["training_policy"]==mode
+              assert report["protocol"]["source_sha256"]=="6600af461bada8b7e345353b3db9399fab1d66e262fbbe00a0f9d6defbf4e963"
+              assert report["result_status"]=="RETROSPECTIVE_PUBLIC_MARKET_NOT_PROSPECTIVE_PROFITABILITY"
+              assert not report["live_orders"] and not report["promotion_authorized"]
+              assert len(report["learned"])==2
+              models[mode]=report
+          assert models["self"]["controls"]==models["mentor_bc"]["controls"]==models["shuffled_mentor_bc"]["controls"]
+          for seed in (7,41):
+              arms=[next(x for x in result["learned"] if x["seed"]==seed) for result in models.values()]
+              assert len({(x["training_frames"],x["gradient_updates"],x["unique_training_decision_windows"]) for x in arms})==1
+              for arm in arms:
+                  assert arm["checkpoint_replay_verified"]
+                  assert arm["weights_sha256_before"]!=arm["weights_sha256_after"]
+                  assert arm["gradient_updates"]>0
+                  assert 0<=arm["historical_expert_action_agreement"]<=1
+          print("TRUE_BEAN_CORE_BEHAVIOR_CLONING_VERIFIED_RETROSPECTIVE_ONLY")
+          print(json.dumps({"cash":models["self"]["controls"]["cash"]["net_return"],
+                            "fixed_expert":models["self"]["controls"]["btc_200d_12m_defensive"]["net_return"],
+                            "arms":{key:[{"seed":x["seed"],"net":x["evaluation"]["net_return"],
+                                          "agreement":x["historical_expert_action_agreement"],
+                                          "updates":x["gradient_updates"]} for x in val["learned"]]
+                                    for key,val in models.items()}},sort_keys=True))
+          PY
+      - name: Retain original public data and all frozen learner states and losses
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bean-btc-behavior-cloning-retrospective
+          path: |
+            artifacts/clone-source/
+            artifacts/clone-self/
+            artifacts/clone-mentor/
+            artifacts/clone-placebo/
+          if-no-files-found: warn
