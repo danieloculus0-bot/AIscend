@@ -54,11 +54,19 @@ def snapshot(*,start=START,end=END,fetcher=public_fetch,sleep=time.sleep,now=tim
             if not isinstance(response,list):raise ValueError("INVALID_PUBLIC_RESPONSE")
             requests.append({"product":product,"start":left,"end":right,
                              "raw_response_sha256":digest(response),"count":len(response)})
+            # Coinbase may include a candle at an adjacent request boundary.
+            # Preserve its raw response hash, but never invent it as an in-range row.
+            extras=0
             for bar in response:
                 if not isinstance(bar,list) or len(bar)!=6:raise ValueError("INVALID_PUBLIC_BAR")
                 ts,low,high,opening,closing,volume=bar
-                if type(ts) is not int or not left<=ts<right or ts%BAR:
+                if type(ts) is not int or ts%BAR:
                     raise ValueError("INVALID_TIMESTAMP_OR_CHUNK_BOUNDARY")
+                if not left<=ts<right:
+                    if not left-BAR<=ts<=right:
+                        raise ValueError("PUBLIC_RESPONSE_OUTSIDE_ADJACENT_BOUNDARY")
+                    extras+=1
+                    continue
                 if any(type(v) not in (int,float) or not math.isfinite(v)
                        for v in (low,high,opening,closing,volume)):
                     raise ValueError("NONFINITE_PUBLIC_BAR")
@@ -69,6 +77,7 @@ def snapshot(*,start=START,end=END,fetcher=public_fetch,sleep=time.sleep,now=tim
                 candles[ts]={"symbol":product,"open_time":ts,"open":float(opening),
                              "high":float(high),"low":float(low),
                              "close":float(closing),"volume":float(volume)}
+            requests[-1]["adjacent_boundary_rows_ignored"]=extras
             sleep(.3)
         if set(candles)!=set(range(start,end,BAR)):raise ValueError("MISSING_PUBLIC_CANDLE")
         collected[product]=candles
