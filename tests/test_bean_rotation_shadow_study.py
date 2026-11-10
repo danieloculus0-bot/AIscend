@@ -147,7 +147,7 @@ class ContractTests(unittest.TestCase):
 
     def test_mentor_rejected_for_unqualified_synthetic_run(self):
         with tempfile.TemporaryDirectory() as tmp:
-            for mode in ("mentor","shuffled_mentor","mentor_bc","shuffled_mentor_bc"):
+            for mode in ("mentor","shuffled_mentor","mentor_bc","shuffled_mentor_bc","balanced_mentor_bc","balanced_shuffled_mentor_bc"):
                 with self.subTest(mode=mode),self.assertRaisesRegex(ValueError,"MENTOR_REQUIRES_EXACT_PUBLIC"):
                     m.train("no-core",self.market,Path(tmp)/"not_created",
                             training_policy=mode)
@@ -203,6 +203,40 @@ class ContractTests(unittest.TestCase):
                 self.assertLess(e["entry_ts"],e["matured_ts"])
             self.assertTrue(teacher["learned"][0]["checkpoint_replay_verified"])
             self.assertFalse(teacher["promotion_authorized"])
+
+    def test_balanced_weight_is_development_only_inverse_frequency(self):
+        examples=[([0.],0)]*4+[([1.],1)]*2+[([2.],2)]
+        counts,weights=m.balanced_action_weights(examples)
+        self.assertEqual(counts,[4,2,1])
+        self.assertEqual(len(weights),3)
+        for c,w in zip(counts,weights):
+            self.assertAlmostEqual(c*w,len(examples)/3.)
+        with self.assertRaisesRegex(ValueError,"ABSENT_EXPERT_ACTION_CLASS"):
+            m.balanced_action_weights([([0.],0),([1.],1)])
+        with self.assertRaisesRegex(ValueError,"INVALID_EXPERT_CLASS"):
+            m.balanced_action_weights([([0.],False),([1.],1),([2.],2)])
+
+    def test_cash_only_accuracy_exposed_by_btc_entry_recall(self):
+        # A monotonic rising BTC history ensures the expert has BTC entries.
+        rows=m.synthetic_fixture(count=1850)
+        for r in rows:
+            r["symbol"]={"ALPHA-USD":"BTC-USD","BETA-USD":"ETH-USD"}[r["symbol"]]
+            if r["symbol"]=="BTC-USD":
+                i=r["open_time"]//m.BAR
+                r["open"]=100.*math.exp(i*.0003)
+                r["close"]=r["open"]*1.0003
+                r["high"]=r["close"]*1.001
+                r["low"]=r["open"]*.999
+        market=m.load_bars(rows)
+        cash_events=m.rollout(market,1560,1800,lambda obs,pos,i:0)["events"]
+        d=m.expert_target_diagnostics(market,cash_events)
+        self.assertGreater(d["expert_btc_decisions"],0)
+        self.assertEqual(d["btc_entry_recall"],0.)
+        self.assertIsNone(d["btc_selection_precision"])
+        self.assertEqual(d["cash_only_baseline_agreement"],d["historical_expert_action_agreement"])
+        self.assertEqual(d["target_confusion"]["BTC-USD"]["BTC-USD"],0)
+        self.assertEqual(d["evaluation_decisions"],len(cash_events))
+        self.assertEqual(d["incorrect_eth_rotations"],0)
 
     def test_wrong_core_checkout_fails_closed(self):
         with tempfile.TemporaryDirectory() as d:
