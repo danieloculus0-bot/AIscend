@@ -319,7 +319,7 @@ def train(core_dir,market,output,*,seeds=(7,41),epochs=4,source_kind="synthetic"
     """
     if source_kind not in ("synthetic","public_historical"):
         raise ValueError("INVALID_SOURCE_KIND")
-    if training_policy not in ("self","mentor","shuffled_mentor"):
+    if training_policy not in ("self","mentor","shuffled_mentor","mentor_bc","shuffled_mentor_bc"):
         raise ValueError("INVALID_TRAINING_POLICY")
     if training_policy!="self" and source_kind!="public_historical":
         raise ValueError("MENTOR_REQUIRES_EXACT_PUBLIC_HISTORICAL_SOURCE")
@@ -358,7 +358,7 @@ def train(core_dir,market,output,*,seeds=(7,41),epochs=4,source_kind="synthetic"
         for i in development_indices:
             action=fixed(market,"btc_200d_12m_defensive")(None,None,i)
             targets_for_teacher[i]=targets(market,i)[action]
-        if training_policy=="shuffled_mentor":
+        if training_policy in ("shuffled_mentor","shuffled_mentor_bc"):
             offset=max(1,len(development_indices)//3)
             rotated=[targets_for_teacher[development_indices[(k+offset)%len(development_indices)]]
                      for k in range(len(development_indices))]
@@ -369,24 +369,64 @@ def train(core_dir,market,output,*,seeds=(7,41),epochs=4,source_kind="synthetic"
         initial=model.weights_digest()
         unique=len(development_indices)
         training_events=[]
+        cloning = training_policy in ("mentor_bc","shuffled_mentor_bc")
+        expert_examples=[]
         for epoch in range(epochs):
             # Repetition trains the same finite history, not independent examples.
             def chooser(state,pos,i):
                 if training_policy=="self":
                     return model.choose(state,epsilon=.16)
-                # Translate the frozen dollar/asset target into the *current*
+                # Translate the frozen dollar/asset target into the current
                 # 3-action leader/runner-up vocabulary without aliasing.
                 return targets(market,i).index(targets_for_teacher[i])
-            trial=rollout(market,begin,cutoff,
-                    chooser,learn=lambda s,a,r,n,d:model.observe(s,a,r,n,d))
+            def on_matured(state,action,reward,next_state,done):
+                if cloning:
+                    expert_examples.append((state,action))
+                else:
+                    model.observe(state,action,reward,next_state,done)
+            trial=rollout(market,begin,cutoff,chooser,learn=on_matured)
             if trial["unfilled"]:
                 raise ValueError("UNEQUAL_BUDGET_UNFILLED_TRAINING")
             for event in trial["events"]:
                 training_events.append({"seed":seed,"epoch":epoch,**event})
+        if cloning:
+            # Supervised imitation of observed *past* expert actions, NOT TD
+            # updates. These are the real pinned Core network and optimizer.
+            # Match the original Core RL gradient-step budget exactly.
+            import torch
+            expected_steps=max(0,len(expert_examples)-31)  # Core warmup=32
+            if expected_steps==0:raise ValueError("NO_EXPERT_EXAMPLES")
+            order=list(range(len(expert_examples)))
+            rng=model.rng
+            rng.shuffle(order)
+            cursor=0
+            for k in range(expected_steps):
+                if cursor+16>len(order):
+                    rng.shuffle(order)
+                    cursor=0
+                selected=[expert_examples[n] for n in order[cursor:cursor+16]]
+                cursor+=16
+                xs=torch.tensor([ex[0] for ex in selected],dtype=torch.float32)
+                ys=torch.tensor([ex[1] for ex in selected],dtype=torch.long)
+                logits=model.online(xs)
+                loss=torch.nn.functional.cross_entropy(logits,ys)
+                if not torch.isfinite(loss):
+                    raise ValueError("NONFINITE_SUPERVISED_LOSS")
+                model.optimizer.zero_grad(set_to_none=True)
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.online.parameters(),max_norm=10.0)
+                model.optimizer.step()
+                model.updates+=1  # Count *actual* supervised gradient steps.
+            model.frames=len(expert_examples)
+            model.last_loss=float(loss.detach().item())
+            model.target.load_state_dict(model.online.state_dict())
         with (output/f"seed-{seed}.training_events.jsonl.gz").open("wb") as raw:
             with gzip.GzipFile(filename="",mode="wb",fileobj=raw,mtime=0) as zipped:
                 for event in training_events:zipped.write((canonical(event)+"\n").encode())
         status={"seed":seed,"training_policy":training_policy,
+                "training_algorithm":("BEAN_Core_SpongeDQN_supervised_behavior_cloning"
+                                      if cloning else "BEAN_Core_SpongeDQN_temporal_difference"),
+                "supervised_examples":(len(expert_examples) if cloning else 0),
                 "unique_training_decision_windows":unique,
                 "training_passes":epochs,"training_frames":model.frames,
                 "gradient_updates":model.updates,
@@ -397,6 +437,15 @@ def train(core_dir,market,output,*,seeds=(7,41),epochs=4,source_kind="synthetic"
         result=rollout(market,cutoff,len(market["times"]),
                        lambda s,p,i:model.choose(s,epsilon=0.))
         status["evaluation"]=result
+        if market["symbols"]==["BTC-USD","ETH-USD"]:
+            index_by_ts={t:i for i,t in enumerate(market["times"])}
+            reference=fixed(market,"btc_200d_12m_defensive")
+            matched=0
+            for event in result["events"]:
+                i=index_by_ts[event["signal_ts"]-BAR]
+                expert_target=targets(market,i)[reference(None,None,i)]
+                matched+=event["requested_target"]==expert_target
+            status["historical_expert_action_agreement"]=matched/max(1,len(result["events"]))
         untouched=core_learner(core_dir,seed)
         if untouched.weights_digest()!=initial:
             raise AssertionError("UNTRAINED_CONTROL_CHANGED")
@@ -437,7 +486,7 @@ def main(argv=None):
     p.add_argument("--output",type=Path,required=True)
     p.add_argument("--source-jsonl",type=Path)
     p.add_argument("--source-manifest",type=Path)
-    p.add_argument("--training-policy",choices=("self","mentor","shuffled_mentor"),default="self")
+    p.add_argument("--training-policy",choices=("self","mentor","shuffled_mentor","mentor_bc","shuffled_mentor_bc"),default="self")
     p.add_argument("--synthetic-fixture",action="store_true")
     opts=p.parse_args(argv)
     if bool(opts.source_jsonl)==bool(opts.synthetic_fixture):
