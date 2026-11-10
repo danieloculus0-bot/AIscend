@@ -367,7 +367,7 @@ def train(core_dir,market,output,*,seeds=(7,41),epochs=4,source_kind="synthetic"
     for seed in seeds:
         model=core_learner(core_dir,seed)
         initial=model.weights_digest()
-        unique=(cutoff-begin-HORIZON)//HORIZON+1
+        unique=len(development_indices)
         training_events=[]
         for epoch in range(epochs):
             # Repetition trains the same finite history, not independent examples.
