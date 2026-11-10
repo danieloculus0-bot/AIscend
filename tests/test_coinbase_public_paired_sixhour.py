@@ -8,7 +8,7 @@ from urllib.parse import parse_qs,urlsplit
 from research import coinbase_public_paired_sixhour as c
 
 class TestPublicSnapshot(unittest.TestCase):
-    def fixture(self,missing=False,repeat=False,broken=False):
+    def fixture(self,missing=False,repeat=False,broken=False,boundary=False):
         def getter(url):
             u=urlsplit(url)
             self.assertEqual(u.hostname,"api.exchange.coinbase.com")
@@ -21,6 +21,9 @@ class TestPublicSnapshot(unittest.TestCase):
             if missing and "BTC" in u.path:out.pop()
             if repeat:out.append(out[-1])
             if broken:out[0][0]+=.5
+            if boundary:
+                out.append([t0-c.BAR,98.,103.,100.,101.,50000.])
+                out.append([t1,98.,103.,100.,101.,50000.])
             return out
         return getter
     def kw(self):
@@ -39,6 +42,12 @@ class TestPublicSnapshot(unittest.TestCase):
             self.assertEqual(len((root/"public_btc_eth.jsonl").read_text().splitlines()),24)
             self.assertEqual(json.loads((root/"source_manifest.json").read_text())["rows_sha256"],manifest["rows_sha256"])
             with self.assertRaises(FileExistsError):c.write_snapshot(root,rows,manifest)
+    def test_coinbase_adjacent_boundary_candles_are_audited_not_invented(self):
+        rows,manifest=c.snapshot(fetcher=self.fixture(boundary=True),**self.kw())
+        self.assertEqual(len(rows),24)
+        self.assertEqual([x["adjacent_boundary_rows_ignored"] for x in manifest["requests"]],[2,2])
+        self.assertEqual(set(r["open_time"] for r in rows),set(range(c.START,c.START+12*c.BAR,c.BAR)))
+
     def test_bad_data_fail_closed(self):
         for kind in ("missing","repeat","broken"):
             with self.subTest(kind=kind),self.assertRaises(ValueError):
