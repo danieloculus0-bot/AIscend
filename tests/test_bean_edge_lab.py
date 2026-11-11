@@ -51,11 +51,58 @@ class OpportunityTests(unittest.TestCase):
         self.assertEqual(result["decision"], "CASH")
         self.assertEqual(result["reason"], "INSUFFICIENT_MATURED_EXAMPLES")
 
+    def test_fractional_and_nonfinite_timestamps_fail_closed(self):
+        for bad_ts in (21600.5, 21600.999, float("nan"), float("inf"), True):
+            with self.subTest(timestamp=bad_ts):
+                raw = candles(n=4)
+                raw[lab.BAR]["ts"] = bad_ts
+                with self.assertRaisesRegex(ValueError, "INVALID_TIMESTAMP"):
+                    lab.normalize(raw)
+
+    def test_integer_timestamp_remains_accepted(self):
+        raw = candles(n=4)
+        self.assertEqual([row["ts"] for row in lab.normalize(raw)],
+                         [i * lab.BAR for i in range(4)])
+
     def test_gap_is_not_stitched(self):
         raw = candles()
         del raw[100*lab.BAR]
         with self.assertRaisesRegex(ValueError, "INVALID_OR_MISSING_CANDLE"):
             lab.experiment(raw)
+
+    def test_zero_volume_candle_fails_closed_before_paper_fills(self):
+        raw = candles()
+        raw[225*lab.BAR]["volume"] = 0
+        with self.assertRaisesRegex(ValueError, "INVALID_OR_MISSING_CANDLE"):
+            lab.experiment(raw)
+
+        raw = candles()
+        raw[225*lab.BAR]["volume"] = -1
+        with self.assertRaisesRegex(ValueError, "INVALID_OR_MISSING_CANDLE"):
+            lab.experiment(raw)
+
+    def test_passive_comparator_uses_terminal_open_not_unfilled_close(self):
+        raw = candles()
+        report = lab.experiment(raw)
+        rows = lab.normalize(raw)
+        start = int(len(rows) * .65)
+        side = lab.side_cost()
+        expected = (rows[-1]["open"] / rows[start+2]["open"]
+                    * (1-side)**2 - 1)
+        self.assertAlmostEqual(report["passive_fee_net_return"], expected)
+
+        # A close spike in the final bar is not an executable open fill.
+        raw[(len(rows)-1)*lab.BAR]["close"] *= 10
+        changed = lab.experiment(raw)
+        self.assertAlmostEqual(changed["passive_fee_net_return"], expected)
+        self.assertAlmostEqual(changed["fee_net_return"], report["fee_net_return"])
+
+    def test_passive_comparator_counts_both_sides_of_cost(self):
+        raw = candles(per_bar=0)
+        report = lab.experiment(raw)
+        self.assertAlmostEqual(report["passive_fee_net_return"],
+                               (1-lab.side_cost())**2-1)
+        self.assertEqual(report["cash_return"], 0.)
 
     def test_non_overlapping_maturity_and_cost_math(self):
         rows = lab.normalize(candles())
