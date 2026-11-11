@@ -7,6 +7,7 @@ forward accounting only consumes candles first observed after trial creation.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import hashlib
 import json
 import math
 import sqlite3
@@ -15,9 +16,10 @@ import time
 from pathlib import Path
 from urllib.parse import urlencode, quote
 
+from . import bean_strategy_lab as strategy_lab
 from .bean_strategy_lab import (
-    BASELINE, CAPITAL, COST, HOUR, _choose, _get_json,
-    discover_products, select_markets,
+    BASELINE, CAPITAL, COST, HOUR, MODES, LOOKBACKS, THRESHOLDS,
+    REBALANCES, _choose, _get_json, discover_products, select_markets,
 )
 from .core import app_data_dir
 
@@ -27,6 +29,23 @@ PAPER_MIN_SAMPLES = 288      # at least 24 hours of genuinely forward 5m candles
 MIN_TRADE_COUNT = 2
 MIN_EDGE = 0.02
 MAX_DRAWDOWN = 0.10
+
+
+def _paper_source_sha():
+    """Pin a forward trial to its actual paper and strategy implementation.
+
+    A source change during a trial must not silently combine old and new
+    trading rules into one supposedly prospective performance record.
+    """
+    digest = hashlib.sha256()
+    try:
+        for source in (Path(__file__), Path(strategy_lab.__file__)):
+            payload = source.read_bytes()
+            digest.update(len(payload).to_bytes(8, "big"))
+            digest.update(payload)
+    except OSError as exc:
+        raise RuntimeError("Cannot fingerprint forward paper source") from exc
+    return digest.hexdigest()
 
 
 def fetch_5m(product, start, end):
@@ -138,6 +157,11 @@ class FastPaperBook:
         candidate = report.get("candidate")
         pairs = report.get("pairs")
         if (not isinstance(candidate, list) or len(candidate) != 4 or
+                candidate[0] not in MODES or
+                type(candidate[1]) is not int or candidate[1] not in LOOKBACKS or
+                type(candidate[2]) not in (int, float) or
+                candidate[2] not in THRESHOLDS or
+                type(candidate[3]) is not int or candidate[3] not in REBALANCES or
                 not isinstance(pairs, list) or "BTC-USD" not in pairs or
                 not 1 <= len(pairs) <= 12):
             return False
@@ -145,10 +169,13 @@ class FastPaperBook:
         now = float(self.clock())
         data = {"candidate": candidate, "pairs": pairs,
                 "experiment": selected.get("ordinal"), "last_bar": None,
+                "source_sha": _paper_source_sha(),
                 "pending": None, "pending_recorded_at": None,
+                "signal_queue": [],
                 "held": None, "units": 0.0,
                 "cash": CAPITAL, "equity": CAPITAL, "peak": CAPITAL,
                 "drawdown": 0.0, "orders": 0, "samples": 0,
+                 "evidence_gaps": 0,
                 "first_btc": None, "last_target": None,
                 "last_error": None, "net_return": 0.0, "btc_return": None,
                 "source": "Forward paper, next-bar open fills, modeled costs"}
@@ -167,16 +194,33 @@ class FastPaperBook:
             raise ValueError("Invalid forward-paper observation clock")
         completed_end = int(now // BAR) * BAR
         end = completed_end if end is None else int(end)
-        # An explicit test/replay boundary must never let forward-paper
-        # accounting read candles that have not completed in real time.
-        if end % BAR or end > completed_end:
-            raise ValueError("Forward-paper end is unaligned or in the future")
+        # Every paper sample must be observed in its own live completed-bar
+        # slot. An older explicit end would silently backfill past candles as
+        # prospective evidence, even when no order was placed on those bars.
+        if end % BAR:
+            raise ValueError("Forward-paper end is unaligned")
+        if end != completed_end:
+            raise ValueError("Forward-paper end is not the current completed boundary")
         with self._lock, self._connect() as db:
             row = db.execute("SELECT * FROM paper WHERE state='ACTIVE' "
                              "ORDER BY created ASC LIMIT 1").fetchone()
             if row is None:
                 return {"status": "NO_ACTIVE_FORWARD_TRIAL"}
             data = json.loads(row["data"])
+            # Legacy trials have no implementation provenance. Never count
+            # their prior samples under newly revised paper/strategy rules.
+            if data.get("source_sha") != _paper_source_sha():
+                data["last_error"] = (
+                    "Forward paper implementation changed or was not pinned; "
+                    "start a new independent trial")
+                db.execute("UPDATE paper SET state=?,data=?,updated=? WHERE id=?",
+                           ("INVALIDATED_SOURCE", json.dumps(data), now, row["id"]))
+                return {"status": "INVALIDATED_SOURCE", **data}
+            # Require the entire observed candle to open AFTER the trial
+            # was frozen. A bar already in progress at enqueue is not a
+            # full prospective five-minute sample.
+            if end - BAR < float(row["created"]):
+                return {"status": "WAITING", **data}
             last = end-BAR
             if data["last_bar"] is not None and last <= data["last_bar"]:
                 return {"status": "WAITING", **data}
@@ -185,8 +229,14 @@ class FastPaperBook:
             if data["last_bar"] is not None and last-data["last_bar"] != BAR:
                 data["pending"] = None
                 data["pending_recorded_at"] = None
+                data["signal_queue"] = []
                 data["last_bar"] = last
-                data["last_error"] = "Missing forward candle interval; no paper fill credited"
+                # Missing observations hide intervening drawdown and decisions.
+                # Preserve the trial for diagnosis, but never certify it as
+                # complete prospective evidence after an unobserved interval.
+                data["evidence_gaps"] = int(data.get("evidence_gaps", 0)) + 1
+                data["last_error"] = (
+                    "Missing forward candle interval; trade and drawdown evidence incomplete")
                 db.execute("UPDATE paper SET data=?,updated=? WHERE id=?",
                            (json.dumps(data), self.clock(), row["id"]))
                 return {"status": "DATA_GAP", **data}
@@ -206,25 +256,42 @@ class FastPaperBook:
                     data["first_btc"] = candle["BTC-USD"]["close"]
                 # Previous close's target can fill at this candle's opening,
                 # never at a previously observed bar's price.
-                pending = data["pending"]
-                recorded_at = data.get("pending_recorded_at")
-                # The current completed candle opened before this step. Only
-                # an earlier, persisted signal can use that opening price.
-                # Missing timestamps on legacy ledgers fail closed.
-                causal_open = (
-                    isinstance(recorded_at, (int, float))
-                    and math.isfinite(recorded_at)
-                    and recorded_at < last)
-                if (pending != data["held"] and data["last_bar"] is not None
-                        and causal_open):
+                # A changed target must not erase an older signal that has
+                # not yet reached its first causally eligible candle opening.
+                # Keep a short FIFO of signal changes until each eligible
+                # opening is observed. Legacy pending timestamps migrate once.
+                queue = data.get("signal_queue")
+                if queue is None:
+                    queue = []
+                    recorded_at = data.get("pending_recorded_at")
+                    if recorded_at is not None:
+                        queue.append({"target": data["pending"],
+                                      "recorded_at": recorded_at})
+                remaining = []
+                for signal in queue:
+                    if not isinstance(signal, dict):
+                        continue
+                    signal_at = signal.get("recorded_at")
+                    if (not isinstance(signal_at, (int, float))
+                            or not math.isfinite(signal_at)
+                            or signal_at < float(row["created"])):
+                        continue  # Invalid/legacy timestamps fail closed.
+                    if signal_at >= last:
+                        remaining.append(signal)
+                        continue
+                    target_to_fill = signal.get("target")
+                    if (data["last_bar"] is None
+                            or target_to_fill == data["held"]):
+                        continue
                     if data["held"] is not None:
                         data["cash"] += data["units"]*candle[data["held"]]["open"]*(1-COST)
                         data["orders"] += 1
                         data["held"], data["units"] = None, 0.0
-                    if pending is not None and data["cash"] >= 2.0:
-                        data["units"] = data["cash"]*(1-COST)/candle[pending]["open"]
-                        data["cash"], data["held"] = 0.0, pending
+                    if target_to_fill is not None and data["cash"] >= 2.0:
+                        data["units"] = data["cash"]*(1-COST)/candle[target_to_fill]["open"]
+                        data["cash"], data["held"] = 0.0, target_to_fill
                         data["orders"] += 1
+                data["signal_queue"] = remaining
                 held = data["held"]
                 equity = (data["cash"] + data["units"]*candle[held]["close"]*(1-COST)
                           if held else data["cash"])
@@ -235,13 +302,46 @@ class FastPaperBook:
                 btc_close = candle["BTC-USD"]["close"]
                 data["btc_return"] = round(
                     btc_close/data["first_btc"]*(1-COST)**2-1, 6)
-                target = _choose(bars, len(bars), data["pairs"], data["candidate"])
-                if (target != data["pending"]
-                        or data.get("pending_recorded_at") is None):
-                    observed_at = float(self.clock())
-                    if not math.isfinite(observed_at):
-                        raise ValueError("Invalid paper signal observation clock")
+                # Individually finite market prices can still overflow a
+                # portfolio multiplication or benchmark ratio. Never persist
+                # Infinity/NaN as forward evidence or emit invalid JSON.
+                if not all(
+                        isinstance(data.get(field), (int, float))
+                        and math.isfinite(data[field])
+                        for field in ("cash", "units", "equity", "peak",
+                                      "drawdown", "net_return", "btc_return",
+                                      "first_btc")):
+                    raise ValueError("Nonfinite forward paper accounting")
+                # Mirror simulate(): a frozen candidate decides only on its
+                # configured rebalance bars. Calling _choose every five minutes
+                # would forward-test a different strategy from the one selected.
+                rebalance = data["candidate"][3]
+                due = data["samples"] % rebalance == 0
+                target = data["pending"]
+                if due:
+                    target = _choose(bars, len(bars), data["pairs"], data["candidate"])
+                    # The historical simulator's persistent mode retains an
+                    # incumbent while its lookback return remains acceptable.
+                    if data["candidate"][0] == "persistent" and data["held"] is not None:
+                        incumbent = data["held"]
+                        lookback = data["candidate"][1]
+                        threshold = data["candidate"][2]
+                        previous = bars[-1]["prices"][incumbent]["close"]
+                        old = bars[-lookback-1]["prices"][incumbent]["close"]
+                        if previous / old - 1 >= -threshold:
+                            target = incumbent
+                observed_at = float(self.clock())
+                if (not math.isfinite(observed_at)
+                        or not end <= observed_at < end + BAR
+                        or observed_at < float(row["created"])):
+                    # Clock rollback and slow fetches crossing the next bar
+                    # both invalidate the claimed live observation slot.
+                    raise ValueError("Noncausal paper signal observation clock")
+                if due and (target != data["pending"]
+                            or data.get("pending_recorded_at") is None):
                     data["pending_recorded_at"] = observed_at
+                    data["signal_queue"].append(
+                        {"target": target, "recorded_at": observed_at})
                 data["pending"] = target
                 data["last_target"] = target
                 data["last_bar"] = last
@@ -252,10 +352,15 @@ class FastPaperBook:
                 return {"status": "DATA_UNAVAILABLE", **data}
             status = "ACTIVE"
             if data["samples"] >= PAPER_MIN_SAMPLES:
-                passed = (data["orders"] >= MIN_TRADE_COUNT and
-                          data["net_return"] >= max(0.0, data["btc_return"]+MIN_EDGE) and
-                          data["drawdown"] <= MAX_DRAWDOWN)
-                status = "VALIDATED_FORWARD_PAPER" if passed else "REJECTED_FORWARD_PAPER"
+                if data.get("evidence_gaps", 0):
+                    # A favorable observed-only path cannot prove max
+                    # drawdown or decision parity across missing candles.
+                    status = "INCOMPLETE_FORWARD_PAPER"
+                else:
+                    passed = (data["orders"] >= MIN_TRADE_COUNT and
+                              data["net_return"] >= max(0.0, data["btc_return"]+MIN_EDGE) and
+                              data["drawdown"] <= MAX_DRAWDOWN)
+                    status = "VALIDATED_FORWARD_PAPER" if passed else "REJECTED_FORWARD_PAPER"
             db.execute("UPDATE paper SET state=?,data=?,updated=? WHERE id=?",
                        (status, json.dumps(data), self.clock(), row["id"]))
             return {"status": status, **data}
@@ -265,5 +370,12 @@ class FastPaperBook:
             row = db.execute("SELECT * FROM paper ORDER BY "
                              "CASE state WHEN 'ACTIVE' THEN 0 ELSE 1 END,"
                              "updated DESC LIMIT 1").fetchone()
-        return {"status": row["state"], **json.loads(row["data"])} if row else {
-            "status": "NO_ACTIVE_FORWARD_TRIAL"}
+        if row is None:
+            return {"status": "NO_ACTIVE_FORWARD_TRIAL"}
+        data = json.loads(row["data"])
+        if data.get("source_sha") != _paper_source_sha():
+            # Preserve the historical verdict for inspection, but never
+            # present old-code evidence as validation of the current code.
+            return {"status": "INVALIDATED_SOURCE",
+                    "historical_status": row["state"], **data}
+        return {"status": row["state"], **data}

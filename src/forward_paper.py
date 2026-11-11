@@ -8,11 +8,14 @@ from __future__ import annotations
 
 from contextlib import closing
 import hashlib
+import inspect
+import io
 import json
 import math
 from pathlib import Path
 import sqlite3
 import time
+import tokenize
 
 from .bean_five_minute import BAR, fetch_5m
 from .core import app_data_dir
@@ -22,6 +25,40 @@ POLICIES = {"trend", "breakout", "reversal",
             "trend_4h_hold", "trend_1d_hold"}
 HORIZONS = {"trend": 72, "breakout": 12, "reversal": 3,
             "trend_4h_hold": 48, "trend_1d_hold": 288}
+
+
+def _implementation_sha():
+    """Fingerprint signal and paper-settlement tokens across Python versions.
+
+    Ignore comments, continuation whitespace and line numbers, but retain
+    logical statement boundaries, control flow indentation and executable
+    tokens. Missing source fails closed.
+    """
+    try:
+        functions = []
+        for func in (_signals, proposals, observe_and_score, fetch_5m,
+                     _db, freeze, policy_identity):
+            tokens = []
+            source = inspect.getsource(func).replace("\r\n", "\n")
+            for tok in tokenize.generate_tokens(io.StringIO(source).readline):
+                if tok.type in (tokenize.COMMENT, tokenize.NL,
+                                tokenize.ENDMARKER):
+                    continue
+                if tok.type in (tokenize.INDENT, tokenize.DEDENT):
+                    tokens.append((tok.type, ""))
+                else:
+                    tokens.append((tok.type, tok.string))
+            functions.append(tokens)
+    except (OSError, TypeError, tokenize.TokenError, IndentationError) as exc:
+        raise RuntimeError("Cannot fingerprint frozen paper strategy source") from exc
+    payload = json.dumps({
+        "signal_logic": functions[0], "primary_proposals": functions[1],
+        "paper_settlement": functions[2], "candle_ingestion": functions[3],
+        "ledger_quarantine": functions[4], "frozen_cost_admission": functions[5],
+        "policy_identity_rules": functions[6],
+        "horizons": HORIZONS, "policies": sorted(POLICIES), "bar": BAR,
+    }, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def freeze_training_candidates(aggregate, *, limit=10):
@@ -39,13 +76,15 @@ def freeze_training_candidates(aggregate, *, limit=10):
         raise ValueError("No valid training-only candidates or invalid limit")
     chosen = []
     seen = set()
+    implementation_sha = _implementation_sha()
     for row in rows:
         product = str(row.get("product") or "").upper()
         policy = row.get("policy")
         policy_identity(product, policy)
         if product not in seen:
             chosen.append({"product": product, "policy": policy,
-                           "training_only_frozen": True})
+                           "training_only_frozen": True,
+                           "implementation_sha": implementation_sha})
             seen.add(product)
         if len(chosen) >= limit:
             break
@@ -59,7 +98,8 @@ def policy_identity(product, policy):
             or policy not in POLICIES):
         raise ValueError("Expected frozen USD/USDC spot product and known policy")
     return hashlib.sha256(
-        ("aiscend.paper.policy.v1:" + product + ":" + policy).encode()).hexdigest()
+        ("aiscend.paper.policy.v2:" + _implementation_sha() + ":"
+         + product + ":" + policy).encode()).hexdigest()
 
 
 def _signals(product, policy, bars, signal_ts):
@@ -109,12 +149,34 @@ def _db(conn):
         conn.execute("ALTER TABLE paper_decisions ADD COLUMN entry_ts INTEGER")
     # Old entries were marked at an open that preceded signal observation.
     # Quarantine those records rather than retaining misleading returns.
+    # Existing nonfinite scores cannot be counted as profitable evidence.
+    # SQLite accepts Infinity in REAL columns, even though JSON does not.
+    conn.execute(
+        "UPDATE paper_decisions SET state='DATA_GAP',"
+        "entry_price=NULL,exit_price=NULL,net_return=NULL,"
+        "reason='nonfinite_paper_return' "
+        "WHERE state='SCORED' AND (net_return IS NULL OR "
+        "net_return NOT BETWEEN ? AND ?)",
+        (-float('1.7976931348623157e308'), float('1.7976931348623157e308')))
+
     conn.execute(
         "UPDATE paper_decisions SET state='NONCAUSAL_ENTRY',"
         "entry_price=NULL,exit_price=NULL,net_return=NULL,"
-        "reason='entry_open_precedes_signal_observation' "
+        "reason=CASE WHEN observed_at < signal_ts + ? "
+        "THEN 'signal_observed_before_source_bar_completed' "
+        "WHEN NOT EXISTS (SELECT 1 FROM frozen_policy f "
+        "WHERE f.product=paper_decisions.product "
+        "AND f.policy_sha=paper_decisions.policy_sha "
+        "AND f.frozen_at<=paper_decisions.observed_at) "
+        "THEN 'signal_observed_before_policy_freeze' "
+        "ELSE 'entry_open_precedes_signal_observation' END "
         "WHERE state IN ('PENDING','SCORED') AND "
-        "(entry_ts IS NULL OR entry_ts<=observed_at OR entry_ts>=exit_ts)")
+        "(entry_ts IS NULL OR entry_ts<=observed_at OR entry_ts>=exit_ts "
+        "OR observed_at < signal_ts + ? "
+        "OR NOT EXISTS (SELECT 1 FROM frozen_policy f "
+        "WHERE f.product=paper_decisions.product "
+        "AND f.policy_sha=paper_decisions.policy_sha "
+        "AND f.frozen_at<=paper_decisions.observed_at))", (BAR, BAR))
 
 
 def freeze(conn, *, product, policy, now, fee_bps, spread_bps):
@@ -148,6 +210,17 @@ def observe_and_score(*, manifest, db_path=None, fetcher=fetch_5m,
         raise ValueError("Invalid modeled trading costs")
     if not isinstance(manifest, list) or not 1 <= len(manifest) <= 20:
         raise ValueError("Supply 1-20 explicitly frozen training candidates")
+    implementation_sha = _implementation_sha()
+    for item in manifest:
+        if not isinstance(item, dict):
+            raise ValueError("Expected frozen candidate objects")
+        # Newly generated manifests pin the signal implementation before
+        # observation. Legacy manifests still pin it on their first DB freeze.
+        expected = item.get("implementation_sha")
+        if expected is not None and expected != implementation_sha:
+            raise ValueError(
+                "Frozen manifest strategy implementation changed; "
+                "start a new manifest and paper ledger")
     now = float(clock())
     last_completed = int(now//BAR)*BAR - BAR
     db_path = Path(db_path or app_data_dir()/"forward-paper.sqlite3")
@@ -186,6 +259,8 @@ def observe_and_score(*, manifest, db_path=None, fetcher=fetch_5m,
                         if not all(math.isfinite(x) and x>0 for x in (buy,sell)):
                             raise ValueError("Invalid Coinbase paper fill price")
                         net=(sell/buy)*(1-cost)**2-1
+                        if not math.isfinite(net):
+                            raise ValueError('Nonfinite modeled paper return')
                         con.execute(
                             "UPDATE paper_decisions SET state='SCORED',entry_price=?,"
                             "exit_price=?,net_return=?,reason=? WHERE product=?"
@@ -228,9 +303,16 @@ def observe_and_score(*, manifest, db_path=None, fetcher=fetch_5m,
                     observed_at=float(clock())
                     if not math.isfinite(observed_at):
                         raise ValueError("Invalid signal observation clock")
-                    causal=observed_at < entry_ts
+                    # A backwards clock jump can timestamp the decision before
+                    # the candle's close was available. That is also noncausal.
+                    causal=max(complete_at,frozen_at) <= observed_at < entry_ts
                     state="PENDING" if causal else "NONCAUSAL_ENTRY"
-                    reason="" if causal else "entry_open_precedes_signal_observation"
+                    reason=("" if causal else
+                            "signal_observed_before_source_bar_completed"
+                            if observed_at < complete_at else
+                            "signal_observed_before_policy_freeze"
+                            if observed_at < frozen_at else
+                            "entry_open_precedes_signal_observation")
                     cur=con.execute(
                         "INSERT OR IGNORE INTO paper_decisions "
                         "(product,policy_sha,signal_ts,observed_at,entry_ts,exit_ts,state,reason) "
@@ -261,8 +343,12 @@ def observe_and_score(*, manifest, db_path=None, fetcher=fetch_5m,
                 "SELECT state,net_return FROM paper_decisions "
                 "WHERE product=? AND policy_sha=? ORDER BY signal_ts",
                 (product,identity)).fetchall()
-            equity=peak=1.0
+            # Compound in log space: individually finite fee-net returns
+            # can overflow a float when multiplied across many paper trades.
+            # Never serialize Infinity as evidence of profitable performance.
+            log_equity=log_peak=0.0
             dd=0.0
+            wiped_out=False
             wins=trades=0
             states={}
             for state,ret in rows:
@@ -271,14 +357,29 @@ def observe_and_score(*, manifest, db_path=None, fetcher=fetch_5m,
                     continue
                 trades+=1
                 wins+=int(ret>0)
-                equity*=1+ret
-                peak=max(peak,equity)
-                dd=max(dd,1-equity/peak)
+                if ret<=-1.0:
+                    wiped_out=True
+                    dd=1.0
+                elif not wiped_out:
+                    log_equity+=math.log1p(ret)
+                    log_peak=max(log_peak,log_equity)
+                    dd=max(dd,-math.expm1(log_equity-log_peak))
+            if wiped_out:
+                net_return=-1.0
+            else:
+                try:
+                    net_return=round(math.expm1(log_equity),8)
+                except OverflowError:
+                    # Preserve individual finite scores but refuse to invent
+                    # a representable cumulative return where none exists.
+                    net_return=None
             summary[product]={"policy":policy,
                 "scored_trades":trades,"wins":wins,
-                "net_return":round(equity-1,8),
+                "net_return":net_return,
                 "max_realized_drawdown":round(dd,8),
                 "states":states,
                 "candidate_validated":False}
+            if net_return is None:
+                summary[product]["scorecard_issue"]="cumulative_return_exceeds_finite_range"
         out["scorecard"]=summary
     return out

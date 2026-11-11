@@ -41,6 +41,13 @@ def _position_meta_key(prefix: str, product: str, scope: str | None) -> str:
     return f"{prefix}{scope}:{product}"
 
 
+def _account_position_revision_key(scope: str | None) -> str | None:
+    """One durable position generation per authenticated Coinbase account."""
+    if (not isinstance(scope, str) or len(scope) != 64
+            or any(c not in "0123456789abcdef" for c in scope)):
+        return None
+    return "coinbase_position_revision:" + scope
+
 
 class AdvancedSpotEngine:
     """
@@ -306,6 +313,9 @@ class AdvancedSpotEngine:
             raise RuntimeError(
                 "Coinbase credential identity unavailable before account snapshot"
             ) from exc
+        # Capture the generation BEFORE reading balances. A fill that settles
+        # during the provider read must not be paired with old balances.
+        revision_before = self._account_position_revision(scope_before)
         status = self.rail.status()
         # A fingerprint alone is not authentication: status() must succeed.
         try:
@@ -323,6 +333,10 @@ class AdvancedSpotEngine:
                 or len(authenticated_scope) != 64
                 or any(c not in "0123456789abcdef" for c in authenticated_scope)):
             authenticated_scope = None
+        if revision_before != self._account_position_revision(authenticated_scope):
+            raise RuntimeError(
+                "Coinbase account position changed during authenticated snapshot; "
+                "balances discarded. Refresh account evidence.")
         listing = self.listing_sentinel.poll()
         priority_products = [
             str(event.get("product") or "").upper()
@@ -489,6 +503,7 @@ class AdvancedSpotEngine:
             "unpriced_balances": {currency: qty for currency, qty in raw_balances.items() if currency not in balance_values_usd},
             "starting_cash": start,
             "authenticated_scope": authenticated_scope,
+            "account_position_revision": revision_before,
             "positions": positions,
             "prices": prices,
             "returns": {
@@ -531,6 +546,13 @@ class AdvancedSpotEngine:
             "market_radar": radar,
             "execution_rail": "coinbase-advanced",
         }
+        # Universe research can take time. Do not return a stale balance read
+        # if another desktop process verified a fill during that interval.
+        if revision_before != self._account_position_revision(authenticated_scope):
+            self._snapshot = None
+            raise RuntimeError(
+                "Coinbase account position changed during authenticated snapshot; "
+                "balances discarded. Refresh account evidence.")
         return self._snapshot
 
     def _radar(
@@ -971,6 +993,19 @@ class AdvancedSpotEngine:
         self.store.add_decision(decision, status)
         return self.sync()
 
+    def _account_position_revision(self, scope: str | None) -> int | None:
+        """Read the monotonic account generation, failing closed on corruption."""
+        key = _account_position_revision_key(scope)
+        if key is None:
+            return None
+        raw = self.store.get_meta(key)
+        if raw is None:
+            return 0
+        if (not raw or len(raw) > 20 or not raw.isascii()
+                or not raw.isdigit() or str(int(raw)) != raw):
+            raise RuntimeError("Invalid durable Coinbase account position revision")
+        return int(raw)
+
     def _require_snapshot_order_scope(self, snapshot: dict[str, Any]) -> None:
         """Reject a trade if credentials changed after the authenticated sync.
 
@@ -996,13 +1031,96 @@ class AdvancedSpotEngine:
                 "snapshot; no order was submitted. Refresh account evidence."
             )
 
+    def _write_position_meta_if_current(self, snapshot: dict[str, Any],
+                                        key: str, value: str) -> None:
+        """Prevent stale holding reviews from restoring pre-fill stop metadata.
+
+        Another desktop may verify a fill after this process reads balances.
+        Guard each position-metadata write with the same account revision
+        advanced atomically when a Coinbase fill settles.
+        """
+        revision_key = _account_position_revision_key(
+            snapshot.get("authenticated_scope"))
+        if revision_key is None:
+            # Offline mock snapshots have no authenticated Coinbase scope.
+            self.store.set_meta(key, value)
+            return
+        expected = snapshot.get("account_position_revision", 0)
+        if type(expected) is not int or expected < 0:
+            raise RuntimeError("Invalid authenticated account snapshot revision")
+        with self.store.conn:
+            changed = self.store.conn.execute(
+                "INSERT INTO meta(key,value) SELECT ?,? "
+                "WHERE COALESCE((SELECT value FROM meta WHERE key=?),'0')=? "
+                "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                (key, value, revision_key, str(expected)))
+            if changed.rowcount != 1:
+                raise RuntimeError(
+                    "Coinbase account position changed during position review; "
+                    "refresh balances before continuing")
+
+    def _observe_position_peak_if_current(self, snapshot: dict[str, Any],
+                                          product: str, mark: float) -> float:
+        """Atomically preserve a holding's high-water mark across desktops.
+
+        A position revision protects against newer fills, but two concurrent
+        reviews of the SAME revision must not lower each other's observed peak.
+        The quote-unit migration and peak update share one SQLite write lock.
+        """
+        scope = snapshot.get("authenticated_scope")
+        revision_key = _account_position_revision_key(scope)
+        peak_key = _position_meta_key("primary_peak:", product, scope)
+        unit_key = _position_meta_key("primary_peak_unit:", product, scope)
+        quote = self._split_product(product)[1]
+        expected = snapshot.get("account_position_revision", 0)
+        if revision_key is not None and (type(expected) is not int or expected < 0):
+            raise RuntimeError("Invalid authenticated account snapshot revision")
+        with self.store.conn:
+            if revision_key is not None:
+                claimed = self.store.conn.execute(
+                    "INSERT INTO meta(key,value) SELECT ?,'' "
+                    "WHERE COALESCE((SELECT value FROM meta WHERE key=?),'0')=? "
+                    "ON CONFLICT(key) DO UPDATE SET value=meta.value",
+                    (unit_key, revision_key, str(expected)))
+                if claimed.rowcount != 1:
+                    raise RuntimeError(
+                        "Coinbase account position changed during position review; "
+                        "refresh balances before continuing")
+            else:
+                self.store.conn.execute(
+                    "INSERT INTO meta(key,value) VALUES(?,'') "
+                    "ON CONFLICT(key) DO UPDATE SET value=meta.value",
+                    (unit_key,))
+            if self.store.get_meta(unit_key) != quote:
+                self.store.conn.execute(
+                    "UPDATE meta SET value=? WHERE key=?", (quote, unit_key))
+                self.store.conn.execute(
+                    "INSERT INTO meta(key,value) VALUES(?,'0') "
+                    "ON CONFLICT(key) DO UPDATE SET value='0'",
+                    (peak_key,))
+            prior_peak = float(self.store.get_meta(peak_key) or "0")
+            peak = max(prior_peak, mark) if math.isfinite(mark) and mark > 0 else prior_peak
+            if peak > prior_peak:
+                self.store.conn.execute(
+                    "INSERT INTO meta(key,value) VALUES(?,?) "
+                    "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (peak_key, str(peak)))
+            return peak
+
     def _record_order_intent(self, *, product: str, side: str,
-                             client_id: str, account_scope=None) -> None:
+                             client_id: str, account_scope=None,
+                             maturity_minutes=None, expected_revision=None) -> None:
         """Persist the idempotency key BEFORE a potentially irreversible order.
 
         A network timeout after Coinbase accepts a trade is ambiguous.
         We never automatically repeat it with a newly generated client ID.
         """
+        if maturity_minutes is not None and (side != "BUY" or
+                isinstance(maturity_minutes, bool) or
+                not isinstance(maturity_minutes, (int, float)) or
+                not math.isfinite(maturity_minutes) or
+                not 0 < maturity_minutes <= 525600):
+            raise ValueError("Invalid planned BUY maturity")
         if not callable(getattr(self.rail, "order_detail", None)):
             # Mock rails are not authenticated Coinbase and have no reconciliation.
             return
@@ -1013,28 +1131,90 @@ class AdvancedSpotEngine:
             "order_id": None, "client_order_id": client_id,
             "product": product, "side": side,
             "account_scope": account_scope,
-            "submitted_at": time.time(), "state": "SUBMISSION_OUTCOME_UNKNOWN"})
-        with self.store.conn:
-            claimed = self.store.conn.execute(
+            "submitted_at": time.time(), "state": "SUBMISSION_OUTCOME_UNKNOWN",
+            "maturity_minutes": maturity_minutes})
+        revision_key = _account_position_revision_key(account_scope)
+        if revision_key is not None and expected_revision is not None:
+            if type(expected_revision) is not int or expected_revision < 0:
+                raise RuntimeError("Invalid authenticated account snapshot revision")
+            # One SQLite statement checks both the snapshot generation and
+            # the empty receipt slot. A different process can settle a fill
+            # between planning and this claim, but cannot bypass the CAS.
+            query = (
+                "INSERT INTO meta(key,value) SELECT 'pending_coinbase_order', ? "
+                "WHERE COALESCE((SELECT value FROM meta WHERE key=?), '0')=? "
+                "ON CONFLICT(key) DO UPDATE SET value=excluded.value "
+                "WHERE meta.value=''")
+            params = (receipt, revision_key, str(expected_revision))
+        else:
+            query = (
                 "INSERT INTO meta(key,value) VALUES('pending_coinbase_order',?) "
                 "ON CONFLICT(key) DO UPDATE SET value=excluded.value "
-                "WHERE meta.value=''", (receipt,))
+                "WHERE meta.value=''")
+            params = (receipt,)
+        with self.store.conn:
+            claimed = self.store.conn.execute(query, params)
             if claimed.rowcount != 1:
+                if (revision_key is not None and expected_revision is not None
+                        and self._account_position_revision(account_scope) != expected_revision):
+                    raise RuntimeError(
+                        "Coinbase account position changed since the authenticated "
+                        "snapshot; refresh balances before any new order")
                 raise RuntimeError(
                     "Unresolved Coinbase order intent already exists; "
                     "refusing to replace its idempotency key")
 
-    def _replace_pending_receipt(self, expected: str, replacement: str) -> bool:
-        """Change the one-order journal only if its exact snapshot still exists.
+    def _replace_pending_receipt(self, expected: str, replacement: str,
+                                 *, verified_fill=None) -> bool:
+        """Atomically settle a receipt and invalidate any old position metadata.
 
-        Another desktop process may reconcile the previous order and claim the
-        slot while this process waits for Coinbase. Never erase that receipt.
+        A crash after clearing a filled order but before resetting its prior
+        lot's peak, cost basis or maturity could apply old stops to a new lot.
+        Keep the compare-and-swap and resets in the same SQLite transaction.
         """
         with self.store.conn:
             changed = self.store.conn.execute(
                 "UPDATE meta SET value=? WHERE key='pending_coinbase_order' "
                 "AND value=?", (replacement, expected))
-        return changed.rowcount == 1
+            if changed.rowcount != 1:
+                return False
+            if verified_fill is not None:
+                product, side, scope, maturity_minutes = verified_fill
+                deadline = "0"
+                if str(side).upper() == "BUY" and maturity_minutes is not None:
+                    if (isinstance(maturity_minutes, bool) or
+                            not isinstance(maturity_minutes, (int, float)) or
+                            not math.isfinite(maturity_minutes) or
+                            not 0 < maturity_minutes <= 525600):
+                        raise ValueError("Invalid frozen BUY maturity")
+                    # Preserve the original strategy horizon across delayed
+                    # order verification. The timer cannot start at ACK.
+                    deadline = str(time.time() + 60 * maturity_minutes)
+                for prefix in ("primary_peak:", "primary_fill_basis:",
+                               "primary_fill_basis_checked_at:"):
+                    key = _position_meta_key(prefix, product, scope)
+                    self.store.conn.execute(
+                        "INSERT INTO meta(key,value) VALUES(?,'') "
+                        "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                        (key,))
+                # Both a newly bought lot and a sold lot must discard the
+                # prior position's deadline. A delayed BUY fill must not
+                # inherit a timer started at the earlier order acknowledgement.
+                key = _position_meta_key("primary_maturity_at:", product, scope)
+                self.store.conn.execute(
+                    "INSERT INTO meta(key,value) VALUES(?,?) "
+                    "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (key, deadline))
+                revision_key = _account_position_revision_key(scope)
+                if revision_key is not None:
+                    # The same transaction that clears the filled receipt
+                    # invalidates every earlier account balance snapshot.
+                    next_revision = self._account_position_revision(scope) + 1
+                    self.store.conn.execute(
+                        "INSERT INTO meta(key,value) VALUES(?,?) "
+                        "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                        (revision_key, str(next_revision)))
+        return True
 
     def _clear_pending_for_client(self, client_id: str) -> bool:
         """Explicit venue rejection releases only the rejecting client ID."""
@@ -1135,7 +1315,11 @@ class AdvancedSpotEngine:
             receipt["order_id"] = order_id
             replacement = ("" if state in {"FILLED_VERIFIED", "VENUE_NOT_FILLED"}
                            else json.dumps(receipt))
-            if not self._replace_pending_receipt(raw_receipt, replacement):
+            verified_fill = ((product, side, account_scope,
+                              receipt.get("maturity_minutes"))
+                             if state == "FILLED_VERIFIED" else None)
+            if not self._replace_pending_receipt(
+                    raw_receipt, replacement, verified_fill=verified_fill):
                 return "ORDER_ACCEPTED_UNVERIFIED", {
                     "state": "ORDER_ACCEPTED_UNVERIFIED",
                     "reason": "Pending Coinbase order journal changed during receipt verification"}
@@ -1255,7 +1439,11 @@ class AdvancedSpotEngine:
             return changed_scope_hold()
         state = observed["state"]
         if state in {"FILLED_VERIFIED", "VENUE_NOT_FILLED"}:
-            if not self._replace_pending_receipt(raw, ""):
+            verified_fill = ((product, pending.get("side"), scope,
+                              pending.get("maturity_minutes"))
+                             if state == "FILLED_VERIFIED" else None)
+            if not self._replace_pending_receipt(
+                    raw, "", verified_fill=verified_fill):
                 return Decision("HOLD", None, 0.0,
                     "Coinbase order journal changed during order verification; "
                     "preserving the newer receipt."), "ORDER_JOURNAL_CHANGED"
@@ -1265,17 +1453,8 @@ class AdvancedSpotEngine:
             self.store.set_meta("last_coinbase_submission_evidence", json.dumps(observed))
         if state in {"FILLED_VERIFIED", "VENUE_NOT_FILLED"}:
             if state == "FILLED_VERIFIED":
-                # A completed SELL or BUY changes the position's lifecycle.
-                # Reset observed peaks and cached entry costs so an old lot's
-                # peak cannot mistakenly trigger a new position's stop.
-                if str(pending.get("side") or "").upper() in {"BUY", "SELL"}:
-                    for prefix in ("primary_peak:", "primary_fill_basis:",
-                                   "primary_fill_basis_checked_at:"):
-                        self.store.set_meta(
-                            _position_meta_key(prefix, product, scope), "")
-                if str(pending.get("side") or "").upper() == "SELL":
-                    self.store.set_meta(
-                        _position_meta_key("primary_maturity_at:", product, scope), "0")
+                # Position lifecycle metadata was reset atomically with the
+                # filled receipt above, before any crash or subsequent sync.
                 # Final receipt is appended separately from the original
                 # submitted-order audit; never retroactively rewrite history.
                 try:
@@ -1450,22 +1629,12 @@ class AdvancedSpotEngine:
                 signals = proposals(current_row)
                 horizon = max((s["maturity_minutes"] for s in signals), default=60)
                 deadline = now + horizon * 60
-                self.store.set_meta(key, str(deadline))
+                self._write_position_meta_if_current(snapshot, key, str(deadline))
             # Observe a real high-water mark on every trading cycle.
             mark = float(holding.get("mark_price") or
                          (snapshot.get("prices") or {}).get(product) or 0)
             peak_key = _position_meta_key("primary_peak:", product, scope)
-            # Earlier code persisted USD-marked peaks even for non-USD quote
-            # products. One-time unit migration must discard those peaks.
-            quote = self._split_product(product)[1]
-            peak_unit_key = _position_meta_key("primary_peak_unit:", product, scope)
-            if self.store.get_meta(peak_unit_key) != quote:
-                self.store.set_meta(peak_key, "0")
-                self.store.set_meta(peak_unit_key, quote)
-            prior_peak = float(self.store.get_meta(peak_key) or "0")
-            peak = max(prior_peak, mark) if math.isfinite(mark) and mark > 0 else prior_peak
-            if peak > prior_peak:
-                self.store.set_meta(peak_key, str(peak))
+            peak = self._observe_position_peak_if_current(snapshot, product, mark)
 
             # Reconstruct cost using authenticated Coinbase execution fills.
             # If transfers, missing history or incomplete pages prevent matching
@@ -1498,8 +1667,8 @@ class AdvancedSpotEngine:
                         f"fill history for {product}; cost basis discarded and "
                         "trading paused until a fresh authenticated snapshot."),
                         "ACCOUNT_SCOPE_CHANGED_DURING_POSITION_HISTORY")
-                self.store.set_meta(basis_key, json.dumps(basis))
-                self.store.set_meta(check_key, str(now))
+                self._write_position_meta_if_current(snapshot, basis_key, json.dumps(basis))
+                self._write_position_meta_if_current(snapshot, check_key, str(now))
             verified_cost = (basis.get("avg_cost")
                              if basis.get("cost_basis_status") == "verified_coinbase_fills"
                              else None)
@@ -1537,7 +1706,11 @@ class AdvancedSpotEngine:
                 plan["order_attempted"] = True
                 try:
                     status = self._execute_sell(decision, snapshot) or "ORDER_ACCEPTED_UNVERIFIED"
-                    if status == "FILLED_VERIFIED":
+                    if (status == "FILLED_VERIFIED" and
+                            not callable(getattr(getattr(self, "rail", None), "order_detail", None))):
+                        # Only receipt-free offline mocks need this fallback.
+                        # Production metadata is already reset atomically
+                        # with the verified fill receipt.
                         self.store.set_meta(key, "0")
                         self.store.set_meta(peak_key, "0")
                         self.store.set_meta(basis_key, "")
@@ -1606,17 +1779,21 @@ class AdvancedSpotEngine:
             f"{winner['estimated_growth_bps']:+.1f}bps, all-in route cost "
             f"{winner['total_route_cost_bps']:.1f}bps, net "
             f"{winner['net_projected_bps']:+.1f}bps; provisional "
-            f"maturity {winner['maturity_minutes']}m.")
+            f"maturity {winner['maturity_minutes']}m.",
+            maturity_minutes=winner["maturity_minutes"])
         plan["order_attempted"] = True
         try:
             status = self._execute_buy(decision, snapshot) or "ORDER_ACCEPTED_UNVERIFIED"
-            if status in {"FILLED_VERIFIED", "ORDER_ACCEPTED_UNVERIFIED"}:
+            if (status == "FILLED_VERIFIED" and
+                    not callable(getattr(getattr(self, "rail", None), "order_detail", None))):
+                # Offline mock rails have no durable receipt. Real Coinbase
+                # fills already settled this metadata atomically with their
+                # receipt. Rewriting it here could race a newer filled order.
                 self.store.set_meta(_position_meta_key("primary_maturity_at:", product, scope),
-                                    str(now + 60 * winner["maturity_minutes"]))
-                if status == "FILLED_VERIFIED":
-                    for prefix in ("primary_peak:", "primary_fill_basis:",
-                                   "primary_fill_basis_checked_at:"):
-                        self.store.set_meta(_position_meta_key(prefix, product, scope), "")
+                                    str(time.time() + 60 * winner["maturity_minutes"]))
+                for prefix in ("primary_peak:", "primary_fill_basis:",
+                               "primary_fill_basis_checked_at:"):
+                    self.store.set_meta(_position_meta_key(prefix, product, scope), "")
         except Exception as exc:
             # Transport failures and ambiguous provider responses may have
             # placed an order. Make unresolved state visible, never "failed".
@@ -1657,7 +1834,9 @@ class AdvancedSpotEngine:
         client_order_id = f"aiscend-{uuid.uuid4()}"
         self._record_order_intent(product=product_id, side="BUY",
                                   client_id=client_order_id,
-                                  account_scope=snapshot.get("authenticated_scope"))
+                                  account_scope=snapshot.get("authenticated_scope"),
+                                  maturity_minutes=decision.maturity_minutes,
+                                  expected_revision=snapshot.get("account_position_revision", 0))
         try:
             if isinstance(self.rail, AdvancedTradeSpot):
                 # Real Coinbase rail must bind the exact credentials used by
@@ -1767,7 +1946,8 @@ class AdvancedSpotEngine:
         client_order_id = f"aiscend-{uuid.uuid4()}"
         self._record_order_intent(product=product_id, side="SELL",
                                   client_id=client_order_id,
-                                  account_scope=snapshot.get("authenticated_scope"))
+                                  account_scope=snapshot.get("authenticated_scope"),
+                                  expected_revision=snapshot.get("account_position_revision", 0))
         try:
             if isinstance(self.rail, AdvancedTradeSpot):
                 # Real Coinbase rail must bind the exact credentials used by

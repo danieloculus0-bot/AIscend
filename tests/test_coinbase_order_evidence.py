@@ -1,5 +1,6 @@
 import json
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -14,6 +15,178 @@ class OrderEvidenceTests(unittest.TestCase):
                     "success_response": {"order_id": "cb-order-123"}}
         self.assertEqual(accepted_order_id(response), "cb-order-123")
         self.assertIsNone(accepted_order_id({"success":True}))
+
+    def test_immediate_verified_fill_resets_scoped_position_lifecycle(self):
+        from src.advanced_live import _position_meta_key
+
+        class Rail:
+            def account_scope_id(self):
+                return "a" * 64
+
+            def order_detail(self, order_id):
+                return {"order": {"order_id": order_id, "status": "FILLED",
+                                  "filled_size": "0.1", "filled_value": "10"}}
+
+        scope = "a" * 64
+        for side in ("BUY", "SELL"):
+            with self.subTest(side=side), tempfile.TemporaryDirectory() as td:
+                store = StateStore(Path(td) / "immediate-fill.db")
+                try:
+                    engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                    engine.store, engine.rail = store, Rail()
+                    old = {
+                        "primary_peak:": "900",
+                        "primary_fill_basis:": '{"avg_cost": 900}',
+                        "primary_fill_basis_checked_at:": "123",
+                        "primary_maturity_at:": "456",
+                    }
+                    for prefix, value in old.items():
+                        store.set_meta(
+                            _position_meta_key(prefix, "BTC-USD", scope), value)
+                    engine._record_order_intent(
+                        product="BTC-USD", side=side, client_id="client-1",
+                        account_scope=scope)
+                    state, _ = engine._check_or_track_submission(
+                        {"success": True,
+                         "success_response": {"order_id": "venue-1"}},
+                        product="BTC-USD", side=side, client_id="client-1",
+                        account_scope=scope)
+                    self.assertEqual(state, "FILLED_VERIFIED")
+                    self.assertEqual(store.get_meta("pending_coinbase_order"), "")
+                    for prefix in ("primary_peak:", "primary_fill_basis:",
+                                   "primary_fill_basis_checked_at:"):
+                        self.assertEqual(store.get_meta(
+                            _position_meta_key(prefix, "BTC-USD", scope)), "")
+                    self.assertEqual(store.get_meta(_position_meta_key(
+                        "primary_maturity_at:", "BTC-USD", scope)), "0")
+                finally:
+                    store.close()
+
+    def test_delayed_verified_buy_restores_selected_horizon(self):
+        from src.advanced_live import _position_meta_key
+
+        class Rail:
+            def account_scope_id(self):
+                return "a" * 64
+
+            def order_detail(self, order_id):
+                return {"order": {"order_id": order_id, "status": "FILLED",
+                                  "filled_size": "0.1", "filled_value": "10"}}
+
+        class Audit:
+            def record_event(self, **kwargs):
+                return None
+
+        scope = "a" * 64
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "delayed-buy-maturity.db")
+            try:
+                engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                engine.store, engine.rail, engine.audit = store, Rail(), Audit()
+                maturity_key = _position_meta_key(
+                    "primary_maturity_at:", "BTC-USD", scope)
+                store.set_meta(maturity_key, "123")  # Expired while awaiting fill.
+                receipt = {"order_id": "venue-1",
+                           "client_order_id": "client-1",
+                           "product": "BTC-USD", "side": "BUY",
+                           "account_scope": scope, "maturity_minutes": 90}
+                store.set_meta("pending_coinbase_order", json.dumps(receipt))
+                before = time.time()
+                decision, status = engine._pending_order_decision(scope=scope)
+                self.assertEqual((decision.action, status),
+                                 ("HOLD", "FILLED_VERIFIED"))
+                self.assertEqual(store.get_meta("pending_coinbase_order"), "")
+                self.assertGreaterEqual(float(store.get_meta(maturity_key)), before + 90 * 60)
+                self.assertLess(float(store.get_meta(maturity_key)), before + 90 * 60 + 10)
+            finally:
+                store.close()
+
+    def test_unverified_buy_preserves_frozen_maturity_until_fill(self):
+        from src.advanced_live import _position_meta_key
+
+        class Rail:
+            status = "OPEN"
+
+            def account_scope_id(self):
+                return "a" * 64
+
+            def order_detail(self, order_id):
+                return {"order": {"order_id": order_id, "status": self.status,
+                                  "filled_size": "0.1" if self.status == "FILLED" else "0",
+                                  "filled_value": "10" if self.status == "FILLED" else "0"}}
+
+        class Audit:
+            def record_event(self, **kwargs):
+                return None
+
+        scope = "a" * 64
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "frozen-maturity.db")
+            try:
+                rail = Rail()
+                engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                engine.store, engine.rail, engine.audit = store, rail, Audit()
+                key = _position_meta_key("primary_maturity_at:", "BTC-USD", scope)
+                engine._record_order_intent(
+                    product="BTC-USD", side="BUY", client_id="client-1",
+                    account_scope=scope, maturity_minutes=120)
+                state, _ = engine._check_or_track_submission(
+                    {"success": True, "success_response": {"order_id": "venue-1"}},
+                    product="BTC-USD", side="BUY", client_id="client-1",
+                    account_scope=scope)
+                self.assertEqual(state, "ORDER_ACCEPTED_UNVERIFIED")
+                self.assertIsNone(store.get_meta(key))
+                receipt = json.loads(store.get_meta("pending_coinbase_order"))
+                self.assertEqual(receipt["maturity_minutes"], 120)
+                rail.status = "FILLED"
+                before = time.time()
+                decision, state = engine._pending_order_decision(scope=scope)
+                self.assertEqual((decision.action, state), ("HOLD", "FILLED_VERIFIED"))
+                self.assertEqual(store.get_meta("pending_coinbase_order"), "")
+                self.assertGreaterEqual(float(store.get_meta(key)), before + 120 * 60)
+                self.assertLess(float(store.get_meta(key)), before + 120 * 60 + 10)
+            finally:
+                store.close()
+
+    def test_failed_fill_metadata_reset_rolls_back_receipt_clear(self):
+        import sqlite3
+        from src.advanced_live import _position_meta_key
+
+        class Rail:
+            def account_scope_id(self):
+                return "a" * 64
+
+            def order_detail(self, order_id):
+                return {"order": {"order_id": order_id, "status": "FILLED",
+                                  "filled_size": "0.1", "filled_value": "10"}}
+
+        scope = "a" * 64
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "atomic-fill.db")
+            try:
+                engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                engine.store, engine.rail = store, Rail()
+                peak_key = _position_meta_key("primary_peak:", "BTC-USD", scope)
+                store.set_meta(peak_key, "900")
+                engine._record_order_intent(
+                    product="BTC-USD", side="BUY", client_id="client-1",
+                    account_scope=scope)
+                original = store.get_meta("pending_coinbase_order")
+                with store.conn:
+                    store.conn.execute(
+                        "CREATE TRIGGER reject_peak_clear BEFORE UPDATE ON meta "
+                        "WHEN OLD.key='" + peak_key + "' AND NEW.value='' "
+                        "BEGIN SELECT RAISE(ABORT, 'simulated reset failure'); END")
+                with self.assertRaises(sqlite3.IntegrityError):
+                    engine._check_or_track_submission(
+                        {"success": True,
+                         "success_response": {"order_id": "venue-1"}},
+                        product="BTC-USD", side="BUY", client_id="client-1",
+                        account_scope=scope)
+                self.assertEqual(store.get_meta("pending_coinbase_order"), original)
+                self.assertEqual(store.get_meta(peak_key), "900")
+            finally:
+                store.close()
 
     def test_submission_does_not_mean_fill(self):
         detail={"order":{"order_id":"123","status":"OPEN",
@@ -838,6 +1011,207 @@ class OrderEvidenceTests(unittest.TestCase):
                 self.assertEqual(receipt["client_order_id"], "client-b")
             finally:
                 store.close()
+
+
+    def test_verified_fill_invalidates_another_desktops_order_snapshot(self):
+        """A settled fill can clear the pending slot, but not revive stale cash."""
+        scope = "a" * 64
+
+        class Rail:
+            def __init__(self):
+                self.orders = []
+
+            def account_scope_id(self):
+                return scope
+
+            def order_detail(self, order_id):
+                return {"order": {"order_id": order_id, "status": "OPEN",
+                                  "filled_size": "0"}}
+
+            def product(self, product_id):
+                return {"quote_increment": "0.01", "quote_min_size": "1"}
+
+            def preview_market_buy(self, product_id, amount):
+                return {"preview_id": "offline"}
+
+            def market_buy(self, product_id, amount, client_order_id):
+                self.orders.append(client_order_id)
+                raise AssertionError("Stale snapshot must never reach Coinbase")
+
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "two-desktops-revision.db"
+            first, second = StateStore(path), StateStore(path)
+            try:
+                rail = Rail()
+                first_engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                first_engine.store, first_engine.rail = first, rail
+                second_engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                second_engine.store, second_engine.rail = second, rail
+
+                stale = {"authenticated_scope": scope,
+                         "account_position_revision": 0,
+                         "cash_by_quote": {"USD": 25}}
+                first_engine._record_order_intent(
+                    product="BTC-USD", side="BUY", client_id="first",
+                    account_scope=scope, expected_revision=0)
+                original = first.get_meta("pending_coinbase_order")
+                self.assertTrue(first_engine._replace_pending_receipt(
+                    original, "", verified_fill=("BTC-USD", "BUY", scope, 90)))
+                self.assertEqual(second_engine._account_position_revision(scope), 1)
+                self.assertEqual(second.get_meta("pending_coinbase_order"), "")
+
+                with self.assertRaisesRegex(RuntimeError, "position changed since"):
+                    second_engine._execute_buy(
+                        Decision("BUY", "BTC-USD", 1.0, "stale account snapshot"),
+                        stale)
+                self.assertEqual(rail.orders, [])
+                self.assertEqual(second.get_meta("pending_coinbase_order"), "")
+                second_engine._record_order_intent(
+                    product="BTC-USD", side="BUY", client_id="fresh",
+                    account_scope=scope, expected_revision=1)
+                self.assertEqual(json.loads(
+                    second.get_meta("pending_coinbase_order"))["client_order_id"],
+                    "fresh")
+            finally:
+                second.close()
+                first.close()
+
+    def test_sync_discards_balances_when_other_desktop_fills_during_read(self):
+        scope = "a" * 64
+
+        class Rail:
+            def __init__(self, settle):
+                self.settle = settle
+
+            def account_scope_id(self):
+                return scope
+
+            def order_detail(self, order_id):
+                return {"order": {"order_id": order_id, "status": "OPEN"}}
+
+            def status(self):
+                self.settle()
+                return object()  # Must be rejected before using these balances.
+
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "snapshot-fill-race.db"
+            first, second = StateStore(path), StateStore(path)
+            try:
+                first_engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                first_engine.store = first
+                first_engine.rail = Rail(lambda: None)
+                first_engine._record_order_intent(
+                    product="BTC-USD", side="BUY", client_id="first",
+                    account_scope=scope, expected_revision=0)
+                original = first.get_meta("pending_coinbase_order")
+
+                def settle():
+                    self.assertTrue(first_engine._replace_pending_receipt(
+                        original, "", verified_fill=("BTC-USD", "BUY", scope, 60)))
+
+                second_engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                second_engine.store, second_engine.rail = second, Rail(settle)
+                with self.assertRaisesRegex(RuntimeError, "during authenticated snapshot"):
+                    second_engine.sync()
+                self.assertEqual(second_engine._account_position_revision(scope), 1)
+            finally:
+                second.close()
+                first.close()
+
+    def test_failed_position_revision_write_rolls_back_fill_settlement(self):
+        import sqlite3
+        from src.advanced_live import _position_meta_key
+
+        scope = "a" * 64
+
+        class Rail:
+            def order_detail(self, order_id):
+                return {"order": {"order_id": order_id, "status": "OPEN"}}
+
+        with tempfile.TemporaryDirectory() as td:
+            store = StateStore(Path(td) / "revision-rollback.db")
+            try:
+                engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                engine.store, engine.rail = store, Rail()
+                peak_key = _position_meta_key("primary_peak:", "BTC-USD", scope)
+                store.set_meta(peak_key, "900")
+                engine._record_order_intent(
+                    product="BTC-USD", side="BUY", client_id="first",
+                    account_scope=scope, expected_revision=0)
+                original = store.get_meta("pending_coinbase_order")
+                revision_key = "coinbase_position_revision:" + scope
+                with store.conn:
+                    store.conn.execute(
+                        "CREATE TRIGGER reject_revision BEFORE INSERT ON meta "
+                        "WHEN NEW.key='" + revision_key + "' "
+                        "BEGIN SELECT RAISE(ABORT, 'revision write failed'); END")
+                with self.assertRaises(sqlite3.IntegrityError):
+                    engine._replace_pending_receipt(
+                        original, "", verified_fill=("BTC-USD", "BUY", scope, 60))
+                self.assertEqual(store.get_meta("pending_coinbase_order"), original)
+                self.assertEqual(store.get_meta(peak_key), "900")
+                self.assertEqual(engine._account_position_revision(scope), 0)
+            finally:
+                store.close()
+
+
+    def test_stale_position_review_cannot_restore_metadata_after_verified_fill(self):
+        """A second desktop must not resurrect stops or basis from old balances."""
+        from src.advanced_live import _position_meta_key
+        scope = "a" * 64
+        product = "BTC-USD"
+
+        class Rail:
+            def order_detail(self, order_id):
+                return {"order": {"order_id": order_id, "status": "OPEN"}}
+
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "stale-position-review.db"
+            first, second = StateStore(path), StateStore(path)
+            try:
+                first_engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                first_engine.store, first_engine.rail = first, Rail()
+                second_engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+                second_engine.store, second_engine.rail = second, Rail()
+                stale = {"authenticated_scope": scope,
+                         "account_position_revision": 0}
+                old_values = {
+                    "primary_peak:": "900",
+                    "primary_fill_basis:": '{"avg_cost": 900}',
+                    "primary_fill_basis_checked_at:": "123",
+                    "primary_maturity_at:": "456",
+                }
+                for prefix, value in old_values.items():
+                    first.set_meta(_position_meta_key(prefix, product, scope), value)
+                # The second desktop has already read these old values.
+                first_engine._record_order_intent(
+                    product=product, side="SELL", client_id="first",
+                    account_scope=scope, expected_revision=0)
+                receipt = first.get_meta("pending_coinbase_order")
+                self.assertTrue(first_engine._replace_pending_receipt(
+                    receipt, "", verified_fill=(product, "SELL", scope, None)))
+                self.assertEqual(first_engine._account_position_revision(scope), 1)
+
+                for prefix, old_value in old_values.items():
+                    key = _position_meta_key(prefix, product, scope)
+                    reset = "0" if prefix == "primary_maturity_at:" else ""
+                    with self.subTest(prefix=prefix):
+                        self.assertEqual(first.get_meta(key), reset)
+                        with self.assertRaisesRegex(
+                                RuntimeError, "position changed during position review"):
+                            second_engine._write_position_meta_if_current(
+                                stale, key, old_value)
+                        self.assertEqual(first.get_meta(key), reset)
+
+                fresh = {"authenticated_scope": scope,
+                         "account_position_revision": 1}
+                peak_key = _position_meta_key("primary_peak:", product, scope)
+                second_engine._write_position_meta_if_current(
+                    fresh, peak_key, "12")
+                self.assertEqual(first.get_meta(peak_key), "12")
+            finally:
+                second.close()
+                first.close()
 
 if __name__=="__main__":
     unittest.main()

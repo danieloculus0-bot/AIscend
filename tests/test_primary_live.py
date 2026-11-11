@@ -58,8 +58,179 @@ class PrimaryLiveTests(unittest.TestCase):
 
         self.engine._primary_trade_step(self.snapshot(cash={"USD":19}))
         self.assertEqual(self.actions[-1],("BUY","ALEO-USD"))
+        # An unverified submission has no confirmed entry time.
+        self.assertIsNone(self.store.get_meta(
+            "primary_maturity_at:unverified:ALEO-USD"))
+
+    def test_verified_buy_starts_maturity_after_fill(self):
+        self.engine._execute_buy = lambda decision, snapshot: "FILLED_VERIFIED"
+        self.engine._primary_trade_step(self.snapshot(cash={"USD": 19}))
         self.assertGreater(float(self.store.get_meta(
-            "primary_maturity_at:unverified:ALEO-USD")),0)
+            "primary_maturity_at:unverified:ALEO-USD")), 0)
+
+    def test_verified_buy_does_not_overwrite_newer_receipt_metadata(self):
+        # A competing desktop may settle another order after this process's
+        # receipt is cleared. Never overwrite that newer lot's lifecycle.
+        class ReceiptRail:
+            def order_detail(self, order_id):
+                return {}
+
+        self.engine.rail = ReceiptRail()
+        product = "ALEO-USD"
+        suffix = ":unverified:" + product
+        latest = {
+            "primary_maturity_at" + suffix: "9876543210",
+            "primary_peak" + suffix: "11",
+            "primary_fill_basis" + suffix: '{"avg_cost": 7}',
+            "primary_fill_basis_checked_at" + suffix: "999",
+        }
+
+        def settled_then_another_fill(decision, snapshot):
+            for key, value in latest.items():
+                self.store.set_meta(key, value)
+            return "FILLED_VERIFIED"
+
+        self.engine._execute_buy = settled_then_another_fill
+        self.engine._primary_trade_step(self.snapshot(cash={"USD": 19}))
+        for key, value in latest.items():
+            self.assertEqual(self.store.get_meta(key), value, key)
+
+    def test_verified_fill_mid_holding_review_cannot_restore_old_peak(self):
+        """A concurrent settlement must invalidate metadata writes mid-cycle."""
+        from unittest.mock import patch
+        from src.advanced_live import _position_meta_key
+        scope = "a" * 64
+        product = "GROVE-USDC"
+        peak_key = _position_meta_key("primary_peak:", product, scope)
+        deadline_key = _position_meta_key("primary_maturity_at:", product, scope)
+        unit_key = _position_meta_key("primary_peak_unit:", product, scope)
+
+        class Rail:
+            def account_scope_id(self):
+                return scope
+            def order_detail(self, order_id):
+                return {"order": {"order_id": order_id, "status": "OPEN"}}
+
+        other = StateStore(self.store.path)
+        try:
+            other_engine = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+            other_engine.store, other_engine.rail = other, Rail()
+            self.engine.rail = Rail()
+            self.store.set_meta(peak_key, "1")
+            self.store.set_meta(deadline_key, "9999999999")
+            self.store.set_meta(unit_key, "USDC")
+            snapshot = self.snapshot(held={
+                product: {"qty": 10, "available_qty": 10, "mark_price": 2}})
+            snapshot["authenticated_scope"] = scope
+            snapshot["account_position_revision"] = 0
+            original_observe = self.engine._observe_position_peak_if_current
+            settled = []
+
+            def observe_after_concurrent_fill(snapshot, product, mark):
+                # The other desktop settles after this process planned its
+                # holding review, but BEFORE the atomic peak-write lock.
+                if not settled:
+                    other_engine._record_order_intent(
+                        product=product, side="SELL", client_id="concurrent",
+                        account_scope=scope, expected_revision=0)
+                    receipt = other.get_meta("pending_coinbase_order")
+                    self.assertTrue(other_engine._replace_pending_receipt(
+                        receipt, "", verified_fill=(product, "SELL", scope, None)))
+                    settled.append(True)
+                return original_observe(snapshot, product, mark)
+
+            account = {"account_scope_verified": True,
+                       "capital": {"current_equity_usd": 20},
+                       "read_status": "PROVIDER_HISTORY_COMPLETE",
+                       "execution": {"status": "COMPLETE", "products": {}}}
+            with patch("src.advanced_live.evaluate_account", return_value=account):
+                with patch.object(self.engine, "_observe_position_peak_if_current",
+                                  side_effect=observe_after_concurrent_fill):
+                    with self.assertRaisesRegex(
+                            RuntimeError, "position changed during position review"):
+                        self.engine._primary_trade_step(snapshot)
+            self.assertTrue(settled)
+            self.assertEqual(other.get_meta(peak_key), "")
+            self.assertEqual(other.get_meta(deadline_key), "0")
+            self.assertEqual(self.actions, [])
+        finally:
+            other.close()
+
+    def test_two_desktops_same_revision_cannot_lower_stop_peak(self):
+        """The position generation alone does not serialize peak observations."""
+        from src.advanced_live import _position_meta_key
+        scope = "a" * 64
+        product = "BTC-USD"
+        peak_key = _position_meta_key("primary_peak:", product, scope)
+        unit_key = _position_meta_key("primary_peak_unit:", product, scope)
+        other = StateStore(self.store.path)
+        try:
+            first = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+            first.store = self.store
+            second = AdvancedSpotEngine.__new__(AdvancedSpotEngine)
+            second.store = other
+            # Both processes are reviewing balances from the SAME revision.
+            snapshot = {"authenticated_scope": scope,
+                        "account_position_revision": 0}
+            self.assertEqual(first._observe_position_peak_if_current(
+                snapshot, product, 100.0), 100.0)
+            self.assertEqual(first._observe_position_peak_if_current(
+                snapshot, product, 120.0), 120.0)
+            self.assertEqual(second._observe_position_peak_if_current(
+                snapshot, product, 110.0), 120.0)
+            self.assertEqual(float(self.store.get_meta(peak_key)), 120.0)
+            self.assertEqual(other.get_meta(unit_key), "USD")
+        finally:
+            other.close()
+
+    def test_peak_quote_migration_and_revision_guard_share_transaction(self):
+        from src.advanced_live import _position_meta_key
+        scope = "a" * 64
+        product = "BTC-USD"
+        peak_key = _position_meta_key("primary_peak:", product, scope)
+        unit_key = _position_meta_key("primary_peak_unit:", product, scope)
+        self.store.set_meta(peak_key, "900")
+        self.store.set_meta(unit_key, "EUR")
+        snapshot = {"authenticated_scope": scope,
+                    "account_position_revision": 0}
+        self.assertEqual(self.engine._observe_position_peak_if_current(
+            snapshot, product, 2.0), 2.0)
+        self.assertEqual(self.store.get_meta(unit_key), "USD")
+        self.assertEqual(float(self.store.get_meta(peak_key)), 2.0)
+        self.store.set_meta("coinbase_position_revision:" + scope, "1")
+        with self.assertRaisesRegex(
+                RuntimeError, "position changed during position review"):
+            self.engine._observe_position_peak_if_current(snapshot, product, 100.0)
+        self.assertEqual(float(self.store.get_meta(peak_key)), 2.0)
+        self.assertEqual(self.store.get_meta(unit_key), "USD")
+
+    def test_verified_sell_does_not_overwrite_newer_receipt_metadata(self):
+        class ReceiptRail:
+            def order_detail(self, order_id):
+                return {}
+
+        self.engine.rail = ReceiptRail()
+        product = "GROVE-USDC"
+        suffix = ":unverified:" + product
+        self.store.set_meta("primary_maturity_at" + suffix, "1")
+        latest = {
+            "primary_maturity_at" + suffix: "9876543210",
+            "primary_peak" + suffix: "11",
+            "primary_fill_basis" + suffix: '{"avg_cost": 7}',
+            "primary_fill_basis_checked_at" + suffix: "999",
+        }
+
+        def settled_then_another_fill(decision, snapshot):
+            for key, value in latest.items():
+                self.store.set_meta(key, value)
+            return "FILLED_VERIFIED"
+
+        self.engine._execute_sell = settled_then_another_fill
+        self.engine._primary_trade_step(self.snapshot(
+            cash={"USDC": 0.88276},
+            held={product: {"qty": 10, "available_qty": 10}}))
+        for key, value in latest.items():
+            self.assertEqual(self.store.get_meta(key), value, key)
 
     def test_ambiguous_quote_bridge_reports_unknown_and_retains_intent(self):
         # The bridge might have reached Coinbase before the timeout.
