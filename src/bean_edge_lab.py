@@ -26,8 +26,18 @@ def normalize(raw):
         raise ValueError("INSUFFICIENT_HISTORY")
     last = None
     for row in rows:
-        ts = int(row["ts"])
         try:
+            # Do not truncate fractional, nonfinite or boolean candle boundaries.
+            # The historical sample must be exactly aligned before conversion.
+            raw_ts = row["ts"]
+            if isinstance(raw_ts, bool):
+                raise ValueError("INVALID_TIMESTAMP")
+            numeric_ts = float(raw_ts)
+            if not math.isfinite(numeric_ts) or not numeric_ts.is_integer():
+                raise ValueError("INVALID_TIMESTAMP")
+            ts = int(raw_ts) if isinstance(raw_ts, int) else int(numeric_ts)
+            if ts != numeric_ts:
+                raise ValueError("INVALID_TIMESTAMP")
             o, c, v = (float(row[k]) for k in ("open", "close", "volume"))
         except (KeyError, ValueError, TypeError, OverflowError) as exc:
             raise ValueError("INVALID_CANDLE") from exc

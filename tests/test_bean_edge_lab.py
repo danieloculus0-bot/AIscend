@@ -51,6 +51,19 @@ class OpportunityTests(unittest.TestCase):
         self.assertEqual(result["decision"], "CASH")
         self.assertEqual(result["reason"], "INSUFFICIENT_MATURED_EXAMPLES")
 
+    def test_fractional_and_nonfinite_timestamps_fail_closed(self):
+        for bad_ts in (21600.5, 21600.999, float("nan"), float("inf"), True):
+            with self.subTest(timestamp=bad_ts):
+                raw = candles(n=4)
+                raw[lab.BAR]["ts"] = bad_ts
+                with self.assertRaisesRegex(ValueError, "INVALID_TIMESTAMP"):
+                    lab.normalize(raw)
+
+    def test_integer_timestamp_remains_accepted(self):
+        raw = candles(n=4)
+        self.assertEqual([row["ts"] for row in lab.normalize(raw)],
+                         [i * lab.BAR for i in range(4)])
+
     def test_gap_is_not_stitched(self):
         raw = candles()
         del raw[100*lab.BAR]
