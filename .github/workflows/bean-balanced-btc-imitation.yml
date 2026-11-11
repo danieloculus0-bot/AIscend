@@ -1,0 +1,113 @@
+name: BEAN balanced BTC imitation versus placebo (research only)
+
+on:
+  pull_request:
+    paths:
+      - "research/bean_rotation_shadow_study.py"
+      - "research/BEAN_BALANCED_IMITATION_PROTOCOL.md"
+      - "tests/test_bean_rotation_shadow_study.py"
+      - ".github/workflows/bean-balanced-btc-imitation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  balanced-imitation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Exact review head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Actual separately pinned BEAN Python Core
+        uses: actions/checkout@v4
+        with:
+          repository: danieloculus0-bot/BEAN
+          ref: d13ea68fd2d0fd4cd7af1cd297e1fbec75a954fe
+          path: pinned_bean_core
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run offline regression contracts
+        run: |
+          python -m unittest discover -s tests -p "test_coinbase_public_paired_sixhour.py" -v
+          python -m unittest discover -s tests -p "test_bean_rotation_shadow_study.py" -v
+      - name: Real pinned Core CPU dependency
+        run: python -m pip install --index-url https://download.pytorch.org/whl/cpu "torch==2.8.0+cpu"
+      - name: Recollect and verify EXACT frozen public vintage
+        run: |
+          python -m research.coinbase_public_paired_sixhour --output artifacts/balanced-source
+          python - <<'PY'
+          import json
+          p=json.load(open("artifacts/balanced-source/source_manifest.json"))
+          assert p["rows_sha256"]=="6600af461bada8b7e345353b3db9399fab1d66e262fbbe00a0f9d6defbf4e963"
+          assert p["row_count"]==8280
+          print("FROZEN_PUBLIC_RETROSPECTIVE_SOURCE_VERIFIED")
+          PY
+      - name: Four fixed supervised Core training arms
+        run: |
+          for arm in mentor_bc shuffled_mentor_bc balanced_mentor_bc balanced_shuffled_mentor_bc; do
+            python -m research.bean_rotation_shadow_study \
+              --bean-core pinned_bean_core \
+              --source-jsonl artifacts/balanced-source/public_btc_eth.jsonl \
+              --source-manifest artifacts/balanced-source/source_manifest.json \
+              --training-policy "$arm" \
+              --output "artifacts/arm-$arm"
+          done
+      - name: Compare equal budgets, class support and explicit BTC recall
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          names=["mentor_bc","shuffled_mentor_bc","balanced_mentor_bc","balanced_shuffled_mentor_bc"]
+          results={}
+          for name in names:
+              p=Path("artifacts")/("arm-"+name)
+              x=json.loads((p/"results.json").read_text())
+              assert x["protocol"]["source_sha256"]=="6600af461bada8b7e345353b3db9399fab1d66e262fbbe00a0f9d6defbf4e963"
+              assert x["protocol"]["training_policy"]==name
+              assert x["result_status"]=="RETROSPECTIVE_PUBLIC_MARKET_NOT_PROSPECTIVE_PROFITABILITY"
+              assert not x["live_orders"] and not x["promotion_authorized"]
+              assert len(x["learned"])==2
+              results[name]=x
+          assert all(r["controls"]==results[names[0]]["controls"] for r in results.values())
+          for seed in (7,41):
+              arms=[next(a for a in results[name]["learned"] if a["seed"]==seed) for name in names]
+              assert len({(a["training_frames"],a["gradient_updates"],a["unique_training_decision_windows"]) for a in arms})==1
+              for a in arms:
+                  assert a["gradient_updates"]==1405
+                  assert a["checkpoint_replay_verified"]
+                  assert a["weights_sha256_before"]!=a["weights_sha256_after"]
+                  assert a["expert_btc_decisions"]>0
+                  assert 0<=a["btc_entry_recall"]<=1
+                  assert 0<=a["cash_only_baseline_agreement"]<=1
+                  assert a["evaluation_decisions"]==a["evaluation"]["periods"]
+              for a in arms[2:]:
+                  assert len(a["training_class_weights"])==3
+                  assert all(v>0 for v in a["training_class_counts"])
+                  assert a["training_algorithm"]=="BEAN_Core_SpongeDQN_supervised_balanced_imitation"
+          summary={"fixed_defensive":results["mentor_bc"]["controls"]["btc_200d_12m_defensive"]["net_return"],
+                   "cash":results["mentor_bc"]["controls"]["cash"]["net_return"],
+                   "arms":{name:[{"seed":a["seed"],"net":a["evaluation"]["net_return"],
+                                   "drawdown":a["evaluation"]["max_drawdown"],
+                                   "btc_recall":a["btc_entry_recall"],
+                                   "btc_precision":a["btc_selection_precision"],
+                                   "cash_only_baseline":a["cash_only_baseline_agreement"],
+                                   "incorrect_eth_rotations":a["incorrect_eth_rotations"],
+                                   "gradient_updates":a["gradient_updates"]}
+                                  for a in results[name]["learned"]] for name in names}}
+          (Path("artifacts")/"balanced-summary.json").write_text(json.dumps(summary,sort_keys=True,indent=2)+"\n")
+          print("BALANCED_CORE_RESEARCH_ONLY_CHECKS_PASSED")
+          print(json.dumps(summary,sort_keys=True))
+          PY
+      - name: Retain both losing and successful receipts and checkpoints
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bean-balanced-btc-imitation-retrospective-all-arms
+          path: artifacts/
+          if-no-files-found: warn
