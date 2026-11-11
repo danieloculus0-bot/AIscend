@@ -251,6 +251,54 @@ def fixed(market,name):
     return choose
 
 
+def balanced_action_weights(examples):
+    """Predeclared inverse-frequency weights from DEVELOPMENT expert actions only."""
+    counts=[0]*len(ACTIONS)
+    for _,action in examples:
+        if type(action) is not int or not 0<=action<len(ACTIONS):
+            raise ValueError("INVALID_EXPERT_CLASS")
+        counts[action]+=1
+    if not all(counts):
+        raise ValueError("ABSENT_EXPERT_ACTION_CLASS")
+    n=sum(counts)
+    return counts,[n/(len(ACTIONS)*c) for c in counts]
+
+
+def expert_target_diagnostics(market,events):
+    """Do not misread a cash-only model's nominal accuracy as real BTC learning."""
+    if market["symbols"]!=["BTC-USD","ETH-USD"] or not events:
+        raise ValueError("PUBLIC_BTC_DIAGNOSTIC_REQUIRES_EVENTS")
+    asset_to_name={None:"cash",0:market["symbols"][0],1:market["symbols"][1]}
+    matrix={"cash":{k:0 for k in asset_to_name.values()},
+            "BTC-USD":{k:0 for k in asset_to_name.values()}}
+    indices={t:i for i,t in enumerate(market["times"])}
+    reference=fixed(market,"btc_200d_12m_defensive")
+    for event in events:
+        ts=event["signal_ts"]-BAR
+        if ts not in indices:
+            raise ValueError("OUTSIDE_EVALUATION_SOURCE")
+        i=indices[ts]
+        expert_target=targets(market,i)[reference(None,None,i)]
+        predicted=event["requested_target"]
+        if expert_target not in (None,market["symbols"].index("BTC-USD")) or predicted not in asset_to_name:
+            raise ValueError("INVALID_EXPERT_OR_MODEL_TARGET")
+        matrix[asset_to_name[expert_target]][asset_to_name[predicted]]+=1
+    n=len(events)
+    btc_count=sum(matrix["BTC-USD"].values())
+    cash_count=sum(matrix["cash"].values())
+    correct_btc=matrix["BTC-USD"]["BTC-USD"]
+    predicted_btc=sum(row["BTC-USD"] for row in matrix.values())
+    matched_cash=matrix["cash"]["cash"]
+    return {"historical_expert_action_agreement":(matched_cash+correct_btc)/n,
+            "cash_only_baseline_agreement":cash_count/n,
+            "expert_btc_decisions":btc_count,"expert_cash_decisions":cash_count,
+            "btc_entry_recall":correct_btc/btc_count if btc_count else None,
+            "btc_selection_precision":correct_btc/predicted_btc if predicted_btc else None,
+            "cash_specificity":matched_cash/cash_count if cash_count else None,
+            "incorrect_eth_rotations":sum(row["ETH-USD"] for row in matrix.values()),
+            "target_confusion":matrix,"evaluation_decisions":n}
+
+
 def core_learner(core_dir,seed):
     """No fallback: import ONLY an exact pinned, separate BEAN Git checkout."""
     root=Path(core_dir).expanduser().resolve()
@@ -319,7 +367,7 @@ def train(core_dir,market,output,*,seeds=(7,41),epochs=4,source_kind="synthetic"
     """
     if source_kind not in ("synthetic","public_historical"):
         raise ValueError("INVALID_SOURCE_KIND")
-    if training_policy not in ("self","mentor","shuffled_mentor"):
+    if training_policy not in ("self","mentor","shuffled_mentor","mentor_bc","shuffled_mentor_bc","balanced_mentor_bc","balanced_shuffled_mentor_bc"):
         raise ValueError("INVALID_TRAINING_POLICY")
     if training_policy!="self" and source_kind!="public_historical":
         raise ValueError("MENTOR_REQUIRES_EXACT_PUBLIC_HISTORICAL_SOURCE")
@@ -358,7 +406,7 @@ def train(core_dir,market,output,*,seeds=(7,41),epochs=4,source_kind="synthetic"
         for i in development_indices:
             action=fixed(market,"btc_200d_12m_defensive")(None,None,i)
             targets_for_teacher[i]=targets(market,i)[action]
-        if training_policy=="shuffled_mentor":
+        if training_policy in ("shuffled_mentor","shuffled_mentor_bc","balanced_shuffled_mentor_bc"):
             offset=max(1,len(development_indices)//3)
             rotated=[targets_for_teacher[development_indices[(k+offset)%len(development_indices)]]
                      for k in range(len(development_indices))]
@@ -369,24 +417,74 @@ def train(core_dir,market,output,*,seeds=(7,41),epochs=4,source_kind="synthetic"
         initial=model.weights_digest()
         unique=len(development_indices)
         training_events=[]
+        cloning = training_policy in ("mentor_bc","shuffled_mentor_bc","balanced_mentor_bc","balanced_shuffled_mentor_bc")
+        balanced = training_policy in ("balanced_mentor_bc","balanced_shuffled_mentor_bc")
+        expert_examples=[]
         for epoch in range(epochs):
             # Repetition trains the same finite history, not independent examples.
             def chooser(state,pos,i):
                 if training_policy=="self":
                     return model.choose(state,epsilon=.16)
-                # Translate the frozen dollar/asset target into the *current*
+                # Translate the frozen dollar/asset target into the current
                 # 3-action leader/runner-up vocabulary without aliasing.
                 return targets(market,i).index(targets_for_teacher[i])
-            trial=rollout(market,begin,cutoff,
-                    chooser,learn=lambda s,a,r,n,d:model.observe(s,a,r,n,d))
+            def on_matured(state,action,reward,next_state,done):
+                if cloning:
+                    expert_examples.append((state,action))
+                else:
+                    model.observe(state,action,reward,next_state,done)
+            trial=rollout(market,begin,cutoff,chooser,learn=on_matured)
             if trial["unfilled"]:
                 raise ValueError("UNEQUAL_BUDGET_UNFILLED_TRAINING")
             for event in trial["events"]:
                 training_events.append({"seed":seed,"epoch":epoch,**event})
+        if cloning:
+            # Supervised imitation of observed *past* expert actions, NOT TD
+            # updates. These are the real pinned Core network and optimizer.
+            # Match the original Core RL gradient-step budget exactly.
+            import torch
+            expected_steps=max(0,len(expert_examples)-31)  # Core warmup=32
+            if expected_steps==0:raise ValueError("NO_EXPERT_EXAMPLES")
+            class_counts=[sum(a==k for _,a in expert_examples) for k in range(len(ACTIONS))]
+            class_weights=None
+            if balanced:
+                class_counts,class_weights=balanced_action_weights(expert_examples)
+            weight_tensor=(torch.tensor(class_weights,dtype=torch.float32)
+                           if class_weights is not None else None)
+            order=list(range(len(expert_examples)))
+            rng=model.rng
+            rng.shuffle(order)
+            cursor=0
+            for k in range(expected_steps):
+                if cursor+16>len(order):
+                    rng.shuffle(order)
+                    cursor=0
+                selected=[expert_examples[n] for n in order[cursor:cursor+16]]
+                cursor+=16
+                xs=torch.tensor([ex[0] for ex in selected],dtype=torch.float32)
+                ys=torch.tensor([ex[1] for ex in selected],dtype=torch.long)
+                logits=model.online(xs)
+                loss=torch.nn.functional.cross_entropy(logits,ys,weight=weight_tensor)
+                if not torch.isfinite(loss):
+                    raise ValueError("NONFINITE_SUPERVISED_LOSS")
+                model.optimizer.zero_grad(set_to_none=True)
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.online.parameters(),max_norm=10.0)
+                model.optimizer.step()
+                model.updates+=1  # Count *actual* supervised gradient steps.
+            model.frames=len(expert_examples)
+            model.last_loss=float(loss.detach().item())
+            model.target.load_state_dict(model.online.state_dict())
         with (output/f"seed-{seed}.training_events.jsonl.gz").open("wb") as raw:
             with gzip.GzipFile(filename="",mode="wb",fileobj=raw,mtime=0) as zipped:
                 for event in training_events:zipped.write((canonical(event)+"\n").encode())
         status={"seed":seed,"training_policy":training_policy,
+                "training_algorithm":("BEAN_Core_SpongeDQN_supervised_balanced_imitation" if balanced
+                                      else "BEAN_Core_SpongeDQN_supervised_behavior_cloning" if cloning
+                                      else "BEAN_Core_SpongeDQN_temporal_difference"),
+                "supervised_examples":(len(expert_examples) if cloning else 0),
+                "training_class_counts":(class_counts if cloning else None),
+                "training_class_weights":(class_weights if cloning else None),
                 "unique_training_decision_windows":unique,
                 "training_passes":epochs,"training_frames":model.frames,
                 "gradient_updates":model.updates,
@@ -397,6 +495,8 @@ def train(core_dir,market,output,*,seeds=(7,41),epochs=4,source_kind="synthetic"
         result=rollout(market,cutoff,len(market["times"]),
                        lambda s,p,i:model.choose(s,epsilon=0.))
         status["evaluation"]=result
+        if market["symbols"]==["BTC-USD","ETH-USD"]:
+            status.update(expert_target_diagnostics(market,result["events"]))
         untouched=core_learner(core_dir,seed)
         if untouched.weights_digest()!=initial:
             raise AssertionError("UNTRAINED_CONTROL_CHANGED")
@@ -437,7 +537,7 @@ def main(argv=None):
     p.add_argument("--output",type=Path,required=True)
     p.add_argument("--source-jsonl",type=Path)
     p.add_argument("--source-manifest",type=Path)
-    p.add_argument("--training-policy",choices=("self","mentor","shuffled_mentor"),default="self")
+    p.add_argument("--training-policy",choices=("self","mentor","shuffled_mentor","mentor_bc","shuffled_mentor_bc","balanced_mentor_bc","balanced_shuffled_mentor_bc"),default="self")
     p.add_argument("--synthetic-fixture",action="store_true")
     opts=p.parse_args(argv)
     if bool(opts.source_jsonl)==bool(opts.synthetic_fixture):
