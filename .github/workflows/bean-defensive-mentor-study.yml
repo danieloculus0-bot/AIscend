@@ -1,0 +1,109 @@
+name: BEAN matched defensive BTC mentor and shuffled placebo (research only)
+
+on:
+  pull_request:
+    paths:
+      - "research/bean_rotation_shadow_study.py"
+      - "research/BEAN_DEFENSIVE_MENTOR_PROTOCOL.md"
+      - "tests/test_bean_rotation_shadow_study.py"
+      - ".github/workflows/bean-defensive-mentor-study.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  teacher-vs-self-vs-placebo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: danieloculus0-bot/BEAN
+          ref: d13ea68fd2d0fd4cd7af1cd297e1fbec75a954fe
+          path: pinned_bean_core
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Offline regression contracts
+        run: |
+          python -m unittest discover -s tests -p "test_coinbase_public_paired_sixhour.py" -v
+          python -m unittest discover -s tests -p "test_bean_rotation_shadow_study.py" -v
+      - name: Pin real Core CPU dependency
+        run: python -m pip install --index-url https://download.pytorch.org/whl/cpu "torch==2.8.0+cpu"
+      - name: Refetch exact public data vintage or fail closed
+        run: |
+          python -m research.coinbase_public_paired_sixhour --output artifacts/mentor-source
+          python - <<'PY'
+          import json
+          p=json.load(open("artifacts/mentor-source/source_manifest.json"))
+          assert p["rows_sha256"]=="6600af461bada8b7e345353b3db9399fab1d66e262fbbe00a0f9d6defbf4e963"
+          assert p["row_count"]==8280
+          print("FROZEN_PUBLIC_SOURCE_SHA_MATCH")
+          PY
+      - name: Original self-exploration matched run
+        run: |
+          python -m research.bean_rotation_shadow_study --bean-core pinned_bean_core \
+            --source-jsonl artifacts/mentor-source/public_btc_eth.jsonl \
+            --source-manifest artifacts/mentor-source/source_manifest.json \
+            --training-policy self --output artifacts/mentor-self
+      - name: BEAN learns from causal matured BTC defensive teacher
+        run: |
+          python -m research.bean_rotation_shadow_study --bean-core pinned_bean_core \
+            --source-jsonl artifacts/mentor-source/public_btc_eth.jsonl \
+            --source-manifest artifacts/mentor-source/source_manifest.json \
+            --training-policy mentor --output artifacts/mentor-learned
+      - name: Matched misaligned teacher-label placebo
+        run: |
+          python -m research.bean_rotation_shadow_study --bean-core pinned_bean_core \
+            --source-jsonl artifacts/mentor-source/public_btc_eth.jsonl \
+            --source-manifest artifacts/mentor-source/source_manifest.json \
+            --training-policy shuffled_mentor --output artifacts/mentor-placebo
+      - name: Verify equal budgets, changed neural weights, retained negative outcomes
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          arms={}
+          for k,path in (("self","mentor-self"),("mentor","mentor-learned"),("shuffled_mentor","mentor-placebo")):
+              p=Path("artifacts")/path
+              r=json.loads((p/"results.json").read_text())
+              assert r["protocol"]["training_policy"]==k
+              assert r["protocol"]["source_sha256"]=="6600af461bada8b7e345353b3db9399fab1d66e262fbbe00a0f9d6defbf4e963"
+              assert r["result_status"]=="RETROSPECTIVE_PUBLIC_MARKET_NOT_PROSPECTIVE_PROFITABILITY"
+              assert not r["promotion_authorized"] and not r["live_orders"]
+              assert len(r["learned"])==2
+              for x in r["learned"]:
+                  assert x["gradient_updates"]>0 and x["checkpoint_replay_verified"]
+                  assert x["weights_sha256_before"]!=x["weights_sha256_after"]
+                  assert (p/f"seed-{x['seed']}.training_events.jsonl.gz").exists()
+              arms[k]=r
+          source=arms["self"]
+          for a in arms.values():
+              assert a["controls"]==source["controls"]
+          for seed in (7,41):
+              matched=[next(x for x in a["learned"] if x["seed"]==seed) for a in arms.values()]
+              assert len({(x["training_frames"],x["gradient_updates"],x["unique_training_decision_windows"]) for x in matched})==1
+          print("MATCHED_BEAN_MENTOR_STUDY_RESEARCH_ONLY_NOT_PROSPECTIVE")
+          print(json.dumps({"cash":source["controls"]["cash"]["net_return"],
+                            "btc_hold":source["controls"]["buy_hold_first"]["net_return"],
+                            "btc_defensive":source["controls"]["btc_200d_12m_defensive"]["net_return"],
+                            "arms":{k:[x["evaluation"]["net_return"] for x in a["learned"]] for k,a in arms.items()}},
+                           sort_keys=True))
+          PY
+      - name: Retain all SHA-linked source, Core checkpoints, per-case wins and losses
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bean-defensive-mentor-retrospective-all-arms
+          path: |
+            artifacts/mentor-source/
+            artifacts/mentor-self/
+            artifacts/mentor-learned/
+            artifacts/mentor-placebo/
+          if-no-files-found: warn
