@@ -1,0 +1,65 @@
+name: BEAN rotation shadow Core training (synthetic only)
+
+on:
+  pull_request:
+    paths:
+      - "research/bean_rotation_shadow_study.py"
+      - "research/BEAN_ROTATION_SHADOW_PROTOCOL.md"
+      - "tests/test_bean_rotation_shadow_study.py"
+      - ".github/workflows/bean-rotation-shadow.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-core-training:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout AIscend proposed revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Checkout pinned separate BEAN Core
+        uses: actions/checkout@v4
+        with:
+          repository: danieloculus0-bot/BEAN
+          ref: d13ea68fd2d0fd4cd7af1cd297e1fbec75a954fe
+          path: pinned_bean_core
+          persist-credentials: false
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run causal synthetic contracts (no Core dependency)
+        run: python -m unittest discover -s tests -p "test_bean_rotation_shadow_study.py" -v
+      - name: Install CPU PyTorch for actual Core learner
+        run: python -m pip install --index-url https://download.pytorch.org/whl/cpu "torch==2.8.0+cpu"
+      - name: Train actual pinned BEAN on strictly synthetic data
+        run: python -m research.bean_rotation_shadow_study --bean-core pinned_bean_core --synthetic-fixture --output artifacts/bean-rotation-synthetic
+      - name: Verify non-promoting experiment receipts
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path("artifacts/bean-rotation-synthetic")
+          r=json.loads((root/"results.json").read_text())
+          assert r["result_status"]=="EXPERIMENTAL_SYNTHETIC_NO_PROFITABILITY_CLAIM"
+          assert not r["live_orders"] and not r["promotion_authorized"]
+          assert len(r["learned"])==2
+          for arm in r["learned"]:
+              assert arm["gradient_updates"]>0
+              assert arm["checkpoint_replay_verified"]
+              assert arm["weights_sha256_before"]!=arm["weights_sha256_after"]
+              assert (root/f"seed-{arm['seed']}.training_events.jsonl.gz").exists()
+          print("SYNTHETIC_CORE_TRAINING_VERIFIED_NOT_PROFITABILITY")
+          PY
+      - name: Archive synthetic-only receipts, including losses
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bean-rotation-synthetic-receipts
+          path: artifacts/bean-rotation-synthetic/
+          if-no-files-found: warn
