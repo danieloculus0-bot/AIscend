@@ -2589,7 +2589,6 @@ class AdvancedSpotEngine:
             float(qty),
             0.0,
             0.0,
-            f"{decision.rationale} | preview={str(preview)[:180]} | order={str(order)[:220]}",
             f"{decision.rationale} | preview={str(preview)[:220]} | order={str(order)[:220]}",
         )
 
@@ -2603,19 +2602,6 @@ class AdvancedSpotEngine:
                 product_id=product_id,
                 base_asset=base,
                 quote_asset=quote,
-                base_quantity=qty,
-                fee_asset=quote if self._confirmed_fee(confirmed_order) is not None else "",
-                fee_quantity=self._confirmed_fee(confirmed_order),
-                order_id=self.audit.provider_id(order, "order_id", "orderId"),
-                client_order_id=client_order_id,
-                status="filled",
-                rationale=decision.rationale,
-                source="coinbase_advanced_order_response",
-                raw_provider_response={
-                    "preview": preview,
-                    "order": order,
-                    "confirmed_order": confirmed_order,
-                },
                 base_quantity=evidence.get("filled_size") if result_state == "FILLED_VERIFIED" else None,
                 quote_quantity=evidence.get("filled_value") if result_state == "FILLED_VERIFIED" else None,
                 fee_quantity=evidence.get("total_fees") if result_state == "FILLED_VERIFIED" else None,
