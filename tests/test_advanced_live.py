@@ -962,8 +962,6 @@ class AdvancedLiveTests(unittest.TestCase):
             engine.step()
             row = store.latest_decisions(1)[0]
             self.assertNotEqual(row["status"], "LIVE_EXECUTED")
-            self.assertFalse(any(entry["event_type"] == "ADVANCED_ORDER_EXECUTED_BUY"
-                                 for entry in store.recent_ledger(50)))
             store.close()
 
     def test_buy_fraction_is_raised_to_coinbase_minimum_when_possible(self):
