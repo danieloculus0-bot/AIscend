@@ -714,23 +714,6 @@ class AdvancedTradeSpot:
         )
         return self._dict(response)
 
-    def market_buy(self, product_id: str, quote_size: Decimal, client_order_id: str) -> dict[str, Any]:
-        if quote_size <= 0:
-            raise ValueError("quote_size must be positive")
-        quote_size = self._normalized_order_size(
-            product_id,
-            quote_size,
-            side="BUY",
-        )
-        response = self.vault.client().market_order_buy(
-        preview = self._dict(response)
-        if preview.get("errs") or preview.get("errors"):
-            raise RuntimeError("Coinbase market buy preview rejected: "
-                               + str(preview.get("errs") or preview.get("errors")))
-        if not preview:
-            raise RuntimeError("Coinbase market buy preview is missing")
-        return preview
-
     def market_buy(self, product_id: str, quote_size: Decimal, client_order_id: str, *, expected_scope: str | None = None) -> dict[str, Any]:
         if quote_size <= 0:
             raise ValueError("quote_size must be positive")
@@ -745,7 +728,6 @@ class AdvancedTradeSpot:
             response,
             f"market buy {product_id.upper()}",
         )
-        return require_accepted_order(self._dict(response))
 
     def market_sell(self, product_id: str, base_size: Decimal, client_order_id: str, *, expected_scope: str | None = None) -> dict[str, Any]:
         if base_size <= 0:
@@ -755,7 +737,6 @@ class AdvancedTradeSpot:
             base_size,
             side="SELL",
         )
-        response = self.vault.client().market_order_sell(
         client = (self.vault.client(expected_scope=expected_scope)
                   if expected_scope is not None else self.vault.client())
         response = client.market_order_sell(
@@ -774,4 +755,3 @@ class AdvancedTradeSpot:
             raise ValueError("order_id is required")
         response = self.vault.client().get_order(order_id=order_id)
         return self._dict(response)
-        return require_accepted_order(self._dict(response))
