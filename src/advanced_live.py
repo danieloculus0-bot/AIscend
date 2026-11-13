@@ -2304,15 +2304,6 @@ class AdvancedSpotEngine:
         if spend <= 0:
             raise RuntimeError(f"Insufficient {quote} for Coinbase Advanced buy.")
 
-        preview = self.rail.preview_market_buy(product_id, spend)
-        self._validate_execution_preview(preview, product_id)
-        client_order_id = f"aiscend-{uuid.uuid4()}"
-        order = self.rail.market_buy(
-            product_id,
-            spend,
-            client_order_id=client_order_id,
-        )
-        confirmed_order = self._confirm_order_fill(order, product_id)
         available = Decimal(str((snapshot.get("cash_by_quote") or {}).get(quote, 0.0)))
         spend = available * Decimal(str(decision.fraction))
         # Trade the requested fraction of spendable quote balance.
@@ -2331,6 +2322,7 @@ class AdvancedSpotEngine:
             raise RuntimeError(f"Available {quote} is below Coinbase order minimum for {product_id}.")
 
         preview = self.rail.preview_market_buy(product_id, spend)
+        self._validate_execution_preview(preview, product_id)
         self._require_snapshot_order_scope(snapshot)
         client_order_id = f"aiscend-{uuid.uuid4()}"
         self._record_order_intent(product=product_id, side="BUY",
