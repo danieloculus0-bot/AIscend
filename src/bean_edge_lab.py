@@ -40,6 +40,8 @@ def normalize(raw):
                 raise ValueError("INVALID_TIMESTAMP")
             o, c, v = (float(row[k]) for k in ("open", "close", "volume"))
         except (KeyError, ValueError, TypeError, OverflowError) as exc:
+            if isinstance(exc, ValueError) and str(exc) == "INVALID_TIMESTAMP":
+                raise
             raise ValueError("INVALID_CANDLE") from exc
         if (ts % BAR or (last is not None and ts != last + BAR) or
                 not all(math.isfinite(x) for x in (o, c, v)) or
