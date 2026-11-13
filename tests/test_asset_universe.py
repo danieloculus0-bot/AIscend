@@ -95,6 +95,24 @@ class AssetUniverseTests(unittest.TestCase):
         second=universe.collect()
         self.assertEqual(first,second)
 
+    def test_priority_product_bypasses_asset_cache(self):
+        universe=FakeUniverse()
+        counts={}
+
+        original=universe._scan_product
+        def counted(product):
+            product_id=product["id"]
+            counts[product_id]=counts.get(product_id,0)+1
+            return original(product)
+
+        universe._scan_product=counted
+        universe.collect()
+        self.assertEqual(counts.get("BBB-USDC"),1)
+
+        universe.collect(priority_products=["BBB-USDC"])
+        self.assertEqual(counts.get("BBB-USDC"),2)
+        self.assertEqual(counts.get("AAA-USD"),1)
+        self.assertEqual(counts.get("CCC-EUR"),1)
     def test_default_scan_has_more_than_eight_slots(self):
         self.assertGreater(CoinbaseAssetUniverse().batch_size, 8)
         self.assertGreater(CoinbaseAssetUniverse().asset_cache_seconds, 600)

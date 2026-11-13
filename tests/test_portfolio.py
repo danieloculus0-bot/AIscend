@@ -128,6 +128,48 @@ class PortfolioCoordinatorTests(unittest.TestCase):
                     "score": 0.42,
                     "spread_bps": 8.0,
                     "volume_ratio": 1.4,
+                    "funding_route": {
+                        "mode": "DIRECT",
+                        "execution_product": "ALEO-USDC",
+                        "available": 25.0,
+                    },
+                }
+            },
+        }
+        self.assertEqual(choose_execution_rail(base, advanced), "advanced")
+
+    def test_coordinator_recognizes_crypto_to_crypto_funding_route(self):
+        base = {
+            "cash": 5.0,
+            "net_liquidation": 5.0,
+            "positions": {},
+            "research": {
+                "available": True,
+                "composite_score": 0.05,
+                "confidence": 0.1,
+                "human": {"fomo_index": 45, "crowd_regime": "BALANCED"},
+                "eth": {"return_5m": 0, "return_1h": 0, "volume_ratio": 1},
+                "thesis": "neutral",
+            },
+        }
+        advanced = {
+            "cash": 0.0,
+            "net_liquidation": 20.0,
+            "cash_by_quote": {"GROVE": 2500.0},
+            "positions": {"GROVE-USDC": {"qty": 2500.0}},
+            "market_radar": {
+                "best_long": {
+                    "product": "TRAC-USD",
+                    "decision_score": 0.48,
+                    "score": 0.48,
+                    "spread_bps": 10.0,
+                    "volume_ratio": 1.8,
+                    "funding_route": {
+                        "mode": "INVERSE_PAIR",
+                        "execution_product": "GROVE-TRAC",
+                        "funding_quote": "GROVE",
+                        "available": 2500.0,
+                    },
                 }
             },
         }
