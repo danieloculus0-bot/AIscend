@@ -1,0 +1,10 @@
+{
+  "selected_seed": 41,
+  "selected_budget": 256,
+  "fold_returns": [
+    -0.05915079298213351,
+    -0.15936869270851728
+  ],
+  "protocol_sha256": "1c17f63d07d694210d3cf11968440dae522249b21374d808eefdb6416d8f871e",
+  "audit_not_yet_opened": true
+}

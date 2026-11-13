@@ -1,0 +1,5 @@
+metric_history/
+*.building
+__pycache__/
+*.sqlite3
+!strategy_research.sqlite3.gz

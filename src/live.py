@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import math
 import time
 from typing import Protocol
@@ -8,6 +9,7 @@ from typing import Protocol
 from .asset_universe import CoinbaseAssetUniverse
 from .audit import AuditTrail
 from .bean import BeanMemory
+from .bean_policy import BeanPolicyGate
 from .core import Decider, Decision, RiskGovernor, StateStore
 from .game import score_game
 from .research import MarketResearch, ResearchDecider
@@ -37,6 +39,8 @@ class LiveEngine:
         asset_universe: CoinbaseAssetUniverse | None = None,
         bean: BeanMemory | None = None,
         audit: AuditTrail | None = None,
+        policy_gate: BeanPolicyGate | None = None,
+        growth_gate=None,
     ) -> None:
         self.store = store
         self.wallet = wallet
@@ -45,6 +49,8 @@ class LiveEngine:
         self.bean = bean or BeanMemory(self.store.conn)
         self.audit = audit or AuditTrail()
         self.decider: Decider = decider or ResearchDecider()
+        self.policy_gate = policy_gate or BeanPolicyGate()
+        self.growth_gate = growth_gate
         self._snapshot: dict | None = None
 
     def set_decider(self, decider: Decider) -> None:
@@ -89,7 +95,9 @@ class LiveEngine:
         if weth_qty > 0.000000001:
             positions["WETH"] = {
                 "qty": weth_qty,
-                "avg_cost": price,
+                "avg_cost": None,
+                "mark_price": price,
+                "cost_basis_status": "unverified_without_wallet_trade_lots",
             }
 
         change = ((price / previous) - 1.0) if previous and price else 0.0
@@ -137,6 +145,8 @@ class LiveEngine:
             "research": research,
             "asset_universe": universe,
             "bean": bean,
+            "bean_policy": json.loads(self.store.get_meta("bean_policy_latest") or "{}"),
+            "bean_growth": json.loads(self.store.get_meta("bean_growth_latest") or "{}"),
         }
         return self._snapshot
 
@@ -144,6 +154,22 @@ class LiveEngine:
         before = self.sync()
         raw = self.decider.decide(before)
         decision, status = RiskGovernor.normalize(raw, before)
+        growth = self.growth_gate.assess("WETH") if self.growth_gate is not None else None
+        if growth is not None:
+            self.store.set_meta("bean_growth_latest", json.dumps(growth))
+        # BEAN is evidence/research. Base's native decider owns BUY/SELL/HOLD,
+        # exactly as Advanced's primary policy owns Advanced Spot execution.
+        try:
+            policy = self.policy_gate.assess()
+        except Exception as exc:
+            policy = {"status": "DATA_UNAVAILABLE", "trade_effect": "NONE",
+                      "reason": f"Policy evaluation failed: {type(exc).__name__}"}
+        self.store.set_meta("bean_policy_latest", json.dumps(policy))
+        if status == "OK" and decision.action == "BUY" and policy.get("status") == "READY":
+            decision = Decision(
+                decision.action, decision.symbol, decision.fraction,
+                f"{decision.rationale} BEAN exam #{policy.get('experiment')} advisory "
+                f"({policy.get('target') or 'CASH'}).")
 
         execution: SwapExecution | None = None
         if status == "OK":

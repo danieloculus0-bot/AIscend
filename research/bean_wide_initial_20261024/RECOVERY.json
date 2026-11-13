@@ -1,0 +1,1781 @@
+{
+  "source_run": 40157680186,
+  "source_commit": "cb812a8ed3078c94aee1c735782595f2ac9c8b9e",
+  "source_artifact": 12585283439,
+  "source_artifact_sha256": "41feffa854345655e0a0bb28031557367ea6b868e70f0f48c36d023df4fe3247",
+  "qualification": "Superseded 39-input study with a one-day holding-age mismatch; do not promote. Original archive push failed after successful training/evaluation. Corrected 43-input study is separate.",
+  "original_event_bytes_retained": true,
+  "complete_model_states_retained": true,
+  "omitted_redundant_derived_files": [
+    "decisions.jsonl",
+    "immediate.sqlite3",
+    "outcomes.sqlite3",
+    "untrained.sqlite3",
+    "decisions.sqlite3",
+    "linked.sqlite3",
+    "ledgers/historical_audit-withheld_assets-price_trend.sqlite3.gz",
+    "ledgers/historical_audit-all_usd_assets-untrained.sqlite3.gz",
+    "ledgers/validation-all_usd_assets-price_trend.sqlite3.gz",
+    "ledgers/validation-all_usd_assets-buy_hold.sqlite3.gz",
+    "ledgers/validation-known_assets-untrained.sqlite3.gz",
+    "ledgers/training-price_trend.sqlite3.gz",
+    "ledgers/training-donchian_breakout.sqlite3.gz",
+    "ledgers/validation-known_assets-immediate.sqlite3.gz",
+    "ledgers/historical_audit-withheld_assets-immediate.sqlite3.gz",
+    "ledgers/historical_audit-known_assets-donchian_breakout.sqlite3.gz",
+    "ledgers/validation-withheld_assets-buy_hold.sqlite3.gz",
+    "ledgers/training-cash.sqlite3.gz",
+    "ledgers/validation-known_assets-donchian_breakout.sqlite3.gz",
+    "ledgers/training-buy_hold.sqlite3.gz",
+    "ledgers/validation-withheld_assets-linked.sqlite3.gz",
+    "ledgers/historical_audit-all_usd_assets-cash.sqlite3.gz",
+    "ledgers/validation-all_usd_assets-donchian_breakout.sqlite3.gz",
+    "ledgers/historical_audit-all_usd_assets-buy_hold.sqlite3.gz",
+    "ledgers/historical_audit-withheld_assets-linked.sqlite3.gz",
+    "ledgers/validation-known_assets-linked.sqlite3.gz",
+    "ledgers/validation-withheld_assets-untrained.sqlite3.gz",
+    "ledgers/historical_audit-known_assets-immediate.sqlite3.gz",
+    "ledgers/validation-all_usd_assets-cash.sqlite3.gz",
+    "ledgers/validation-known_assets-buy_hold.sqlite3.gz",
+    "ledgers/validation-withheld_assets-immediate.sqlite3.gz",
+    "ledgers/historical_audit-all_usd_assets-donchian_breakout.sqlite3.gz",
+    "ledgers/validation-withheld_assets-donchian_breakout.sqlite3.gz",
+    "ledgers/historical_audit-all_usd_assets-linked.sqlite3.gz",
+    "ledgers/historical_audit-withheld_assets-untrained.sqlite3.gz",
+    "ledgers/validation-known_assets-price_trend.sqlite3.gz",
+    "ledgers/historical_audit-all_usd_assets-immediate.sqlite3.gz",
+    "ledgers/validation-withheld_assets-price_trend.sqlite3.gz",
+    "ledgers/historical_audit-known_assets-price_trend.sqlite3.gz",
+    "ledgers/validation-known_assets-cash.sqlite3.gz",
+    "ledgers/historical_audit-known_assets-untrained.sqlite3.gz",
+    "ledgers/historical_audit-all_usd_assets-price_trend.sqlite3.gz",
+    "ledgers/historical_audit-known_assets-linked.sqlite3.gz",
+    "ledgers/historical_audit-withheld_assets-donchian_breakout.sqlite3.gz",
+    "ledgers/historical_audit-known_assets-cash.sqlite3.gz",
+    "ledgers/validation-withheld_assets-cash.sqlite3.gz",
+    "ledgers/historical_audit-withheld_assets-cash.sqlite3.gz",
+    "ledgers/validation-all_usd_assets-untrained.sqlite3.gz",
+    "ledgers/historical_audit-withheld_assets-buy_hold.sqlite3.gz",
+    "ledgers/validation-all_usd_assets-immediate.sqlite3.gz",
+    "ledgers/historical_audit-known_assets-buy_hold.sqlite3.gz",
+    "ledgers/validation-all_usd_assets-linked.sqlite3.gz"
+  ],
+  "retained_files": {
+    "protocol.json": {
+      "bytes": 2523,
+      "sha256": "e9f29f83d4be41bf398e0b137987541c62a7aa277f449b1d9bf0cd3aa1f854ea"
+    },
+    "linked.training_state.json.gz": {
+      "bytes": 271895,
+      "sha256": "4826ad7557adbecb1cc546b468fb966c70b0495c889b9728a8c7cbeea33674f3"
+    },
+    "retention_manifest.json": {
+      "bytes": 3241,
+      "sha256": "8e22653079a91033ab084fb95743184c4d6ac976a8d5bb052678e749f64e6980"
+    },
+    "immediate.training_state.json.gz": {
+      "bytes": 271082,
+      "sha256": "a34916027fd11d51d632cf21105850c14e15d7540dae3f860c775c9256d2333d"
+    },
+    "immediate.sqlite3.gz": {
+      "bytes": 996,
+      "sha256": "cb485dde3c3c6d97700f1c0698d28760013ec359e99637781101a8d64b907619"
+    },
+    "decisions.jsonl.gz": {
+      "bytes": 6681,
+      "sha256": "018b78df0c2c46b2b74011d1f5ba50ebe03d5ca86cf6d08e51cb2ac79c477e85"
+    },
+    "results.json": {
+      "bytes": 4634790,
+      "sha256": "2b5cd80481bd4feefd9d509ad45bce7b16a0174cc2c36cc3a7a7d004a5cafe25"
+    },
+    "untrained.training_state.json.gz": {
+      "bytes": 129894,
+      "sha256": "7552b3b6acc73829e0aa367978715c3c9b687c393b77f4bce1e6d67022dc6226"
+    },
+    "artifacts_manifest.json": {
+      "bytes": 73798,
+      "sha256": "d4f7cefefcc2efdee829cf208d09f1a558a81dbeaeabedab7a1580fbb73cf0be"
+    },
+    "RESULTS.md": {
+      "bytes": 2760,
+      "sha256": "a9321736732e1b590468d4ea53f0077afc3015b8cf9b3168249b632b6b20b6ab"
+    },
+    "outcomes.sqlite3.gz": {
+      "bytes": 247723,
+      "sha256": "ca2e8ce86f85c76d7f7acce68baae9808663c1b6be873683c17d83b63e8eeb55"
+    },
+    "untrained.sqlite3.gz": {
+      "bytes": 986,
+      "sha256": "8593103c451c3ed733e69a520c5258e432f54c473871f03ab77921033515f445"
+    },
+    "decisions.sqlite3.gz": {
+      "bytes": 255705,
+      "sha256": "30be19f8449798fc8db7f7a49d9723cf50a145a25ae586d6f212158579292685"
+    },
+    "environment.json": {
+      "bytes": 197,
+      "sha256": "ac93261252382cb3c20f31729d9164b98af1a73c3843729698fff651f23daca7"
+    },
+    "linked.sqlite3.gz": {
+      "bytes": 990,
+      "sha256": "5eee9e08250e7c0e53883d0436526ae3608eb65d66d0cfcd66f2aa122a3a1298"
+    },
+    "selection_lock.json": {
+      "bytes": 710,
+      "sha256": "6c63a457a46e044532128edb512e55d7b8d297803c3bf480bcdd6bbccf67d485"
+    },
+    "decisions.metadata.json": {
+      "bytes": 2671711,
+      "sha256": "eabbffbc7506f5eccb04515adae4351aacb5ae895de15633748afef895f7a672"
+    },
+    "history_source_ref.txt": {
+      "bytes": 41,
+      "sha256": "1be60b332dc5662df86b6b4f04516b3dc315af5fe12c8eb88c8eea5c39be3694"
+    },
+    "progress.json": {
+      "bytes": 4364313,
+      "sha256": "1ab670b57844543b8899728835cc63215caf9126892babc3e1f921fabe97cce5"
+    },
+    "teaching/BONK-USD.jsonl.gz": {
+      "bytes": 149349,
+      "sha256": "8e30dbebec84bc88322e34ff3c4efd903b99c318e008b9585e043de673972315"
+    },
+    "teaching/BAND-USD.jsonl.gz": {
+      "bytes": 385229,
+      "sha256": "9f21a53bc7b377675da77c7f3181b920cd17e10b07b03a57738bbeaa7d2cee04"
+    },
+    "teaching/GROVE-USD.jsonl.gz": {
+      "bytes": 36,
+      "sha256": "12bab79546834c6907ed8d7f239bffb7d0d35e93565b2d8b7a2af48c279ae95e"
+    },
+    "teaching/BAT-USD.jsonl.gz": {
+      "bytes": 416004,
+      "sha256": "124657a59a0a3aa576d61dfebe3782c832f8d69ed7421efdf26cfce729eb9a51"
+    },
+    "teaching/AI-USD.jsonl.gz": {
+      "bytes": 33,
+      "sha256": "fa4375d2e98740cdf851cc597047fcff9f863779b8f35541d7e87ee5d7b15a85"
+    },
+    "teaching/MEGA-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "de7f977915a4ac3f744701750bddff0593160a8b7227283c61def5fc3d1193a4"
+    },
+    "teaching/ALGO-USD.jsonl.gz": {
+      "bytes": 394925,
+      "sha256": "06009b5551becf1d83864cd77370404c0f3ed55b2593f2984095a11255c5afe1"
+    },
+    "teaching/KERNEL-USD.jsonl.gz": {
+      "bytes": 37,
+      "sha256": "d0469e472d287f90c83af3d49ec68e885e4277075ff61c537f336ae78a1f7167"
+    },
+    "teaching/DOGE-USD.jsonl.gz": {
+      "bytes": 420165,
+      "sha256": "92572fa5e0e68790bac37f5f0d14ac9193d57d6b109f2d348406b7adfa54b1da"
+    },
+    "teaching/TRAC-USD.jsonl.gz": {
+      "bytes": 394847,
+      "sha256": "1e17d06dfb9067f5b633c2dd723a60772f1dd93c62188976dfd31264ce2f0999"
+    },
+    "teaching/SWFTC-USD.jsonl.gz": {
+      "bytes": 308791,
+      "sha256": "214965894e2789525ccf99649501400aab1ead29c2cb9eebc9b27dcc925ac743"
+    },
+    "teaching/NOM-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "c90474d9de3d828bf64783a4b41b1ac987038c3b87d20f880f2fa6beae24afb2"
+    },
+    "teaching/KAIO-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "eebc7d337af692e3b7bd7fde2c979c4d5143ab3b8a5a835143ee80c510cc3c77"
+    },
+    "teaching/VET-USD.jsonl.gz": {
+      "bytes": 175918,
+      "sha256": "a7cd14f0e39174ce158b5a6301defa33b7006521f7ac90c69b87f14c17f3e497"
+    },
+    "teaching/ETH-USD.jsonl.gz": {
+      "bytes": 437959,
+      "sha256": "4d5a04a0793b4b885b7490777b1368c4cee5f8cefe63a0d9273ce3ab463523c0"
+    },
+    "teaching/VTHO-USD.jsonl.gz": {
+      "bytes": 173500,
+      "sha256": "b5e865649d108c090e6ae4383dee6a5a7ae845f65156cb60729f9878efba1239"
+    },
+    "teaching/ALCX-USD.jsonl.gz": {
+      "bytes": 379635,
+      "sha256": "2c46668b881858f90be019b5c7d50c3d45be1c6e07d0aefa96739b79e965977e"
+    },
+    "teaching/SUPER-USD.jsonl.gz": {
+      "bytes": 400268,
+      "sha256": "58c0197e8c64c34f9352f450ad38938d8cd74aa0dec67bd716323c951a3eeec7"
+    },
+    "teaching/BASECAT-USD.jsonl.gz": {
+      "bytes": 38,
+      "sha256": "e0737b5f684abea0c3f4e4b0c6899478d6b863eaae8b297f01dd2667946f5497"
+    },
+    "teaching/ALT-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "551f089c5821088b6acf248ec492b0a2012570e2c89fd4f2ff99629181f44fbb"
+    },
+    "teaching/KITE-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "cc9360d4fbaf3a1dcf726f6030c4501770b5cf6b0f73998226beb2abb177fc21"
+    },
+    "teaching/CTX-USD.jsonl.gz": {
+      "bytes": 324288,
+      "sha256": "293f78bef696c39d819e787b3e032a0182bec04efb4c0bde0cb51028eef1224a"
+    },
+    "teaching/SD-USD.jsonl.gz": {
+      "bytes": 73190,
+      "sha256": "2a04fca7bd4a00913139851fb45d4ed04909a0221d742912410abb824513db50"
+    },
+    "teaching/NCT-USD.jsonl.gz": {
+      "bytes": 355975,
+      "sha256": "8fd4b34bebfac4d69d1f3d64e87d2984992c30c6d586b8d9a62814f13db4b658"
+    },
+    "teaching/WHUF-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "47b64c12d899ae2606d1017a65b342b68ade102438ea9d10882e4e87800b5573"
+    },
+    "teaching/AXS-USD.jsonl.gz": {
+      "bytes": 383153,
+      "sha256": "9d01174e43f9d15a2ccef60063c93f266e086f883fa2f26db73a7ef8719b1978"
+    },
+    "teaching/QNT-USD.jsonl.gz": {
+      "bytes": 420297,
+      "sha256": "f8a9b95eeac994a1a0e743ab9b0db1e422ebb1a5b13e4b4a71c11d7970f98be0"
+    },
+    "teaching/MORPHO-USD.jsonl.gz": {
+      "bytes": 2280,
+      "sha256": "72e4cea676bede7545f2c2386314c803347266aa86a995cf52173470000deee1"
+    },
+    "teaching/BTRST-USD.jsonl.gz": {
+      "bytes": 358495,
+      "sha256": "da39993887aaa19b0002d5778c43167c34f9ce44ae5ae84dcc517fd8b5baa244"
+    },
+    "teaching/RAD-USD.jsonl.gz": {
+      "bytes": 318027,
+      "sha256": "2b76decb804ad3fc6c6c656f0e775029abefda8fa16b58b6cc879f2b1147c7fd"
+    },
+    "teaching/MANA-USD.jsonl.gz": {
+      "bytes": 407758,
+      "sha256": "4372aa78add0c2a153299399d504acbd1c82c6ce139e2fccf77448f309c7f581"
+    },
+    "teaching/KTA-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "564e3c12e333679cbcc6d653d7f4ca14e106265d46ab2d7198a6def2455028ab"
+    },
+    "teaching/BOBBOB-USD.jsonl.gz": {
+      "bytes": 37,
+      "sha256": "4a71c43f595a0cf961fd3b7e4d09b40ffae291c0d3596c5ed43f7f6902484bd2"
+    },
+    "teaching/ZETACHAIN-USD.jsonl.gz": {
+      "bytes": 52645,
+      "sha256": "e284849f2ef36a2911d125b59c8d79a70f0b3679ebeaefad4fd767364ccdd2b0"
+    },
+    "teaching/MASK-USD.jsonl.gz": {
+      "bytes": 340034,
+      "sha256": "7c2e352daaf82d1d50dea2f2d781cb47e01dfa322ab1f50c373a1fdebb49855a"
+    },
+    "teaching/BEAM-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "535d340df827b93187a640f60f11cf66ab3f9aa7ec1767e31c619566f9277c9e"
+    },
+    "teaching/KMNO-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "e4be04f0a6295339fde905346dd87265c2054cabfc409540e2a4c128ebd03fed"
+    },
+    "teaching/AIOZ-USD.jsonl.gz": {
+      "bytes": 331359,
+      "sha256": "6d2fcc034fc607bb964610e0e7f962d55ee5ac0583c7cd6bee54e5d606b83987"
+    },
+    "teaching/CAP-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "15806073b35b65fc7cd0987ceec259a4da08af1f262cea7cae8ac6124c4117e2"
+    },
+    "teaching/XPL-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "e3999f91319638d7b952ff9b9d1bc58f2196d0a8e06fa8ff19512abf3fb4deae"
+    },
+    "teaching/PUMP-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "dd217610955be03aed2863d6be9d066cf115c5e2d2d660c6b5906e9b30357418"
+    },
+    "teaching/ZETA-USD.jsonl.gz": {
+      "bytes": 129369,
+      "sha256": "3ee7133ed10b2e5897d716b9587472024ad03db3bb460f9544af78f66aab2c32"
+    },
+    "teaching/ALICE-USD.jsonl.gz": {
+      "bytes": 336995,
+      "sha256": "ace8c64c7d7050cfcee20e66b9b8f2f152fc45f448387d61d11331d93bc9944b"
+    },
+    "teaching/COTI-USD.jsonl.gz": {
+      "bytes": 380132,
+      "sha256": "0487440bdd9407bd27ccef9aa6c4cb529fa1620dd9e3b92ae26584bab0b856d9"
+    },
+    "teaching/G-USD.jsonl.gz": {
+      "bytes": 62977,
+      "sha256": "0ca49f6dc6d2f613e7342520bd4858cd36694431bbba3d00903ff11403d75c44"
+    },
+    "teaching/DASH-USD.jsonl.gz": {
+      "bytes": 408831,
+      "sha256": "341a8138ad7a724bedd319fa7cfdd238acd8baec9b2c0b809050a54cdf186fd8"
+    },
+    "teaching/UMA-USD.jsonl.gz": {
+      "bytes": 398939,
+      "sha256": "991188fe37d6dbcb88fd47989c0aa1dd9cda690d04b36b3cae78d2e2749745a2"
+    },
+    "teaching/GODS-USD.jsonl.gz": {
+      "bytes": 396780,
+      "sha256": "7b9a23db5417af4977368c299a7935227b90a208e142d92fd5fdd1a01e17f5b2"
+    },
+    "teaching/GMT-USD.jsonl.gz": {
+      "bytes": 326390,
+      "sha256": "90527ddc51ddabbe3bfdbeb97b6d0b2888d2c68723913bc87b8aff4411d1f99c"
+    },
+    "teaching/C98-USD.jsonl.gz": {
+      "bytes": 312172,
+      "sha256": "f975633acd1c7ac230c93e76fd51179302e222c06c96dfcfbd4c8bb297b0a861"
+    },
+    "teaching/LRDS-USD.jsonl.gz": {
+      "bytes": 71780,
+      "sha256": "9afe067eca6467b1d085f5a84d3fd3375e4d7bebdfa4ca810b833f1879d924d3"
+    },
+    "teaching/BTC-USD.jsonl.gz": {
+      "bytes": 444817,
+      "sha256": "3896b1b461b334f4fa30a23f2311625e3f9a0abb88e9d332de7ca81024e74abf"
+    },
+    "teaching/CORECHAIN-USD.jsonl.gz": {
+      "bytes": 76018,
+      "sha256": "66100e5b8fd46da375d003e4c1dbdda28708be52d725093dfc352f62fe33bdb3"
+    },
+    "teaching/NOICE-USD.jsonl.gz": {
+      "bytes": 36,
+      "sha256": "61bc2d6fb356a1d82db0fa121c912178f1236fefcdde4c3fcf47677e18730451"
+    },
+    "teaching/FARTCOIN-USD.jsonl.gz": {
+      "bytes": 39,
+      "sha256": "0a5c0503d3303984a3c2df852df585bd6606faef486817f5ce0ec92dd986d4d8"
+    },
+    "teaching/OSMO-USD.jsonl.gz": {
+      "bytes": 212704,
+      "sha256": "d0322d0d533401366b35e560e49b8709c4c8603447946436d28277318123e2e8"
+    },
+    "teaching/SIGN-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "5a3cfc86cceff9a13f07d63d7f119e2003144291abe135ce165859ea6b26157f"
+    },
+    "teaching/LINEA-USD.jsonl.gz": {
+      "bytes": 36,
+      "sha256": "af29b16794bfd21e4d13ec8f595e303aece95db0d32c17ec03acecb58bd76f77"
+    },
+    "teaching/SHDW-USD.jsonl.gz": {
+      "bytes": 89174,
+      "sha256": "1ae0ad4e40a1f792413cde6b2c804e8b5b856c1c8050b79f6f2692ddd4f3c5e9"
+    },
+    "teaching/BLUECHIP-USD.jsonl.gz": {
+      "bytes": 39,
+      "sha256": "f3a4c60603b4d8583586d92321c79a7a0cadbbb5a8fbd84b320697022ba74b3e"
+    },
+    "teaching/SUKU-USD.jsonl.gz": {
+      "bytes": 357884,
+      "sha256": "84dbbc204baca6325252e3117f4c43c944168a2cd292b3d754d55ca3bbc33a8a"
+    },
+    "teaching/FARM-USD.jsonl.gz": {
+      "bytes": 404964,
+      "sha256": "17fbe072b89dc1733733ac77bd34964e99d54634dad0c506dd7bef88124145e7"
+    },
+    "teaching/MATH-USD.jsonl.gz": {
+      "bytes": 304622,
+      "sha256": "7ee495cefccccecc957fff654c36961202d7ec512179cd943029b56f71f994ec"
+    },
+    "teaching/NEX-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "fad543c588ca0b182f957a004055104a270cf2fd516ea8d59a0551adc14372fa"
+    },
+    "teaching/YFI-USD.jsonl.gz": {
+      "bytes": 430051,
+      "sha256": "671ffd5a56dde32a6ae7527ac59a925fd8d20c6e391c3c91d41258b610d259f3"
+    },
+    "teaching/SNX-USD.jsonl.gz": {
+      "bytes": 399432,
+      "sha256": "10c2debcad1b31dbe7d484ec35045f2266e771a990607b87fd0b6827ed198559"
+    },
+    "teaching/FLOCK-USD.jsonl.gz": {
+      "bytes": 36,
+      "sha256": "fa945808bcb7bbf18ac3c18d56147a00236590f322d77eaaac5c3d54b1b1d59c"
+    },
+    "teaching/UNI-USD.jsonl.gz": {
+      "bytes": 420935,
+      "sha256": "397b958facd005e5a8aaa5151dc98d7b5943c0731b439bd1b1f1dabbefc3c544"
+    },
+    "teaching/USDT-USD.jsonl.gz": {
+      "bytes": 398786,
+      "sha256": "58b7b8741e7f4cbf4775ec27acde5060a122c6f7fb3b552de80d2fbe6cc214a6"
+    },
+    "teaching/MDT-USD.jsonl.gz": {
+      "bytes": 382555,
+      "sha256": "51776d37e0043b23c1b51c043c07977a1656d69ff289ddd94fcd36ed07109a14"
+    },
+    "teaching/APT-USD.jsonl.gz": {
+      "bytes": 261136,
+      "sha256": "41f4df71e830a752ef030997ba6ea77f978430400856874e444584479d62f358"
+    },
+    "teaching/COW-USD.jsonl.gz": {
+      "bytes": 55134,
+      "sha256": "2b474ba20f5037d4ba3d9b19caaa0655a50a0bd0ae1e9037f12341e249ad323d"
+    },
+    "teaching/IO-USD.jsonl.gz": {
+      "bytes": 46200,
+      "sha256": "d5a06c7e73f7fb8ecd6c740c4a3ecae7e73b3676fc7bc3fb24e463a76d2c7f46"
+    },
+    "teaching/GRT-USD.jsonl.gz": {
+      "bytes": 392770,
+      "sha256": "af6f9222ea8397660367bb1ff6fcb5e57659feee4a1681cab2888209aca214b3"
+    },
+    "teaching/BIRB-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "4c245bd2dc10fa6dc0e772d60c8503631c5a9dbc4fca7a99d1f62b0e263ffd32"
+    },
+    "teaching/DNT-USD.jsonl.gz": {
+      "bytes": 342070,
+      "sha256": "b137210fac49beab48d6cf996b09cf84983d4ceff54d183c3f38cd3b773493dd"
+    },
+    "teaching/PNUT-USD.jsonl.gz": {
+      "bytes": 10007,
+      "sha256": "46216b2e04c7f47b67cbaef9348bf57725909fc086d44710dd6876ff5d97651f"
+    },
+    "teaching/BILL-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "ba26b16a679a574172b1ba396a0d8761b78cf4c0612a342f21234a1070956be5"
+    },
+    "teaching/PRIME-USD.jsonl.gz": {
+      "bytes": 243303,
+      "sha256": "cb35adcd964da661aa3a892b4bfa220e0426c3c21d051d1c552603683af595cd"
+    },
+    "teaching/LA-USD.jsonl.gz": {
+      "bytes": 33,
+      "sha256": "6ca9e0237bf78922ce305a9c16b8ae41b10490ad529b98e9863180c59996e350"
+    },
+    "teaching/MON-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "c1db98a39c86928f52e64813576ff62f287f6f7d4db459226e2bf53f42262045"
+    },
+    "teaching/RAVE-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "89f0d7fa684704e080be0001b3aa9923e4d14683fa25c0ff9210f9f9f7dbdfc6"
+    },
+    "teaching/EDGEX-USD.jsonl.gz": {
+      "bytes": 36,
+      "sha256": "41767eb921ffc6363302a2a3bb80f34399bb92775aaa7ffeb4411d58eb115540"
+    },
+    "teaching/CP-USD.jsonl.gz": {
+      "bytes": 33,
+      "sha256": "749ef3cb7fd61388ec23cb0e50ede0994453bfbd4a612de7293978e441e79eb0"
+    },
+    "teaching/ZEN-USD.jsonl.gz": {
+      "bytes": 366161,
+      "sha256": "f783918adf30b3cc729d181f9db988c882790160c31dc49a46fea132896b8eae"
+    },
+    "teaching/WLFI-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "c1f9cfb726becd52b49f47a9ba81586002903f9685e14327ff7feae88b7cc5e5"
+    },
+    "teaching/SWELL-USD.jsonl.gz": {
+      "bytes": 39355,
+      "sha256": "8d04233e6a4a8232c432b10aff9d192ab56099cd4c778b45dd23c1d8090402a3"
+    },
+    "teaching/FOX-USD.jsonl.gz": {
+      "bytes": 336107,
+      "sha256": "d9f19c10ecceaa4ac083ffae5c17d7a030e356426cf6a811fc7089ed563d302d"
+    },
+    "teaching/FLR-USD.jsonl.gz": {
+      "bytes": 223374,
+      "sha256": "bef2f62e6affd59ffcdf4649825193eb66fb1b037d5199d4c1610ddfb72bf2b7"
+    },
+    "teaching/HYPE-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "d4a0c4b3ccbf9b1f4b9d305ae014f7c24fdc93d704c266bd1472965c8ae3c2e3"
+    },
+    "teaching/ZEC-USD.jsonl.gz": {
+      "bytes": 411258,
+      "sha256": "fa0ab65c667bd66440ccd5edbc630f141406181508a0da8de66c9ea263a67795"
+    },
+    "teaching/COMP-USD.jsonl.gz": {
+      "bytes": 410779,
+      "sha256": "5fece6295d0086b1ad9b0b45299c135d3dbd40b27ca0e6a194b6d6ad0af10ed0"
+    },
+    "teaching/INX-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "34e51e07007332bda942fad9d02bd65a4628090ed92f499351b23eee29a289b2"
+    },
+    "teaching/LQTY-USD.jsonl.gz": {
+      "bytes": 376700,
+      "sha256": "3412093d05c0ce7bbc6277b5f28bd62d02c8a790876361f708df6a21793fcbc3"
+    },
+    "teaching/SPK-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "f90eb4fd6f57fc954fd0d2bcd06b746fdee69c4de89872ff2b7e6af8caab7862"
+    },
+    "teaching/JITOSOL-USD.jsonl.gz": {
+      "bytes": 38,
+      "sha256": "c74b77495239a8b4adc2839fef3c2b6076dbc18b106b4beb3d71d8ad5887c773"
+    },
+    "teaching/TRUMP-USD.jsonl.gz": {
+      "bytes": 7960,
+      "sha256": "1a9b630eeff6c77d9b1cf10a44d2f0322ceaa7e2e2869be2237335f1ec5a63e6"
+    },
+    "teaching/PENGU-USD.jsonl.gz": {
+      "bytes": 4677,
+      "sha256": "b56c13cbbf5773f75b2e3188e8a68baf3357c62adb36fb6bfd8e60617e3e833a"
+    },
+    "teaching/APE-USD.jsonl.gz": {
+      "bytes": 336161,
+      "sha256": "ffc5c5bb0794a910ebb05d0b7c4137714fb26d4a3278da8a7c011a5add354d52"
+    },
+    "teaching/DOGINME-USD.jsonl.gz": {
+      "bytes": 38,
+      "sha256": "571cb89448ae5ca875955efc1f0d3e1428f85e30bfad11c978bd74a52d5ef38e"
+    },
+    "teaching/ME-USD.jsonl.gz": {
+      "bytes": 25845,
+      "sha256": "e14d283706f11b07d7ce7cb76cb00299aea3381959aecb7952e103b53b710f7f"
+    },
+    "teaching/AGLD-USD.jsonl.gz": {
+      "bytes": 413085,
+      "sha256": "77690016604085742de286613809b606aa1f76f14e8fde212a7f84ee38d9861d"
+    },
+    "teaching/SAND-USD.jsonl.gz": {
+      "bytes": 331068,
+      "sha256": "00c6ae45629ff953ce32d17e49a44982b752852d59076a35ae0461fca65ac9b4"
+    },
+    "teaching/ALLO-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "8958f7f6ba674715e349cfecdbdd8f5c865108d145a82967571537ea2e14ee77"
+    },
+    "teaching/ETHFI-USD.jsonl.gz": {
+      "bytes": 5732,
+      "sha256": "8e5f727a9fc724ef4109b26584f8db04190bcd6cf8de97d38ab026fea9dd9098"
+    },
+    "teaching/DEGEN-USD.jsonl.gz": {
+      "bytes": 47570,
+      "sha256": "d59eb1fc6e97d82cda0774f0f310c94f0b7c02f57ffb1e42cc61c8331ed37ab7"
+    },
+    "teaching/ATOM-USD.jsonl.gz": {
+      "bytes": 413875,
+      "sha256": "2addd435c4934cae34130b978abeb9d70dd2ddbe36c09237b035cc8bb2c2b5ac"
+    },
+    "teaching/WLD-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "94bf031c05edd3af3356e15a7dde420729e6920b338f3149ebec3098af1eaff7"
+    },
+    "teaching/AXIS-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "746e26cea54cc2d840f8b02a896ab8351971e5e24f3769283dd68d829c54ddfd"
+    },
+    "teaching/GFI-USD.jsonl.gz": {
+      "bytes": 369715,
+      "sha256": "9a9fb95f1c920ee1dbacfbf5c4b19f98ee86062d95dace6600cbf7331b031eaa"
+    },
+    "teaching/ACH-USD.jsonl.gz": {
+      "bytes": 424659,
+      "sha256": "fc81b2acdd5068366ac7d90f7599d4c3112ff6f8145d3b6ddce8a9361c4d244e"
+    },
+    "teaching/CVC-USD.jsonl.gz": {
+      "bytes": 370624,
+      "sha256": "50bd97b78eb0fa0f8a90cdd8e6794bc43683041a3839f613728a80122fb369f1"
+    },
+    "teaching/ZRO-USD.jsonl.gz": {
+      "bytes": 85152,
+      "sha256": "36f5cdc7ae484f775e8682f36bb94419b8447a59fc808b30c89216501e54b66e"
+    },
+    "teaching/W-USD.jsonl.gz": {
+      "bytes": 32,
+      "sha256": "a7c607f5a55c849836a31f997597d12b2a8328b01b365ecd606e9a5725afcfb7"
+    },
+    "teaching/ICP-USD.jsonl.gz": {
+      "bytes": 416555,
+      "sha256": "40ea53b0ad678a31fc6594084224f259ca9bc9ace0ba00a719542d36dac64f3e"
+    },
+    "teaching/ADA-USD.jsonl.gz": {
+      "bytes": 414987,
+      "sha256": "ff72be1a699ae5405812113a472e7421f92a8beeea4347ab54c76739a2fa842e"
+    },
+    "teaching/STRK-USD.jsonl.gz": {
+      "bytes": 101591,
+      "sha256": "d4dcafa4ddcffd1de8a338e9e215d147ff20287dae4a4341efa7f74ffb92837b"
+    },
+    "teaching/PYTH-USD.jsonl.gz": {
+      "bytes": 3251,
+      "sha256": "7c527e4c88a058b2e6837344e61875cdde076ef6bda7299925f8cde1ca6d6a19"
+    },
+    "teaching/RAY-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "64fef0bf536f68858e713c0ce73ed5e53f18299a4b274f783012fd97f7b64a55"
+    },
+    "teaching/T-USD.jsonl.gz": {
+      "bytes": 246794,
+      "sha256": "820506c9e6df2e832f5eb8c8bc1820ee1ba7616409fc12ceefcf3fb7b3f20c44"
+    },
+    "teaching/ARPA-USD.jsonl.gz": {
+      "bytes": 356044,
+      "sha256": "f019e8a3c55b0ffd62e9de145c2e8b4d88d3c8f3baec437a80c2d28b0fceeda1"
+    },
+    "teaching/VOXEL-USD.jsonl.gz": {
+      "bytes": 235895,
+      "sha256": "9c9ace26836189c0c31b9d037c482c11c3e7bc52879c8a4ddaea9f196c057e0a"
+    },
+    "teaching/NKN-USD.jsonl.gz": {
+      "bytes": 377783,
+      "sha256": "5ede645924b9fb689790e4d910b1ad255b851987d7a5d5de30fb84f17efcbab0"
+    },
+    "teaching/VVV-USD.jsonl.gz": {
+      "bytes": 6790,
+      "sha256": "89ab4bc26fdbc6533abd69cca124bf6b583ab88de9c802ec4f2fa0198b6c098c"
+    },
+    "teaching/PROVE-USD.jsonl.gz": {
+      "bytes": 36,
+      "sha256": "877289567c1aa61963bfd0731b4a77cd10354c766c97bee8b74fbc41368d19c6"
+    },
+    "teaching/WELL-USD.jsonl.gz": {
+      "bytes": 58078,
+      "sha256": "4efe0dc8149d027c945aa936581d2eb9d8bf5122ee44a930518ba3a1a56ad822"
+    },
+    "teaching/STX-USD.jsonl.gz": {
+      "bytes": 379126,
+      "sha256": "c4bbe883a72d658d0e07eb487ce9ddefdaa2deedea64a18d27fb2b28ef7ef638"
+    },
+    "teaching/REZ-USD.jsonl.gz": {
+      "bytes": 1140,
+      "sha256": "3d0bfa671a4f079276fe26a29311912c7eaa371d38b4f7a6ec230c4a566a0930"
+    },
+    "teaching/ORCA-USD.jsonl.gz": {
+      "bytes": 374986,
+      "sha256": "110bd32837f796b47233b1c6648db84786682e99a93ca1ccb3693489977665b1"
+    },
+    "teaching/XLM-USD.jsonl.gz": {
+      "bytes": 434251,
+      "sha256": "51cfba58f59c0890dea2134672995c8aec4bb57075d3dbdad357113fce12dd5b"
+    },
+    "teaching/2Z-USD.jsonl.gz": {
+      "bytes": 33,
+      "sha256": "de03fcfc050b47c01c5d4d439600a0f2a7825b9875d01f517db32028a938c01f"
+    },
+    "teaching/PROMPT-USD.jsonl.gz": {
+      "bytes": 37,
+      "sha256": "135beeffe9b12f2fa2ed4a9bbe8d65818694048caa23f455a93cebb5ff3e9eda"
+    },
+    "teaching/MOG-USD.jsonl.gz": {
+      "bytes": 26130,
+      "sha256": "a6d66fc4100187d94cea06c3f7bc93055e0faa9d72ca034da91e83a553809c16"
+    },
+    "teaching/ONDO-USD.jsonl.gz": {
+      "bytes": 141742,
+      "sha256": "eb5ad699961dbd9b8b924bdbd63469a74010ddfd42c1eb1977f95907590b2990"
+    },
+    "teaching/PRCL-USD.jsonl.gz": {
+      "bytes": 25449,
+      "sha256": "3a64aa437b23428a136f3073c610712a045639a33c30c008ce677a7b3644cd18"
+    },
+    "teaching/HYPER-USD.jsonl.gz": {
+      "bytes": 36,
+      "sha256": "025c51561f7cc59c2cc792ca146e46ecf4df5ecfc03a2154bf89a428ce80c7ab"
+    },
+    "teaching/RARE-USD.jsonl.gz": {
+      "bytes": 286380,
+      "sha256": "6596901410d3ce93445c1e74293444588b4fb7c70932fee2f901b440c7f3fea6"
+    },
+    "teaching/TOWNS-USD.jsonl.gz": {
+      "bytes": 36,
+      "sha256": "15fc20bec7a6ffe6ccf7dd3e58e0d0d83e2f399691754eefdccf4992a151cf98"
+    },
+    "teaching/RSC-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "10e951cfc6c29254824a4c9c4f3075c51960099054a5d9dad7910d4baee055da"
+    },
+    "teaching/KAT-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "7d55aad592f3d8ae06aa1757c9bf8dfdeda1f7d42b5b7d874c2406a862ffa36c"
+    },
+    "teaching/COSMOSDYDX-USD.jsonl.gz": {
+      "bytes": 41,
+      "sha256": "71b662ee281e198180546a1f1d958cc83ee2dffc93c36932c693709f4f423403"
+    },
+    "teaching/WRON-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "04b4322ad13ab99e9721f106d938a3f89d8c2e4ea31472c16f93eeea19dc0136"
+    },
+    "teaching/BERA-USD.jsonl.gz": {
+      "bytes": 5860,
+      "sha256": "32a75bdc7832de93561aff7426a70e9904ed504a6e60b9aeae8582f3b6f7047b"
+    },
+    "teaching/MPLX-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "4db9b01ad42c43c38bd4fe20fce16abf0f71a37c5337fd1d325a3c84f50cb6f9"
+    },
+    "teaching/DATA-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "f15ca371e63d4a00f0e51d1e848856e3ebd021f5c51d7b152492bb6608794932"
+    },
+    "teaching/NEWT-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "c716f6dbd4063fa14c344b966547da8fd3667d22da8e72781d111e6d897579d6"
+    },
+    "teaching/ZK-USD.jsonl.gz": {
+      "bytes": 54396,
+      "sha256": "57e98fa5161ce53e6e19a3a5e2257c43fa55b198f2f1c878b6d944caae977c4b"
+    },
+    "teaching/SENT-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "aebbdc04fd4959879ddbb755b9599f0f2ce807e4d8b18829e199a696f3add08f"
+    },
+    "teaching/RNBW-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "0c9348c8a326c214b9568e4e7dfc81ae712211d6131f5da15d77259582cc174a"
+    },
+    "teaching/BOBA-USD.jsonl.gz": {
+      "bytes": 308730,
+      "sha256": "41b58cb7e11ffadebf1a216b7a97fe4ed3173016ec8337bf197b13cde2cc3b90"
+    },
+    "teaching/AURORA-USD.jsonl.gz": {
+      "bytes": 240359,
+      "sha256": "531de210ba1ea5d7dca79af903d1a48a3de80b808bf9db4bdfb7fa4e1c82e546"
+    },
+    "teaching/FLOW-USD.jsonl.gz": {
+      "bytes": 296964,
+      "sha256": "02964ea6b8f4b1656208042e7a0606e493a757082379a639be4bca8234f59393"
+    },
+    "teaching/AZTEC-USD.jsonl.gz": {
+      "bytes": 36,
+      "sha256": "118c2690fb0566d70b3f0229adc6bc58579b8e97ebae94ba303c25c82157200c"
+    },
+    "teaching/INDEX-USD.jsonl.gz": {
+      "bytes": 266616,
+      "sha256": "736060daeb6837f0b11980c7d636439fdb2ae16bb1a68ea969d4cbc53879d9ca"
+    },
+    "teaching/OXT-USD.jsonl.gz": {
+      "bytes": 372264,
+      "sha256": "6d53719ac5163e21a9ba7c160285bf51d4c91b1daeeabd240bc91a2becc4c7cc"
+    },
+    "teaching/ICNT-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "2d892b3081bb7be8f2c087b1d689f802e27acf512a7d2512246fe7db5e8c1324"
+    },
+    "teaching/TRB-USD.jsonl.gz": {
+      "bytes": 404346,
+      "sha256": "84b2380dae04a99c1f6247eda0070878386cbd138cf571673b97f7bda7a44036"
+    },
+    "teaching/LSETH-USD.jsonl.gz": {
+      "bytes": 177731,
+      "sha256": "1664bbcc272dfad158d901b2bfd3bd510ba4c047300a61db103ee6cda20b0fea"
+    },
+    "teaching/GRASS-USD.jsonl.gz": {
+      "bytes": 36,
+      "sha256": "f470c011ac3f889bdfee0939ab4687557e29c3c8284d28c2ab36e5c03f946c09"
+    },
+    "teaching/AST-USD.jsonl.gz": {
+      "bytes": 295424,
+      "sha256": "79a370fd0c8e2343e6fd73bbfeecabd5758731823c41a296730f250a7af34b2e"
+    },
+    "teaching/XCN-USD.jsonl.gz": {
+      "bytes": 271472,
+      "sha256": "36ce94fa838bee669434745799456b2565908895f4d9767cc4191193e19a0328"
+    },
+    "teaching/ZKP-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "b2394acf2e15bec6bd591508295e600cad0751f88c721aff2f909de6822d0f57"
+    },
+    "teaching/WIF-USD.jsonl.gz": {
+      "bytes": 36260,
+      "sha256": "afc2c211fde8e661fa7f4021689c14ba2784ffdc38a3035e3e65e200a1540b2f"
+    },
+    "teaching/ERA-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "d61fb447eb2dd084d253688b6c2db52381dc7f245ecbbc236c1e1e8683003849"
+    },
+    "teaching/ENA-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "676f70cf002f3769d71440b30c2669d52071eee6118a81735888f9956e174bc8"
+    },
+    "teaching/LDO-USD.jsonl.gz": {
+      "bytes": 267947,
+      "sha256": "eab0eb4fcf466746fdbb22c2191cb6feaf4ebe80c09723b22ecf29906e02db36"
+    },
+    "teaching/DEXT-USD.jsonl.gz": {
+      "bytes": 322538,
+      "sha256": "e52f87bb088da85e3d8ca3a79f531686a4fe72d3989f2eb148ec8a82b269cf24"
+    },
+    "teaching/XYO-USD.jsonl.gz": {
+      "bytes": 372609,
+      "sha256": "318103d047bf40494a1ed9a495b9d6d65ac9108577ecd2e5c3e6b1bb78ac2fc9"
+    },
+    "teaching/HIGH-USD.jsonl.gz": {
+      "bytes": 336784,
+      "sha256": "fdbc1ccc110e68f18adbdddb31bc45203ce941a1aad5033a418e065b6785aa93"
+    },
+    "teaching/KEYCAT-USD.jsonl.gz": {
+      "bytes": 37,
+      "sha256": "fced396b1953cf15678d6a240643bbddb254923ceb32d8cb959598f506f72925"
+    },
+    "teaching/PUNDIX-USD.jsonl.gz": {
+      "bytes": 290118,
+      "sha256": "82253e983f971f7debbcd330385c643cd05a17d47e9769d75e29497c470a8154"
+    },
+    "teaching/AAVE-USD.jsonl.gz": {
+      "bytes": 423262,
+      "sha256": "7d771cf5c431b4fbf60ccc60a9dcf89eb3fad8cefb38ad4bd11fe5309a7b8ce2"
+    },
+    "teaching/MEZO-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "cb408ee1bad0cc2a99d216b97c002a4a1f29912b3217254655253fb68a5471cf"
+    },
+    "teaching/SKY-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "21e5e6bea79ad409ff6e41639a77ee7b44d4c88029852ba4139a5c44684dad21"
+    },
+    "teaching/COOKIE-USD.jsonl.gz": {
+      "bytes": 37,
+      "sha256": "0bd3698d05a4b74ad114e7f12d498364ee18376b04ec56e5b1c0bc669ae24d6d"
+    },
+    "teaching/GLM-USD.jsonl.gz": {
+      "bytes": 346752,
+      "sha256": "78242d755ba9d65967f500da62adec545d689f6d25ce4fe6b2a76f2ab1a773ff"
+    },
+    "teaching/OP-USD.jsonl.gz": {
+      "bytes": 314027,
+      "sha256": "b2ef18f9af081a400099c676ff3313a112d7ad22368ecc633a7045e411d34e86"
+    },
+    "teaching/CRO-USD.jsonl.gz": {
+      "bytes": 365633,
+      "sha256": "6c8f3ad381eddd28a04ecfb04748399e1cb93001c5f52775168232b3f78440ea"
+    },
+    "teaching/CFG-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "5d42d19ad4e44bf56dbb23c9f5f9a4e50484c5cec49c00c2213ce9be3760879b"
+    },
+    "teaching/OPN-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "5b0a0c9c7b5da5ed11647bfbd4de685a9c194964939c17a36a6be38bf05a8e3b"
+    },
+    "teaching/MAMO-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "b4743f984e7a2de86e9196d0684cdf28cfcc39137efc1ad157f6a32b1ecb6309"
+    },
+    "teaching/PAXG-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "3e0f20325661835d430132df5c6af85fb345505bb53a678da04e06ea99f1659e"
+    },
+    "teaching/LIGHTER-USD.jsonl.gz": {
+      "bytes": 38,
+      "sha256": "603fe4be43342cd1a38fd106081eff8cd75f209b6bc84c07a7243701856362df"
+    },
+    "teaching/ELA-USD.jsonl.gz": {
+      "bytes": 307240,
+      "sha256": "5036c57fa59c029c4b68c52107d20ac33da776552e4cd254508e0a2dad525351"
+    },
+    "teaching/MAGIC-USD.jsonl.gz": {
+      "bytes": 266624,
+      "sha256": "521117bb0b019ee883867a2c162d93b35589f3ccd65995e1d145f09aa8c82d77"
+    },
+    "teaching/RENDER-USD.jsonl.gz": {
+      "bytes": 128660,
+      "sha256": "0ccac72e315cd7a2bacba66a19ab7f0266e1e53e694a5d22904ee0ad2e558a1f"
+    },
+    "teaching/BARD-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "659ca46badae64d28125bc566c6e1436c0b166564f80d601093f6358ed2d8d5a"
+    },
+    "teaching/SXT-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "32494c79882034d549b9560e5e331ae935cfb315e65a18805df1153c32de3b59"
+    },
+    "teaching/ATH-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "1d82c8cf0ce3b1b85155e451fb38142c124d4d9cea5e46a4110db5d134d2094e"
+    },
+    "teaching/GWEI-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "2e7414d392b9de909a3abd1f92a249c2c27d739d07e75c9b73e9b811ffaae126"
+    },
+    "teaching/LINK-USD.jsonl.gz": {
+      "bytes": 417190,
+      "sha256": "6d228535bc2c1c2b926494b503056cde00c3d0f2097014740c19a56ae1bf3874"
+    },
+    "teaching/METIS-USD.jsonl.gz": {
+      "bytes": 314461,
+      "sha256": "5f6a7c6b4f769affa030ae3292cb7d3162f93e81911f5f2aad92527777a52064"
+    },
+    "teaching/EUL-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "61fbaa778b1d767cef9eac68cf5a882af7037808b5de945ab1327919470ad17c"
+    },
+    "teaching/VARA-USD.jsonl.gz": {
+      "bytes": 164619,
+      "sha256": "aed3ea9e21e1b8d0ee519d3cf1365ce09bde4e07e22db67e867afb30dd603ae5"
+    },
+    "teaching/WMTX-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "12cef5d03abbd9916573997bae63e54461d87b123c6f645c4f04cc19c169832b"
+    },
+    "teaching/DOLO-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "39f5708777f3d89081b624d31c5456d4a13652ed93aebda6bcda1aab96777d64"
+    },
+    "teaching/ETC-USD.jsonl.gz": {
+      "bytes": 402937,
+      "sha256": "7888cceed9f79e81f42e294fe24f72b7c6e10dc3122a33effdcb30069511f5e7"
+    },
+    "teaching/CELR-USD.jsonl.gz": {
+      "bytes": 291748,
+      "sha256": "e9f3f0462999fb93addcd514f2fa6ff9336aabd53b93f4d730cc3f8d62cada36"
+    },
+    "teaching/PEPE-USD.jsonl.gz": {
+      "bytes": 37768,
+      "sha256": "b4148a71152db45d16a188c0c07b906830a880b6ab7a38f2cd9491d7135cac09"
+    },
+    "teaching/RECALL-USD.jsonl.gz": {
+      "bytes": 37,
+      "sha256": "8a69b066d838baeb720ee13daa6177f5c4e698eb76a1478ee63bcf5e216fe00e"
+    },
+    "teaching/AXL-USD.jsonl.gz": {
+      "bytes": 250590,
+      "sha256": "5b97defebebadc1b14355ac7d646b3d2f87beba9b3d37c2dd289469bc7e43100"
+    },
+    "teaching/BNB-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "7e19f7701ab617e6d8c56377fbe1b96d866f1df78aa21f416de28c7814bd4539"
+    },
+    "teaching/FORT-USD.jsonl.gz": {
+      "bytes": 306124,
+      "sha256": "24fbde2fedd191dea5e2ecbf9475ef71b05edef42a02d693b1b3052fbf782bbc"
+    },
+    "teaching/YB-USD.jsonl.gz": {
+      "bytes": 33,
+      "sha256": "961d0e5d072e35ebabc3774a21c991daaf76e76237ef6af926dd50b6d4b7cf71"
+    },
+    "teaching/BNT-USD.jsonl.gz": {
+      "bytes": 410037,
+      "sha256": "dd8b15a1c8c7d4ce3826dfc88f7c9c0b000e4a5f33372d91cdcc8668b8d7ba8d"
+    },
+    "teaching/ILV-USD.jsonl.gz": {
+      "bytes": 283879,
+      "sha256": "57bc304e40f06dd0cacaf198c119c5537a179b9ebf7b3d3a33097c7b25c8af60"
+    },
+    "teaching/PONS-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "a87043fc91ecce1ffe1a68d207ac315324c7771b5e49a2d58b03bcc0abc9bfaf"
+    },
+    "teaching/KAITO-USD.jsonl.gz": {
+      "bytes": 3378,
+      "sha256": "be8961da1b48cfc926c1a108f75bb6d0ea590e2bc4377cce567171728ba68cd6"
+    },
+    "teaching/FUN1-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "82e8ef9239affb5026e6c111ee8dc3a76e777ef002817c8e8165349b65e5bd3f"
+    },
+    "teaching/AWE-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "74c772fe755e552ed9984ec76909a12ef2944d4eabb6ed71ea6227da580eaea3"
+    },
+    "teaching/FIGHT-USD.jsonl.gz": {
+      "bytes": 36,
+      "sha256": "38d2450c1788ff89d7e44fedd939461590613bf4153f81f7f389e4399155e73a"
+    },
+    "teaching/SOL-USD.jsonl.gz": {
+      "bytes": 419527,
+      "sha256": "e8bb8ddc220992550b0fdeb4c992faeba973cf8920463cce49b13f5b20eae306"
+    },
+    "teaching/PNG-USD.jsonl.gz": {
+      "bytes": 288508,
+      "sha256": "d20f29f8c7a67dfb2535e109c9533495c40b13eaf92184159b88645d2076c63d"
+    },
+    "teaching/SYRUP-USD.jsonl.gz": {
+      "bytes": 36,
+      "sha256": "54178686e042be14e9f9f28e7614bef3eadb6a18a1049bd50534324e2216dcb7"
+    },
+    "teaching/TURBO-USD.jsonl.gz": {
+      "bytes": 30453,
+      "sha256": "e2d6d90bf5e1dbf9808bf4f11ffd9afb6c5009835e531f95fcd27c15d804257a"
+    },
+    "teaching/HOPR-USD.jsonl.gz": {
+      "bytes": 289896,
+      "sha256": "2c546061033da96fe366cf8e806cc8f8cce2682c3c97da46b380d3228ca62392"
+    },
+    "teaching/S-USD.jsonl.gz": {
+      "bytes": 32,
+      "sha256": "d624e6e94464e52c2d6634c6d314a9d813f45c7c6e50b3868ea3a22f27c0aae2"
+    },
+    "teaching/ZKC-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "87c3754c2c1a46c2a7ed5a6ce92339279ed2d534975211b6b410c45bad2328f8"
+    },
+    "teaching/DEEP-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "a874955ae8d32731096a7c049e94dfd436dea3b2d8c826cda3bce8919bf807cf"
+    },
+    "teaching/CTSI-USD.jsonl.gz": {
+      "bytes": 392923,
+      "sha256": "9ef77d11157c7b09b1b16014fa4a9c6fad2c7a42fefe55fd51572296b007ca5e"
+    },
+    "teaching/LAYER-USD.jsonl.gz": {
+      "bytes": 36,
+      "sha256": "a06be3737cfeb8fc4ef9448512dc13c5b27a110448f15d565e86eef67100d66f"
+    },
+    "teaching/VIRTUAL-USD.jsonl.gz": {
+      "bytes": 38,
+      "sha256": "0a9c195194e00e69dc8e80657e3bdedf2205b67c41ad6fcc1e1285d3d77e5cd6"
+    },
+    "teaching/XRP-USD.jsonl.gz": {
+      "bytes": 205242,
+      "sha256": "abdc0e388f49a6901e04bea49ca5b8e0479229cf51d44fcd29fdec588a5e9baa"
+    },
+    "teaching/QI-USD.jsonl.gz": {
+      "bytes": 275813,
+      "sha256": "32bfd3515c0f70bd354d010e649f12a7b406aa2bb763ec163281d70efb8f7341"
+    },
+    "teaching/A8-USD.jsonl.gz": {
+      "bytes": 73752,
+      "sha256": "e54830b14bf7002c416b3f893bfdc277fde92410a2aba1d9413d95d59c275e65"
+    },
+    "teaching/APR-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "05b5b119913dd179f9243858c64fbc2d67f904caee81065be59d1eb28b489a61"
+    },
+    "teaching/TROLL-USD.jsonl.gz": {
+      "bytes": 36,
+      "sha256": "4f7f0ca4f2ab13c2cf72195ddbcf3c5bfefa8b9873ee5fdc5998972c36b55898"
+    },
+    "teaching/INJ-USD.jsonl.gz": {
+      "bytes": 303924,
+      "sha256": "de81a5fe78fd64bbcc877a07fdf23e0ce22c49365d01968b79eb37d772d1bb51"
+    },
+    "teaching/BASED1-USD.jsonl.gz": {
+      "bytes": 37,
+      "sha256": "db5168d6bcd91700fc7fa7efa8b3fe4441a2cb45b8cd2263ce186e6ee6e7a19e"
+    },
+    "teaching/UP-USD.jsonl.gz": {
+      "bytes": 33,
+      "sha256": "e070a762ef385b6fc4028dcce956cdeba473f33a2d93c26af67e02c8bc94fb95"
+    },
+    "teaching/EGLD-USD.jsonl.gz": {
+      "bytes": 261634,
+      "sha256": "8cf9c3a22a98185da60ca3a48bc6d00b92dd50dd917f360c2ee1061b8935a0e7"
+    },
+    "teaching/SUI-USD.jsonl.gz": {
+      "bytes": 224647,
+      "sha256": "06ea53cc604f24815246a534b810ff3c5113e00e8a5886530deef73c42448e76"
+    },
+    "teaching/CT-USD.jsonl.gz": {
+      "bytes": 33,
+      "sha256": "dd557575766a71b1373ee9262560a96c386ea090c0d2b24892a3fc1d5494fca1"
+    },
+    "teaching/ROSE-USD.jsonl.gz": {
+      "bytes": 345643,
+      "sha256": "be09e1917358a822bf1801102f9df06077aa1690d47bb7a2514f3ab98f03735f"
+    },
+    "teaching/LPT-USD.jsonl.gz": {
+      "bytes": 379767,
+      "sha256": "4e59af4becee645c730eb8ecf15959c447cd7667e9d55439fe4595416fd99854"
+    },
+    "teaching/ROBO-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "ad7cdd3011daae3967bfae694db2f5b0847ae0b0afcd63c1ef658f4d7a91131f"
+    },
+    "teaching/HNT-USD.jsonl.gz": {
+      "bytes": 198147,
+      "sha256": "704af75f86e1bf60495a6159ebe475b4a306994567e9299c5070aa3d085c8f81"
+    },
+    "teaching/META-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "895dff30062c9c0dc655b9c4aba8006fff49170737f4c2e50a07e34f1214c552"
+    },
+    "teaching/AKT-USD.jsonl.gz": {
+      "bytes": 112675,
+      "sha256": "376f9564c86932202a3e7fbb89391df8e95c7222d3a11e9ea252c3e71d16c6ff"
+    },
+    "teaching/OGN-USD.jsonl.gz": {
+      "bytes": 412892,
+      "sha256": "8108d1eaa86bef9c7266a81745900cb9a45c354a36ebc6406113fcb5dc0b64a1"
+    },
+    "teaching/ARX-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "a9e9a3fdd4ee969ac2d9f27a2c414673b9f8c30296ce5bd5787957e09d3c64d6"
+    },
+    "teaching/RARI-USD.jsonl.gz": {
+      "bytes": 333108,
+      "sha256": "c40eb4270c0d562396fd113adf8d418f2455b860e862086bc779bbebab616e60"
+    },
+    "teaching/AVAX-USD.jsonl.gz": {
+      "bytes": 405543,
+      "sha256": "de11a370eb01de29e5633ac0169de9f327e8b2704fecdcd8d636186bc1c116de"
+    },
+    "teaching/SAFE-USD.jsonl.gz": {
+      "bytes": 104535,
+      "sha256": "9fa815d897bf681b52a41a28bb8ffd2167defdd226484fc3bcc180a62be2bc1d"
+    },
+    "teaching/POL-USD.jsonl.gz": {
+      "bytes": 60132,
+      "sha256": "64dcaa32e05f8357a1eaebd13c58135d7a003768383e2128559cbaec71cbc697"
+    },
+    "teaching/TRIA-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "1c5846a2ef8a8fabcab8563dd71b37ec3a51f3773627a4b408fe38e104a2060c"
+    },
+    "teaching/SQD-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "e77e68e8f6726a287882d5a5cdfaa2b973a9beadcfd8e8b27d85e0b415e646de"
+    },
+    "teaching/POND-USD.jsonl.gz": {
+      "bytes": 305429,
+      "sha256": "a1ab5ec22e0796b97b9403c2e30d24a1ca0ca521f54ea2f9163a4d7d6d7275a7"
+    },
+    "teaching/SKR-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "f775279c5a8af799314c7d2115b1a5cfeed38c5201e87ca51965a61dd1193941"
+    },
+    "teaching/B3-USD.jsonl.gz": {
+      "bytes": 4445,
+      "sha256": "e1b0f15c85487ce072d9499d75970b00ff550ef5f1c1de2fd4fdb7e00d7c5302"
+    },
+    "teaching/LMTS-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "5b836e4b5334a985e83bf07020cf077bd20e00f63b2a38d91b22727a0ee3fa66"
+    },
+    "teaching/ASTER-USD.jsonl.gz": {
+      "bytes": 36,
+      "sha256": "b91ea204adc32a51e1b1ceb1df14a78fb3b8e739a1f38f452c372b2914996e22"
+    },
+    "teaching/ACS-USD.jsonl.gz": {
+      "bytes": 251986,
+      "sha256": "04ac7c909a23f5ee7796dea65181c6a027f002643273dd9a436c580bba2193e1"
+    },
+    "teaching/FAI-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "87db1c7ae77374ca70155686389f9ea39c3081c3188b9f7870b575fffa61972a"
+    },
+    "teaching/SUSHI-USD.jsonl.gz": {
+      "bytes": 412898,
+      "sha256": "d06ea624adf3e1665f771809f4d6580132ad173f365698c4202c09fe123d2d7d"
+    },
+    "teaching/GTC-USD.jsonl.gz": {
+      "bytes": 305389,
+      "sha256": "ece86eb6d459d4ad97a0d5851b6e632144630ec0253bd337faaf09a41bdcd2b3"
+    },
+    "teaching/OCEAN-USD.jsonl.gz": {
+      "bytes": 297907,
+      "sha256": "15689491586b51602c321a409da047965e445886cf88679a16e31cf9b532ab37"
+    },
+    "teaching/FLOKI-USD.jsonl.gz": {
+      "bytes": 35159,
+      "sha256": "288ceee2e7383764a144b70cb2f648e2b9d1ed41ff047f282e62923951567745"
+    },
+    "teaching/ALIGN-USD.jsonl.gz": {
+      "bytes": 36,
+      "sha256": "c52277b00fc4b476cf668bcec0b5483ac0105048353806a2e09613ebe8f0261e"
+    },
+    "teaching/O-USD.jsonl.gz": {
+      "bytes": 32,
+      "sha256": "8ac40fe2a63d4a557c71ef5dadf56aa32f75d5c0ddf56ce9f77eb277603cfeb9"
+    },
+    "teaching/NMR-USD.jsonl.gz": {
+      "bytes": 391442,
+      "sha256": "4cf1cbbc94ea75e95bf380b6d3c0c317787eac0da70251eaed30f6948a23e0aa"
+    },
+    "teaching/ELSA-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "aeaed01908bc7bd0fde579c357d6ed90607846390c98b40f2cd2b4eaa1266d73"
+    },
+    "teaching/DRIFT-USD.jsonl.gz": {
+      "bytes": 89600,
+      "sha256": "4e0895943360e1eaa2342e3c110eb377a3af73d4e348d27292b3b10f2f7da481"
+    },
+    "teaching/BCH-USD.jsonl.gz": {
+      "bytes": 430645,
+      "sha256": "8cd11e3c1d273c9750bd7007271471272b6ce51bdec02c938755fcf3bd6ab222"
+    },
+    "teaching/AUCTION-USD.jsonl.gz": {
+      "bytes": 373809,
+      "sha256": "4b8a169f8e96ea94063936914ff23d1f17a0da47cf4d839bed09c27baa24c38a"
+    },
+    "teaching/MSOL-USD.jsonl.gz": {
+      "bytes": 285066,
+      "sha256": "f2be74aa41ffc1af32894adf2a9629380762afdffdb48a5846e3e9149b0d68ef"
+    },
+    "teaching/PLU-USD.jsonl.gz": {
+      "bytes": 312358,
+      "sha256": "5eb86957e485edfa11100f9e39f8a02e55f72b1675cf20e6af94089359fb3040"
+    },
+    "teaching/DRV-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "56d8b95fc24de02753ac60430072380edc0891df4f11f96d4b53a054c7c71a20"
+    },
+    "teaching/ZRX-USD.jsonl.gz": {
+      "bytes": 433799,
+      "sha256": "fd805fa5ada7ebdc834f6f7ec7587cb79176cf5da5d63f165fce3a93f5397096"
+    },
+    "teaching/WET-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "0113a6fb3e89d2d97f29ca07cc7c92a27a81fa7bcf393eba29db6c661e769b74"
+    },
+    "teaching/OPG-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "3ec3f47aa70b712652655b3a7d58412779054351d296209c73cf9c12489220f3"
+    },
+    "teaching/AVNT-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "66e7ddecd64ca304f81cc6e7556e7e5a38da908fcde7288ab9014de65cf16ebb"
+    },
+    "teaching/CHECK-USD.jsonl.gz": {
+      "bytes": 36,
+      "sha256": "65773efe48fab33953f71818a6c020d4d033dfbd87f9307e9cc4e84c7e691ec5"
+    },
+    "teaching/ALEPH-USD.jsonl.gz": {
+      "bytes": 304663,
+      "sha256": "61fc605d24ad1382a02a0c10cff1373a00d57ad89a2556cc122711a5b151d76d"
+    },
+    "teaching/IRYS-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "1ea1ad8fd58bcb70f88a4333e533acfe40bbe1a27414050f0b07ebadff503331"
+    },
+    "teaching/DRB-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "59ceee3cb3de9060990f765e7cc3b557f68cd09ad434c7cd878bd054d7296580"
+    },
+    "teaching/ENS-USD.jsonl.gz": {
+      "bytes": 377398,
+      "sha256": "71b291c00a4d1f9e28be771c16d728c53b0e57538fd05ebe774da1240304bc8e"
+    },
+    "teaching/JASMY-USD.jsonl.gz": {
+      "bytes": 381585,
+      "sha256": "196e30e9eb254539ed95caff3e70b635ee5d9fe664e5e4f7567df7657a8b93b4"
+    },
+    "teaching/WAL-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "9722ab9ee65250556431de138596d960a2f288187e1c8a6f279d0c3314a7cce8"
+    },
+    "teaching/SAPIEN-USD.jsonl.gz": {
+      "bytes": 37,
+      "sha256": "062f25fa8ef1cde3a69fa0d43150343f060c853df8d111a78f02a12d1412482c"
+    },
+    "teaching/NEAR-USD.jsonl.gz": {
+      "bytes": 297748,
+      "sha256": "dbc8b792702117c1071cb7c04d984cd14a9e567f824eaf3a642e59095ba22969"
+    },
+    "teaching/KNC-USD.jsonl.gz": {
+      "bytes": 412400,
+      "sha256": "05c71bcfbc453440930edb7564e83867dd6cf2fa6589bda23401c02ebefc04a4"
+    },
+    "teaching/DOOD-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "04116a932447ef1efcea6ee139e934cd11bb70c07d1ac536ff1c519059c8190e"
+    },
+    "teaching/TOSHI-USD.jsonl.gz": {
+      "bytes": 8357,
+      "sha256": "ad8a956bec8451c3d4a9ac0883adef93505952294ddb8b4ea94fb5f5e72d4a84"
+    },
+    "teaching/PRO-USD.jsonl.gz": {
+      "bytes": 363983,
+      "sha256": "bab01bae10e8a1b47eaf040f04ffa027b0ebd6b89b05ecffba68373f6e6f12e9"
+    },
+    "teaching/JTO-USD.jsonl.gz": {
+      "bytes": 155304,
+      "sha256": "d7306d88979db91d281b02f1c404ee54f2c89c9e49d01c23c54b15f676d4d580"
+    },
+    "teaching/FIL-USD.jsonl.gz": {
+      "bytes": 407308,
+      "sha256": "5a897b08e8597350ca43677f9f647d2dc42ef62193938f9cbcc18053cf9eefd1"
+    },
+    "teaching/ANKR-USD.jsonl.gz": {
+      "bytes": 400432,
+      "sha256": "29766d0cc38a82899ff2084eee2aa7cc2a0cda1de0df8433e1b4a5b608fb1c71"
+    },
+    "teaching/GRVT-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "96f5de601c01e85ac1ef50461879dd26a22621fbf8d0ff484383995a88cd1c35"
+    },
+    "teaching/DIA-USD.jsonl.gz": {
+      "bytes": 385001,
+      "sha256": "c96f6fb71b5751faefb01ed27d950b3a58a53ea2b8aef53821a824438676995e"
+    },
+    "teaching/SHIB-USD.jsonl.gz": {
+      "bytes": 389963,
+      "sha256": "01881b11901e2139aef9ce4740c1df728ae6144f78f8c66f702ceeaf9149177b"
+    },
+    "teaching/DOT-USD.jsonl.gz": {
+      "bytes": 417002,
+      "sha256": "eb6273f105b539b02f65c006e94050e2bc9cb32f1bc9ebd374265bd8d6e13264"
+    },
+    "teaching/MNDE-USD.jsonl.gz": {
+      "bytes": 283179,
+      "sha256": "a530546e8d8805c73687864667218ff42eb234b52749ccfd6d364ec1a1bd4bfc"
+    },
+    "teaching/REQ-USD.jsonl.gz": {
+      "bytes": 380903,
+      "sha256": "698d328d40f3534c1f76106e6d7b042e243ef2fe64a0c986fb5f365d41e4f8bb"
+    },
+    "teaching/TRUST-USD.jsonl.gz": {
+      "bytes": 36,
+      "sha256": "249eb2a9ce1dccb42160c369ca7ecd2d79bbdbf3c22455b8fad70516585ac210"
+    },
+    "teaching/RLC-USD.jsonl.gz": {
+      "bytes": 414885,
+      "sha256": "07bb73e64a4728d7236f540d8f98ac9c6e1fc55747bf1739447e4b97c438620f"
+    },
+    "teaching/PENDLE-USD.jsonl.gz": {
+      "bytes": 37,
+      "sha256": "6fcfbf443ce2edb636b6e8f95d04e18800f5785c1894d9f8cf10259c723e46d3"
+    },
+    "teaching/PRL-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "08d949fada158281997c7e7217b74f954ce717834c3a5b9c7e1b79140b90dc58"
+    },
+    "teaching/BREV-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "04bc3f0dfd8814db4490fb5368c70d90a0efb17340f5d89c9809fdf41aa3d0a5"
+    },
+    "teaching/POPCAT-USD.jsonl.gz": {
+      "bytes": 4463,
+      "sha256": "e8fa44023c4377f310bf98dc2c6d1cad96d9e50135e4fc941b9315987887002a"
+    },
+    "teaching/BLZ-USD.jsonl.gz": {
+      "bytes": 358614,
+      "sha256": "69da4d4c6fb0d1da1eab87e78bda3ac516d9084b93d10999fc964d1ef9a9f7f0"
+    },
+    "teaching/SPELL-USD.jsonl.gz": {
+      "bytes": 390070,
+      "sha256": "31ba7195f2af1dfa3061c9c7c6671c18c5318b0882fe2763c35e6a570f01440d"
+    },
+    "teaching/TON-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "edf9221e4235fb9affcac899df82e5c5409fd44e8c6ddbd6345c9e261919cde1"
+    },
+    "teaching/SHPING-USD.jsonl.gz": {
+      "bytes": 371859,
+      "sha256": "770ef5e9425a094f6cc3ef194a67d0e6a91e80c7f6526fdbe627324a02be191d"
+    },
+    "teaching/FIDA-USD.jsonl.gz": {
+      "bytes": 357759,
+      "sha256": "727922bc181448f34a031f167860f13695382f601c5ad16a54ca17dc0259fcac"
+    },
+    "teaching/RSR-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "df333a26bd1eda7db5f13062257a3da8ef6313a5ba97c3c57f0037c963af0b12"
+    },
+    "teaching/CRV-USD.jsonl.gz": {
+      "bytes": 416321,
+      "sha256": "46ff519ec5ba10d68e36658ca99baf8fdd094af79a2bb4f3d800200560f7dfec"
+    },
+    "teaching/MANTLE-USD.jsonl.gz": {
+      "bytes": 37,
+      "sha256": "68547ae11be53ac7852da3dc7848c4aa254b54441c92bbf29434dbce1b115a08"
+    },
+    "teaching/BNKR-USD.jsonl.gz": {
+      "bytes": 35,
+      "sha256": "a2c3c5b8bf93b08b5dd05070b215034a99b991d86c05cbe745580e18bf213fb7"
+    },
+    "teaching/API3-USD.jsonl.gz": {
+      "bytes": 365914,
+      "sha256": "832382d56d42d2293c76c9a9f5f27c27cc56880650e40b80f8ea3f0ceece9f79"
+    },
+    "teaching/MINA-USD.jsonl.gz": {
+      "bytes": 306477,
+      "sha256": "a31fdfb1b70c6c2c2d97b4a0aa52031071e49a16a9cd38d48acb4e3aa173b2b8"
+    },
+    "teaching/CBETH-USD.jsonl.gz": {
+      "bytes": 323361,
+      "sha256": "cfe1461da5a49d9254dc856be38efb64e6769633ce516ffd391c606f7a884a6a"
+    },
+    "teaching/AMP-USD.jsonl.gz": {
+      "bytes": 355945,
+      "sha256": "b8b373935192b84074afa2e1860fce356614bdf28d413855669b9367dce8c5c8"
+    },
+    "teaching/IMX-USD.jsonl.gz": {
+      "bytes": 392686,
+      "sha256": "94afb25d73aa96d48501681731f6fb9b20515c723bfe95671910f81dca6eb864"
+    },
+    "teaching/RED-USD.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "04364584553ec852e2c99af11c5bb67e5081644f8019748d986cdc9ea7a856d2"
+    },
+    "teaching/EIGEN-USD.jsonl.gz": {
+      "bytes": 51186,
+      "sha256": "b45e15f58a7d1a792d85b63e74dbd2c6edb7db7fef3edb408eb176d4a8d23bbb"
+    },
+    "teaching/DIMO-USD.jsonl.gz": {
+      "bytes": 226532,
+      "sha256": "09737cc64e91da5105c0957108beb58d792e32e739c50cfb615056a1674c692c"
+    },
+    "teaching/ABT-USD.jsonl.gz": {
+      "bytes": 308273,
+      "sha256": "e6bebf0ccad92bb1b3a33fc1397163f9076b06d46996cea026c982984ddbbeee"
+    },
+    "ledgers/validation-withheld_assets-buy_hold.metadata.json": {
+      "bytes": 959,
+      "sha256": "62b1a0fb5239d01e32fd84da76669cc0fcd3184356a6a2006e28effc66e99dd0"
+    },
+    "ledgers/validation-withheld_assets-untrained.jsonl.gz": {
+      "bytes": 476287,
+      "sha256": "ade19c349d32ab276e032fb352c4faf33f8b62787aace645651b20f4cfe19caf"
+    },
+    "ledgers/validation-withheld_assets-immediate.metadata.json": {
+      "bytes": 960,
+      "sha256": "5dd9d1ee21bae9bba7f2a60ca4a521e150d056b1976287d6af6319cdc5ea3da5"
+    },
+    "ledgers/validation-all_usd_assets-untrained.jsonl.gz": {
+      "bytes": 2639213,
+      "sha256": "fb56600002060eb3574e1bb6a491ec8322fc1a5694c590c672e26cbd686a4cfd"
+    },
+    "ledgers/historical_audit-all_usd_assets-linked.metadata.json": {
+      "bytes": 4414,
+      "sha256": "e2d3e0b029316d99283ccf766313791328e88570938b5ca2292c75235c22f48f"
+    },
+    "ledgers/historical_audit-all_usd_assets-immediate.jsonl.gz": {
+      "bytes": 3985981,
+      "sha256": "7a76316117d8b9e7e607b3cac96da3c541e8ba5d9c58245fd053c0ab1733ba79"
+    },
+    "ledgers/validation-known_assets-immediate.jsonl.gz": {
+      "bytes": 2366392,
+      "sha256": "9772f81c9f4fe99d57416191a4323004c2f98068bcb4b6bcbfd793f7f83c4b17"
+    },
+    "ledgers/training-donchian_breakout.metadata.json": {
+      "bytes": 3635,
+      "sha256": "101975b5d80162da74714500533cad6e56a1fb04e8d92e6ec22e721b1a59f040"
+    },
+    "ledgers/historical_audit-known_assets-untrained.jsonl.gz": {
+      "bytes": 3012020,
+      "sha256": "a12e9c17d48d512c94c243a9e682d1318a07ed0ed1c9bb3d6805b49900076aeb"
+    },
+    "ledgers/historical_audit-all_usd_assets-immediate.metadata.json": {
+      "bytes": 4417,
+      "sha256": "0429410b72cb003c5866e62fdfd521efe612a089b2fbfd4991c6752c5c2f2353"
+    },
+    "ledgers/historical_audit-known_assets-linked.jsonl.gz": {
+      "bytes": 3254977,
+      "sha256": "f1c02fa3ec78b1de3fe9204cb1b5ba6ea8d20b9b8bfc43769e0aea5b02f74594"
+    },
+    "ledgers/historical_audit-withheld_assets-cash.metadata.json": {
+      "bytes": 961,
+      "sha256": "286cdacddc3ed6d48f3218d9b55e0f7d69b0868d045052f4beac016673bac8ef"
+    },
+    "ledgers/historical_audit-withheld_assets-cash.jsonl.gz": {
+      "bytes": 624971,
+      "sha256": "7b0f01d3f2e2c72a6f7f49a7972b777128d82c2e4f921dca2ebdf02f63200cba"
+    },
+    "ledgers/historical_audit-withheld_assets-untrained.jsonl.gz": {
+      "bytes": 680403,
+      "sha256": "2210b490a5663b14d91d7247d9cf7900939daa4cb6a06c131b76bb60ddd36ea3"
+    },
+    "ledgers/historical_audit-all_usd_assets-untrained.metadata.json": {
+      "bytes": 4417,
+      "sha256": "56be00ca089271abe4cee2ca862b11354473e46ef8a6006c69c6c58df2b79eb7"
+    },
+    "ledgers/validation-known_assets-donchian_breakout.jsonl.gz": {
+      "bytes": 2062335,
+      "sha256": "b9e6e27e4c40365cd6d60913ad9116af15435ddb50f98846cacc421f2b9ca3c3"
+    },
+    "ledgers/validation-withheld_assets-cash.metadata.json": {
+      "bytes": 955,
+      "sha256": "9ce02c2d81ce6fba4869d02586aa82d7a675e555f889a2101e357de5c0374cdc"
+    },
+    "ledgers/historical_audit-known_assets-price_trend.metadata.json": {
+      "bytes": 3650,
+      "sha256": "35450169e264d80dcc45597539f83a5bbc6e80781dba33b5025652b140ddbf39"
+    },
+    "ledgers/historical_audit-all_usd_assets-cash.jsonl.gz": {
+      "bytes": 3410942,
+      "sha256": "46d962cf47f322f13ae845196e8ee7b9cca8e472fe06c12c5c7ebdf224c8c999"
+    },
+    "ledgers/validation-all_usd_assets-price_trend.metadata.json": {
+      "bytes": 4413,
+      "sha256": "acebcc8e6c4934a43895fb3cadc04e07f861e4422fb25e64c3a42601b6107be5"
+    },
+    "ledgers/validation-all_usd_assets-price_trend.jsonl.gz": {
+      "bytes": 2554083,
+      "sha256": "cfbb8f7d15b7581996636688c508cd04b1f1cf72fe51c799a008f45c08eb3978"
+    },
+    "ledgers/historical_audit-known_assets-immediate.jsonl.gz": {
+      "bytes": 3261136,
+      "sha256": "7d44ce7105cb6ccb283bcfd96d5783dff0b030a21dfbaaa75b043162b644bea5"
+    },
+    "ledgers/validation-all_usd_assets-cash.metadata.json": {
+      "bytes": 4406,
+      "sha256": "61d7d73046856f373cbb2a8c948ec7f29b2dd1622eca040ae6a0104f696fe9ff"
+    },
+    "ledgers/validation-known_assets-cash.metadata.json": {
+      "bytes": 3637,
+      "sha256": "477f86f7edf5bb9031d271ac391662b03eba020678da4241c74c755bd9dedbff"
+    },
+    "ledgers/training-cash.jsonl.gz": {
+      "bytes": 8283041,
+      "sha256": "5d28b3bd7887012d8f8088436822a5695066bf03f7139b72ca7e60be8ce7bc36"
+    },
+    "ledgers/historical_audit-known_assets-cash.jsonl.gz": {
+      "bytes": 2793089,
+      "sha256": "233945b1e01fe11e7dcca879414df5f17c6507895d7e9695255d672b3542cd0e"
+    },
+    "ledgers/historical_audit-withheld_assets-linked.metadata.json": {
+      "bytes": 963,
+      "sha256": "8871b2f0dcc30d25a4fa06775df65bd059d63eec9f3c9013ef5e0c8af6799e7e"
+    },
+    "ledgers/validation-all_usd_assets-immediate.metadata.json": {
+      "bytes": 4411,
+      "sha256": "ca1e3d92a6768b04c86ca682cdb30cbeb8373d7e27a12895d829716a517c1539"
+    },
+    "ledgers/validation-withheld_assets-cash.jsonl.gz": {
+      "bytes": 440797,
+      "sha256": "13f395522f708846c62a42c52f64e2481fcabeab0c7f06111770c5d1113dd399"
+    },
+    "ledgers/historical_audit-known_assets-untrained.metadata.json": {
+      "bytes": 3648,
+      "sha256": "28129cf45ca851ea8a28156dca424b6759a8606d780c36b7ba3caeee3cf331fc"
+    },
+    "ledgers/validation-withheld_assets-donchian_breakout.metadata.json": {
+      "bytes": 968,
+      "sha256": "dd615c5e8f09a05f897cd80b56d929d11d8d55487f66e203e5d0c8daded16af3"
+    },
+    "ledgers/historical_audit-known_assets-linked.metadata.json": {
+      "bytes": 3645,
+      "sha256": "6b702b662c831a7139ec0e1221ca9ce19b0b5b4ec77cbc8ed9f675d0f72cd513"
+    },
+    "ledgers/validation-all_usd_assets-untrained.metadata.json": {
+      "bytes": 4411,
+      "sha256": "df7916a6e0d0269b5069597cf71c430660369f079db85acfd9d9553f25e792d3"
+    },
+    "ledgers/historical_audit-all_usd_assets-donchian_breakout.metadata.json": {
+      "bytes": 4425,
+      "sha256": "dc9b37e696bc144a276455c5d57179824a97ca5f25b67f8aa30d0810a89ef142"
+    },
+    "ledgers/validation-withheld_assets-buy_hold.jsonl.gz": {
+      "bytes": 527422,
+      "sha256": "1b4a554d26953300a64f556e74ca89aa314ec15f01cba7a605e290e8db167490"
+    },
+    "ledgers/validation-withheld_assets-immediate.jsonl.gz": {
+      "bytes": 528127,
+      "sha256": "94897b5b33e5227ffe49ac4b0ec45441eb2e14e4ece48fc89f0182205b12ba2c"
+    },
+    "ledgers/validation-all_usd_assets-immediate.jsonl.gz": {
+      "bytes": 2889590,
+      "sha256": "a4502a369f9c19aeed7c098731c026078f989fcfacf0dfc5d8e86c200af45c64"
+    },
+    "ledgers/historical_audit-known_assets-immediate.metadata.json": {
+      "bytes": 3648,
+      "sha256": "e894e89e506d2083ae725448702ceb0186bc3fa5af0387d278a027a97d2c905c"
+    },
+    "ledgers/historical_audit-all_usd_assets-buy_hold.metadata.json": {
+      "bytes": 4416,
+      "sha256": "02452c2452f9a80a29a51cddf7cbc02b3472fe8d6106791873a4c9401fc6e535"
+    },
+    "ledgers/validation-all_usd_assets-linked.jsonl.gz": {
+      "bytes": 2891924,
+      "sha256": "5807a77857415b66cb16a60e7912dbe5d5683747d97865f963686e86ed5b217b"
+    },
+    "ledgers/historical_audit-withheld_assets-linked.jsonl.gz": {
+      "bytes": 730841,
+      "sha256": "b5f38c21120977b821de5731b1b0f5e390ee912738d63eff70b699bf85aabbe9"
+    },
+    "ledgers/validation-withheld_assets-price_trend.jsonl.gz": {
+      "bytes": 462713,
+      "sha256": "b3500954478b1bba96870b381294e821ff15398c1cb01caa896f43a40828ff35"
+    },
+    "ledgers/historical_audit-withheld_assets-donchian_breakout.metadata.json": {
+      "bytes": 974,
+      "sha256": "5157af6a86423dfaf763a13dd587348b0f20c3fab813aa6ecc565a77c6e1dd77"
+    },
+    "ledgers/historical_audit-all_usd_assets-donchian_breakout.jsonl.gz": {
+      "bytes": 3531514,
+      "sha256": "d13cfa3bfd96906e1a6a34fbf5a0e305ebf42c58ef2eb0b4f7d4bfa5b26a832d"
+    },
+    "ledgers/validation-withheld_assets-linked.metadata.json": {
+      "bytes": 957,
+      "sha256": "c758d496efefec32dd0e21b696b38c37ba9a76ff993d01ec034b5c099fbf1a5e"
+    },
+    "ledgers/validation-withheld_assets-donchian_breakout.jsonl.gz": {
+      "bytes": 451261,
+      "sha256": "fb6409fff9228f932993df269d24fbe79b8481474b7e3f945f770114d404144e"
+    },
+    "ledgers/validation-known_assets-price_trend.jsonl.gz": {
+      "bytes": 2096683,
+      "sha256": "8ad61e84b843bf16e73066b86b85fa9c0cfb7b8c806fc6abfabdb923ded679b3"
+    },
+    "ledgers/historical_audit-known_assets-buy_hold.metadata.json": {
+      "bytes": 3647,
+      "sha256": "b2576c2ccd20ff5a4e03158181998b1ed1cb640c04bb961f2ca8e29ad7bdb3f4"
+    },
+    "ledgers/historical_audit-all_usd_assets-linked.jsonl.gz": {
+      "bytes": 3979525,
+      "sha256": "125417500fbcda3b15368fb0efa029a0eedf4e41f4d6605dd5c395806c7b1009"
+    },
+    "ledgers/historical_audit-known_assets-donchian_breakout.metadata.json": {
+      "bytes": 3656,
+      "sha256": "b5fb4e308da8fd1d5c162d898d3e15beda81c339de17d0b30427f3f5cf4bac5e"
+    },
+    "ledgers/historical_audit-withheld_assets-price_trend.metadata.json": {
+      "bytes": 968,
+      "sha256": "07ec88f95642372d8838c8477742eb678ee78e4f780a84d015ed519318a60a30"
+    },
+    "ledgers/validation-known_assets-untrained.metadata.json": {
+      "bytes": 3642,
+      "sha256": "6ea07e803b0098de1c780e6cb902e20809c450bbfda3486b4a543f0b0f5dfd47"
+    },
+    "ledgers/validation-known_assets-donchian_breakout.metadata.json": {
+      "bytes": 3650,
+      "sha256": "acfe22bc780b32e2502e74ea7979cb8f36f597f8828df5eac50b37c36cbcd010"
+    },
+    "ledgers/historical_audit-withheld_assets-buy_hold.jsonl.gz": {
+      "bytes": 747473,
+      "sha256": "1235993970d683c06b735f0262a999e8cada676f38e99ab142519ba8716f23c0"
+    },
+    "ledgers/validation-all_usd_assets-linked.metadata.json": {
+      "bytes": 4408,
+      "sha256": "64e0c03924297021de69bbb28fa5858b956265b47b17511f7703703817f463e9"
+    },
+    "ledgers/validation-known_assets-price_trend.metadata.json": {
+      "bytes": 3644,
+      "sha256": "3f881444466b7c3c6a932dee1a938a88c17f70fb560ed9845f54e8b5760a2ca1"
+    },
+    "ledgers/historical_audit-withheld_assets-buy_hold.metadata.json": {
+      "bytes": 965,
+      "sha256": "e2d394a2541c35500ebe54a2d8ed3de9e96c5c7f1cf5dc6ae44b05be13a8bcbb"
+    },
+    "ledgers/validation-known_assets-linked.jsonl.gz": {
+      "bytes": 2368772,
+      "sha256": "eaaca6d33c6c342878ef1b421e0a5f85a8d83cef76ac4c10ca51390c05e4ad96"
+    },
+    "ledgers/historical_audit-all_usd_assets-price_trend.jsonl.gz": {
+      "bytes": 3605818,
+      "sha256": "14afb6e821ac929c871516f6df67125533786b556252e32fd523574b5909f7a9"
+    },
+    "ledgers/training-buy_hold.metadata.json": {
+      "bytes": 3626,
+      "sha256": "7bbd67d8bad87ba23ea43c135d18c5da169064f3fb5e3c5ca20ce858abfe944b"
+    },
+    "ledgers/training-donchian_breakout.jsonl.gz": {
+      "bytes": 9465504,
+      "sha256": "a176bf73eaf139ab2e5ea429f8378ae0d76f8079ea468cb344a1093c2a0c98bb"
+    },
+    "ledgers/training-price_trend.jsonl.gz": {
+      "bytes": 9451576,
+      "sha256": "5c655186124a0e145bf0af0dd8d8c67b0019939f33af50729015c659232caf76"
+    },
+    "ledgers/validation-all_usd_assets-donchian_breakout.jsonl.gz": {
+      "bytes": 2508516,
+      "sha256": "9e06c1775db08329135d1859e1c306898583c48427173b0ebfff3f7e3e7483dd"
+    },
+    "ledgers/historical_audit-withheld_assets-price_trend.jsonl.gz": {
+      "bytes": 659639,
+      "sha256": "affb9b289517512ce67105a843be7ace1ec0b449cd38f50f2acc99b5dc7b3651"
+    },
+    "ledgers/validation-known_assets-untrained.jsonl.gz": {
+      "bytes": 2168663,
+      "sha256": "29270e8e6b5bdff2e2ab215d27f6cf338b223e86f236001c721932f20c1ca0a6"
+    },
+    "ledgers/historical_audit-withheld_assets-untrained.metadata.json": {
+      "bytes": 966,
+      "sha256": "d049153a790e67ddea9589c06715816db9011236938df3f6f0a720a39f441e00"
+    },
+    "ledgers/historical_audit-withheld_assets-donchian_breakout.jsonl.gz": {
+      "bytes": 651859,
+      "sha256": "33c92e8eb1ea70489e50ea05367a2589ed6f95f769d7a7b820e84cb8f115b960"
+    },
+    "ledgers/validation-withheld_assets-linked.jsonl.gz": {
+      "bytes": 528188,
+      "sha256": "9befdb783eeb8229cb649c654306af07aa61d2419800f73ba373d8f15a7dd741"
+    },
+    "ledgers/validation-all_usd_assets-donchian_breakout.metadata.json": {
+      "bytes": 4419,
+      "sha256": "94ecd7e299f0cd79e114be75244372266637cc7c3bd612122dcfc999dd7e0583"
+    },
+    "ledgers/historical_audit-known_assets-cash.metadata.json": {
+      "bytes": 3643,
+      "sha256": "bac3e01b5e87d84592d572c9b38251b36af9e93ef38a84368eea92449ca9aef2"
+    },
+    "ledgers/historical_audit-known_assets-buy_hold.jsonl.gz": {
+      "bytes": 3332101,
+      "sha256": "170cd4afb9e946f92a42b8fd0b6380269c33cfe1361b93b9c885149192fb1492"
+    },
+    "ledgers/validation-known_assets-linked.metadata.json": {
+      "bytes": 3639,
+      "sha256": "043145b12917c6a2c61dfb66c6159dd0c51762e2864110dda6b2ff4727ff1d4b"
+    },
+    "ledgers/validation-known_assets-buy_hold.metadata.json": {
+      "bytes": 3641,
+      "sha256": "c36913270c867effdd70406e22b6ef1147f7b08a0ffc6b0490a5cd4e2a57cb73"
+    },
+    "ledgers/validation-known_assets-immediate.metadata.json": {
+      "bytes": 3642,
+      "sha256": "720e9331495594028ba2e9e0d9ea6a6b28b902c14c78d679f9fcc24c1ceba936"
+    },
+    "ledgers/historical_audit-all_usd_assets-price_trend.metadata.json": {
+      "bytes": 4419,
+      "sha256": "9df7d941822659499e9b49b6fdc85626346b701a5e192a4a0c97e9efa6714e41"
+    },
+    "ledgers/historical_audit-withheld_assets-immediate.jsonl.gz": {
+      "bytes": 731897,
+      "sha256": "7bd654ed84792af7d994d6d94dbcb544b1c097f711e095342cec1e7c0886d177"
+    },
+    "ledgers/historical_audit-all_usd_assets-cash.metadata.json": {
+      "bytes": 4412,
+      "sha256": "0b8039be55d194215bd3288168c9e77cb2bb4c8a01bbaee458480a89e2e11024"
+    },
+    "ledgers/validation-all_usd_assets-buy_hold.metadata.json": {
+      "bytes": 4410,
+      "sha256": "83b6f9acd70146833bbfd20dfcd5ae918e02c074101f202e7a28ad215299de5d"
+    },
+    "ledgers/training-price_trend.metadata.json": {
+      "bytes": 3629,
+      "sha256": "7f7a035161ab7251d724da1d971f8b3f2e3611b4150f3e2034b3a2dd2355f11e"
+    },
+    "ledgers/validation-known_assets-buy_hold.jsonl.gz": {
+      "bytes": 2391270,
+      "sha256": "e0fec72fe389ea96c2a5b2b0a1eac5e543aa64dac418cf333f9e90ce85b8861f"
+    },
+    "ledgers/validation-known_assets-cash.jsonl.gz": {
+      "bytes": 2004414,
+      "sha256": "916de0dff0f19989b49860152c439c070926a4b6b7a136cb55327fb10b641fdf"
+    },
+    "ledgers/historical_audit-known_assets-price_trend.jsonl.gz": {
+      "bytes": 2954767,
+      "sha256": "d4f9a8d4400082977ea1d9b62808e6643006daf9be719900bde636cb1fc932ce"
+    },
+    "ledgers/validation-withheld_assets-untrained.metadata.json": {
+      "bytes": 960,
+      "sha256": "363137c125e81526da0ad2ed4e626777968fd702ce6499d6ac72f8457e491959"
+    },
+    "ledgers/historical_audit-known_assets-donchian_breakout.jsonl.gz": {
+      "bytes": 2886869,
+      "sha256": "a6b0ef58d128f11e461155860fc6629e626032f9788ffcc441af73d4d1c22d92"
+    },
+    "ledgers/historical_audit-withheld_assets-immediate.metadata.json": {
+      "bytes": 966,
+      "sha256": "75bcd6785fbc576b6c640b005dbfa870a696c24b79dd54c67fb4310f737505b1"
+    },
+    "ledgers/training-buy_hold.jsonl.gz": {
+      "bytes": 10268535,
+      "sha256": "74371f3148ad410b9b57204f6683e6107037b2492a5d503e8d05c42bbe1d7f0f"
+    },
+    "ledgers/validation-all_usd_assets-cash.jsonl.gz": {
+      "bytes": 2440772,
+      "sha256": "c01a82b6e89c0de4b7c27c1bdbf7ae4190e6523d32aa76ad72675fa70cf30259"
+    },
+    "ledgers/training-cash.metadata.json": {
+      "bytes": 3622,
+      "sha256": "8644cfd7350deba59f8196e0e2857414c397705af6f0f8d4ee00df68e1689ab5"
+    },
+    "ledgers/validation-withheld_assets-price_trend.metadata.json": {
+      "bytes": 962,
+      "sha256": "77c2ba0c1f6ca28ee61982ff8c04cddc2072db0c08464013577d0987b854e0f3"
+    },
+    "ledgers/historical_audit-all_usd_assets-buy_hold.jsonl.gz": {
+      "bytes": 4068386,
+      "sha256": "6d0e4ad69b2e4c9ea20f68b27a7a318d2aa1949699223f95e6b3d7ec6b8cff6b"
+    },
+    "ledgers/validation-all_usd_assets-buy_hold.jsonl.gz": {
+      "bytes": 2912377,
+      "sha256": "f1f398c51640b724a815b95b77765929d92f3607f8032842d29c466a1c0893e6"
+    },
+    "ledgers/historical_audit-all_usd_assets-untrained.jsonl.gz": {
+      "bytes": 3684284,
+      "sha256": "903e16560eba9fd8a457b0b83ebaf5f671414f0e4ee1eb19a495d9b043853b64"
+    }
+  }
+}

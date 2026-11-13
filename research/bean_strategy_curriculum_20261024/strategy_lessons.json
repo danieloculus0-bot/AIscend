@@ -1,0 +1,2159 @@
+{
+  "schema": "aiscend.bean.strategy_lessons.v1",
+  "rules": {
+    "cash": "Sell to cash; useful when expected gains fail to cover trading costs or risk.",
+    "hold": "Keep existing units; avoids paying for an unnecessary rebalance.",
+    "buy_hold": "Target full funded exposure, with no leverage.",
+    "sma_trend": "Target exposure when trailing 50-day mean exceeds 200-day mean.",
+    "price_trend": "Target exposure when the known close exceeds its trailing 200-day mean.",
+    "donchian_breakout": "Enter above the prior 20-day high; retain until below the prior 10-day low.",
+    "rsi_pullback": "Enter an oversold pullback within an uptrend; exit on RSI recovery or trend failure.",
+    "bollinger_revert": "Enter below two trailing standard deviations; retain until the trailing mean recovers.",
+    "bullish_engulf": "Enter after a bullish real body engulfs the prior bearish body, above the 50-day mean.",
+    "hammer_rebound": "Enter after a green candle with a long lower wick during a trailing seven-day decline.",
+    "risk_scaled_trend": "Reduce funded exposure as trailing volatility increases, inside the price trend."
+  },
+  "signed_teaching_outcomes": {
+    "positive": 14677,
+    "negative": 20881,
+    "tie": 11962
+  },
+  "lessons": [
+    {
+      "action": "bollinger_revert",
+      "mechanism": "Enter below two trailing standard deviations; retain until the trailing mean recovers.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 436,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0010641914668999965,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.020642201834862386,
+      "worst_period_return": -0.15651493575704412,
+      "mean_paid_cost": 0.0003633390862021982,
+      "latest_outcome_at": 1743292800,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "bollinger_revert",
+      "mechanism": "Enter below two trailing standard deviations; retain until the trailing mean recovers.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "overbought"
+      },
+      "current_exposure": 0,
+      "examples": 65,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.0,
+      "latest_outcome_at": 1737763200,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "bollinger_revert",
+      "mechanism": "Enter below two trailing standard deviations; retain until the trailing mean recovers.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 181,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0032723149497957513,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.027624309392265192,
+      "worst_period_return": -0.09039075980165368,
+      "mean_paid_cost": 0.00043761282205568626,
+      "latest_outcome_at": 1740528000,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "bollinger_revert",
+      "mechanism": "Enter below two trailing standard deviations; retain until the trailing mean recovers.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "overbought"
+      },
+      "current_exposure": 0,
+      "examples": 24,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LTCUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.0,
+      "latest_outcome_at": 1730160000,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "bollinger_revert",
+      "mechanism": "Enter below two trailing standard deviations; retain until the trailing mean recovers.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 462,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": -0.0005698761730462387,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.017316017316017316,
+      "worst_period_return": -0.17383185686989744,
+      "mean_paid_cost": 0.0004071835755004072,
+      "latest_outcome_at": 1743292800,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "bollinger_revert",
+      "mechanism": "Enter below two trailing standard deviations; retain until the trailing mean recovers.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "oversold"
+      },
+      "current_exposure": 0,
+      "examples": 26,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.014565357343763151,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.34615384615384615,
+      "worst_period_return": -0.12380618592832748,
+      "mean_paid_cost": 0.005331302361005332,
+      "latest_outcome_at": 1741219200,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "bollinger_revert",
+      "mechanism": "Enter below two trailing standard deviations; retain until the trailing mean recovers.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 222,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": -0.0006804736143130081,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.04054054054054054,
+      "worst_period_return": -0.12391911432089331,
+      "mean_paid_cost": 0.0008919810900008921,
+      "latest_outcome_at": 1731542400,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "bullish_engulf",
+      "mechanism": "Enter after a bullish real body engulfs the prior bearish body, above the 50-day mean.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 436,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.00029022832825030683,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.020642201834862386,
+      "worst_period_return": -0.2358090987696887,
+      "mean_paid_cost": 0.0004995912435280225,
+      "latest_outcome_at": 1743292800,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "bullish_engulf",
+      "mechanism": "Enter after a bullish real body engulfs the prior bearish body, above the 50-day mean.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "overbought"
+      },
+      "current_exposure": 0,
+      "examples": 65,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0004223096790111911,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.03076923076923077,
+      "worst_period_return": -0.06220010868350345,
+      "mean_paid_cost": 0.0007616146230007616,
+      "latest_outcome_at": 1737763200,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "bullish_engulf",
+      "mechanism": "Enter after a bullish real body engulfs the prior bearish body, above the 50-day mean.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 181,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": -0.0023828350937363874,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.016574585635359115,
+      "worst_period_return": -0.24839560417810902,
+      "mean_paid_cost": 0.0006017176303265686,
+      "latest_outcome_at": 1740528000,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "bullish_engulf",
+      "mechanism": "Enter after a bullish real body engulfs the prior bearish body, above the 50-day mean.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "overbought"
+      },
+      "current_exposure": 0,
+      "examples": 24,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LTCUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0036798109748566407,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.16666666666666666,
+      "worst_period_return": -0.03152238792237927,
+      "mean_paid_cost": 0.002062706270627063,
+      "latest_outcome_at": 1730160000,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "bullish_engulf",
+      "mechanism": "Enter after a bullish real body engulfs the prior bearish body, above the 50-day mean.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 462,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": -0.00036572173355341013,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.015151515151515152,
+      "worst_period_return": -0.2018300542500603,
+      "mean_paid_cost": 0.0003428914320003429,
+      "latest_outcome_at": 1743292800,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "bullish_engulf",
+      "mechanism": "Enter after a bullish real body engulfs the prior bearish body, above the 50-day mean.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "oversold"
+      },
+      "current_exposure": 0,
+      "examples": 26,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.0,
+      "latest_outcome_at": 1741219200,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "bullish_engulf",
+      "mechanism": "Enter after a bullish real body engulfs the prior bearish body, above the 50-day mean.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 222,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": -0.0030487049157930522,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0,
+      "worst_period_return": -0.1564144972849687,
+      "mean_paid_cost": 0.0002675943270002676,
+      "latest_outcome_at": 1731542400,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "buy_hold",
+      "mechanism": "Target full funded exposure, with no leverage.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 436,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": -0.009849554401097249,
+      "median_net_period_return": -0.024668834879630397,
+      "fraction_positive": 0.4059633027522936,
+      "worst_period_return": -0.45674063948342514,
+      "mean_paid_cost": 0.0099009900990099,
+      "latest_outcome_at": 1743292800,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "buy_hold",
+      "mechanism": "Target full funded exposure, with no leverage.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "overbought"
+      },
+      "current_exposure": 0,
+      "examples": 65,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.04015721380885767,
+      "median_net_period_return": -0.006610303911433357,
+      "fraction_positive": 0.47692307692307695,
+      "worst_period_return": -0.3850113320388403,
+      "mean_paid_cost": 0.009900990099009901,
+      "latest_outcome_at": 1737763200,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "buy_hold",
+      "mechanism": "Target full funded exposure, with no leverage.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 181,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": -0.00044361145437953585,
+      "median_net_period_return": -0.018966345491883696,
+      "fraction_positive": 0.32044198895027626,
+      "worst_period_return": -0.24839560417810902,
+      "mean_paid_cost": 0.0099009900990099,
+      "latest_outcome_at": 1740528000,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "buy_hold",
+      "mechanism": "Target full funded exposure, with no leverage.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "overbought"
+      },
+      "current_exposure": 0,
+      "examples": 24,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LTCUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.03624462916269643,
+      "median_net_period_return": 0.01106080328373582,
+      "fraction_positive": 0.625,
+      "worst_period_return": -0.14249066118971676,
+      "mean_paid_cost": 0.009900990099009901,
+      "latest_outcome_at": 1730160000,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "buy_hold",
+      "mechanism": "Target full funded exposure, with no leverage.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 462,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": -0.008525374576875308,
+      "median_net_period_return": -0.016966655370621586,
+      "fraction_positive": 0.41125541125541126,
+      "worst_period_return": -0.3528343579497495,
+      "mean_paid_cost": 0.0099009900990099,
+      "latest_outcome_at": 1743292800,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "buy_hold",
+      "mechanism": "Target full funded exposure, with no leverage.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "oversold"
+      },
+      "current_exposure": 0,
+      "examples": 26,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.02303084123269545,
+      "median_net_period_return": 0.021849897910526606,
+      "fraction_positive": 0.5384615384615384,
+      "worst_period_return": -0.12380618592832748,
+      "mean_paid_cost": 0.009900990099009901,
+      "latest_outcome_at": 1741219200,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "buy_hold",
+      "mechanism": "Target full funded exposure, with no leverage.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 222,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.01062995857202432,
+      "median_net_period_return": -0.008082899217131567,
+      "fraction_positive": 0.46846846846846846,
+      "worst_period_return": -0.30337415522441535,
+      "mean_paid_cost": 0.0099009900990099,
+      "latest_outcome_at": 1731542400,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "cash",
+      "mechanism": "Sell to cash; useful when expected gains fail to cover trading costs or risk.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 436,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.0,
+      "latest_outcome_at": 1743292800,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "cash",
+      "mechanism": "Sell to cash; useful when expected gains fail to cover trading costs or risk.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "overbought"
+      },
+      "current_exposure": 0,
+      "examples": 65,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.0,
+      "latest_outcome_at": 1737763200,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "cash",
+      "mechanism": "Sell to cash; useful when expected gains fail to cover trading costs or risk.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 181,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.0,
+      "latest_outcome_at": 1740528000,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "cash",
+      "mechanism": "Sell to cash; useful when expected gains fail to cover trading costs or risk.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "overbought"
+      },
+      "current_exposure": 0,
+      "examples": 24,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LTCUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.0,
+      "latest_outcome_at": 1730160000,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "cash",
+      "mechanism": "Sell to cash; useful when expected gains fail to cover trading costs or risk.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 462,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.0,
+      "latest_outcome_at": 1743292800,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "cash",
+      "mechanism": "Sell to cash; useful when expected gains fail to cover trading costs or risk.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "oversold"
+      },
+      "current_exposure": 0,
+      "examples": 26,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.0,
+      "latest_outcome_at": 1741219200,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "cash",
+      "mechanism": "Sell to cash; useful when expected gains fail to cover trading costs or risk.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 222,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.0,
+      "latest_outcome_at": 1731542400,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "donchian_breakout",
+      "mechanism": "Enter above the prior 20-day high; retain until below the prior 10-day low.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 436,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": -0.0005698355975699608,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.013761467889908258,
+      "worst_period_return": -0.2358090987696887,
+      "mean_paid_cost": 0.00034063039331456085,
+      "latest_outcome_at": 1743292800,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "donchian_breakout",
+      "mechanism": "Enter above the prior 20-day high; retain until below the prior 10-day low.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "overbought"
+      },
+      "current_exposure": 0,
+      "examples": 65,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": -0.0016808108023583345,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.07692307692307693,
+      "worst_period_return": -0.16589965335713242,
+      "mean_paid_cost": 0.0030464584920030465,
+      "latest_outcome_at": 1737763200,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "donchian_breakout",
+      "mechanism": "Enter above the prior 20-day high; retain until below the prior 10-day low.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 181,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": -0.0022110427407658543,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.016574585635359115,
+      "worst_period_return": -0.24839560417810902,
+      "mean_paid_cost": 0.0004923144248126471,
+      "latest_outcome_at": 1740528000,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "donchian_breakout",
+      "mechanism": "Enter above the prior 20-day high; retain until below the prior 10-day low.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "overbought"
+      },
+      "current_exposure": 0,
+      "examples": 24,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LTCUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.019544883924391177,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.20833333333333334,
+      "worst_period_return": -0.04005709134140967,
+      "mean_paid_cost": 0.003712871287128713,
+      "latest_outcome_at": 1730160000,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "donchian_breakout",
+      "mechanism": "Enter above the prior 20-day high; retain until below the prior 10-day low.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 462,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": -0.0009009797578998457,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0021645021645021645,
+      "worst_period_return": -0.2167873503768286,
+      "mean_paid_cost": 0.00015001500150015003,
+      "latest_outcome_at": 1743292800,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "donchian_breakout",
+      "mechanism": "Enter above the prior 20-day high; retain until below the prior 10-day low.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "oversold"
+      },
+      "current_exposure": 0,
+      "examples": 26,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.0,
+      "latest_outcome_at": 1741219200,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "donchian_breakout",
+      "mechanism": "Enter above the prior 20-day high; retain until below the prior 10-day low.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 222,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": -0.0009796615054897117,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0045045045045045045,
+      "worst_period_return": -0.1331396022350555,
+      "mean_paid_cost": 0.0001783962180001784,
+      "latest_outcome_at": 1731542400,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "hammer_rebound",
+      "mechanism": "Enter after a green candle with a long lower wick during a trailing seven-day decline.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 436,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.00213065887263359,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.013761467889908258,
+      "worst_period_return": -0.10020893226538963,
+      "mean_paid_cost": 0.00020437823598873651,
+      "latest_outcome_at": 1743292800,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "hammer_rebound",
+      "mechanism": "Enter after a green candle with a long lower wick during a trailing seven-day decline.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "overbought"
+      },
+      "current_exposure": 0,
+      "examples": 65,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.010686351809027876,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.015384615384615385,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.00015232292460015234,
+      "latest_outcome_at": 1737763200,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "hammer_rebound",
+      "mechanism": "Enter after a green candle with a long lower wick during a trailing seven-day decline.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 181,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": -0.0012646092210249246,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0055248618784530384,
+      "worst_period_return": -0.08888678376250692,
+      "mean_paid_cost": 0.0003829112192987255,
+      "latest_outcome_at": 1740528000,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "hammer_rebound",
+      "mechanism": "Enter after a green candle with a long lower wick during a trailing seven-day decline.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "overbought"
+      },
+      "current_exposure": 0,
+      "examples": 24,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LTCUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.0,
+      "latest_outcome_at": 1730160000,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "hammer_rebound",
+      "mechanism": "Enter after a green candle with a long lower wick during a trailing seven-day decline.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 462,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": -0.000154995111826059,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.017316017316017316,
+      "worst_period_return": -0.1504287415042873,
+      "mean_paid_cost": 0.0004714757190004715,
+      "latest_outcome_at": 1743292800,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "hammer_rebound",
+      "mechanism": "Enter after a green candle with a long lower wick during a trailing seven-day decline.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "oversold"
+      },
+      "current_exposure": 0,
+      "examples": 26,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.006483714449628219,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.11538461538461539,
+      "worst_period_return": -0.004258568819299091,
+      "mean_paid_cost": 0.0015232292460015233,
+      "latest_outcome_at": 1741219200,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "hammer_rebound",
+      "mechanism": "Enter after a green candle with a long lower wick during a trailing seven-day decline.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 222,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0012580958891581816,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.018018018018018018,
+      "worst_period_return": -0.07272029841951078,
+      "mean_paid_cost": 0.00035679243600035673,
+      "latest_outcome_at": 1731542400,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "hold",
+      "mechanism": "Keep existing units; avoids paying for an unnecessary rebalance.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 436,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.0,
+      "latest_outcome_at": 1743292800,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "hold",
+      "mechanism": "Keep existing units; avoids paying for an unnecessary rebalance.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "overbought"
+      },
+      "current_exposure": 0,
+      "examples": 65,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.0,
+      "latest_outcome_at": 1737763200,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "hold",
+      "mechanism": "Keep existing units; avoids paying for an unnecessary rebalance.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 181,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.0,
+      "latest_outcome_at": 1740528000,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "hold",
+      "mechanism": "Keep existing units; avoids paying for an unnecessary rebalance.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "overbought"
+      },
+      "current_exposure": 0,
+      "examples": 24,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LTCUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.0,
+      "latest_outcome_at": 1730160000,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "hold",
+      "mechanism": "Keep existing units; avoids paying for an unnecessary rebalance.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 462,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.0,
+      "latest_outcome_at": 1743292800,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "hold",
+      "mechanism": "Keep existing units; avoids paying for an unnecessary rebalance.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "oversold"
+      },
+      "current_exposure": 0,
+      "examples": 26,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.0,
+      "latest_outcome_at": 1741219200,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "hold",
+      "mechanism": "Keep existing units; avoids paying for an unnecessary rebalance.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 222,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.0,
+      "latest_outcome_at": 1731542400,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "price_trend",
+      "mechanism": "Target exposure when the known close exceeds its trailing 200-day mean.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 436,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": -0.009849554401097249,
+      "median_net_period_return": -0.024668834879630397,
+      "fraction_positive": 0.4059633027522936,
+      "worst_period_return": -0.45674063948342514,
+      "mean_paid_cost": 0.0099009900990099,
+      "latest_outcome_at": 1743292800,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "price_trend",
+      "mechanism": "Target exposure when the known close exceeds its trailing 200-day mean.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "overbought"
+      },
+      "current_exposure": 0,
+      "examples": 65,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.04015721380885767,
+      "median_net_period_return": -0.006610303911433357,
+      "fraction_positive": 0.47692307692307695,
+      "worst_period_return": -0.3850113320388403,
+      "mean_paid_cost": 0.009900990099009901,
+      "latest_outcome_at": 1737763200,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "price_trend",
+      "mechanism": "Target exposure when the known close exceeds its trailing 200-day mean.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 181,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": -0.00044361145437953585,
+      "median_net_period_return": -0.018966345491883696,
+      "fraction_positive": 0.32044198895027626,
+      "worst_period_return": -0.24839560417810902,
+      "mean_paid_cost": 0.0099009900990099,
+      "latest_outcome_at": 1740528000,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "price_trend",
+      "mechanism": "Target exposure when the known close exceeds its trailing 200-day mean.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "overbought"
+      },
+      "current_exposure": 0,
+      "examples": 24,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LTCUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.03624462916269643,
+      "median_net_period_return": 0.01106080328373582,
+      "fraction_positive": 0.625,
+      "worst_period_return": -0.14249066118971676,
+      "mean_paid_cost": 0.009900990099009901,
+      "latest_outcome_at": 1730160000,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "price_trend",
+      "mechanism": "Target exposure when the known close exceeds its trailing 200-day mean.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 462,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.0,
+      "latest_outcome_at": 1743292800,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "price_trend",
+      "mechanism": "Target exposure when the known close exceeds its trailing 200-day mean.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "oversold"
+      },
+      "current_exposure": 0,
+      "examples": 26,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.0,
+      "latest_outcome_at": 1741219200,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "price_trend",
+      "mechanism": "Target exposure when the known close exceeds its trailing 200-day mean.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 222,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.0,
+      "latest_outcome_at": 1731542400,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "risk_scaled_trend",
+      "mechanism": "Reduce funded exposure as trailing volatility increases, inside the price trend.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 436,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": -0.0032573452182717705,
+      "median_net_period_return": -0.006797899604606583,
+      "fraction_positive": 0.4059633027522936,
+      "worst_period_return": -0.11955379962928925,
+      "mean_paid_cost": 0.0032141677529007014,
+      "latest_outcome_at": 1743292800,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "risk_scaled_trend",
+      "mechanism": "Reduce funded exposure as trailing volatility increases, inside the price trend.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "overbought"
+      },
+      "current_exposure": 0,
+      "examples": 65,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.012966889131124466,
+      "median_net_period_return": -0.001075328854654778,
+      "fraction_positive": 0.47692307692307695,
+      "worst_period_return": -0.07123122096169376,
+      "mean_paid_cost": 0.0028324429186154204,
+      "latest_outcome_at": 1737763200,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "risk_scaled_trend",
+      "mechanism": "Reduce funded exposure as trailing volatility increases, inside the price trend.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 181,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": -0.0005671645486332655,
+      "median_net_period_return": -0.013286787881336859,
+      "fraction_positive": 0.32044198895027626,
+      "worst_period_return": -0.1891464632125739,
+      "mean_paid_cost": 0.006682311737695398,
+      "latest_outcome_at": 1740528000,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "risk_scaled_trend",
+      "mechanism": "Reduce funded exposure as trailing volatility increases, inside the price trend.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "overbought"
+      },
+      "current_exposure": 0,
+      "examples": 24,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LTCUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.021463133265004878,
+      "median_net_period_return": 0.007072348452164867,
+      "fraction_positive": 0.625,
+      "worst_period_return": -0.09126416953515037,
+      "mean_paid_cost": 0.006558105921840911,
+      "latest_outcome_at": 1730160000,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "risk_scaled_trend",
+      "mechanism": "Reduce funded exposure as trailing volatility increases, inside the price trend.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 462,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.0,
+      "latest_outcome_at": 1743292800,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "risk_scaled_trend",
+      "mechanism": "Reduce funded exposure as trailing volatility increases, inside the price trend.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "oversold"
+      },
+      "current_exposure": 0,
+      "examples": 26,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.0,
+      "latest_outcome_at": 1741219200,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "risk_scaled_trend",
+      "mechanism": "Reduce funded exposure as trailing volatility increases, inside the price trend.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 222,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.0,
+      "latest_outcome_at": 1731542400,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "rsi_pullback",
+      "mechanism": "Enter an oversold pullback within an uptrend; exit on RSI recovery or trend failure.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 436,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0008947008681857619,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.016055045871559634,
+      "worst_period_return": -0.04083792903803085,
+      "mean_paid_cost": 0.0002043782359887365,
+      "latest_outcome_at": 1743292800,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "rsi_pullback",
+      "mechanism": "Enter an oversold pullback within an uptrend; exit on RSI recovery or trend failure.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "overbought"
+      },
+      "current_exposure": 0,
+      "examples": 65,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.0,
+      "latest_outcome_at": 1737763200,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "rsi_pullback",
+      "mechanism": "Enter an oversold pullback within an uptrend; exit on RSI recovery or trend failure.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 181,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.000515520539531619,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.011049723756906077,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.00010940320551392156,
+      "latest_outcome_at": 1740528000,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "rsi_pullback",
+      "mechanism": "Enter an oversold pullback within an uptrend; exit on RSI recovery or trend failure.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "overbought"
+      },
+      "current_exposure": 0,
+      "examples": 24,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LTCUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.0,
+      "latest_outcome_at": 1730160000,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "rsi_pullback",
+      "mechanism": "Enter an oversold pullback within an uptrend; exit on RSI recovery or trend failure.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 462,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.0,
+      "latest_outcome_at": 1743292800,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "rsi_pullback",
+      "mechanism": "Enter an oversold pullback within an uptrend; exit on RSI recovery or trend failure.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "oversold"
+      },
+      "current_exposure": 0,
+      "examples": 26,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.0,
+      "latest_outcome_at": 1741219200,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "rsi_pullback",
+      "mechanism": "Enter an oversold pullback within an uptrend; exit on RSI recovery or trend failure.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 222,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.0,
+      "worst_period_return": 0.0,
+      "mean_paid_cost": 0.0,
+      "latest_outcome_at": 1731542400,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "sma_trend",
+      "mechanism": "Target exposure when trailing 50-day mean exceeds 200-day mean.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 436,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": -0.012558283638667548,
+      "median_net_period_return": -0.0054043415245388915,
+      "fraction_positive": 0.3394495412844037,
+      "worst_period_return": -0.45674063948342514,
+      "mean_paid_cost": 0.008470342447088745,
+      "latest_outcome_at": 1743292800,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "sma_trend",
+      "mechanism": "Target exposure when trailing 50-day mean exceeds 200-day mean.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "overbought"
+      },
+      "current_exposure": 0,
+      "examples": 65,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.04223834445410985,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.4307692307692308,
+      "worst_period_return": -0.21918180829071932,
+      "mean_paid_cost": 0.008377760853008379,
+      "latest_outcome_at": 1737763200,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "sma_trend",
+      "mechanism": "Target exposure when trailing 50-day mean exceeds 200-day mean.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 181,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.0004377631393570687,
+      "median_net_period_return": -0.012715437124667273,
+      "fraction_positive": 0.292817679558011,
+      "worst_period_return": -0.24839560417810902,
+      "mean_paid_cost": 0.008916361249384608,
+      "latest_outcome_at": 1740528000,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "sma_trend",
+      "mechanism": "Target exposure when trailing 50-day mean exceeds 200-day mean.",
+      "context": {
+        "trend": "above_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "overbought"
+      },
+      "current_exposure": 0,
+      "examples": 24,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LTCUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.027875755758207815,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.3333333333333333,
+      "worst_period_return": -0.14249066118971676,
+      "mean_paid_cost": 0.005363036303630363,
+      "latest_outcome_at": 1730160000,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "sma_trend",
+      "mechanism": "Target exposure when trailing 50-day mean exceeds 200-day mean.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 462,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": -0.0029827584880105524,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.07575757575757576,
+      "worst_period_return": -0.3237300437054439,
+      "mean_paid_cost": 0.0016073035875016073,
+      "latest_outcome_at": 1743292800,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "sma_trend",
+      "mechanism": "Target exposure when trailing 50-day mean exceeds 200-day mean.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "high_volatility",
+        "rsi": "oversold"
+      },
+      "current_exposure": 0,
+      "examples": 26,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": 0.022297653656969854,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.3076923076923077,
+      "worst_period_return": -0.08532067205889271,
+      "mean_paid_cost": 0.004569687738004569,
+      "latest_outcome_at": 1741219200,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    },
+    {
+      "action": "sma_trend",
+      "mechanism": "Target exposure when trailing 50-day mean exceeds 200-day mean.",
+      "context": {
+        "trend": "below_200day_mean",
+        "volatility": "lower_volatility",
+        "rsi": "middle_rsi"
+      },
+      "current_exposure": 0,
+      "examples": 222,
+      "symbols": [
+        "ADAUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "SOLUSDT",
+        "XRPUSDT"
+      ],
+      "mean_net_period_return": -5.168569470262277e-05,
+      "median_net_period_return": 0.0,
+      "fraction_positive": 0.07207207207207207,
+      "worst_period_return": -0.15610986272066263,
+      "mean_paid_cost": 0.0016055659620016055,
+      "latest_outcome_at": 1731542400,
+      "interpretation": "Descriptive training evidence with correlated periods; not a trading recommendation or an independent profitability test"
+    }
+  ],
+  "knowledge_cutoff": "2025-04-01T00:00:00Z",
+  "retention": "All underlying positive, negative and tied rows remain in teaching_memory.sqlite3.gz; lesson summaries do not replace them"
+}

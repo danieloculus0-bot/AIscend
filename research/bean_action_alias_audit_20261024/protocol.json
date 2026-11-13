@@ -1,0 +1,14 @@
+{
+  "schema": "aiscend.bean.action_alias_audit.v1",
+  "source_protocol_sha256": "f33a05474f455f3c74ba49d176c8e142b550e02c6f55ed587987d4b89a1b93ef",
+  "scope": "SEEN_HISTORY_SAME_WEIGHTS_NO_ADDITIONAL_TRAINING",
+  "implementation": {
+    "src/bean_action_aliases.py": "3c1de899cd39bffeb7733261ead5f2d470be33371d54f6c88e3c7ae61569d34b",
+    "src/bean_frozen_action_worker.py": "1ab8d748460a5dac601f20c20c1dac664c0610019e3858dc2411247cf64b4600",
+    "scripts/bean_alias_value_audit.py": "82c4c496513cbe8d457363ba24e2dc6926c523f411d2a7d5d39ac70de982fb37"
+  },
+  "method": "Average raw values within exact identical-target groups; exact holding cash value is zero. Holding an intermediate exposure remains separate from rebalancing to that exposure.",
+  "promotion": "No automatic promotion or claim of independent profitability",
+  "live_orders": false,
+  "protocol_sha256": "c1a4f450623b6ceca85e7ee33a7a2f022c236cf2f82c04570490c432f09bff85"
+}

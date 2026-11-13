@@ -1,0 +1,43 @@
+name: BEAN Coinbase full-universe evolutionary cohorts
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 11 * * *'
+  pull_request:
+    paths:
+      - 'scripts/bean_universe_challenge.py'
+      - 'tests/test_bean_universe_challenge.py'
+      - 'scripts/bean_evolution_lab.py'
+      - '.github/workflows/bean-coinbase-universe.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  cohort:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Confirm catalog cohorts cover every eligible market eventually
+        run: python -m unittest discover -s tests -p test_bean_universe_challenge.py -v
+      - name: Research a rotating cohort against historical Coinbase candles
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            python -m scripts.bean_universe_challenge --per-run 4 --generations 4 --population 24 --out-dir artifacts
+          else
+            python -m scripts.bean_universe_challenge --per-run 10 --generations 12 --population 72 --out-dir artifacts
+          fi
+      - name: Keep all research and non-tradability evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bean-universe-cohort-${{ github.run_id }}
+          path: artifacts/bean-cohort-*.json
+          if-no-files-found: warn
+          retention-days: 90

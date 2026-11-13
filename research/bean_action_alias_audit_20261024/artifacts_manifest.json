@@ -1,0 +1,32 @@
+{
+  "files": {
+    ".gitignore": {
+      "bytes": 56,
+      "sha256": "1508eca47a1100055c7e1a5501f3d1616c677c6158c019d77469c174541f8e29"
+    },
+    "RESULTS.md": {
+      "bytes": 718,
+      "sha256": "65e897ad543c276299c74a9bd2edf68640b182e2348c71ee68e8c7f0cf2f4b52"
+    },
+    "decisions.jsonl.gz": {
+      "bytes": 549447,
+      "sha256": "af672251e9c2f5f7ad3d759917d8f1fc536fec364801035b92cf2e13cb81bca5"
+    },
+    "decisions.metadata.json": {
+      "bytes": 7069,
+      "sha256": "4e8d7c31bf8bd8fb4cd524fc2abeb96fb6d3255718820acd866c316304e69c64"
+    },
+    "decisions.sqlite3.gz": {
+      "bytes": 631637,
+      "sha256": "871d5965dc74b82a19310b959f0394cd9d7dcb8a959d7f653bf72bd2922d1396"
+    },
+    "protocol.json": {
+      "bytes": 940,
+      "sha256": "7d69b8edad3f4d4ff84f7fd9c42a2b649b999ab4e1be501612453c064594ed41"
+    },
+    "results.json": {
+      "bytes": 8431,
+      "sha256": "7c1bc64ccecce5d4c67d630ddc7f61c23fdc356abcbef2e8f5655e9ef9dc48d3"
+    }
+  }
+}

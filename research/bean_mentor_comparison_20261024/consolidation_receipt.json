@@ -1,0 +1,29 @@
+{
+  "schema": "aiscend.bean.mentor_consolidation.v1",
+  "prior_state": {
+    "updates": 1024,
+    "frames": 47520,
+    "weights_sha256": "ca1271b4793a306240a7fc770a15315f991515ceb31e90b32cf12ad20a61016e"
+  },
+  "retained_state": {
+    "updates": 1728,
+    "frames": 49456,
+    "replay": 4096,
+    "weights_sha256": "3bef097b33d94b8f4aab3d5781022b6471cd8af7d2deaf0c9a89a4a9c6d8f76b",
+    "knowledge_cutoff": 1759276800
+  },
+  "actual_student_decisions_reconciled": 176,
+  "counterfactual_strategy_feedback": 1936,
+  "feedback_chain": "ee8ef7ee0848b0ec93d5124e42f3315f365a1688a0997899c377bde35f4ce00c",
+  "reason_counts": {
+    "M02_MENTOR_EXPOSURE_GAIN": 88,
+    "T01_NO_BETTER_MATCHED_ACTION": 82,
+    "M01_STUDENT_MARKET_LOSS": 50,
+    "F02_MENTOR_PAID_LESS": 39,
+    "F01_COSTS_ERASED_GAIN": 8
+  },
+  "actual_weights_changed": true,
+  "performance_after_consolidation": "NOT_EVALUATED",
+  "general_causal_understanding_proven": false,
+  "live_orders": false
+}

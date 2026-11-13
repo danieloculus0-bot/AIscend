@@ -1,0 +1,156 @@
+[
+  {
+    "directory": "bean_causal_retention_20261024",
+    "classification": "ABORTED_OR_RESIDUAL_DEVELOPMENT_ARTIFACTS",
+    "files": [
+      {
+        "path": "decisions.sqlite3",
+        "sha256": "32ef161c8653d409be6c797a8b524f59381e4f624b83062ae7c14ce7ec8fb35b",
+        "bytes": 3518464
+      },
+      {
+        "path": "decisions.sqlite3-journal",
+        "sha256": "0e267d278dca836619683d280bc518aa160ad78302b3492772ef2d044f6d08f8",
+        "bytes": 12824
+      },
+      {
+        "path": "development.json",
+        "sha256": "88ac6676401622c8763d674dfe5192ae52a9c3ba15aedab203369e438e55535d",
+        "bytes": 6606
+      },
+      {
+        "path": "dqn-41.sqlite3",
+        "sha256": "3f2120bcd31eb1fbb65f3d2fadf4614b4b52d94f98bab4d417f814c1795c224a",
+        "bytes": 16384
+      },
+      {
+        "path": "dqn-7.sqlite3",
+        "sha256": "35f549db9f05202bf8966c07e9742c4e879e648bf74fb9d8d2e807e6f8e04022",
+        "bytes": 458752
+      },
+      {
+        "path": "protocol.json",
+        "sha256": "fea42cbabe12e7bc9cd42850166e483699aeef7b0123dadb7dd391f2aae23ce7",
+        "bytes": 26954
+      },
+      {
+        "path": "td-7.sqlite3",
+        "sha256": "52f19a1c13e6693fd5409ec26b45e1d37409797ae0859663864787c7e68124e1",
+        "bytes": 16384
+      }
+    ]
+  },
+  {
+    "directory": "bean_causal_retention_20261024_aborted_decision_sqlite_corruption",
+    "classification": "ABORTED_OR_RESIDUAL_DEVELOPMENT_ARTIFACTS",
+    "files": [
+      {
+        "path": "ABORTED.json",
+        "sha256": "673d0bdb8847a2bcc7854a85359872194f331c1fac42b59ccc1ead4f27c870c4",
+        "bytes": 285
+      },
+      {
+        "path": "decisions.sqlite3",
+        "sha256": "32ef161c8653d409be6c797a8b524f59381e4f624b83062ae7c14ce7ec8fb35b",
+        "bytes": 3518464
+      },
+      {
+        "path": "decisions.sqlite3-journal",
+        "sha256": "0e267d278dca836619683d280bc518aa160ad78302b3492772ef2d044f6d08f8",
+        "bytes": 12824
+      },
+      {
+        "path": "development.json",
+        "sha256": "88ac6676401622c8763d674dfe5192ae52a9c3ba15aedab203369e438e55535d",
+        "bytes": 6606
+      },
+      {
+        "path": "dqn-41.sqlite3",
+        "sha256": "3f2120bcd31eb1fbb65f3d2fadf4614b4b52d94f98bab4d417f814c1795c224a",
+        "bytes": 16384
+      },
+      {
+        "path": "dqn-7.sqlite3",
+        "sha256": "35f549db9f05202bf8966c07e9742c4e879e648bf74fb9d8d2e807e6f8e04022",
+        "bytes": 458752
+      },
+      {
+        "path": "protocol.json",
+        "sha256": "fea42cbabe12e7bc9cd42850166e483699aeef7b0123dadb7dd391f2aae23ce7",
+        "bytes": 26954
+      },
+      {
+        "path": "td-7.sqlite3",
+        "sha256": "52f19a1c13e6693fd5409ec26b45e1d37409797ae0859663864787c7e68124e1",
+        "bytes": 16384
+      }
+    ]
+  },
+  {
+    "directory": "bean_causal_retention_20261024_aborted_development_io",
+    "classification": "ABORTED_OR_RESIDUAL_DEVELOPMENT_ARTIFACTS",
+    "files": [
+      {
+        "path": "ABORTED.json",
+        "sha256": "3b7187399b9b84bdcb96f577ab6a79c5005df31274edd6740ab875e635e49ed8",
+        "bytes": 236
+      },
+      {
+        "path": "decisions.sqlite3",
+        "sha256": "dd129513426f513e6154832968dfdc9aee75054fb3c2a6143e84ffefba630e65",
+        "bytes": 3215360
+      },
+      {
+        "path": "development.json",
+        "sha256": "db16062a08e4379b7a4a76ec3aecaab377939271dd03b83f347820774fb28e14",
+        "bytes": 6727
+      },
+      {
+        "path": "dqn-41.sqlite3",
+        "sha256": "3f2120bcd31eb1fbb65f3d2fadf4614b4b52d94f98bab4d417f814c1795c224a",
+        "bytes": 16384
+      },
+      {
+        "path": "dqn-7.sqlite3",
+        "sha256": "4a96728fbb268235b9a68d70e3d952c43dd6c0cc884588376375c3fae336f078",
+        "bytes": 442368
+      },
+      {
+        "path": "protocol.json",
+        "sha256": "d4e5c54d8268024d381e350680aee29a955d6e4965e2596e56a29c05e3d67e25",
+        "bytes": 22115
+      },
+      {
+        "path": "td-7.sqlite3",
+        "sha256": "724af5e23f9a99a0568f904a5ded809a1294a5956aff8b958f1e9124ebd62d5f",
+        "bytes": 16384
+      }
+    ]
+  },
+  {
+    "directory": "bean_causal_retention_20261024_aborted_frozen_td_mutation",
+    "classification": "ABORTED_OR_RESIDUAL_DEVELOPMENT_ARTIFACTS",
+    "files": [
+      {
+        "path": "ABORTED.json",
+        "sha256": "fc3fbae66ddf313c1fc92314084f71ed42c3be48cbdb5f5b6e157d74aea61150",
+        "bytes": 212
+      },
+      {
+        "path": "decisions.sqlite3",
+        "sha256": "40069991f930ef22234a07ec1bc3eb97b80764826c6357de1ba260608acc42b6",
+        "bytes": 1417216
+      },
+      {
+        "path": "protocol.json",
+        "sha256": "60fa8cd6c48fa950ab58311bc019d3a2b54f850385eca2898181a7ad24cd2644",
+        "bytes": 22115
+      },
+      {
+        "path": "td-7.sqlite3",
+        "sha256": "3f2120bcd31eb1fbb65f3d2fadf4614b4b52d94f98bab4d417f814c1795c224a",
+        "bytes": 16384
+      }
+    ]
+  }
+]

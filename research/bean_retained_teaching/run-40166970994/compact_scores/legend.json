@@ -1,0 +1,292 @@
+{
+  "schema": "aiscend.bean.pair_scores.v1",
+  "fields": [
+    "method",
+    "dataset",
+    "window",
+    "seed",
+    "cost",
+    "configuration",
+    "evidence",
+    "reason"
+  ],
+  "reasons": {
+    "P0": "positive return and improves on matched control",
+    "P1": "positive return but trails matched control",
+    "L0": "losing return but improves on matched control",
+    "L1": "losing return and trails matched control",
+    "T0": "exact matched tie",
+    "D0": "incomplete or unmatched evidence"
+  },
+  "dictionaries": {
+    "method": {
+      "00": "cash",
+      "01": "buy_hold",
+      "02": "price_trend",
+      "03": "seed7-grouped_raw",
+      "04": "seed7-shuffled_raw",
+      "05": "seed7-paired_advantage",
+      "06": "seed41-grouped_raw",
+      "07": "seed41-shuffled_raw",
+      "08": "seed41-paired_advantage",
+      "09": "seed7-paired_plus_memory",
+      "0A": "seed7-paired_plus_placebo",
+      "0B": "seed41-paired_plus_memory",
+      "0C": "seed41-paired_plus_placebo",
+      "0D": "memory_only",
+      "0E": "untrained"
+    },
+    "dataset": {
+      "00": "ff4c28c66affcc8844eb5730b88101ab409ef8f8851374bfdac52b64c7f23c1f"
+    },
+    "window": {
+      "00": {
+        "assets": "known",
+        "end": 1759276800,
+        "phase": "internal_training_selection",
+        "start": 1743465600
+      },
+      "01": {
+        "cohort": "all_usd",
+        "end": 1792800000,
+        "phase": "later_historical_audit",
+        "start": 1759276800
+      },
+      "02": {
+        "cohort": "withheld_assets",
+        "end": 1792800000,
+        "phase": "later_historical_audit",
+        "start": 1759276800
+      }
+    },
+    "seed": {
+      "00": null,
+      "01": 7,
+      "02": 41
+    },
+    "cost": {
+      "00": 0.01
+    },
+    "configuration": {
+      "00": "49bfdcdd257dbe278d2264d37cf63addd9504e2fe9a082b116b47232af5dcc6b"
+    },
+    "evidence": {
+      "00": {
+        "path": "ledgers/selection-cash.jsonl.gz",
+        "records": 4543,
+        "sha256": "a1e384e2d0fc8580f299c93c415747c8ab2522cdfc2c619e2b2d2cc589b4767d",
+        "tip": "430c589883eff65d053d8cb8da73b7eb874ba029e49d6cc4cd0054daae983216"
+      },
+      "01": {
+        "path": "ledgers/selection-buy_hold.jsonl.gz",
+        "records": 4543,
+        "sha256": "0630ffcf7864411848ab65b3f0a0264e474800c12786249060470d118412b735",
+        "tip": "5c21be5261ab234a93f2f7cb768db32217a4e01e7be2084ff306741c0ac0e08e"
+      },
+      "02": {
+        "path": "ledgers/selection-price_trend.jsonl.gz",
+        "records": 4543,
+        "sha256": "55be595124ed5393e6d7dc219f364f473b4b1578f73461b54d3e776447e6619b",
+        "tip": "3f8d9b9173a6214e0397d8553e5c59cad3f1c5d6b39ee04d171aac704a19ac32"
+      },
+      "03": {
+        "path": "ledgers/selection-seed7-grouped_raw.jsonl.gz",
+        "records": 4543,
+        "sha256": "30d88a23d09ef1eeccefc678a55494b9a3d7b60bdb66af2eb11446ee2285b219",
+        "tip": "a109c454c1db5f24ae4e4838879583084b4b08958cfb3259173ab69a6f56ff2d"
+      },
+      "04": {
+        "path": "ledgers/selection-seed7-shuffled_raw.jsonl.gz",
+        "records": 4543,
+        "sha256": "e87a97a8abf4a19d4b8ebb23838da503dce9c12740bfcc570162292bd23bc8b8",
+        "tip": "0760ac063c924175c531fdfceb7ae660b3264ca5f4bebc7bbb2053916c5da085"
+      },
+      "05": {
+        "path": "ledgers/selection-seed7-paired_advantage.jsonl.gz",
+        "records": 4543,
+        "sha256": "234b09eefe46ceb8f16847cb53ac8de19a5b2045e58e3828ec986ed8dd3a6c37",
+        "tip": "d7e6fcc7f8403a4bed1e5c2f06adbdc6c5174916c388a2f0457b678e1a058d78"
+      },
+      "06": {
+        "path": "ledgers/selection-seed41-grouped_raw.jsonl.gz",
+        "records": 4543,
+        "sha256": "e4fb51e26d7e184cc12f8d4fbb5f501c704910433d64448dbcd4e273553c8e83",
+        "tip": "46e641d6d1566d675a83fa4bab99870c5d83771151fcd722de6f4e4a3101bacc"
+      },
+      "07": {
+        "path": "ledgers/selection-seed41-shuffled_raw.jsonl.gz",
+        "records": 4543,
+        "sha256": "db807980c642ba93be8ef16f2cdeac0f1a325f34b4bdeb3735763b38ef7d823e",
+        "tip": "893ee40a60ea3f3c9e1467c368299fc26b9759c010ad71835c081ee76561fa0e"
+      },
+      "08": {
+        "path": "ledgers/selection-seed41-paired_advantage.jsonl.gz",
+        "records": 4543,
+        "sha256": "d71eb1a162ab18a3059de9c91efdfa6df59082dabe9c2f0145bdf9ec07392b65",
+        "tip": "20e6652265a6d8cb40c0b4897044f7094b4644327e5025685ffcb14214197be3"
+      },
+      "09": {
+        "path": "ledgers/selection-seed7-paired_plus_memory.jsonl.gz",
+        "records": 4543,
+        "sha256": "cef415119ff35e84df9b21d73864ad3ba4f04b336af5fdd9283e4885827e9bec",
+        "tip": "b72ed2f2662a1d2ed280986cae4c9fdee707fa41292fa9ced22e352dd68a3e67"
+      },
+      "0A": {
+        "path": "ledgers/selection-seed7-paired_plus_placebo.jsonl.gz",
+        "records": 4543,
+        "sha256": "76e033b2464b8889abb94fffb95e6d35cfb5c557eac48a94b10e268fab455c57",
+        "tip": "9f517893f0cfcc555e0d6aff1a19660e30a9b25754a0cf194ccbcb28936c86be"
+      },
+      "0B": {
+        "path": "ledgers/selection-seed41-paired_plus_memory.jsonl.gz",
+        "records": 4543,
+        "sha256": "c631ea33ceef0f60a976a5382167f97898048fbe33b0bc28ffa54d0ed8ae9225",
+        "tip": "ce7cc4b713f236030adec9c1e32135bad848e830aef616a03df3f7e793f66ac7"
+      },
+      "0C": {
+        "path": "ledgers/selection-seed41-paired_plus_placebo.jsonl.gz",
+        "records": 4543,
+        "sha256": "5fbcdb0bc6adacd3cef940d585ec322dfe4a3411eac2a461c23c9b688f9e60c7",
+        "tip": "903d4c1add1298c6daec2cff7f81250b882eecab6cf08f2f6cab77e4c9afad43"
+      },
+      "0D": {
+        "path": "ledgers/selection-memory_only.jsonl.gz",
+        "records": 4543,
+        "sha256": "98f5c188a25cb4f63af836f53e068cb47e578b5f8e3b715bcd6cba50c629167e",
+        "tip": "efb148642e412c0ed1366a2b4700e2592a0e441e392c1ea6b387e8fb96b8d84d"
+      },
+      "0E": {
+        "path": "ledgers/selection-untrained.jsonl.gz",
+        "records": 4543,
+        "sha256": "42d77f9cfc71f5fc955e9dfaecc0b6673894c9a30fb55afa1c2b8ad19a372d9e",
+        "tip": "d32ba27689f2c209318f44d42e7b58c68cf7d8561abc3c78b5c19e8aa8b2d750"
+      },
+      "0F": {
+        "path": "ledgers/audit-all_usd-cash.jsonl.gz",
+        "records": 16248,
+        "sha256": "3e0e64b68fe3d442cc7b274fd29499ff0606adb47fbb95e5ceb5cd545714be19",
+        "tip": "5eb3f5af98248fbfe0c6a2809d6dbea45feab19a0f04808aecdc02124d830fbf"
+      },
+      "0G": {
+        "path": "ledgers/audit-all_usd-buy_hold.jsonl.gz",
+        "records": 16248,
+        "sha256": "738e1025ccb8775c2175a2046ec3c2c66488b52e4771a055f550e536ec652bcc",
+        "tip": "ad414b5240c0c92f94e13b1c737f87936df64514b397279dbbab09aab937b424"
+      },
+      "0H": {
+        "path": "ledgers/audit-all_usd-price_trend.jsonl.gz",
+        "records": 16248,
+        "sha256": "62bd351514f3a20e240da552bd8ab4abe72a187651d9d847b0360087db9e9180",
+        "tip": "13421cb3ff820c73b93ba599172105234b3ee97a24d6e2c64e9618c6187b53df"
+      },
+      "0I": {
+        "path": "ledgers/audit-all_usd-untrained.jsonl.gz",
+        "records": 16248,
+        "sha256": "bede7e416ea4640a9028517ab1de39edfb7070f0db9641f750cf7bf606082893",
+        "tip": "e27522087b357c1c66b0e2f1bd01894a48ceb86409a4396a764fbc6bc94ea58a"
+      },
+      "0J": {
+        "path": "ledgers/audit-all_usd-memory_only.jsonl.gz",
+        "records": 16248,
+        "sha256": "50250c927d7fc9b0f426f91ec8f2cccd5cdf0d8755b0e707731483d1f6063ea7",
+        "tip": "62a970eda8cec3c4fcff6325971ee58a7d94ae5bfbff41e63995d072bd055e26"
+      },
+      "0K": {
+        "path": "ledgers/audit-all_usd-seed41-grouped_raw.jsonl.gz",
+        "records": 16248,
+        "sha256": "291e05090a7784aad8eb27c35c8b7bb1f0669333facdfcded5809034ff51967d",
+        "tip": "426981973298f48cf8e8eede1ea0ebb6ec7edd29916b258aac08fa4fd0570945"
+      },
+      "0L": {
+        "path": "ledgers/audit-all_usd-seed41-shuffled_raw.jsonl.gz",
+        "records": 16248,
+        "sha256": "f5790adc4630627b61298d6b0155beef91d71920cf371d27ccc9a2b9b377a499",
+        "tip": "13a15d897b511de1985e379dcefcf93f4cc457db6e5f504324212c97a72bf259"
+      },
+      "0M": {
+        "path": "ledgers/audit-all_usd-seed41-paired_advantage.jsonl.gz",
+        "records": 16248,
+        "sha256": "b6f99f8ba7b857f74d471d805e21a53da759c3cf8c4b13698ac69bfd1b775d94",
+        "tip": "4682a796da9ca4acf7d7fa15ee2333a680004f124c3bc6ca2a2bcc029cff7cdb"
+      },
+      "0N": {
+        "path": "ledgers/audit-all_usd-seed41-paired_plus_memory.jsonl.gz",
+        "records": 16248,
+        "sha256": "be52a639afcb868d57bc8ac09d901b8959eaa4d605c77fe0e2e612155eddd15e",
+        "tip": "d05a23b2bd1d2f3790644296fe73d970adf7ca42988d08cb80f27390f834a202"
+      },
+      "0O": {
+        "path": "ledgers/audit-all_usd-seed41-paired_plus_placebo.jsonl.gz",
+        "records": 16248,
+        "sha256": "d904760f94a3faa6ccdc4cae9d1e5e5250674612b28916ca39f2ed43c0692255",
+        "tip": "2508be03d3ff7df58bbc8e5ba8d28c969f86fb38db1f649b9ba5ad8e7dd04f44"
+      },
+      "0P": {
+        "path": "ledgers/audit-withheld_assets-cash.jsonl.gz",
+        "records": 3003,
+        "sha256": "406ebf2ac47c16cb77eeca12b4c489932be403eeba184dd62719017133b4525b",
+        "tip": "860d025f95e1ccc3b77a944641845f175a5620727a42e4824b5cdd852157c317"
+      },
+      "0Q": {
+        "path": "ledgers/audit-withheld_assets-buy_hold.jsonl.gz",
+        "records": 3003,
+        "sha256": "10cce196db16075aa74597df130e9ec4b00a66150e1818efb8c8cd734903611e",
+        "tip": "e26b0a9195be121af2cee44c7cc695a465f69faa66fbbf3694f8a3f269a9f7c4"
+      },
+      "0R": {
+        "path": "ledgers/audit-withheld_assets-price_trend.jsonl.gz",
+        "records": 3003,
+        "sha256": "1a763a2cbc436d26e114b7d0466e9ac61cd79ce34639bf279f9d71076959b015",
+        "tip": "1d589fa2966e60dc07a843400ec514d986bd9e507a7acf8e7d11f122bd677b45"
+      },
+      "0S": {
+        "path": "ledgers/audit-withheld_assets-untrained.jsonl.gz",
+        "records": 3003,
+        "sha256": "251ab7a9c1c86702b15c67f18887eca1217710f0425f75713f6edb74a5c32618",
+        "tip": "5656ffbf10eb9aef7dd028e00eaca391176bd8c07b947c4f5f38d63b59cd966f"
+      },
+      "0T": {
+        "path": "ledgers/audit-withheld_assets-memory_only.jsonl.gz",
+        "records": 3003,
+        "sha256": "4730de2c4242e41f360e65f84cf2fee25a2c294a2278beb0384dbae007f1da51",
+        "tip": "ec2801686a041cc4aa749c68cd04b9db192f3242d351076f6893f03c135b2f0d"
+      },
+      "0U": {
+        "path": "ledgers/audit-withheld_assets-seed41-grouped_raw.jsonl.gz",
+        "records": 3003,
+        "sha256": "389802274f6f2afe2b6c484fbfb28580a602bfe2a20fe9ed7341134af1865197",
+        "tip": "5e3131612d201425aef8eda0fbc3e1f0889ab69bbf37bcaa1ed5263b6af7898f"
+      },
+      "0V": {
+        "path": "ledgers/audit-withheld_assets-seed41-shuffled_raw.jsonl.gz",
+        "records": 3003,
+        "sha256": "d769ececedddb8f656ad27f5e48e238b45dd9d8a61d892baadd65cf323da93e3",
+        "tip": "cdcfa151048d516453a87bb30c90a783d5f52ec2535bac98ace228396c2d6b33"
+      },
+      "0W": {
+        "path": "ledgers/audit-withheld_assets-seed41-paired_advantage.jsonl.gz",
+        "records": 3003,
+        "sha256": "c1db35ec93e4250c33f73f156196a100fcdfda02f387ed789a3b0c7a81ee3e35",
+        "tip": "03d49adc949b8ba3a79a61fb467fdebf6ed8b213b38348b223e385b1769154e3"
+      },
+      "0X": {
+        "path": "ledgers/audit-withheld_assets-seed41-paired_plus_memory.jsonl.gz",
+        "records": 3003,
+        "sha256": "8e605e5a637f4800a583c6f3fe447991e37f88918cfa23706e67c35b8286c309",
+        "tip": "4cbcaf8e26ecfcf17e2b38cd6a913087e93583d28542df67ea590e6f429f81d8"
+      },
+      "0Y": {
+        "path": "ledgers/audit-withheld_assets-seed41-paired_plus_placebo.jsonl.gz",
+        "records": 3003,
+        "sha256": "7151ad74836aca2c6bebd3df1de632b44238ce89c46b632528d2c8b3bf007acf",
+        "tip": "9493956cfcf5db41f4cc17cdc58afc9f5e624b0ce457ea05f8440fdbe5d6f2c5"
+      }
+    },
+    "reason": {
+      "00": "P0",
+      "01": "L0",
+      "02": "T0",
+      "03": "L1"
+    }
+  }
+}

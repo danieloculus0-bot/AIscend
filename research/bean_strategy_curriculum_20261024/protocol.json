@@ -1,0 +1,57 @@
+{
+  "schema": "aiscend.bean.strategy_curriculum.v1",
+  "scope": "DEVELOPMENT_ONLY_PRIOR_HISTORY_SEEN",
+  "actions": [
+    "cash",
+    "hold",
+    "buy_hold",
+    "sma_trend",
+    "price_trend",
+    "donchian_breakout",
+    "rsi_pullback",
+    "bollinger_revert",
+    "bullish_engulf",
+    "hammer_rebound",
+    "risk_scaled_trend"
+  ],
+  "seeds": [
+    7,
+    41
+  ],
+  "budgets": [
+    256,
+    1024,
+    4096
+  ],
+  "folds": [
+    [
+      "2023-04-01T00:00:00Z",
+      "2023-10-01T00:00:00Z"
+    ],
+    [
+      "2024-04-01T00:00:00Z",
+      "2024-10-01T00:00:00Z"
+    ]
+  ],
+  "development_audit": [
+    "2025-04-01T00:00:00Z",
+    "2025-10-01T00:00:00Z"
+  ],
+  "source_rows_sha256": "ef7870651655ce268e6ab055c1e24a12595ec4cc2a02a18401b810696dc955c5",
+  "source_code_sha256": "e89aa1b8e8c5d510761238cc6e6e6532a81397c8a3a209890dbb8d7583d0d03a",
+  "worker_sha256": "6a0f827659eed355be608a3fa5ae668162007ae3bd48e08ea3b9edd35b501c0f",
+  "core_revision": "887935ae816b4ce6175c6cde54d749f0e5cf3268",
+  "cost_per_side": 0.01,
+  "initial_equity_per_asset": 1000,
+  "decision_step_days": 8,
+  "execution": "At least one day after feature availability, at next-next bar open; reward only after close of eighth later bar",
+  "learner": "Actual BEAN SpongeDQN replay/Adam/Huber, gamma=0 contextual strategy-value regression",
+  "teaching": "All actions, cash/half/full initial exposure, all mature positive and negative outcomes within train cutoff; no cherry-picked winners",
+  "pattern_transfer": "Fixed 75% neural value plus 25% mean reward of 32 nearest mature training patterns on other symbols when at least 16 exist and mean squared normalized distance<=1; else neural values. Expected reward reserve .10 percent log return; otherwise prefer hold/cash. No fitted future scaler.",
+  "selection": "Maximize worst of two forward development fold mean net returns; tie mean, lower budget, seed; freeze before development audit",
+  "promotion_rule": "Both fold returns positive, development audit positive, beats cash/buy-hold/SMA/Donchian/untrained/pattern-only on audit, worst asset daily-close drawdown<=25%; even a pass is development evidence only",
+  "future_promotion": "Require a separately registered new forward or independent dataset evaluation; opened final year cannot count again",
+  "narratives": "No point-in-time historical news provided; current headlines excluded",
+  "live_orders": false,
+  "protocol_sha256": "1c17f63d07d694210d3cf11968440dae522249b21374d808eefdb6416d8f871e"
+}

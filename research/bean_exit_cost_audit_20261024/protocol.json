@@ -1,0 +1,14 @@
+{
+  "schema": "aiscend.bean.exit_cost_audit.v1",
+  "scope": "SEEN_HISTORY_ACCOUNTING_ABLATION_NO_NEW_TRAINING",
+  "source_protocol_sha256": "f33a05474f455f3c74ba49d176c8e142b550e02c6f55ed587987d4b89a1b93ef",
+  "forecast_source_results_sha256": "fd8878d08e111f7faa9577977a8d25b790371abd4f73e8910ad8536b5ad71459",
+  "implementation": {
+    "src/bean_route_values.py": "f1df2bdbda2cfe6dd925b7b72338f52cf76746f37d9bc9f002ff2d0aaa55b82c",
+    "scripts/bean_exit_cost_audit.py": "95b670f391d3f0dde0c56abf7aec488ece2dbecb2ae82b6ab83e3524a399bc84"
+  },
+  "comparison": "Same saved neural forecasts, data, capital, reference action and trade threshold; only forecast valuation changes from gross mark to net liquidation. Observed exit fees are charged in both simulations. No future outcome label is loaded into ForecastCache.",
+  "promotion": "No automatic promotion or fresh profitability claim",
+  "live_orders": false,
+  "protocol_sha256": "b5961b8f63bd91eded61ab6f2959918140796cfa4dd9f5fd8d139158a72012f7"
+}

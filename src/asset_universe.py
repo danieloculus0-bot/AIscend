@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import math
 import statistics
 import threading
@@ -52,9 +53,9 @@ class CoinbaseAssetUniverse:
     def __init__(
         self,
         timeout: float = 6.0,
-        batch_size: int = 8,
+        batch_size: int = 24,
         product_refresh_seconds: float = 55.0,
-        asset_cache_seconds: float = 600.0,
+        asset_cache_seconds: float = 3600.0,
         scan_interval_seconds: float = 55.0,
     ) -> None:
         self.timeout = timeout
@@ -117,6 +118,10 @@ class CoinbaseAssetUniverse:
                     if str(product.get("id") or "").upper() not in seen
                 ]
 
+        # Scan different products concurrently instead of waiting for three
+        # network requests per asset in sequence. Keep request concurrency
+        # bounded so a single cycle remains responsive.
+        pending = []
         for product in batch:
             product_id = str(product.get("id") or "")
             if not product_id:
@@ -127,14 +132,24 @@ class CoinbaseAssetUniverse:
                 and product_id.upper() not in priority
                 and time.time() - cached.scanned_at < self.asset_cache_seconds
             ):
+            refresh_age = (self.scan_interval_seconds if product_id.upper() in priority
+                           else self.asset_cache_seconds)
+            if cached and time.time() - cached.scanned_at < refresh_age:
                 continue
-            try:
-                asset = self._scan_product(product)
-                if asset is not None:
-                    with self._lock:
-                        self._cache[product_id] = asset
-            except Exception as exc:
-                errors.append(f"{product_id}: {exc}")
+            pending.append(product)
+        if pending:
+            with ThreadPoolExecutor(max_workers=min(8, len(pending))) as pool:
+                futures = {pool.submit(self._scan_product, item):
+                           str(item.get("id") or "") for item in pending}
+                for future in as_completed(futures):
+                    product_id = futures[future]
+                    try:
+                        asset = future.result()
+                        if asset is not None:
+                            with self._lock:
+                                self._cache[product_id] = asset
+                    except Exception as exc:
+                        errors.append(f"{product_id}: {exc}")
 
         with self._lock:
             fresh = [
@@ -143,8 +158,14 @@ class CoinbaseAssetUniverse:
                 if time.time() - item.scanned_at <= self.asset_cache_seconds * 3
             ]
 
+        # Historical cache is useful for research, not for placing live
+        # orders on five-minute momentum that is hours out of date.
+        actionable = [
+            item for item in fresh
+            if time.time() - item.scanned_at <= 150.0
+        ]
         ranked = sorted(
-            fresh,
+            actionable,
             key=lambda item: (
                 abs(item.score),
                 abs(item.return_1h),
@@ -153,7 +174,7 @@ class CoinbaseAssetUniverse:
             reverse=True,
         )
         buy_ranked = sorted(
-            fresh,
+            actionable,
             key=lambda item: (
                 item.score,
                 item.return_1h,
@@ -166,9 +187,12 @@ class CoinbaseAssetUniverse:
             "available": bool(ranked),
             "product_count": len(products),
             "scanned_count": len(fresh),
+            "coverage_ratio": len(fresh) / len(products) if products else 0.0,
+            "actionable_count": len(actionable),
+            "stale_excluded": len(fresh) - len(actionable),
             "top": [item.as_dict() for item in ranked[:20]],
             "buy_top": [item.as_dict() for item in buy_ranked[:20]],
-            "scored": [item.as_dict() for item in fresh],
+            "scored": [item.as_dict() for item in actionable],
             "errors": errors,
         }
         with self._lock:
@@ -236,10 +260,14 @@ class CoinbaseAssetUniverse:
             # batch across the entire unseen universe so every cycle samples
             # very different parts of Coinbase while the cache fills in.
             last = len(unseen) - 1
+            offset = cls._cursor % len(unseen)
             indices = [
-                round(i * last / (count - 1))
+                (round(i * last / (count - 1)) + offset) % len(unseen)
                 for i in range(count)
             ]
+            # Advance even when every request in this batch fails. Otherwise
+            # uncached products at these exact indices starve the whole catalog.
+            cls._cursor = (cls._cursor + 1) % len(unseen)
             return [unseen[index] for index in indices]
 
         start = cls._cursor % len(products)
@@ -267,6 +295,8 @@ class CoinbaseAssetUniverse:
         closes = [float(row[4]) for row in ordered if len(row) > 5]
         volumes = [float(row[5]) for row in ordered if len(row) > 5]
         price = float(ticker["price"])
+        if not math.isfinite(price) or price <= 0.0:
+            return None
 
         # A newly-listed product is still a valid research object even when it
         # has only minutes of candles. Use only the horizons that actually exist
@@ -284,6 +314,10 @@ class CoinbaseAssetUniverse:
 
         bid = float(book["bids"][0][0])
         ask = float(book["asks"][0][0])
+        # An invalid or inverted book must not create a false cheap spread.
+        if (not math.isfinite(bid) or not math.isfinite(ask)
+                or bid <= 0.0 or ask <= 0.0 or ask < bid):
+            return None
         mid = (bid + ask) / 2.0
         spread_bps = ((ask - bid) / mid) * 10000.0 if mid else 0.0
 

@@ -1,0 +1,21 @@
+name: BEAN immutable outcome index and time-aware recall
+on:
+  pull_request:
+    paths:
+      - 'research/bean_learning_push_20261024/**'
+      - 'tests/test_bean_learning_summary.py'
+      - '.github/workflows/bean-learning-index.yml'
+permissions:
+  contents: read
+jobs:
+  verify-index:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Rebuild from exact source blobs, pointers and all model-file hashes
+        run: python research/bean_learning_push_20261024/build_summary.py --source-root .
+      - name: Reject future evaluation scores and backdated knowledge
+        run: python -m unittest tests.test_bean_learning_summary -v

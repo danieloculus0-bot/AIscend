@@ -6,6 +6,7 @@ from typing import Any
 from .core import StateStore
 from .game import score_game
 from .research import ResearchDecider
+from .bean_rotation_economics import bridge_order
 
 
 def _empty_game() -> dict[str, Any]:
@@ -61,6 +62,11 @@ def choose_execution_rail(
         )
         if weakest_product in (advanced.get("positions") or {}) and weakest_score <= -0.14:
             return "advanced"
+    if advanced.get("positions"):
+        # All owned Coinbase Advanced positions require a live execution cycle
+        # for maturity, cost-basis, drawdown and learned CASH checks, even when
+        # the public scanner cannot score them. A missing row is not HOLD.
+        return "advanced"
 
     base_cash = float(base.get("cash") or 0.0)
     base_positions = base.get("positions") or {}
@@ -70,12 +76,14 @@ def choose_execution_rail(
         and base_cash > 0.0
     )
     advanced_buy = False
-    advanced_score = float(
-        best.get("decision_score")
-        or best.get("score")
-        or radar.get("score")
-        or 0.0
+    score_value = (
+        best["decision_score"]
+        if best.get("decision_score") is not None
+        else best["score"]
+        if best.get("score") is not None
+        else radar.get("score", 0.0)
     )
+    advanced_score = float(score_value or 0.0)
     if best:
         route = best.get("funding_route") or {}
         available_funding = float(route.get("available") or 0.0)
@@ -85,7 +93,28 @@ def choose_execution_rail(
             and float(best.get("volume_ratio") or 0.0) >= 0.40
             and bool(route)
             and available_funding > 0.0
+        product_id = str(best.get("product") or "").upper()
+        _, _, quote = product_id.rpartition("-")
+        quote_balances = advanced.get("cash_by_quote") or {}
+        quote_cash = float(quote_balances.get(quote, 0.0))
+        tradable = tuple(advanced.get("tradable_products") or ())
+        # The Advanced engine really can fund a USD market from USDC (or
+        # the reverse) using the authenticated USDC-USD spot pair. Auto mode
+        # must not strand that funded route on the Base rail by requiring a
+        # *direct* balance in the destination quote. Do not assume a bridge
+        # exists if the account does not advertise the conversion product.
+        bridged_cash = any(
+            float(amount) > 0.0 and bridge_order(source, quote, tradable)
+            for source, amount in quote_balances.items()
+            if source != quote
         )
+        # The actual Advanced engine ranks fees/market evidence and can
+        # adopt BEAN policy independently. This coordinator only checks that
+        # the opportunity is reachable and has a positive scanner signal.
+        # Fixed spread/volume/score vetoes here would silently bypass it.
+        advanced_buy = (advanced_score > 0.0 and
+                        (quote_cash > 0.0 or bridged_cash) and
+                        ("tradable_products" not in advanced or product_id in tradable))
 
     if base_buy and advanced_buy:
         return "advanced" if advanced_score > base_score else "base"
@@ -169,12 +198,15 @@ def combine_portfolio(
             "market_value": market_value,
             "net_liquidation": net,
             "pnl": (net - start) if start else 0.0,
+            "pnl_is_verified_trading_profit": False,
+            "pnl_semantics": "unadjusted_equity_change_since_first_observed_balance",
             "multiple": (net / start) if start else math.nan,
             "wallet_address": "Linked Base + Coinbase Advanced",
             "network": "linked-live",
             "game": game.as_dict() if hasattr(game, "as_dict") else game,
             "research": research,
             "bean": bean,
+            "bean_account": advanced.get("bean_account") or base.get("bean_account") or {},
             "listing_sentinel": listing,
             "execution_rail": active_rail,
             "portfolio": {

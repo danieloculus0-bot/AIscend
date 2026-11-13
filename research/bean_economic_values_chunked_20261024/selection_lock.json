@@ -1,0 +1,14 @@
+{
+  "protocol_sha256": "f33a05474f455f3c74ba49d176c8e142b550e02c6f55ed587987d4b89a1b93ef",
+  "overrides_enabled": false,
+  "prior_fold_advantages": [
+    -0.210541666151431,
+    0.05712682013835324
+  ],
+  "prior_forecast_beats_mean": [
+    false,
+    false
+  ],
+  "selected_expert_from_training_only": "hammer_rebound",
+  "audit_not_yet_evaluated": true
+}

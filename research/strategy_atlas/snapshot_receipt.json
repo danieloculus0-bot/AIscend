@@ -1,0 +1,42 @@
+{
+  "compressed_bytes": 62896424,
+  "context_sha256": "61d1ca0f7103f872b4ae10cc254eabbc25a823d2ff188db9fa3277f0f387271b",
+  "headlines_inserted": 105,
+  "path": "strategy_research.sqlite3.gz",
+  "scope": "research_collection_and_software_contracts; no profitability or live execution demonstrated",
+  "sha256": "36c576afd7b5c4fe2392167ced6bceea67e6c60cf388557c012b8c52a8393107",
+  "stats": {
+    "assets_with_usd_prices": 1603,
+    "data_sources": 27,
+    "documents": 105,
+    "experiment_events": 0,
+    "families": {
+      "allocation": 12,
+      "baseline": 6,
+      "breakout": 8,
+      "carry_arbitrage": 12,
+      "control": 9,
+      "cross_section": 12,
+      "defi": 12,
+      "event": 12,
+      "execution": 6,
+      "macro": 6,
+      "market_making": 12,
+      "models": 23,
+      "narrative": 12,
+      "onchain": 12,
+      "options": 15,
+      "patterns": 71,
+      "reversal": 13,
+      "stat_arb": 10,
+      "trend": 20,
+      "volume": 6
+    },
+    "historical_asset_days": 1953796,
+    "history_chunks": 2235,
+    "sources": 75,
+    "strategies": 289
+  },
+  "uncompressed_bytes": 67641344,
+  "uncompressed_sha256": "a6be13534ed70b832537a859f555dc1c959ce2659be9cdddfee86956ba553640"
+}

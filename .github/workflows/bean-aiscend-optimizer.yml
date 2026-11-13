@@ -1,0 +1,83 @@
+name: BEAN AIscend autonomous optimization laboratory
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 8 * * *'
+  pull_request:
+    paths:
+      - 'scripts/bean_optimization_lab.py'
+      - 'tests/test_bean_optimization_lab.py'
+      - '.github/workflows/bean-aiscend-optimizer.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/bean_optimization_lab.py'
+      - 'tests/test_bean_optimization_lab.py'
+      - '.github/workflows/bean-aiscend-optimizer.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bean-aiscend-optimizer
+  cancel-in-progress: false
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: danieloculus0-bot/BEAN
+          ref: main
+          path: _bean_core
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Record actual BEAN Core revision and verify integration contract
+        run: |
+          python -c "from src.bean_core_bridge import core_identity; import json; print(json.dumps(core_identity('_bean_core'), sort_keys=True))"
+          python -m unittest discover -s tests -p 'test_bean_core_bridge.py' -v
+      - name: Compile optimization source
+        run: python -m compileall -q scripts/bean_optimization_lab.py tests/test_bean_optimization_lab.py
+      - name: Run independent unit tests
+        run: python -m unittest discover -s tests -p 'test_bean_optimization_lab.py' -v
+      - name: Run BEAN research iteration
+        run: python -m scripts.bean_optimization_lab --output artifacts/bean-optimization.json
+      - name: Preserve numerical evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: bean-aiscend-lab-${{ github.run_id }}
+          path: artifacts/bean-optimization.json
+          retention-days: 90
+      - name: Preserve holdout-accepted research candidate as artifact only
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          result = json.loads(Path("artifacts/bean-optimization.json").read_text())
+          if result.get("accept_for_review"):
+              Path("artifacts/bean-strategy-candidate.json").write_text(
+                  json.dumps(result, indent=2, sort_keys=True) + "\n",
+                  encoding="utf-8",
+              )
+              print("Independent holdout candidate retained as artifact for later review.")
+          else:
+              print("No challenger passed. A rejected candidate is useful research evidence.")
+          PY
+      - name: Upload read-only candidate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bean-aiscend-challenger-${{ github.run_id }}
+          path: artifacts/bean-strategy-candidate.json
+          if-no-files-found: ignore
+          retention-days: 90

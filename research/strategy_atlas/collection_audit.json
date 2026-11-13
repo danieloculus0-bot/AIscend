@@ -1,0 +1,1231 @@
+{
+  "collection_date": "2026-10-24",
+  "collection_scope": "Broad finite strategy taxonomy, original research and official implementation/dataset sources. Exhaustiveness over every possible algorithm or all internet data is not claimed.",
+  "page_fetch_requests": 76,
+  "primary_source_register_count": 75,
+  "requested_search_results": 254,
+  "returned_title_url_records": 251,
+  "schema": "aiscend.research_collection_audit.v1",
+  "search_provider": "Exa",
+  "search_queries": 30,
+  "search_result_is_not_validation": true,
+  "searches": [
+    {
+      "requested_results": 10,
+      "results": [
+        {
+          "title": "Time-Series and Cross-Sectional Momentum in the ...",
+          "url": "https://acfr.aut.ac.nz/__data/assets/pdf_file/0009/918729/Time_Series_and_Cross_Sectional_Momentum_in_the_Cryptocurrency_Market_with_IA.pdf"
+        },
+        {
+          "title": "Technical trading and cryptocurrencies | Annals of Operations Research | Springer Nature Link",
+          "url": "https://link.springer.com/article/10.1007/s10479-019-03357-1"
+        },
+        {
+          "title": "Sachin-Bhat/crypto-stat-arb",
+          "url": "https://github.com/Sachin-Bhat/crypto-stat-arb"
+        },
+        {
+          "title": "Statistical Arbitrage in Cryptocurrency Markets",
+          "url": "https://www.mdpi.com/1911-8074/12/1/31"
+        },
+        {
+          "title": "High frequency momentum trading with cryptocurrencies",
+          "url": "https://www.sciencedirect.com/science/article/abs/pii/S0275531919308062"
+        },
+        {
+          "title": "Momentum Trading in Cryptocurrencies: A Comparative Study of Time-Series and Cross-Sectional Strategies",
+          "url": "https://www.journals.vu.lt/BATP/en/article/download/44540/42590/138419"
+        },
+        {
+          "title": "Returns to Buying Winners and Selling Losers: A Look at Cryptocurrencies",
+          "url": "https://scholarship.claremont.edu/cgi/viewcontent.cgi?params=%2Fcontext%2Fcmc_theses%2Farticle%2F3039%2F&path_info=Thesis_Final_Draft.pdf"
+        },
+        {
+          "title": "ccollins80/crypto-stat-arb",
+          "url": "https://github.com/ccollins80/crypto-stat-arb"
+        },
+        {
+          "title": "Cryptocurrency momentum has (not) its moments",
+          "url": "https://link.springer.com/article/10.1007/s11408-025-00474-9"
+        },
+        {
+          "title": "matiasjarnal/crypto-momentum-strategy",
+          "url": "https://github.com/matiasjarnal/crypto-momentum-strategy"
+        }
+      ],
+      "returned_title_url_records": 10,
+      "search_angle": "momentum"
+    },
+    {
+      "requested_results": 10,
+      "results": [
+        {
+          "title": "Narrative attention and related cryptocurrency returns - ScienceDirect",
+          "url": "https://www.sciencedirect.com/science/article/abs/pii/S1544612323005469"
+        },
+        {
+          "title": "How News Headlines Affect Cryptocurrency Prices: A",
+          "url": "https://osuva.uwasa.fi/server/api/core/bitstreams/a7e4b9b4-35ec-4aca-9b31-17fbb04e8530/content"
+        },
+        {
+          "title": "Wisdom of the crowd signals: Predictive power of social media trading signals for cryptocurrencies | Electronic Markets | Springer Nature Link",
+          "url": "https://link.springer.com/article/10.1007/s12525-025-00815-6"
+        },
+        {
+          "title": "EUR Research Information Portal",
+          "url": "https://pure.eur.nl/ws/portalfiles/portal/269122832/1-s2.0-S1057521926003583-main.pdf"
+        },
+        {
+          "title": "Social media-based attention and the cross-section of cryptocurrency returns",
+          "url": "https://ideas.repec.org/a/eee/jbfina/v178y2025ics0378426625001384.html"
+        },
+        {
+          "title": "Forecasting and trading Bitcoin with machine learning techniques and a hybrid volatility/sentiment leverage",
+          "url": "https://ideas.repec.org/a/wly/jforec/v42y2023i4p852-871.html"
+        },
+        {
+          "title": "PreBit -- A multimodal model with Twitter FinBERT embeddings for extreme price movement prediction of Bitcoin",
+          "url": "https://doi.org/10.48550/arxiv.2206.00648"
+        },
+        {
+          "title": "Signal Fragmentation in Cryptocurrency Markets: Theory and Empirical Evidence by Mehmet Canayaz, Charles Cao, Zongbo Huang, Giang Nguyen, Qiang Wang :: SSRN",
+          "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4495683"
+        },
+        {
+          "title": "Comparing search-engine and social-media attentions in finance research: Evidence from cryptocurrencies",
+          "url": "https://ideas.repec.org/a/eee/reveco/v75y2021icp723-746.html"
+        },
+        {
+          "title": "N/A",
+          "url": "https://arxiv.org/pdf/2411.05577"
+        }
+      ],
+      "returned_title_url_records": 10,
+      "search_angle": "narrative"
+    },
+    {
+      "requested_results": 10,
+      "results": [
+        {
+          "title": "Centralized\u2013decentralized exchange funding rate arbitrage as a basis trade: risk decomposition, stress testing, and portfolio construction under venue uncertainty | Digital Finance | Springer Nature Link",
+          "url": "https://link.springer.com/article/10.1007/s42521-026-00213-3"
+        },
+        {
+          "title": "Perpetual Futures and Their Arbitrage on Decentralized and Centralized Venues by Erce Erez, Mikhail Smirnov :: SSRN",
+          "url": "https://papers.ssrn.com/sol3/Delivery.cfm/7550140.pdf?abstractid=7550140&mirid=1&type=2"
+        },
+        {
+          "title": "The Two-Tiered Structure of Cryptocurrency Funding Rate Markets",
+          "url": "https://www.mdpi.com/2227-7390/14/2/346"
+        },
+        {
+          "title": "Low-latency Execution Infrastructure for Funding-Rate ...",
+          "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7103839"
+        },
+        {
+          "title": "Building Trust Takes Time: Limits to Arbitrage for Blockchain-Based Assets",
+          "url": "https://arxiv.org/html/1812.00595v4"
+        },
+        {
+          "title": "Crypto carry",
+          "url": "https://www.bis.org/publications/working-paper-1087-crypto-carry.pdf"
+        },
+        {
+          "title": "Cryptocurrency Perpetual Futures and Swaps: A Systematic Literature Review by Michael Neubert, Wolfgang Rams, Patrick Gruhn :: SSRN",
+          "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6639558"
+        },
+        {
+          "title": "Arbitrage Opportunities and Efficiency Tests in Crypto Derivatives by Carol Alexander, Xi Chen, Jun Deng, Tianyi Wang :: SSRN",
+          "url": "https://papers.ssrn.com/sol3/Delivery.cfm/SSRN_ID4819471_code1778118.pdf?abstractid=4495548"
+        },
+        {
+          "title": "Perpetual Futures Pricing",
+          "url": "https://arxiv.org/html/2310.11771"
+        },
+        {
+          "title": "Temporal Dynamics of Market Microstructure in Cryptocurrency Perpetual Futures: Econometric Evidence from Centralized and Decentralized Exchanges",
+          "url": "https://ideas.repec.org/a/gam/jijfss/v14y2026i5p103-d1926363.html"
+        }
+      ],
+      "returned_title_url_records": 10,
+      "search_angle": "arbitrage"
+    },
+    {
+      "requested_results": 10,
+      "results": [
+        {
+          "title": "N/A",
+          "url": "https://math.nyu.edu/%7Eavellane/HighFrequencyTrading.pdf"
+        },
+        {
+          "title": "High-frequency trading in a limit order book",
+          "url": "https://people.orie.cornell.edu/sfs33/LimitOrderBook.pdf"
+        },
+        {
+          "title": "N/A",
+          "url": "https://arxiv.org/pdf/1409.2618"
+        },
+        {
+          "title": "High Frequency Trading Strategies",
+          "url": "https://web.stanford.edu/class/msande448/2021/Final_reports/gr1.pdf"
+        },
+        {
+          "title": "N/A",
+          "url": "https://arxiv.org/pdf/2307.15599"
+        },
+        {
+          "title": "Order-book modelling and market making strategies",
+          "url": "https://arxiv.org/html/1806.05101v1"
+        },
+        {
+          "title": "N/A",
+          "url": "https://arxiv.org/pdf/1903.07222"
+        },
+        {
+          "title": "[1605.01862] Optimal market making11footnote 1This research has been conducted with the support of the Research Initiative \u201cNouveaux traitements pour les donn\u00e9es lacunaires issues des activit\u00e9s de cr\u00e9dit\u201d financed by BNP Paribas under the aegis of the Europlace Institute of Finance. The author would like to thank Philippe Amzelek (BNP Paribas), Laurent Carlier (BNP Paribas), \u00c1lvaro Cartea (Oxford University), David Evangelista (KAUST), Yuyun Fang (BNP Paribas), Jean-David Fermanian (ENSAE and CREST), Joaquin Fernandez-Tapia (Universit\u00e9 Pierre et Marie Curie), Sebastian Jaimungal (University of Toronto), Jean-Michel Lasry (Paris Sciences et Lettres), Charles-Albert Lehalle (Capital Fund Management), Pierre-Louis Lions (Coll\u00e8ge de France), Jiang Pu (Institut Europlace de Finance), Andrei Serjantov (BNP Paribas), Vladimir Vasiliev (BNP Paribas), and Douglas Vieira (Imperial College) for the discussions he had with them on the subject.",
+          "url": "https://ar5iv.labs.arxiv.org/html/1605.01862"
+        },
+        {
+          "title": "Optimal execution in a limit order book and an associated microstructure market impact",
+          "url": "https://a.drupalgsb-test.paas.cc.columbia.edu/sites/default/files-efs/pubfiles/25463/fluid-ms-2015.pdf"
+        },
+        {
+          "title": "Technical Deep Dive into the Avellaneda & Stoikov Strategy - Hummingbot",
+          "url": "https://hummingbot.org/blog/technical-deep-dive-into-the-avellaneda--stoikov-strategy/"
+        }
+      ],
+      "returned_title_url_records": 10,
+      "search_angle": "microstructure"
+    },
+    {
+      "requested_results": 10,
+      "results": [
+        {
+          "title": "Quantifying Loss in Automated Market Makers | Proceedings of the 2022 ACM CCS Workshop on Decentralized Finance and Security",
+          "url": "https://dlnext.acm.org/doi/10.1145/3560832.3563441"
+        },
+        {
+          "title": "N/A",
+          "url": "https://export.arxiv.org/pdf/2208.06046v3.pdf"
+        },
+        {
+          "title": "Strategic Liquidity Provision in Uniswap v3",
+          "url": "https://arxiv.org/pdf/2106.12033v5.pdf"
+        },
+        {
+          "title": "Risks and Returns of Uniswap V3 Liquidity Providers | Proceedings of the 4th ACM Conference on Advances in Financial Technologies",
+          "url": "https://dlnext.acm.org/doi/10.1145/3558535.3559772"
+        },
+        {
+          "title": "Measuring Arbitrage Losses and Profitability of AMM Liquidity",
+          "url": "https://arxiv.org/html/2404.05803v2"
+        },
+        {
+          "title": "Measuring Arbitrage Losses and Profitability of AMM Liquidity",
+          "url": "https://dl.acm.org/doi/epdf/10.1145/3589335.3651961"
+        },
+        {
+          "title": "Decentralised Finance and Automated Market Making: Predictable Loss and Optimal Liquidity Provision",
+          "url": "https://arxiv.org/html/2309.08431v2"
+        },
+        {
+          "title": "N/A",
+          "url": "https://arxiv.org/pdf/2301.06831"
+        },
+        {
+          "title": "Model-free Hedging of Impermanent Loss in Geometric Mean Market Makers",
+          "url": "https://arxiv.org/html/2303.11118"
+        },
+        {
+          "title": "Impermanent Loss in Uniswap v3",
+          "url": "https://arxiv.org/pdf/2111.09192"
+        }
+      ],
+      "returned_title_url_records": 10,
+      "search_angle": "defi"
+    },
+    {
+      "requested_results": 10,
+      "results": [
+        {
+          "title": "Machine Learning-Based Bitcoin Trading Under Transaction Costs: Evidence From Walk-Forward Forecasting",
+          "url": "https://arxiv.org/html/2606.00060"
+        },
+        {
+          "title": "Machine learning for cryptocurrency market prediction and trading - ScienceDirect",
+          "url": "https://www.sciencedirect.com/science/article/pii/S2405918822000174"
+        },
+        {
+          "title": "Can AI Make Money in Crypto? Measuring the Gap from Backtests to Real Markets",
+          "url": "https://arxiv.org/html/2609.34510"
+        },
+        {
+          "title": "Intraday trading strategy selection under transaction costs with machine learning",
+          "url": "https://www.frontiersin.org/journals/applied-mathematics-and-statistics/articles/10.3389/fams.2026.1888767/pdf"
+        },
+        {
+          "title": "Forecasting and trading cryptocurrencies with machine ... - PMC",
+          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7785332/"
+        },
+        {
+          "title": "Cryptocurrency Trading Using Machine Learning",
+          "url": "https://www.mdpi.com/1911-8074/13/8/178"
+        },
+        {
+          "title": "paper/PAPER.md",
+          "url": "https://github.com/iolufemi/crypto-trend-research/blob/master/paper/PAPER.md"
+        },
+        {
+          "title": "Reinforcement Learning in Financial Markets",
+          "url": "https://www.mdpi.com/2306-5729/4/3/110"
+        },
+        {
+          "title": "Comparative analysis of machine learning models for ...",
+          "url": "https://researchsystem.canberra.edu.au/ws/portalfiles/portal/129444726/Wang_Dongsheng.pdf"
+        }
+      ],
+      "returned_title_url_records": 9,
+      "search_angle": "models"
+    },
+    {
+      "requested_results": 10,
+      "results": [
+        {
+          "title": "Pricing Kernels and Risk Premia implied in Bitcoin Options",
+          "url": "https://www.mdpi.com/2227-9091/11/5/85"
+        },
+        {
+          "title": "Hedging cryptocurrency options | Review of Derivatives Research | Springer Nature Link",
+          "url": "https://link.springer.com/article/10.1007/s11147-023-09194-6"
+        },
+        {
+          "title": "The Bitcoin VIX its variance risk premium",
+          "url": "http://sro.sussex.ac.uk/id/eprint/91094/1/JAI_R1.pdf"
+        },
+        {
+          "title": "Valuation and hedging of cryptocurrency inverse options: Quantitative Finance: Vol 24 , No 7  - Get Access",
+          "url": "https://www.tandfonline.com/doi/full/10.1080/14697688.2024.2364804"
+        },
+        {
+          "title": "BTC OPTIONS",
+          "url": "https://blog.amberdata.io/hubfs/Amberdata-BTCOptions.pdf"
+        },
+        {
+          "title": "Option Returns and the risk-free Rate in Crypto Asset Markets by Julian Winkel, Wolfgang Karl H\u00e4rdle, Lei Zhou, Ying Chen :: SSRN",
+          "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5231776"
+        },
+        {
+          "title": "What Do Crypto Options Tell Us? Risk Premia Implied by BTC Option Prices by Christina V. Atanasova, Terrel Miao, Ignacio Segarra, Frederick H. Willeboordse :: SSRN",
+          "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6410838"
+        },
+        {
+          "title": "Risk Premia in the Bitcoin Market",
+          "url": "https://arxiv.org/html/2410.15195v2"
+        },
+        {
+          "title": "The Bitcoin VIX and its Variance Risk Premium",
+          "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3383734"
+        },
+        {
+          "title": "Jump risk premia in the presence of clustered jumps",
+          "url": "https://arxiv.org/html/2510.21297"
+        }
+      ],
+      "returned_title_url_records": 10,
+      "search_angle": "options"
+    },
+    {
+      "requested_results": 10,
+      "results": [
+        {
+          "title": "Common Risk Factors in Cryptocurrency",
+          "url": "https://doi.org/10.1111/jofi.13119"
+        },
+        {
+          "title": "Common Risk Factors in Cryptocurrency | NBER",
+          "url": "https://www.nber.org/papers/w25882"
+        },
+        {
+          "title": "Common Risk Factors in Cryptocurrency",
+          "url": "https://www.nber.org/system/files/working_papers/w25882/w25882.pdf"
+        },
+        {
+          "title": "Common Risk Factors in Cryptocurrency",
+          "url": "https://doi.org/10.3386/w25882"
+        },
+        {
+          "title": "Common Risk Factors in Cryptocurrency",
+          "url": "https://cowles.yale.edu/sites/default/files/2022-10/LiuTsyvinskiWu2019%20COMMON%20RISK%20FACTORS.pdf"
+        },
+        {
+          "title": "Common Risk Factors in Cryptocurrency",
+          "url": "https://ideas.repec.org/a/bla/jfinan/v77y2022i2p1133-1177.html"
+        },
+        {
+          "title": "Common Risk Factors in Cryptocurrency",
+          "url": "https://www.jstor.org/stable/45417078"
+        },
+        {
+          "title": "Common Risk Factors in Cryptocurrency - LIU - 2022 - The Journal of Finance - Wiley Online Library",
+          "url": "https://onlinelibrary.wiley.com/doi/10.1111/jofi.13119"
+        },
+        {
+          "title": "Value Premium, Network Adoption, and Factor Pricing of Crypto Assets",
+          "url": "https://abfer.org/media/abfer-events-2022/annual-conference/papers-investfin/AC22P3048_Value-Premium-Network-Adoption-and-Factor-Pricing-of-Crypto-Assets.pdf"
+        },
+        {
+          "title": "DP13724 Blockchain Characteristics and the Cross-Section of Cryptocurrency Returns",
+          "url": "https://cepr.org/index%2ephp/publications/dp13724"
+        }
+      ],
+      "returned_title_url_records": 10,
+      "search_angle": "factors"
+    },
+    {
+      "requested_results": 10,
+      "results": [
+        {
+          "title": "Coin Metrics API v4",
+          "url": "https://docs.coinmetrics.io/api/v4/"
+        },
+        {
+          "title": "Market Data | Coinbase Institutional",
+          "url": "https://www.coinbase.com/institutional/market-data"
+        },
+        {
+          "title": "Market candles | API Reference | Data Knowledge Base",
+          "url": "https://gitbook-docs.coinmetrics.io/api-reference/timeseries/timeseries-rest/market-candles"
+        },
+        {
+          "title": "N/A",
+          "url": "https://docs.cdp.coinbase.com/api-reference/derivatives-api/rest-api/funding-rate/get-historical-funding-rates"
+        },
+        {
+          "title": "Coin Metrics Data Downloader",
+          "url": "https://download.coinmetrics.io/"
+        },
+        {
+          "title": "binance/binance-public-data",
+          "url": "https://github.com/binance/binance-public-data/"
+        },
+        {
+          "title": "Market Candles | Data Knowledge Base",
+          "url": "https://gitbook-docs.coinmetrics.io/market-data/market-data-overview/market-candles"
+        },
+        {
+          "title": "How to Download Historical Market Data on Binance?",
+          "url": "https://www.binance.com/en/support/faq/how-to-download-historical-market-data-on-binance-5810ae42176b4770b880ce1f14932262"
+        },
+        {
+          "title": "Binance Data Collection",
+          "url": "https://data.binance.vision/"
+        },
+        {
+          "title": "N/A",
+          "url": "https://docs.ccxt.com/docs/exchanges/coinbaseinternational"
+        }
+      ],
+      "returned_title_url_records": 10,
+      "search_angle": "history"
+    },
+    {
+      "requested_results": 10,
+      "results": [
+        {
+          "title": "THE PROBABILITY OF BACKTEST",
+          "url": "https://www.davidhbailey.com/dhbpapers/backtest-prob.pdf"
+        },
+        {
+          "title": "BACKTEST OVERFITTING AND NON-NORMALITY",
+          "url": "https://www.davidhbailey.com/dhbpapers/deflated-sharpe.pdf"
+        },
+        {
+          "title": "PSEUDO-MATHEMATICS AND FINANCIAL",
+          "url": "https://www.davidhbailey.com/dhbpapers/backtest-pseudo.pdf"
+        },
+        {
+          "title": "Backtest Overfitting in the Machine Learning Era a Comparison of Out-of-Sample Testing Methods in a Synthetic Controlled Environment by Hamid R. Arian, Daniel Norouzi M., Luis Seco :: SSRN",
+          "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4778909"
+        },
+        {
+          "title": "A Bayesian Approach to Measurement of Backtest Overfitting",
+          "url": "https://www.mdpi.com/2227-9091/9/1/18"
+        },
+        {
+          "title": "Research Papers Behind the Backtest Tests \u00b7 OverfitCheck",
+          "url": "https://overfitcheck.com/docs/research"
+        },
+        {
+          "title": "Statistical Analysis of Trading Strategies | QuantifiedTrader",
+          "url": "https://quantifiedtrader.com/projects/statistical-analysis-trading-strategies/"
+        },
+        {
+          "title": "Overfitting: detection, not prevention \u2014 Quant Compose",
+          "url": "https://www.quantcompose.com/quantlab/validation/overfitting-detection"
+        },
+        {
+          "title": "1.2.6 Advanced Extensions | KwantKlubben",
+          "url": "https://atlas.kwantklubben.com/pillars/01-quantitative-research/backtesting-hygiene/06-advanced-extensions"
+        },
+        {
+          "title": "paper/paper.bib",
+          "url": "https://github.com/eslazarev/purged-cross-validation/blob/main/paper/paper.bib"
+        }
+      ],
+      "returned_title_url_records": 10,
+      "search_angle": "robustness"
+    },
+    {
+      "requested_results": 10,
+      "results": [
+        {
+          "title": "Market reactions to Crypto-Specific announcements: Analyzing behaviors in coins and tokens",
+          "url": "https://ideas.repec.org/a/eee/ecolet/v250y2025ics0165176525001429.html"
+        },
+        {
+          "title": "How crypto prices react to exchange announcements: a data study",
+          "url": "https://getcoinsight.com/en/research/exchange-announcement-study"
+        },
+        {
+          "title": "Crypto Listing Price Reaction 2026 \u2014 Upbit, Binance, Bithumb",
+          "url": "https://cryptolisting.ws/listing-price-reaction/"
+        },
+        {
+          "title": "Gone with the fire: Market reaction to cryptocurrency exchange ...",
+          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10395473/"
+        },
+        {
+          "title": "Examining Token Listings on CEXes",
+          "url": "https://s3.coinmarketcap.com/uploads/Examining_Token_Listings_on_CEXes.pdf"
+        },
+        {
+          "title": "The reaction of cryptocurrencies to the approval of spot ...",
+          "url": "https://www.econstor.eu/handle/10419/340651"
+        },
+        {
+          "title": "MarketReactionto ExchangeListingsofCryptocurrencies",
+          "url": "https://www.blockchainresearchlab.org/wp-content/uploads/2019/10/Exploring-Market-Reactions-to-Exchange-Listings-of-Cryptocurrencies-BRL-working-paper3.pdf"
+        },
+        {
+          "title": "Latest Listings & Delistings \u2014 CryptoListing.ws",
+          "url": "https://cryptolisting.ws/latest-listings/"
+        },
+        {
+          "title": "Bitbase Blog | Crypto Market Catalysts: An Event-Study Framework for Listings, Launches and Upgrades",
+          "url": "https://www.bitbase.com/blog/crypto-market-catalysts"
+        },
+        {
+          "title": "THE EFFECT OF POSITIVE AND NEGATIVE EVENTS ON CRYPTOCURRENCY PRICES",
+          "url": "https://dergipark.org.tr/tr/download/article-file/2032416"
+        }
+      ],
+      "returned_title_url_records": 10,
+      "search_angle": "events"
+    },
+    {
+      "requested_results": 10,
+      "results": [
+        {
+          "title": "Return and Volatility Forecasting Using On-Chain Flows in Cryptocurrency Markets",
+          "url": "https://arxiv.org/pdf/2411.06327"
+        },
+        {
+          "title": "Is there a value premium in cryptoasset",
+          "url": "https://alexandria.unisg.ch/server/api/core/bitstreams/89325574-f54d-4b0b-b4b5-ed16ec96781e/content"
+        },
+        {
+          "title": "Blockchain factors",
+          "url": "https://doi.org/10.1016/j.intfin.2024.102012"
+        },
+        {
+          "title": "Microstructure and Market Dynamics in Crypto Markets",
+          "url": "https://stoye.economics.cornell.edu/docs/Easley_ssrn-4814346.pdf"
+        },
+        {
+          "title": "DP13724 Blockchain Characteristics and the Cross-Section of Cryptocurrency Returns",
+          "url": "https://cepr.org/index%2ephp/publications/dp13724"
+        },
+        {
+          "title": "A data-driven approach to forecasting Bitcoin price using on-chain metrics",
+          "url": "https://unitesi.unive.it/retrieve/cfabbce7-876c-4e67-acf2-0ee10c311c8d/Master_Thesis%20VRABII%20SIMION%20and%20FASANO%20GIOVANNI.pdf"
+        },
+        {
+          "title": "On the dynamic relationship between transaction volume and returns: evidence from the cryptocurrency market | Journal of Economic and Administrative Sciences | Emerald Publishing",
+          "url": "https://www.emerald.com/jeas/article/41/2/780/1263966/On-the-dynamic-relationship-between-transaction"
+        },
+        {
+          "title": "Explaining the (cross-sectional) variation in expected ...",
+          "url": "https://thesis.eur.nl/pub/67182/main.pdf"
+        },
+        {
+          "title": "N/A",
+          "url": "https://x402.glassnode.com/SKILL.md"
+        },
+        {
+          "title": "docs/ONCHAIN_FEASIBILITY.md",
+          "url": "https://github.com/kimlage/crypto-edge-search/blob/main/docs/ONCHAIN_FEASIBILITY.md"
+        }
+      ],
+      "returned_title_url_records": 10,
+      "search_angle": "onchain"
+    },
+    {
+      "requested_results": 10,
+      "results": [
+        {
+          "title": "Risk-Based Portfolio Optimization in the Cryptocurrency World by Tobias Burggraf :: SSRN",
+          "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3454764"
+        },
+        {
+          "title": "Managing a Crypto-Currency Portfolio via MinMax",
+          "url": "https://www.sylvainchassang.org/assets/papers/crypto_portfolio_management.pdf"
+        },
+        {
+          "title": "Trend-Following, Risk-Parity and the influence of Correlations1",
+          "url": "https://assets.super.so/e46b77e7-ee08-445e-b43f-4ffd88ae0a0e/files/24e7a158-e22a-4244-8057-f810bd08a310.pdf"
+        },
+        {
+          "title": "Portfolio optimization with trend following strategies",
+          "url": "https://www.math.chalmers.se/~palbin/Samuel_Rubenson.pdf"
+        },
+        {
+          "title": "Small Portfolio Construction with Cryptocurrencies",
+          "url": "https://doi.org/10.37394/23207.2024.21.57"
+        },
+        {
+          "title": "Portfolio Optimization Methods for the Digital Asset Market: A Comprehensive Survey",
+          "url": "https://dl.acm.org/doi/epdf/10.1145/3819577"
+        },
+        {
+          "title": "Low-volatility strategies for highly liquid cryptocurrencies",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1544612321004116"
+        },
+        {
+          "title": "Risk Parity, Maximum Diversification, and Minimum Variance",
+          "url": "https://www.hillsdaleinv.com/uploads/Risk_Parity,_Maximum_Diversification,_and_Minimum_Variance-_An_Analytic_Perspective.pdf"
+        },
+        {
+          "title": "Systematic Trend-Following with Adaptive Portfolio Construction: Enhancing Risk-Adjusted Alpha in Cryptocurrency Markets",
+          "url": "https://arxiv.org/html/2602.11708"
+        },
+        {
+          "title": "Optimizing Portfolio Risk of Cryptocurrencies Using Data-Driven Risk Measures",
+          "url": "https://www.mdpi.com/1911-8074/15/10/427"
+        }
+      ],
+      "returned_title_url_records": 10,
+      "search_angle": "portfolio"
+    },
+    {
+      "requested_results": 8,
+      "results": [
+        {
+          "title": "Executors - Hummingbot",
+          "url": "https://hummingbot.org/strategies/v2-strategies/executors/"
+        },
+        {
+          "title": "Strategies - Hummingbot",
+          "url": "https://hummingbot.org/strategies/"
+        },
+        {
+          "title": "Examples - Hummingbot",
+          "url": "https://hummingbot.org/strategies/v2-strategies/examples/"
+        },
+        {
+          "title": "Controllers - Hummingbot",
+          "url": "https://hummingbot.org/strategies/v2-strategies/controllers/"
+        },
+        {
+          "title": "N/A",
+          "url": "https://condor.hummingbot.org/api-reference/executors/create-executor"
+        },
+        {
+          "title": "Cross-Exchange Market Making (XEMM) - Hummingbot",
+          "url": "https://hummingbot.org/strategies/v1-strategies/cross-exchange-market-making/"
+        },
+        {
+          "title": "Pure Market Making (PMM) - Hummingbot",
+          "url": "https://hummingbot.org/strategies/v1-strategies/pure-market-making/"
+        },
+        {
+          "title": "Guides - Hummingbot",
+          "url": "https://hummingbot.org/guides/"
+        }
+      ],
+      "returned_title_url_records": 8,
+      "search_angle": "systems"
+    },
+    {
+      "requested_results": 8,
+      "results": [
+        {
+          "title": "Functions List - TA-Lib - Technical Analysis Library",
+          "url": "https://ta-lib.org/functions/"
+        },
+        {
+          "title": "TA-Lib",
+          "url": "https://ta-lib.github.io/ta-lib-python/funcs.html"
+        },
+        {
+          "title": "TA-Lib",
+          "url": "https://ta-lib.github.io/ta-lib-python/func.html"
+        },
+        {
+          "title": "ta_func_list.txt at main \u00b7 TA-Lib/ta-lib",
+          "url": "https://github.com/TA-Lib/ta-lib/blob/main/ta_func_list.txt"
+        },
+        {
+          "title": "docs/funcs.md at master \u00b7 TA-Lib/ta-lib-python",
+          "url": "https://github.com/TA-Lib/ta-lib-python/blob/master/docs/funcs.md"
+        },
+        {
+          "title": "TA-Lib | TA-Lib.org",
+          "url": "https://ta-lib.org/"
+        },
+        {
+          "title": "Function List",
+          "url": "https://ta-lib.github.io/function.html"
+        },
+        {
+          "title": "N/A",
+          "url": "https://ta-lib.org/llms-full.txt"
+        }
+      ],
+      "returned_title_url_records": 8,
+      "search_angle": "technicals"
+    },
+    {
+      "requested_results": 8,
+      "results": [
+        {
+          "title": "Pairs trading in cryptocurrency markets: A comparative study of statistical methods: Investment Analysts Journal: Vol 53 , No 2  - Get Access",
+          "url": "https://www.tandfonline.com/doi/full/10.1080/10293523.2023.2268386"
+        },
+        {
+          "title": "Pairs Trading in Cryptocurrency Markets",
+          "url": "https://doi.org/10.1109/access.2020.3024619"
+        },
+        {
+          "title": "Profitability of pairs trading in cryptocurrency market : Comparison of distance, cointegration, and copula methods",
+          "url": "https://utupub.fi/bitstreams/cb81c09e-c6f6-4238-af52-1a55bd2ea8cb/download"
+        },
+        {
+          "title": "The profitability of pairs trading strategies: distance, ...",
+          "url": "https://pure.bond.edu.au/ws/portalfiles/portal/36339487/AM_The_profitability_of_pairs_trading_strategies.pdf"
+        },
+        {
+          "title": "Model-based pairs trading in the bitcoin markets",
+          "url": "https://ideas.repec.org/a/taf/quantf/v17y2017i5p703-716.html"
+        },
+        {
+          "title": "Constructing cointegrated cryptocurrency portfolios for statistical arbitrage | Studies in Economics and Finance | Emerald Publishing",
+          "url": "https://www.emerald.com/sef/article/36/4/581/353687/Constructing-cointegrated-cryptocurrency"
+        },
+        {
+          "title": "Statistical arbitrage pairs trading strategies: Review and ...",
+          "url": "https://www.econstor.eu/bitstream/10419/116783/1/833997289.pdf"
+        }
+      ],
+      "returned_title_url_records": 7,
+      "search_angle": "pairs"
+    },
+    {
+      "requested_results": 8,
+      "results": [
+        {
+          "title": "Profitability and Data-Snooping Tests of Four Technical Trade Strategies for Cryptocurrency Pair BTC/USDT and ETH/USDT in Cryptocurrency Markets During 2022\u20132023",
+          "url": "https://doi.org/10.33423/jaf.v23i4.6453"
+        },
+        {
+          "title": "Technical trading and cryptocurrencies | Annals of Operations Research | Springer Nature Link",
+          "url": "https://link.springer.com/article/10.1007/s10479-019-03357-1"
+        },
+        {
+          "title": "Are simple technical trading rules profitable in bitcoin markets?",
+          "url": "http://ideas.repec.org/a/eee/reveco/v93y2024ipbp858-874.html"
+        },
+        {
+          "title": "Data-Snooping, Technical Trading Rule Performance, and ...",
+          "url": "https://www.researchgate.net/publication/2550469_Data-Snooping_Technical_Trading_Rule_Performance_and_the_Bootstrap"
+        },
+        {
+          "title": "Journal Pre-proof",
+          "url": "https://2024.igem.wiki/lcg-global/static/10.1016%40j.frl.2020.101655.pdf"
+        },
+        {
+          "title": "Lucky trading rules",
+          "url": "http://www.efmaefm.org/0EFMAMEETINGS/EFMA%20ANNUAL%20MEETINGS/2021-Leeds/papers/EFMA%202021_stage-2049_question-Full%20Paper_id-136.pdf"
+        },
+        {
+          "title": "Testing the Applicability of the Technical Trading Strategy in the Cryptocurrency Market",
+          "url": "https://pubs.sciepub.com/jfe/11/4/2/"
+        }
+      ],
+      "returned_title_url_records": 7,
+      "search_angle": "negative"
+    },
+    {
+      "requested_results": 8,
+      "results": [
+        {
+          "title": "[1912.04492] 151 Estrategias de Trading (151 Trading Strategies)",
+          "url": "https://arxiv.org/abs/1912.04492"
+        },
+        {
+          "title": "151 Trading Strategies",
+          "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3247865"
+        },
+        {
+          "title": "151 Trading Strategies",
+          "url": "https://doi.org/10.1007/978-3-030-02792-6"
+        },
+        {
+          "title": "N/A",
+          "url": "https://arxiv.org/pdf/1912.04492"
+        },
+        {
+          "title": "151 Trading Strategies",
+          "url": "https://books.google.com/books/about/151_Trading_Strategies.html?id=ph7ouwEACAAJ"
+        },
+        {
+          "title": "[1912.04492] Contenidos",
+          "url": "https://ar5iv.labs.arxiv.org/html/1912.04492"
+        },
+        {
+          "title": "Zura Kakushadze \u2022 Juan Andres Serur",
+          "url": "https://www.gbv.de/dms/zbw/103108505X.pdf"
+        },
+        {
+          "title": "151 Trading Strategies",
+          "url": "https://ideas.repec.org/b/spr/sprbok/978-3-030-02792-6.html"
+        }
+      ],
+      "returned_title_url_records": 8,
+      "search_angle": "taxonomy"
+    },
+    {
+      "requested_results": 8,
+      "results": [
+        {
+          "title": "Time series momentum - ScienceDirect",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0304405X11002613"
+        },
+        {
+          "title": "Pairs Trading: Performance of a Relative-Value Arbitrage Rule | The Review of Financial Studies | Oxford Academic",
+          "url": "https://academic.oup.com/rfs/article-abstract/19/3/797/1646694"
+        },
+        {
+          "title": "Time series momentum",
+          "url": "https://ideas.repec.org/a/eee/jfinec/v104y2012i2p228-250.html"
+        },
+        {
+          "title": "Time Series Momentum",
+          "url": "https://www.aqr.com/Insights/Research/Journal-Article/Time-Series-Momentum"
+        },
+        {
+          "title": "Time series momentum",
+          "url": "https://pages.stern.nyu.edu/~lpederse/papers/TimeSeriesMomentum.pdf"
+        },
+        {
+          "title": "Pairs Trading: Performance of a Relative-Value Arbitrage Rule",
+          "url": "http://ideas.repec.org/a/oup/rfinst/v19y2006i3p797-827.html"
+        },
+        {
+          "title": "Time Series Momentum",
+          "url": "https://doi.org/10.2139/ssrn.2089463"
+        },
+        {
+          "title": "Time series momentum",
+          "url": "https://w4.stern.nyu.edu/facdir/lpederse/papers/TimeSeriesMomentum.pdf"
+        }
+      ],
+      "returned_title_url_records": 8,
+      "search_angle": "foundations"
+    },
+    {
+      "requested_results": 8,
+      "results": [
+        {
+          "title": "N/A",
+          "url": "https://docs.gdeltcloud.com/api-reference/v2"
+        },
+        {
+          "title": "Crypto API - Documentation - Alternative.me",
+          "url": "https://alternative.me/crypto/api/"
+        },
+        {
+          "title": "N/A",
+          "url": "https://docs.gdeltcloud.com/api-reference/macro-finance/list-fred-observations"
+        },
+        {
+          "title": "reference/parameter-mapping.md",
+          "url": "https://github.com/apitube/gdelt-apitube-migration-kit/blob/master/reference/parameter-mapping.md"
+        },
+        {
+          "title": "St. Louis Fed Web Services: FRED\u00ae API",
+          "url": "https://fred.stlouisfed.org/docs/api/fred/"
+        },
+        {
+          "title": "Data API Catalog: Events, SEC EDGAR, FRED & Connected Datasets | GDELT Cloud",
+          "url": "https://gdeltcloud.com/data/api"
+        },
+        {
+          "title": "N/A",
+          "url": "https://docs.gdeltcloud.com/api-reference/macro-series-catalog"
+        },
+        {
+          "title": "SEC.gov | Developer Resources",
+          "url": "https://www.sec.gov/about/developer-resources"
+        }
+      ],
+      "returned_title_url_records": 8,
+      "search_angle": "narrative_feeds"
+    },
+    {
+      "requested_results": 8,
+      "results": [
+        {
+          "title": "DefiLlama API",
+          "url": "https://defillama.com/docs/api"
+        },
+        {
+          "title": "API Docs - DefiLlama",
+          "url": "https://api-docs.defillama.com/"
+        },
+        {
+          "title": "Introduction - Tokenomist",
+          "url": "https://docs.tokenomist.ai/api-documents/introduction"
+        },
+        {
+          "title": "CoinGecko API (V3)",
+          "url": "https://www.coingecko.com/api/documentations/v3"
+        },
+        {
+          "title": "N/A",
+          "url": "https://api-docs.defillama.com/llms-free.txt"
+        },
+        {
+          "title": "Welcome to CoinGecko API - CoinGecko API",
+          "url": "https://docs.coingecko.com/"
+        },
+        {
+          "title": "N/A",
+          "url": "https://api-docs.defillama.com/llms-pro.txt"
+        },
+        {
+          "title": "DefiLlama/api-sdk",
+          "url": "https://github.com/DefiLlama/api-sdk"
+        }
+      ],
+      "returned_title_url_records": 8,
+      "search_angle": "crypto_data"
+    },
+    {
+      "requested_results": 5,
+      "results": [
+        {
+          "title": "Market Data Terms of Use",
+          "url": "https://www.coinbase.com/legal/market_data"
+        },
+        {
+          "title": "Welcome to Exchange APIs",
+          "url": "https://docs.cdp.coinbase.com/exchange/introduction/welcome"
+        },
+        {
+          "title": "Market Data | Coinbase Institutional",
+          "url": "https://www.coinbase.com/institutional/market-data"
+        },
+        {
+          "title": "Point 305129 (ToS;DR Phoenix)",
+          "url": "https://edit.tosdr.org/points/305129"
+        },
+        {
+          "title": "Market Data - Coinbase Developer Documentation",
+          "url": "https://docs.cdp.coinbase.com/prime/concepts/trading/market-data"
+        }
+      ],
+      "returned_title_url_records": 5,
+      "search_angle": "license_cb"
+    },
+    {
+      "requested_results": 5,
+      "results": [
+        {
+          "title": "N/A",
+          "url": "https://docs.coinmetrics.io/packages/coin-metrics-community-data"
+        },
+        {
+          "title": "coinmetrics/data",
+          "url": "https://github.com/coinmetrics/data"
+        },
+        {
+          "title": "Coin Metrics API v4",
+          "url": "https://docs.coinmetrics.io/api/v4/"
+        },
+        {
+          "title": "docs/packages/coin-metrics-community-data.md",
+          "url": "https://github.com/coinmetrics/product-docs/blob/master/docs/packages/coin-metrics-community-data.md"
+        },
+        {
+          "title": "N/A",
+          "url": "https://raw.githubusercontent.com/api-evangelist/coin-metrics/refs/heads/main/authentication/coin-metrics-authentication.yml"
+        }
+      ],
+      "returned_title_url_records": 5,
+      "search_angle": "license_cm"
+    },
+    {
+      "requested_results": 8,
+      "results": [
+        {
+          "title": "Downloadable historical OHLCVT (Open, High, Low, Close, Volume, Trades) data | Kraken",
+          "url": "https://support.kraken.com/articles/360047124832-downloadable-historical-ohlcvt-open-high-low-close-volume-trades-data"
+        },
+        {
+          "title": "Historical data - Kraken Developers",
+          "url": "https://docs.kraken.com/exchange/guides/general/historical-data"
+        },
+        {
+          "title": "CSV Data",
+          "url": "https://support.kraken.com/sections/360009899492-csv-data"
+        },
+        {
+          "title": "Downloadable historical market data (time and sales)",
+          "url": "https://support.kraken.com/articles/360047543791-downloadable-historical-market-data-time-and-sales-"
+        },
+        {
+          "title": "Get OHLC Data - Kraken Developers",
+          "url": "https://docs.kraken.com/api-reference/market-data/get-ohlc-data"
+        },
+        {
+          "title": "Downloadable historical OHLCVT (Open, High, Low, Close, Volume, Trades) data | Kraken",
+          "url": "https://support.kraken.com/gb/articles/360047124832-downloadable-historical-ohlcvt-open-high-low-close-volume-trades-data"
+        },
+        {
+          "title": "tppetrov/kraken-ohlcvt-close-prices \u00b7 Datasets at Hugging Face",
+          "url": "https://huggingface.co/datasets/tppetrov/kraken-ohlcvt-close-prices"
+        },
+        {
+          "title": "krakenohlcvt v0.1.17",
+          "url": "https://pypi.org/project/krakenohlcvt/"
+        }
+      ],
+      "returned_title_url_records": 8,
+      "search_angle": "open_history"
+    },
+    {
+      "requested_results": 8,
+      "results": [
+        {
+          "title": "Dynamic datasets and market environments for financial reinforcement learning | Machine Learning | Springer Nature Link",
+          "url": "https://link.springer.com/article/10.1007/s10994-023-06511-w"
+        },
+        {
+          "title": "AI4Finance-Foundation/FinRL_Crypto",
+          "url": "https://github.com/AI4Finance-Foundation/FinRL_Crypto"
+        },
+        {
+          "title": "AI4Finance-Foundation/FinRL-Meta",
+          "url": "https://github.com/AI4Finance-Foundation/FinRL-Meta"
+        },
+        {
+          "title": "Environments for Crypto Trading Task \uf0c1",
+          "url": "https://finrl-contest.readthedocs.io/en/latest/envs/crypto/index.html"
+        },
+        {
+          "title": "FinRL-meta | Proceedings of the 36th International Conference on Neural Information Processing Systems",
+          "url": "https://dlnext.acm.org/doi/10.5555/3600270.3600404"
+        },
+        {
+          "title": "FinRL: Deep Reinforcement Learning Framework to Automate Trading in Quantitative Finance",
+          "url": "https://arxiv.org/html/2111.09395"
+        },
+        {
+          "title": "FinRL-Meta: Market Environments and Benchmarks for Data-Driven Financial Reinforcement Learning",
+          "url": "https://proceedings.neurips.cc/paper_files/paper/2022/file/0bf54b80686d2c4dc0808c2e98d430f7-Paper-Datasets_and_Benchmarks.pdf"
+        },
+        {
+          "title": "FinRL-Meta: Market Environments and Benchmarks for Data-Driven Financial Reinforcement Learning",
+          "url": "https://arxiv.org/html/2211.03107v1"
+        }
+      ],
+      "returned_title_url_records": 8,
+      "search_angle": "model_primary"
+    },
+    {
+      "requested_results": 8,
+      "results": [
+        {
+          "title": "FinBERT: Financial Sentiment Analysis with Pre-trained ...",
+          "url": "https://arxiv.org/abs/1908.10063"
+        },
+        {
+          "title": "FinBERT: Financial Sentiment Analysis with Pre-trained Language Models",
+          "url": "https://arxiv.org/html/1908.10063v1"
+        },
+        {
+          "title": "ProsusAI/finbert \u00b7 Hugging Face",
+          "url": "https://huggingface.co/ProsusAI/finbert"
+        },
+        {
+          "title": "Paper page - FinBERT: Financial Sentiment Analysis with Pre-trained Language Models",
+          "url": "https://huggingface.co/papers/1908.10063"
+        },
+        {
+          "title": "N/A",
+          "url": "http://arxiv.org/pdf/1908.10063"
+        },
+        {
+          "title": "ElKulako/cryptobert \u00b7 Hugging Face",
+          "url": "https://huggingface.co/ElKulako/cryptobert"
+        },
+        {
+          "title": "Sentiment Classification of Cryptocurrency-Related Social Media Posts",
+          "url": "https://doi.org/10.1109/mis.2023.3283170"
+        },
+        {
+          "title": "FinBERT: A Pretrained Language Model for Financial Communications",
+          "url": "https://arxiv.org/html/2006.08097v2"
+        }
+      ],
+      "returned_title_url_records": 8,
+      "search_angle": "temporal"
+    },
+    {
+      "requested_results": 8,
+      "results": [
+        {
+          "title": "Regime switching forecasting for cryptocurrencies | Digital Finance | Springer Nature Link",
+          "url": "https://link.springer.com/article/10.1007/s42521-024-00123-2"
+        },
+        {
+          "title": "Dynamic portfolio optimization across hidden market regimes",
+          "url": "https://backend.orbit.dtu.dk/ws/portalfiles/portal/139272081/Dynamic_Portfolio_Optimization_Across_Hidden_Market_Regimes_ACCEPTED.pdf"
+        },
+        {
+          "title": "Damped Online Newton Step for Portfolio Selection",
+          "url": "https://proceedings.mlr.press/v178/mhammedi22b.html"
+        },
+        {
+          "title": "Algorithms for Portfolio Management based on the Newton Method",
+          "url": "https://www.schapire.net/papers/newton_portfolios.pdf"
+        },
+        {
+          "title": "Beyond static risk aversion: online multi-period mean-variance portfolio optimization using hidden Markov chains",
+          "url": "https://doi.org/10.1007/s00291-026-00859-w"
+        },
+        {
+          "title": "Confidence Weighted Mean Reversion Strategy for Online Portfolio Selection | ACM Transactions on Knowledge Discovery from Data",
+          "url": "https://dlnext.acm.org/doi/10.1145/2435209.2435213"
+        },
+        {
+          "title": "A framework for online investment algorithms",
+          "url": "https://arxiv.org/pdf/2003.13360v1.pdf"
+        },
+        {
+          "title": "PAMR: Passive Aggressive Mean Reversion Strategy for Portfolio Selection | ML Anthology",
+          "url": "https://mlanthology.org/mlj/2012/li2012mlj-pamr/"
+        }
+      ],
+      "returned_title_url_records": 8,
+      "search_angle": "adaptive"
+    },
+    {
+      "requested_results": 6,
+      "results": [
+        {
+          "title": "NVT Ratio | Glassnode Docs",
+          "url": "https://docs.glassnode.com/further-information/metric-guides/nvt/nvt-ratio"
+        },
+        {
+          "title": "MVRV Ratio | Glassnode Docs",
+          "url": "https://docs.glassnode.com/further-information/metric-guides/mvrv/mvrv-ratio"
+        },
+        {
+          "title": "N/A",
+          "url": "https://docs.glassnode.com/further-information/metric-guides/global-metrics/global-metrics-methodology"
+        },
+        {
+          "title": "N/A",
+          "url": "https://docs.glassnode.com/further-information/metric-guides/sopr/sopr-spent-output-profit-ratio"
+        },
+        {
+          "title": "N/A",
+          "url": "https://docs.glassnode.com/further-information"
+        },
+        {
+          "title": "MVRV | Glassnode Docs",
+          "url": "https://docs.glassnode.com/further-information/metric-guides/mvrv"
+        }
+      ],
+      "returned_title_url_records": 6,
+      "search_angle": "onchain_defs"
+    },
+    {
+      "requested_results": 6,
+      "results": [
+        {
+          "title": "N/A",
+          "url": "https://arxiv.org/pdf/2109.12142"
+        },
+        {
+          "title": "Do coins have a clock? Hours, weekdays, funding times, the US open \u00b7 The Lab \u00b7 TerminalGremlin",
+          "url": "https://terminalgremlin.com/lab/time-patterns/"
+        },
+        {
+          "title": "Intraday return predictability in the cryptocurrency markets",
+          "url": "https://www.researchgate.net/publication/361202793_Intraday_return_predictability_in_the_cryptocurrency_markets_momentum_reversal_or_both"
+        },
+        {
+          "title": "Understanding temporal dynamics of jumps in cryptocurrency markets: evidence from tick-by-tick data",
+          "url": "https://doi.org/10.1007/s42521-024-00116-1"
+        },
+        {
+          "title": "Bitcoin Overnight Trading Strategies | PDF | Cryptocurrency | Exchange Traded Fund",
+          "url": "https://www.scribd.com/document/866987782/ssrn-5021138"
+        },
+        {
+          "title": "Essays about Volatility and Liquidity in Cryptocurrency and Foreign Exchange Market",
+          "url": "https://doi.org/10.17615/q8bt-tj35"
+        }
+      ],
+      "returned_title_url_records": 6,
+      "search_angle": "missing_styles"
+    },
+    {
+      "requested_results": 6,
+      "results": [
+        {
+          "title": "Crypto Fear & Greed Index - Bitcoin Sentiment - Alternative.me",
+          "url": "https://alternative.me/crypto/fear-and-greed-index/"
+        },
+        {
+          "title": "Crypto API - Documentation - Alternative.me",
+          "url": "https://alternative.me/crypto/api/"
+        },
+        {
+          "title": "Crypto Fear & Greed Index",
+          "url": "https://alternative.me/crypto/fear-and-greed-index/?daily_hash=ae5e9fd7b1535a271ff48f7fcc49780a0de92b2d"
+        },
+        {
+          "title": "Crypto Fear & Greed Index",
+          "url": "https://alternative.me/crypto/fear-and-greed-index/?daily_hash=2159149c20804403eacde65bcc9afcc2bd0c83d4"
+        },
+        {
+          "title": "Crypto Fear & Greed Index",
+          "url": "https://alternative.me/crypto/fear-and-greed-index/?daily_hash=677e08f39c197e1afd8f40aa0021f32c1908c226"
+        },
+        {
+          "title": "api_alternative",
+          "url": "https://api.alternative.me/"
+        }
+      ],
+      "returned_title_url_records": 6,
+      "search_angle": "history_license"
+    }
+  ],
+  "source_text_policy": "No full articles, books or PDFs republished. Source links and authored brief findings only.",
+  "successful_page_extracts": 75,
+  "unique_search_urls": 246
+}

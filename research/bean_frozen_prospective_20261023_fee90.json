@@ -1,0 +1,126 @@
+{
+  "schema": "aiscend.bean.sixhour.prospective.freeze.v1",
+  "source_repo": "danieloculus0-bot/AIscend",
+  "source_pr": 69,
+  "source_head": "e571a66152c00a9dcff05f72bb904e5dd706b21c",
+  "source_actions_run": 39879281966,
+  "source_scoreboard_artifact_id": 12469858089,
+  "frozen_after_historical_holdout": true,
+  "frozen_at_utc": "2026-10-23T13:32:05Z",
+  "frozen_at_unix": 1792762325,
+  "period_seconds": 21600,
+  "fee_bps_per_side": 90,
+  "spread_bps_roundtrip": 10,
+  "min_forward_completed_bars": 120,
+  "min_realized_roundtrips": 5,
+  "min_excess_return_vs_cash": 0.02,
+  "min_excess_return_vs_buy_hold": 0.02,
+  "max_forward_drawdown": 0.2,
+  "candidate_validated": false,
+  "promotion_authorized": false,
+  "notes": "These five were selected after OPENED historical holdouts among 389 public Coinbase markets. Historical best-of-many is not independent evidence. The future experiment begins only after this freeze; never backfill trades at already-open bars. No authenticated account or real fills. Follow-on freeze preserves the five previously disclosed historically selected candidates but starts a distinct future-only paper window after 2026-10-23T13:32:05Z using 90 bps taker fee per side. The historical selection remains biased by opened data; this is only a forward paper test, not a profitability proof.",
+  "candidates": [
+    {
+      "product": "BIRB-USD",
+      "policy": "bean_q",
+      "historical_holdout_net": 0.08287504,
+      "historical_holdout_buy_hold": -0.21644575,
+      "historical_roundtrips": 3,
+      "historical_drawdown": 0.2291988,
+      "source_ledger_tip": "416ba1dbeec734d02d401482ca605bf614114500435b6261cab310dfc308bbe5",
+      "q_seed": {
+        "down/calm": {
+          "cash": -47.895962430894535,
+          "long": -135.66853329037778
+        },
+        "down/volatile": {
+          "cash": -65.94700924770777,
+          "long": 284.80089494525885
+        },
+        "flat/calm": {
+          "cash": -10.127582750582604,
+          "long": -40.382284382284354
+        },
+        "flat/volatile": {
+          "cash": -3.107319641916728,
+          "long": -62.076847231187436
+        },
+        "up/calm": {
+          "cash": -59.806279286744214,
+          "long": 44.239799557985435
+        },
+        "up/volatile": {
+          "cash": -11.283564172496117,
+          "long": -183.1828885694886
+        }
+      }
+    },
+    {
+      "product": "GWEI-USD",
+      "policy": "bean_q",
+      "historical_holdout_net": 0.07884513,
+      "historical_holdout_buy_hold": -0.05251071,
+      "historical_roundtrips": 7,
+      "historical_drawdown": 0.07581955,
+      "source_ledger_tip": "97fd530f84006101484576cb6c9d4fdf2588fad0a863b4b084042890f6e8b9ea",
+      "q_seed": {
+        "down/calm": {
+          "cash": -18.927212841710617,
+          "long": -215.38772985273098
+        },
+        "down/volatile": {
+          "cash": -49.99190559837215,
+          "long": 125.76133608170485
+        },
+        "flat/calm": {
+          "cash": 0,
+          "long": -0.8921467997274415
+        },
+        "flat/volatile": {
+          "cash": -9.521813638417878,
+          "long": 41.9188002923608
+        },
+        "up/calm": {
+          "cash": -9.663890319426503,
+          "long": -5.836845570790754
+        },
+        "up/volatile": {
+          "cash": -0.7346645805932682,
+          "long": -98.56366468261852
+        }
+      }
+    },
+    {
+      "product": "MPLX-USD",
+      "policy": "breakout_7d",
+      "historical_holdout_net": 0.09808667,
+      "historical_holdout_buy_hold": 0.09471959,
+      "historical_roundtrips": 6,
+      "historical_drawdown": 0.21104412,
+      "source_ledger_tip": "48870167d54a0d59f7a7c29687033f0d757af18e2701aa893cfb1ef1284c7771",
+      "q_seed": {}
+    },
+    {
+      "product": "PEPE-USD",
+      "policy": "breakout_7d",
+      "historical_holdout_net": 0.04863081,
+      "historical_holdout_buy_hold": -0.00843003,
+      "historical_roundtrips": 2,
+      "historical_drawdown": 0.03838084,
+      "source_ledger_tip": "0b5ee74f08060ddbec5bdde5606965295e9f4c08946c3922820ecbc9f475f59d",
+      "q_seed": {}
+    },
+    {
+      "product": "SHDW-USD",
+      "policy": "volatility_guard",
+      "historical_holdout_net": 0.18133372,
+      "historical_holdout_buy_hold": -0.09653516,
+      "historical_roundtrips": 1,
+      "historical_drawdown": 0.00416441,
+      "source_ledger_tip": "f7df407e85ab32460bf0447590e816e502cbe71a876e5fd0378dd6d392c25caf",
+      "q_seed": {}
+    }
+  ],
+  "parent_freeze_blob_sha": "b44bef7f9781dec52d4ac85802eb06b3637bfb9c",
+  "fee_schedule_reference": "Coinbase Advanced announcement, 2026-09-16: U.S. spot entry-level tier is 0.90% taker. User-specific account tier is not connected or verified."
+}

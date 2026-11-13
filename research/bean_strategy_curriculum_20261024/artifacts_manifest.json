@@ -1,0 +1,105 @@
+{
+  "schema": "aiscend.bean.curriculum_artifacts.v1",
+  "files": {
+    ".gitignore": {
+      "bytes": 56,
+      "sha256": "1508eca47a1100055c7e1a5501f3d1616c677c6158c019d77469c174541f8e29"
+    },
+    "RESULTS.md": {
+      "bytes": 8647,
+      "sha256": "97fd1b21210344b2b609522d41c5f0ae9aaa3b9423fc90ef559a76acc9ae56d9"
+    },
+    "decisions.jsonl.gz": {
+      "bytes": 2116077,
+      "sha256": "5d9565cd832c7c5e48a3812a3d20c596bd4e8d61c2aeb47151190706c7536a4f"
+    },
+    "decisions.metadata.json": {
+      "bytes": 39811,
+      "sha256": "bfec84ba9a432679f7b0966ff214a20d4edd04d424adc7407adcb2ef116ca93a"
+    },
+    "decisions.sqlite3.gz": {
+      "bytes": 2369789,
+      "sha256": "014a1e4829adcd9e38e9b7d94d489cc9eead4aff2a7082bbe61ae0143314a51f"
+    },
+    "environment.json": {
+      "bytes": 253,
+      "sha256": "8bba58c52c4e3d483b13c2c00f588aca2aa9dd8ff5770b25e1127ba7f4dfb875"
+    },
+    "expert_teachers/expert_decisions.jsonl.gz": {
+      "bytes": 7203457,
+      "sha256": "d232ef18175441c6648ba072e757c493b36bb711f292542f1813c2745a8a4d13"
+    },
+    "expert_teachers/expert_decisions.metadata.json": {
+      "bytes": 854,
+      "sha256": "d99b43304cb14bfca9f52408a76188a99943dbcbdb8b3f3caab91a71ad57caf2"
+    },
+    "expert_teachers/expert_decisions.sqlite3.gz": {
+      "bytes": 8403232,
+      "sha256": "fd531847d570b3d51a12a51b6456734fdd1c5fa1335c4f3c5b7c91727f5c0fde"
+    },
+    "expert_teachers/scoreboard.json": {
+      "bytes": 28012,
+      "sha256": "00a7d1020fe98d151873f1065c14bbe0657c3fe06f15a7177b01c5a39e726882"
+    },
+    "fold-0-seed-41.sqlite3.gz": {
+      "bytes": 4811178,
+      "sha256": "79699f9424668375d037038deb284f3cf2c26c236437dbf2040e4b1dc588c3d5"
+    },
+    "fold-0-seed-7.sqlite3.gz": {
+      "bytes": 4803582,
+      "sha256": "aefcbbf31073f8fa817c11ff9d0c3204d43c625395bdd71480b49b91f83ca4a8"
+    },
+    "fold-1-seed-41.sqlite3.gz": {
+      "bytes": 4884196,
+      "sha256": "dec9b1d4b19cae2847eea816f83f7cd3391d03d359920f7fcc48a77b5e0d5fce"
+    },
+    "fold-1-seed-7.sqlite3.gz": {
+      "bytes": 4900666,
+      "sha256": "a7491f4bb6f3d09ea1820ec932d016b30837fca2e5f87c5af8d3443e26d8dc58"
+    },
+    "protocol.json": {
+      "bytes": 2491,
+      "sha256": "22c81eee021c69ba48f8103eafe6bab27ba265a44b4f1cacb86c3220f3d45ede"
+    },
+    "results.json": {
+      "bytes": 59934,
+      "sha256": "c738e43be28bb382a5073a8b44253f5f926912619a8059c5ce42eb377df8dad6"
+    },
+    "retention_manifest.json": {
+      "bytes": 8716,
+      "sha256": "8e65641fe41a2bf85bac65673334ff3e282d4714deecf3f6acf21b87802e84ad"
+    },
+    "selected.sqlite3.gz": {
+      "bytes": 1648452,
+      "sha256": "a86fbbaefaf65d3ecf3f6c264dedebae77f0cfe835c0e1fefff2d6b5f02e9cdb"
+    },
+    "selection_lock.json": {
+      "bytes": 249,
+      "sha256": "e9cc0288250151beaf632da1929d636baca4d18ef6d4d416621d1ac65701afd1"
+    },
+    "source/candles.jsonl.gz": {
+      "bytes": 628563,
+      "sha256": "74bbb7cce38bdb652006460bef314ef2845db556488810587c4ddf34c74506ed"
+    },
+    "source/source_archives.zip": {
+      "bytes": 991578,
+      "sha256": "213e2ba4fdaa34c43fdd5397695b8d9f32601697a096afb22e13a66e20977b78"
+    },
+    "source/source_manifest.json": {
+      "bytes": 148489,
+      "sha256": "ece356156447cc54877ccb51990e844d70a0fe06de2906fec41734eba313da4c"
+    },
+    "strategy_lessons.json": {
+      "bytes": 71165,
+      "sha256": "a2d045932e1f5f983558ad1da357fcc79e5e6f6489cae48833ecebbc73fd529b"
+    },
+    "teaching_memory.sqlite3.gz": {
+      "bytes": 2514232,
+      "sha256": "f31d7072aa74e085647ceab91ef8529c19e84949dc975e2d024ec6828122cc56"
+    },
+    "untrained.sqlite3.gz": {
+      "bytes": 393,
+      "sha256": "b2c40bfb08ccb1c27ca2fef16bff11db6afc0131b6d9ed5fcb8c03b25fa85d41"
+    }
+  }
+}

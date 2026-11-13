@@ -1,0 +1,52 @@
+name: BEAN reconciled net-liquidation reward learning
+on:
+  push:
+    branches: ['experiment/bean-economic-values-20261024']
+    paths:
+      - 'src/bean_net_liquidation_learning.py'
+      - 'tests/test_bean_net_liquidation_learning.py'
+      - '.github/workflows/bean-net-liquidation-learning.yml'
+  pull_request:
+    paths:
+      - 'src/bean_net_liquidation_learning.py'
+      - 'tests/test_bean_net_liquidation_learning.py'
+      - '.github/workflows/bean-net-liquidation-learning.yml'
+permissions:
+  contents: write
+jobs:
+  matched-reward-learning:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements-research.txt
+      - uses: actions/checkout@v4
+        with:
+          repository: danieloculus0-bot/BEAN
+          ref: 887935ae816b4ce6175c6cde54d749f0e5cf3268
+          path: core-bean
+      - run: python -m unittest tests.test_bean_net_liquidation_learning tests.test_bean_route_values -v
+      - name: Compare matched old and net-liquidation supervised rewards
+        if: github.event_name == 'push'
+        run: python -m src.bean_net_liquidation_learning --source research/bean_economic_values_chunked_20261024 --control research/bean_action_alias_audit_20261024 --candles research/bean_strategy_curriculum_20261024/source/candles.jsonl.gz --core-dir core-bean --output /tmp/bean-net-liquidation-learning-20261024
+      - name: Archive complete training states and all financial outcomes
+        if: github.event_name == 'push'
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib,json,shutil
+          source=Path('/tmp/bean-net-liquidation-learning-20261024');target=Path('research/bean_net_liquidation_learning_20261024');target.mkdir(parents=True,exist_ok=True)
+          for p in source.iterdir():
+              if p.name.endswith(('.sqlite3','.jsonl')):continue
+              shutil.copy2(p,target/p.name)
+          (target/'.gitignore').write_text('*.sqlite3\n*.sqlite3-*\n*.jsonl\n!*.sqlite3.gz\n!*.jsonl.gz\n')
+          (target/'artifacts_manifest.json').write_text(json.dumps({'files':{p.name:{'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in sorted(target.iterdir()) if p.is_file() and p.name!='artifacts_manifest.json'}},indent=2)+'\n')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add research/bean_net_liquidation_learning_20261024
+          git commit -m 'Archive reconciled liquidation-reward training and matched controls'
+          git push origin HEAD:experiment/bean-economic-values-20261024

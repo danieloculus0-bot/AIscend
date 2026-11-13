@@ -43,11 +43,19 @@ jobs:
           python --version
           Write-Host "Version:"
           Get-Content VERSION
+          Write-Host "Node.js browser syntax checker:"
+          node --version
 
       - name: Run canonical Windows build
         shell: pwsh
         run: |
           .\build.ps1
+
+      - name: Exercise actual Qt desktop with Advanced Spot positions
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m scripts.desktop_integration_check
 
       - name: Verify packaged checksum
         shell: pwsh

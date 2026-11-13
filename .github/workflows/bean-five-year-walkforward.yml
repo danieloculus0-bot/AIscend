@@ -1,0 +1,159 @@
+name: BEAN Five Year Full Coinbase Universe Gauntlet
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/bean_five_year_*.py"
+      - "tests/test_bean_five_year_*.py"
+      - ".github/workflows/bean-five-year-walkforward.yml"
+      - "src/published_strategy_research.py"
+      - "scripts/bean_five_year_archive.py"
+      - "scripts/bean_five_year_recall.py"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  catalog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify BEAN archive and strictly causal learning recall
+        run: python -m unittest discover -s tests -p "test_bean_five_year_archive_recall.py" -v
+      - name: Freeze entire eligible Coinbase public spot catalog ONCE
+        run: |
+          python -m scripts.bean_five_year_universe --snapshot-catalog artifacts/bean-5y-catalog.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bean-five-year-complete-catalog
+          path: artifacts/bean-5y-catalog.json
+          if-no-files-found: error
+          retention-days: 90
+  five-year-shards:
+    needs: catalog
+    runs-on: ubuntu-latest
+    timeout-minutes: 105
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: bean-five-year-complete-catalog
+          path: artifacts
+      - name: Verify five-year causal learning, ledger, and catalog regressions
+        run: |
+          python -m unittest discover -s tests -p "test_bean_five_year_walkforward.py" -v
+          python -m unittest discover -s tests -p "test_bean_five_year_ledger.py" -v
+          python -m unittest discover -s tests -p "test_bean_five_year_universe.py" -v
+      - name: Simulate ALL products assigned to this immutable shard
+        run: |
+          python -m scripts.bean_five_year_walkforward --catalog artifacts/bean-5y-catalog.json --shards 8 --shard-index ${{ matrix.shard }} --years 5 --output artifacts/bean-5y-shard-${{ matrix.shard }}.json
+      - name: Persist immutable BEAN learning for EVERY assigned market
+        run: |
+          python -m scripts.bean_five_year_ledger --report artifacts/bean-5y-shard-${{ matrix.shard }}.json --db artifacts/bean-5y-shard-${{ matrix.shard }}.sqlite3
+          python -m scripts.bean_five_year_ledger --audit-only --db artifacts/bean-5y-shard-${{ matrix.shard }}.sqlite3
+      - name: Preserve shard outcomes, including ordinary incomplete histories
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bean-five-year-shard-${{ matrix.shard }}
+          path: |
+            artifacts/bean-5y-shard-${{ matrix.shard }}.json
+            artifacts/bean-5y-shard-${{ matrix.shard }}.sqlite3
+          if-no-files-found: warn
+          retention-days: 90
+  aggregate:
+    needs: [catalog, five-year-shards]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: bean-five-year-complete-catalog
+          path: artifacts
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bean-five-year-shard-*
+          path: artifacts/shards
+          merge-multiple: true
+      - name: Require EVERY catalog market and save ONE auditable BEAN ledger
+        run: |
+          python -m scripts.bean_five_year_universe --catalog artifacts/bean-5y-catalog.json --aggregate artifacts/shards/bean-5y-shard-*.json --db artifacts/bean-5y-universe.sqlite3 --summary artifacts/bean-5y-universe-summary.json
+          python -m scripts.bean_five_year_ledger --audit-only --db artifacts/bean-5y-universe.sqlite3
+      - name: Checkout actual BEAN Core in independent advisory mode
+        run: git clone --depth 1 https://github.com/danieloculus0-bot/BEAN.git "$RUNNER_TEMP/bean-core"
+      - name: Real BEAN bridge reviews all-market research snapshot
+        run: |
+          python -m scripts.bean_five_year_universe --bridge-input artifacts/bean-5y-universe-summary.json --bridge-output artifacts/bean-5y-universe-bridge-snapshot.json
+          python -m scripts.bean_portfolio_review --core "$RUNNER_TEMP/bean-core" --snapshot artifacts/bean-5y-universe-bridge-snapshot.json --db "$RUNNER_TEMP/bean-five-year-review.db" --output artifacts/bean-5y-universe-bean-core-advisory.json
+          python -c "import json; p=json.load(open('artifacts/bean-5y-universe-bean-core-advisory.json')); assert p['trade_authorized'] is False and len(p['core']['sha'])==40"
+      - name: Archive every result, learner ledger, and bridge report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bean-five-year-ALL-market-ledger-${{ github.run_number }}
+          path: |
+            artifacts/bean-5y-catalog.json
+            artifacts/bean-5y-universe.sqlite3
+            artifacts/bean-5y-universe-summary.json
+            artifacts/bean-5y-universe-bridge-snapshot.json
+            artifacts/bean-5y-universe-bean-core-advisory.json
+          retention-days: 90
+          if-no-files-found: warn
+  archive-to-review-branch:
+    needs: [aggregate]
+    if: ${{ needs.aggregate.result == 'success' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: bean-five-year-ALL-market-ledger-${{ github.run_number }}
+          path: artifacts/retained
+      - name: Verify and pack COMPLETE ledger in source-controlled archive
+        run: |
+          mkdir -p research/bean-five-year
+          python -m scripts.bean_five_year_archive --create research/bean-five-year/run-${{ github.run_id }}.zip --catalog artifacts/retained/bean-5y-catalog.json --summary artifacts/retained/bean-5y-universe-summary.json --db artifacts/retained/bean-5y-universe.sqlite3 > research/bean-five-year/run-${{ github.run_id }}.manifest.json
+          python -m scripts.bean_five_year_archive --verify research/bean-five-year/run-${{ github.run_id }}.zip
+      - name: Commit ONLY archive files to a NEW research review branch
+        env:
+          ARCHIVE_BRANCH: research/bean-five-year-${{ github.run_id }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main:refs/remotes/origin/main
+          git switch -c "$ARCHIVE_BRANCH" origin/main
+          git add -f "research/bean-five-year/run-${{ github.run_id }}.zip" "research/bean-five-year/run-${{ github.run_id }}.manifest.json"
+          git commit -m "archive(research): verified full Coinbase five-year BEAN ledger [skip ci]"
+          git push origin "HEAD:refs/heads/$ARCHIVE_BRANCH"
+      - name: Create DRAFT review PR for archive (never auto-merge)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARCHIVE_BRANCH: research/bean-five-year-${{ github.run_id }}
+        run: |
+          gh pr create --base main --head "$ARCHIVE_BRANCH" --draft --title "archive: full Coinbase 5-year BEAN research run ${{ github.run_id }}" --body "Complete verified five-year public-market BEAN SQLite research ledger, normal incomplete outcomes, and checksum manifest. Historic research only; review required, no live trading permission."

@@ -1,0 +1,1771 @@
+{
+  "schema": "aiscend.bean.curriculum_results.v1",
+  "protocol_sha256": "1c17f63d07d694210d3cf11968440dae522249b21374d808eefdb6416d8f871e",
+  "development_only": true,
+  "trials": [
+    {
+      "seed": 7,
+      "budget": 256,
+      "fold_returns": [
+        -0.13046490582990694,
+        -0.1853432518853282
+      ],
+      "folds": [
+        {
+          "label": "fold-0-seed-7-updates-256",
+          "equal_weight_mean_return": -0.13046490582990694,
+          "worst_asset_drawdown": 0.42237575892963997,
+          "per_symbol": {
+            "ADAUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 752.6593778300122,
+              "net_return": -0.24734062216998776,
+              "drawdown": 0.2786753191281086,
+              "costs": 91.1089867609944,
+              "orders": 10
+            },
+            "BTCUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 843.3067237664369,
+              "net_return": -0.1566932762335631,
+              "drawdown": 0.18780432393353774,
+              "costs": 18.419239834024413,
+              "orders": 2
+            },
+            "DOGEUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 828.7502543057956,
+              "net_return": -0.17124974569420437,
+              "drawdown": 0.3109261049607823,
+              "costs": 54.29298029482681,
+              "orders": 6
+            },
+            "ETHUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 816.8426988648055,
+              "net_return": -0.18315730113519457,
+              "drawdown": 0.2441129693004065,
+              "costs": 35.39856064434805,
+              "orders": 4
+            },
+            "LINKUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 821.5916355846518,
+              "net_return": -0.17840836441534813,
+              "drawdown": 0.3061629427054633,
+              "costs": 57.91290719477168,
+              "orders": 8
+            },
+            "LTCUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 693.7812567988074,
+              "net_return": -0.3062187432011927,
+              "drawdown": 0.4049339483242751,
+              "costs": 52.49897509470594,
+              "orders": 7
+            },
+            "SOLUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 764.9520626832943,
+              "net_return": -0.2350479373167057,
+              "drawdown": 0.42237575892963997,
+              "costs": 37.18630414143406,
+              "orders": 4
+            },
+            "XRPUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 1434.3967435269408,
+              "net_return": 0.4343967435269407,
+              "drawdown": 0.23931836069126544,
+              "costs": 58.018213243224345,
+              "orders": 5
+            }
+          },
+          "action_counts": {
+            "sma_trend": 11,
+            "cash": 71,
+            "buy_hold": 26,
+            "hold": 51,
+            "donchian_breakout": 7,
+            "price_trend": 3,
+            "hammer_rebound": 3,
+            "rsi_pullback": 1,
+            "risk_scaled_trend": 3
+          },
+          "state": {
+            "updates": 256,
+            "frames": 23232,
+            "replay": 4096,
+            "weights_sha256": "fcab7fbe64fb333714cb969e7517cb1d2e571661a27692cb5cbd8fa848d72c2a",
+            "knowledge_cutoff": 1680307200
+          },
+          "periods": 22,
+          "scope": "Already available historical development diagnostics, not unseen external performance"
+        },
+        {
+          "label": "fold-1-seed-7-updates-256",
+          "equal_weight_mean_return": -0.1853432518853282,
+          "worst_asset_drawdown": 0.4834406758471498,
+          "per_symbol": {
+            "ADAUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 717.9526639791825,
+              "net_return": -0.28204733602081755,
+              "drawdown": 0.4592370666046246,
+              "costs": 30.42763437354827,
+              "orders": 4
+            },
+            "BTCUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 962.0027702619053,
+              "net_return": -0.03799722973809472,
+              "drawdown": 0.22470634313633575,
+              "costs": 57.635336458477724,
+              "orders": 6
+            },
+            "DOGEUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 657.5131532879052,
+              "net_return": -0.34248684671209484,
+              "drawdown": 0.40150557407194576,
+              "costs": 16.542537101918033,
+              "orders": 2
+            },
+            "ETHUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 710.5939909086328,
+              "net_return": -0.28940600909136716,
+              "drawdown": 0.4117795577006488,
+              "costs": 36.738026569176846,
+              "orders": 4
+            },
+            "LINKUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 692.6753164874137,
+              "net_return": -0.30732468351258624,
+              "drawdown": 0.4834406758471498,
+              "costs": 51.133317526119434,
+              "orders": 6
+            },
+            "LTCUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 976.4937830992404,
+              "net_return": -0.023506216900759602,
+              "drawdown": 0.24019541321753268,
+              "costs": 19.764563665668895,
+              "orders": 2
+            },
+            "SOLUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 824.6146043432643,
+              "net_return": -0.17538539565673572,
+              "drawdown": 0.29924347316889266,
+              "costs": 49.79898045495186,
+              "orders": 6
+            },
+            "XRPUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 975.4077025498303,
+              "net_return": -0.024592297450169665,
+              "drawdown": 0.3203175631885937,
+              "costs": 19.753593155068792,
+              "orders": 2
+            }
+          },
+          "action_counts": {
+            "bollinger_revert": 4,
+            "sma_trend": 9,
+            "hold": 91,
+            "cash": 42,
+            "hammer_rebound": 7,
+            "buy_hold": 7,
+            "donchian_breakout": 11,
+            "rsi_pullback": 5
+          },
+          "state": {
+            "updates": 256,
+            "frames": 35376,
+            "replay": 4096,
+            "weights_sha256": "f5eeac8e3b3a753e5441cf0fea8bb8b0280fc2bb7d3f5ae8ddc48131ba0053c7",
+            "knowledge_cutoff": 1711929600
+          },
+          "periods": 22,
+          "scope": "Already available historical development diagnostics, not unseen external performance"
+        }
+      ]
+    },
+    {
+      "seed": 7,
+      "budget": 1024,
+      "fold_returns": [
+        -0.21219920808752113,
+        -0.1643144567294803
+      ],
+      "folds": [
+        {
+          "label": "fold-0-seed-7-updates-1024",
+          "equal_weight_mean_return": -0.21219920808752113,
+          "worst_asset_drawdown": 0.5563592511420505,
+          "per_symbol": {
+            "ADAUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 747.8738373931027,
+              "net_return": -0.25212616260689735,
+              "drawdown": 0.27413109314354056,
+              "costs": 73.79387265768673,
+              "orders": 8
+            },
+            "BTCUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 856.079160593537,
+              "net_return": -0.14392083940646294,
+              "drawdown": 0.15491917354290463,
+              "costs": 54.488209674598245,
+              "orders": 6
+            },
+            "DOGEUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 947.5886490326795,
+              "net_return": -0.052411350967320414,
+              "drawdown": 0.2364410035685729,
+              "costs": 78.56551537631219,
+              "orders": 8
+            },
+            "ETHUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 825.39914835882,
+              "net_return": -0.17460085164118,
+              "drawdown": 0.24411296930040638,
+              "costs": 54.65628718030401,
+              "orders": 6
+            },
+            "LINKUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 704.4003338933065,
+              "net_return": -0.2955996661066934,
+              "drawdown": 0.40513141363953886,
+              "costs": 46.95168286995296,
+              "orders": 6
+            },
+            "LTCUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 730.5321079139687,
+              "net_return": -0.2694678920860313,
+              "drawdown": 0.3541139973958375,
+              "costs": 77.32618790351921,
+              "orders": 8
+            },
+            "SOLUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 479.8530501642777,
+              "net_return": -0.5201469498357223,
+              "drawdown": 0.5563592511420505,
+              "costs": 51.35609709125636,
+              "orders": 8
+            },
+            "XRPUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 1010.6800479501388,
+              "net_return": 0.010680047950138771,
+              "drawdown": 0.4481884115924134,
+              "costs": 50.440043945881754,
+              "orders": 4
+            }
+          },
+          "action_counts": {
+            "sma_trend": 21,
+            "cash": 47,
+            "buy_hold": 40,
+            "hammer_rebound": 6,
+            "rsi_pullback": 1,
+            "bollinger_revert": 2,
+            "donchian_breakout": 3,
+            "hold": 46,
+            "price_trend": 5,
+            "bullish_engulf": 4,
+            "risk_scaled_trend": 1
+          },
+          "state": {
+            "updates": 1024,
+            "frames": 23232,
+            "replay": 4096,
+            "weights_sha256": "2f0f1754683057a64d0336a40c19e4d6a2ef18b4dea1a9b401e51dd4f12b1958",
+            "knowledge_cutoff": 1680307200
+          },
+          "periods": 22,
+          "scope": "Already available historical development diagnostics, not unseen external performance"
+        },
+        {
+          "label": "fold-1-seed-7-updates-1024",
+          "equal_weight_mean_return": -0.1643144567294803,
+          "worst_asset_drawdown": 0.5448277847748698,
+          "per_symbol": {
+            "ADAUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 717.9526639791825,
+              "net_return": -0.28204733602081755,
+              "drawdown": 0.4592370666046246,
+              "costs": 30.42763437354827,
+              "orders": 4
+            },
+            "BTCUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 932.7707407829433,
+              "net_return": -0.06722925921705669,
+              "drawdown": 0.24653769896676903,
+              "costs": 19.322916773585085,
+              "orders": 2
+            },
+            "DOGEUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 725.5305151099877,
+              "net_return": -0.2744694848900122,
+              "drawdown": 0.40150557407194576,
+              "costs": 30.38115938430741,
+              "orders": 4
+            },
+            "ETHUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 699.8334159907782,
+              "net_return": -0.3001665840092218,
+              "drawdown": 0.4212150688616231,
+              "costs": 42.569863167119024,
+              "orders": 6
+            },
+            "LINKUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 698.8466065526169,
+              "net_return": -0.3011533934473831,
+              "drawdown": 0.5448277847748698,
+              "costs": 33.239522055339506,
+              "orders": 5
+            },
+            "LTCUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 965.5997981738573,
+              "net_return": -0.034400201826142784,
+              "drawdown": 0.2401954132175328,
+              "costs": 39.433376787559745,
+              "orders": 4
+            },
+            "SOLUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 828.6402281532502,
+              "net_return": -0.17135977184674978,
+              "drawdown": 0.3302088912694161,
+              "costs": 18.271093413689194,
+              "orders": 2
+            },
+            "XRPUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 1116.3103774215415,
+              "net_return": 0.11631037742154149,
+              "drawdown": 0.22112474111836877,
+              "costs": 21.176852497207292,
+              "orders": 2
+            }
+          },
+          "action_counts": {
+            "bollinger_revert": 8,
+            "buy_hold": 13,
+            "risk_scaled_trend": 6,
+            "price_trend": 6,
+            "hold": 120,
+            "cash": 9,
+            "donchian_breakout": 8,
+            "sma_trend": 2,
+            "hammer_rebound": 2,
+            "rsi_pullback": 2
+          },
+          "state": {
+            "updates": 1024,
+            "frames": 35376,
+            "replay": 4096,
+            "weights_sha256": "31aee0d85f7eb0e6f52cc972306d101e37dee7040e9c52a4614f3f14df19712a",
+            "knowledge_cutoff": 1711929600
+          },
+          "periods": 22,
+          "scope": "Already available historical development diagnostics, not unseen external performance"
+        }
+      ]
+    },
+    {
+      "seed": 7,
+      "budget": 4096,
+      "fold_returns": [
+        -0.2521219454148075,
+        -0.2317205282153525
+      ],
+      "folds": [
+        {
+          "label": "fold-0-seed-7-updates-4096",
+          "equal_weight_mean_return": -0.2521219454148075,
+          "worst_asset_drawdown": 0.5167045379853289,
+          "per_symbol": {
+            "ADAUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 662.0319994211327,
+              "net_return": -0.33796800057886733,
+              "drawdown": 0.35744717932788905,
+              "costs": 95.92335926152221,
+              "orders": 13
+            },
+            "BTCUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 829.2315027205069,
+              "net_return": -0.17076849727949306,
+              "drawdown": 0.2076153552790566,
+              "costs": 72.30634801686149,
+              "orders": 8
+            },
+            "DOGEUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 947.8129416446625,
+              "net_return": -0.052187058355337546,
+              "drawdown": 0.1275292688601517,
+              "costs": 79.17678876845984,
+              "orders": 8
+            },
+            "ETHUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 818.6474194966743,
+              "net_return": -0.1813525805033257,
+              "drawdown": 0.20908084970189433,
+              "costs": 54.279107230581424,
+              "orders": 6
+            },
+            "LINKUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 729.0132640506251,
+              "net_return": -0.27098673594937484,
+              "drawdown": 0.30182881993210475,
+              "costs": 101.9738815625594,
+              "orders": 12
+            },
+            "LTCUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 483.7199678085573,
+              "net_return": -0.5162800321914427,
+              "drawdown": 0.5167045379853289,
+              "costs": 90.56635798242999,
+              "orders": 12
+            },
+            "SOLUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 625.5378682999834,
+              "net_return": -0.37446213170001663,
+              "drawdown": 0.404758320779528,
+              "costs": 83.91632311926936,
+              "orders": 10
+            },
+            "XRPUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 887.0294732393978,
+              "net_return": -0.11297052676060215,
+              "drawdown": 0.35921633822834176,
+              "costs": 80.01612391117965,
+              "orders": 10
+            }
+          },
+          "action_counts": {
+            "sma_trend": 44,
+            "cash": 44,
+            "hammer_rebound": 2,
+            "donchian_breakout": 7,
+            "risk_scaled_trend": 6,
+            "bullish_engulf": 8,
+            "buy_hold": 49,
+            "price_trend": 5,
+            "hold": 5,
+            "bollinger_revert": 5,
+            "rsi_pullback": 1
+          },
+          "state": {
+            "updates": 4096,
+            "frames": 23232,
+            "replay": 4096,
+            "weights_sha256": "964280b78c85b6be7c8b68a831a60dba16ee15ea3f9ae0755456809eac6135e6",
+            "knowledge_cutoff": 1680307200
+          },
+          "periods": 22,
+          "scope": "Already available historical development diagnostics, not unseen external performance"
+        },
+        {
+          "label": "fold-1-seed-7-updates-4096",
+          "equal_weight_mean_return": -0.2317205282153525,
+          "worst_asset_drawdown": 0.56304361883565,
+          "per_symbol": {
+            "ADAUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 655.3993272742542,
+              "net_return": -0.3446006727257458,
+              "drawdown": 0.5063523257955933,
+              "costs": 33.423768895837696,
+              "orders": 4
+            },
+            "BTCUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 916.3136734090983,
+              "net_return": -0.0836863265909017,
+              "drawdown": 0.27506778362531037,
+              "costs": 54.50991117883334,
+              "orders": 6
+            },
+            "DOGEUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 615.7518448251212,
+              "net_return": -0.38424815517487876,
+              "drawdown": 0.56304361883565,
+              "costs": 68.88973436493005,
+              "orders": 10
+            },
+            "ETHUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 839.2672903151355,
+              "net_return": -0.16073270968486453,
+              "drawdown": 0.34811992898980915,
+              "costs": 72.83589002460997,
+              "orders": 8
+            },
+            "LINKUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 635.9339956567552,
+              "net_return": -0.36406600434324476,
+              "drawdown": 0.5448277847748697,
+              "costs": 57.89200808267252,
+              "orders": 8
+            },
+            "LTCUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 790.1066950162029,
+              "net_return": -0.2098933049837971,
+              "drawdown": 0.3683438628158845,
+              "costs": 17.881865806244274,
+              "orders": 2
+            },
+            "SOLUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 718.0552452307825,
+              "net_return": -0.28194475476921754,
+              "drawdown": 0.3359877343575882,
+              "costs": 63.30616048561537,
+              "orders": 8
+            },
+            "XRPUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 975.4077025498303,
+              "net_return": -0.024592297450169665,
+              "drawdown": 0.3203175631885937,
+              "costs": 19.753593155068792,
+              "orders": 2
+            }
+          },
+          "action_counts": {
+            "price_trend": 14,
+            "buy_hold": 42,
+            "cash": 19,
+            "sma_trend": 2,
+            "bollinger_revert": 6,
+            "hold": 76,
+            "bullish_engulf": 6,
+            "donchian_breakout": 9,
+            "rsi_pullback": 2
+          },
+          "state": {
+            "updates": 4096,
+            "frames": 35376,
+            "replay": 4096,
+            "weights_sha256": "8ae61d12359c59969a558157424ec4ef4960316be18765e423c03d2435dca9ce",
+            "knowledge_cutoff": 1711929600
+          },
+          "periods": 22,
+          "scope": "Already available historical development diagnostics, not unseen external performance"
+        }
+      ]
+    },
+    {
+      "seed": 41,
+      "budget": 256,
+      "fold_returns": [
+        -0.05915079298213351,
+        -0.15936869270851728
+      ],
+      "folds": [
+        {
+          "label": "fold-0-seed-41-updates-256",
+          "equal_weight_mean_return": -0.05915079298213351,
+          "worst_asset_drawdown": 0.2894995093228655,
+          "per_symbol": {
+            "ADAUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 959.2046687421733,
+              "net_return": -0.04079533125782664,
+              "drawdown": 0.07355465884079215,
+              "costs": 39.992209229693046,
+              "orders": 4
+            },
+            "BTCUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 983.134637695138,
+              "net_return": -0.01686536230486191,
+              "drawdown": 0.05313490427201695,
+              "costs": 19.831643005021395,
+              "orders": 2
+            },
+            "DOGEUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 1058.2389246097432,
+              "net_return": 0.058238924609743226,
+              "drawdown": 0.15383018094083434,
+              "costs": 41.612741412071955,
+              "orders": 4
+            },
+            "ETHUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 999.6485984917804,
+              "net_return": -0.000351401508219662,
+              "drawdown": 0.06883047558231792,
+              "costs": 19.998450689835963,
+              "orders": 2
+            },
+            "LINKUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 740.796376611417,
+              "net_return": -0.25920362338858294,
+              "drawdown": 0.28743917226782667,
+              "costs": 33.376161025833724,
+              "orders": 4
+            },
+            "LTCUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 887.1594004397631,
+              "net_return": -0.11284059956023695,
+              "drawdown": 0.23907076408697714,
+              "costs": 40.29715984567051,
+              "orders": 4
+            },
+            "SOLUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 881.7373491472085,
+              "net_return": -0.11826265085279142,
+              "drawdown": 0.2894995093228655,
+              "costs": 18.807427969183724,
+              "orders": 2
+            },
+            "XRPUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 1016.8737004057083,
+              "net_return": 0.016873700405708236,
+              "drawdown": 0.14510919598933203,
+              "costs": 40.688078341739676,
+              "orders": 5
+            }
+          },
+          "action_counts": {
+            "price_trend": 3,
+            "cash": 119,
+            "donchian_breakout": 15,
+            "sma_trend": 4,
+            "hold": 12,
+            "bollinger_revert": 11,
+            "risk_scaled_trend": 1,
+            "rsi_pullback": 5,
+            "hammer_rebound": 5,
+            "buy_hold": 1
+          },
+          "state": {
+            "updates": 256,
+            "frames": 23232,
+            "replay": 4096,
+            "weights_sha256": "20dd48e20715cfdb84959df09c47031a28308c2e085e8717c2300bd6630b83dc",
+            "knowledge_cutoff": 1680307200
+          },
+          "periods": 22,
+          "scope": "Already available historical development diagnostics, not unseen external performance"
+        },
+        {
+          "label": "fold-1-seed-41-updates-256",
+          "equal_weight_mean_return": -0.15936869270851728,
+          "worst_asset_drawdown": 0.49177122372494697,
+          "per_symbol": {
+            "ADAUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 674.7581635200049,
+              "net_return": -0.32524183647999505,
+              "drawdown": 0.49177122372494697,
+              "costs": 16.716729124464496,
+              "orders": 2
+            },
+            "BTCUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 937.182667753002,
+              "net_return": -0.06281733224699804,
+              "drawdown": 0.2447092668624492,
+              "costs": 37.43637391269968,
+              "orders": 4
+            },
+            "DOGEUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 732.3349345785294,
+              "net_return": -0.2676650654214705,
+              "drawdown": 0.3174628750750622,
+              "costs": 31.70915981490686,
+              "orders": 4
+            },
+            "ETHUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 690.2967690474303,
+              "net_return": -0.3097032309525697,
+              "drawdown": 0.42858133336072435,
+              "costs": 16.873684735852628,
+              "orders": 2
+            },
+            "LINKUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 773.0591585688489,
+              "net_return": -0.226940841431151,
+              "drawdown": 0.4834406758471498,
+              "costs": 64.99490691372098,
+              "orders": 8
+            },
+            "LTCUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 976.4937830992404,
+              "net_return": -0.023506216900759602,
+              "drawdown": 0.24019541321753268,
+              "costs": 19.764563665668895,
+              "orders": 2
+            },
+            "SOLUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 824.6146043432643,
+              "net_return": -0.17538539565673572,
+              "drawdown": 0.29924347316889266,
+              "costs": 49.79898045495186,
+              "orders": 6
+            },
+            "XRPUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 1116.3103774215415,
+              "net_return": 0.11631037742154149,
+              "drawdown": 0.22112474111836877,
+              "costs": 21.176852497207292,
+              "orders": 2
+            }
+          },
+          "action_counts": {
+            "bollinger_revert": 2,
+            "price_trend": 4,
+            "hold": 96,
+            "cash": 58,
+            "hammer_rebound": 2,
+            "sma_trend": 7,
+            "buy_hold": 7
+          },
+          "state": {
+            "updates": 256,
+            "frames": 35376,
+            "replay": 4096,
+            "weights_sha256": "fb58ba55df2a03d6e829b2d273abc5a03bb9f885a05368f2a8a815136443ea7b",
+            "knowledge_cutoff": 1711929600
+          },
+          "periods": 22,
+          "scope": "Already available historical development diagnostics, not unseen external performance"
+        }
+      ]
+    },
+    {
+      "seed": 41,
+      "budget": 1024,
+      "fold_returns": [
+        -0.11055641590361577,
+        -0.1906696603200289
+      ],
+      "folds": [
+        {
+          "label": "fold-0-seed-41-updates-1024",
+          "equal_weight_mean_return": -0.11055641590361577,
+          "worst_asset_drawdown": 0.3418484116732706,
+          "per_symbol": {
+            "ADAUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 814.9346557056625,
+              "net_return": -0.18506534429433752,
+              "drawdown": 0.22740200894572782,
+              "costs": 77.69361489218379,
+              "orders": 8
+            },
+            "BTCUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 983.134637695138,
+              "net_return": -0.01686536230486191,
+              "drawdown": 0.05313490427201695,
+              "costs": 19.831643005021395,
+              "orders": 2
+            },
+            "DOGEUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 1051.0183499686168,
+              "net_return": 0.05101834996861676,
+              "drawdown": 0.15270833333333322,
+              "costs": 20.51733706838987,
+              "orders": 2
+            },
+            "ETHUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 1013.1173154743838,
+              "net_return": 0.013117315474383773,
+              "drawdown": 0.05592828579318254,
+              "costs": 33.35571786732009,
+              "orders": 4
+            },
+            "LINKUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 672.6271762581955,
+              "net_return": -0.32737282374180454,
+              "drawdown": 0.3418484116732706,
+              "costs": 60.91474996954085,
+              "orders": 8
+            },
+            "LTCUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 890.4052332514747,
+              "net_return": -0.10959476674852531,
+              "drawdown": 0.18052357868595914,
+              "costs": 40.40836971964035,
+              "orders": 4
+            },
+            "SOLUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 697.0105525545728,
+              "net_return": -0.3029894474454272,
+              "drawdown": 0.33582519828181356,
+              "costs": 71.85839154473696,
+              "orders": 11
+            },
+            "XRPUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 993.3007518630297,
+              "net_return": -0.006699248136970204,
+              "drawdown": 0.27384709553660336,
+              "costs": 73.69068688769323,
+              "orders": 9
+            }
+          },
+          "action_counts": {
+            "price_trend": 14,
+            "cash": 73,
+            "donchian_breakout": 8,
+            "bollinger_revert": 32,
+            "hold": 16,
+            "rsi_pullback": 7,
+            "sma_trend": 13,
+            "bullish_engulf": 4,
+            "risk_scaled_trend": 7,
+            "hammer_rebound": 1,
+            "buy_hold": 1
+          },
+          "state": {
+            "updates": 1024,
+            "frames": 23232,
+            "replay": 4096,
+            "weights_sha256": "73041c440d755546e50f8f15a1e77f3c9838b31762c701db9f1f4438eb925aa0",
+            "knowledge_cutoff": 1680307200
+          },
+          "periods": 22,
+          "scope": "Already available historical development diagnostics, not unseen external performance"
+        },
+        {
+          "label": "fold-1-seed-41-updates-1024",
+          "equal_weight_mean_return": -0.1906696603200289,
+          "worst_asset_drawdown": 0.5106746535481204,
+          "per_symbol": {
+            "ADAUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 820.8682300588614,
+              "net_return": -0.17913176994113855,
+              "drawdown": 0.37681945489887525,
+              "costs": 48.10517889328779,
+              "orders": 6
+            },
+            "BTCUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 937.182667753002,
+              "net_return": -0.06281733224699804,
+              "drawdown": 0.2447092668624492,
+              "costs": 37.43637391269968,
+              "orders": 4
+            },
+            "DOGEUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 720.4703029841113,
+              "net_return": -0.2795296970158887,
+              "drawdown": 0.3046902654867256,
+              "costs": 17.178467906930216,
+              "orders": 2
+            },
+            "ETHUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 788.3473954216214,
+              "net_return": -0.21165260457837864,
+              "drawdown": 0.30551157954849284,
+              "costs": 49.48223203258716,
+              "orders": 7
+            },
+            "LINKUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 772.1680118868906,
+              "net_return": -0.22783198811310945,
+              "drawdown": 0.24470119695550996,
+              "costs": 35.800557541991154,
+              "orders": 5
+            },
+            "LTCUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 729.4090188284496,
+              "net_return": -0.27059098117155045,
+              "drawdown": 0.41329478822382604,
+              "costs": 35.8970345346068,
+              "orders": 4
+            },
+            "SOLUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 531.61364372985,
+              "net_return": -0.46838635627015,
+              "drawdown": 0.5106746535481204,
+              "costs": 44.473442836953545,
+              "orders": 6
+            },
+            "XRPUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 1174.5834467769826,
+              "net_return": 0.17458344677698245,
+              "drawdown": 0.22112474111836877,
+              "costs": 65.02720517059812,
+              "orders": 6
+            }
+          },
+          "action_counts": {
+            "bollinger_revert": 30,
+            "price_trend": 30,
+            "hold": 52,
+            "cash": 34,
+            "hammer_rebound": 6,
+            "bullish_engulf": 5,
+            "rsi_pullback": 3,
+            "donchian_breakout": 5,
+            "risk_scaled_trend": 5,
+            "sma_trend": 2,
+            "buy_hold": 4
+          },
+          "state": {
+            "updates": 1024,
+            "frames": 35376,
+            "replay": 4096,
+            "weights_sha256": "215c8f98bb3d6609f1eb3ce3e659a5e6a11687ff014aea4463455c5928326ab9",
+            "knowledge_cutoff": 1711929600
+          },
+          "periods": 22,
+          "scope": "Already available historical development diagnostics, not unseen external performance"
+        }
+      ]
+    },
+    {
+      "seed": 41,
+      "budget": 4096,
+      "fold_returns": [
+        -0.11786579663187809,
+        -0.1633662107592281
+      ],
+      "folds": [
+        {
+          "label": "fold-0-seed-41-updates-4096",
+          "equal_weight_mean_return": -0.11786579663187809,
+          "worst_asset_drawdown": 0.38782326951399126,
+          "per_symbol": {
+            "ADAUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 777.0643979149329,
+              "net_return": -0.22293560208506713,
+              "drawdown": 0.24688613606476706,
+              "costs": 74.88813540691461,
+              "orders": 8
+            },
+            "BTCUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 858.6937968431881,
+              "net_return": -0.14130620315681186,
+              "drawdown": 0.2076153552790565,
+              "costs": 38.2393240344224,
+              "orders": 4
+            },
+            "DOGEUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 1006.0899564954067,
+              "net_return": 0.006089956495406668,
+              "drawdown": 0.17290782929742998,
+              "costs": 104.14181036111287,
+              "orders": 10
+            },
+            "ETHUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 935.9382332648479,
+              "net_return": -0.06406176673515207,
+              "drawdown": 0.20717185138665495,
+              "costs": 40.63533323136178,
+              "orders": 4
+            },
+            "LINKUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 888.8770429817031,
+              "net_return": -0.11112295701829689,
+              "drawdown": 0.2666289804453065,
+              "costs": 98.69596678640542,
+              "orders": 10
+            },
+            "LTCUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 664.5012858778625,
+              "net_return": -0.3354987141221375,
+              "drawdown": 0.38782326951399126,
+              "costs": 57.4218473242921,
+              "orders": 6
+            },
+            "SOLUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 877.8713867540208,
+              "net_return": -0.12212861324597923,
+              "drawdown": 0.29817497713253316,
+              "costs": 59.158430753026565,
+              "orders": 6
+            },
+            "XRPUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 1048.0375268130133,
+              "net_return": 0.04803752681301332,
+              "drawdown": 0.3835407495057488,
+              "costs": 89.11681080686644,
+              "orders": 8
+            }
+          },
+          "action_counts": {
+            "sma_trend": 13,
+            "cash": 54,
+            "price_trend": 10,
+            "hold": 23,
+            "hammer_rebound": 2,
+            "buy_hold": 64,
+            "bullish_engulf": 1,
+            "bollinger_revert": 3,
+            "donchian_breakout": 5,
+            "rsi_pullback": 1
+          },
+          "state": {
+            "updates": 4096,
+            "frames": 23232,
+            "replay": 4096,
+            "weights_sha256": "20ed5df685a700368e3f2ecf6c22d1cfb2ae86cee34ae504ad02c6e4c2256a63",
+            "knowledge_cutoff": 1680307200
+          },
+          "periods": 22,
+          "scope": "Already available historical development diagnostics, not unseen external performance"
+        },
+        {
+          "label": "fold-1-seed-41-updates-4096",
+          "equal_weight_mean_return": -0.1633662107592281,
+          "worst_asset_drawdown": 0.45904279172302953,
+          "per_symbol": {
+            "ADAUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 818.634288958906,
+              "net_return": -0.181365711041094,
+              "drawdown": 0.43711374280115667,
+              "costs": 48.04275164917388,
+              "orders": 6
+            },
+            "BTCUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 898.854042841184,
+              "net_return": -0.10114595715881602,
+              "drawdown": 0.275598928190918,
+              "costs": 53.85425625557747,
+              "orders": 7
+            },
+            "DOGEUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 937.0902196243457,
+              "net_return": -0.06290978037565431,
+              "drawdown": 0.2751206903422494,
+              "costs": 69.1320057370849,
+              "orders": 8
+            },
+            "ETHUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 802.814128716831,
+              "net_return": -0.197185871283169,
+              "drawdown": 0.3781399243630774,
+              "costs": 69.92425224411039,
+              "orders": 9
+            },
+            "LINKUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 672.1080338688223,
+              "net_return": -0.32789196613117766,
+              "drawdown": 0.408900301515129,
+              "costs": 49.104983152120816,
+              "orders": 6
+            },
+            "LTCUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 777.4190028263791,
+              "net_return": -0.2225809971736209,
+              "drawdown": 0.35394037311561,
+              "costs": 51.99975215523624,
+              "orders": 6
+            },
+            "SOLUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 598.1568844464236,
+              "net_return": -0.4018431155535763,
+              "drawdown": 0.45904279172302953,
+              "costs": 83.89315745397002,
+              "orders": 12
+            },
+            "XRPUSDT": {
+              "starting_equity": 1000.0,
+              "ending_equity": 1187.9937126432833,
+              "net_return": 0.18799371264328335,
+              "drawdown": 0.22112474111836866,
+              "costs": 69.92710347043773,
+              "orders": 6
+            }
+          },
+          "action_counts": {
+            "buy_hold": 32,
+            "price_trend": 36,
+            "bollinger_revert": 11,
+            "cash": 38,
+            "hold": 35,
+            "sma_trend": 1,
+            "hammer_rebound": 1,
+            "risk_scaled_trend": 9,
+            "bullish_engulf": 2,
+            "rsi_pullback": 6,
+            "donchian_breakout": 5
+          },
+          "state": {
+            "updates": 4096,
+            "frames": 35376,
+            "replay": 4096,
+            "weights_sha256": "c39e5c2803fbe89f50a7c71972f925bae1988de77b29ba1d28b11c95c605d913",
+            "knowledge_cutoff": 1711929600
+          },
+          "periods": 22,
+          "scope": "Already available historical development diagnostics, not unseen external performance"
+        }
+      ]
+    }
+  ],
+  "selected": {
+    "selected_seed": 41,
+    "selected_budget": 256,
+    "fold_returns": [
+      -0.05915079298213351,
+      -0.15936869270851728
+    ],
+    "protocol_sha256": "1c17f63d07d694210d3cf11968440dae522249b21374d808eefdb6416d8f871e",
+    "audit_not_yet_opened": true
+  },
+  "selected_development_audit": {
+    "label": "selected/development_audit",
+    "equal_weight_mean_return": 0.1454260349379628,
+    "worst_asset_drawdown": 0.438661176915214,
+    "per_symbol": {
+      "ADAUSDT": {
+        "starting_equity": 1000.0,
+        "ending_equity": 883.8420186518205,
+        "net_return": -0.11615798134817956,
+        "drawdown": 0.2920033370233408,
+        "costs": 74.4873378766306,
+        "orders": 8
+      },
+      "BTCUSDT": {
+        "starting_equity": 1000.0,
+        "ending_equity": 1089.3833368023354,
+        "net_return": 0.08938333680233534,
+        "drawdown": 0.07798375141181302,
+        "costs": 62.939493438527606,
+        "orders": 6
+      },
+      "DOGEUSDT": {
+        "starting_equity": 1000.0,
+        "ending_equity": 705.9352366856388,
+        "net_return": -0.29406476331436127,
+        "drawdown": 0.438661176915214,
+        "costs": 49.87697281863768,
+        "orders": 6
+      },
+      "ETHUSDT": {
+        "starting_equity": 1000.0,
+        "ending_equity": 2218.525382906551,
+        "net_return": 1.218525382906551,
+        "drawdown": 0.1418545890973406,
+        "costs": 61.24886780765236,
+        "orders": 4
+      },
+      "LINKUSDT": {
+        "starting_equity": 1000.0,
+        "ending_equity": 946.8152987613502,
+        "net_return": -0.05318470123864982,
+        "drawdown": 0.3764094653341654,
+        "costs": 36.244277627316265,
+        "orders": 4
+      },
+      "LTCUSDT": {
+        "starting_equity": 1000.0,
+        "ending_equity": 1168.967164812996,
+        "net_return": 0.168967164812996,
+        "drawdown": 0.21869987013979064,
+        "costs": 21.708739238535113,
+        "orders": 2
+      },
+      "SOLUSDT": {
+        "starting_equity": 1000.0,
+        "ending_equity": 894.6275093536365,
+        "net_return": -0.10537249064636356,
+        "drawdown": 0.30182321738640827,
+        "costs": 36.22898111115218,
+        "orders": 4
+      },
+      "XRPUSDT": {
+        "starting_equity": 1000.0,
+        "ending_equity": 1255.3123315293744,
+        "net_return": 0.2553123315293744,
+        "drawdown": 0.18391256760563546,
+        "costs": 68.70418552797847,
+        "orders": 6
+      }
+    },
+    "action_counts": {
+      "cash": 73,
+      "hold": 42,
+      "buy_hold": 9,
+      "sma_trend": 36,
+      "price_trend": 6,
+      "donchian_breakout": 6,
+      "bollinger_revert": 4
+    },
+    "state": {
+      "updates": 256,
+      "frames": 47520,
+      "replay": 4096,
+      "weights_sha256": "13bafbc9f1d3b1f1e6dd4cd9b69338f8f961128f234a7b0999c4d401789e4fe1",
+      "knowledge_cutoff": 1743465600
+    },
+    "periods": 22,
+    "scope": "Already available historical development diagnostics, not unseen external performance"
+  },
+  "baselines": {
+    "cash": {
+      "label": "baseline/cash",
+      "equal_weight_mean_return": 0.0,
+      "worst_asset_drawdown": 0.0,
+      "per_symbol": {
+        "ADAUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1000.0,
+          "net_return": 0.0,
+          "drawdown": 0.0,
+          "costs": 0.0,
+          "orders": 0
+        },
+        "BTCUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1000.0,
+          "net_return": 0.0,
+          "drawdown": 0.0,
+          "costs": 0.0,
+          "orders": 0
+        },
+        "DOGEUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1000.0,
+          "net_return": 0.0,
+          "drawdown": 0.0,
+          "costs": 0.0,
+          "orders": 0
+        },
+        "ETHUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1000.0,
+          "net_return": 0.0,
+          "drawdown": 0.0,
+          "costs": 0.0,
+          "orders": 0
+        },
+        "LINKUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1000.0,
+          "net_return": 0.0,
+          "drawdown": 0.0,
+          "costs": 0.0,
+          "orders": 0
+        },
+        "LTCUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1000.0,
+          "net_return": 0.0,
+          "drawdown": 0.0,
+          "costs": 0.0,
+          "orders": 0
+        },
+        "SOLUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1000.0,
+          "net_return": 0.0,
+          "drawdown": 0.0,
+          "costs": 0.0,
+          "orders": 0
+        },
+        "XRPUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1000.0,
+          "net_return": 0.0,
+          "drawdown": 0.0,
+          "costs": 0.0,
+          "orders": 0
+        }
+      },
+      "action_counts": {
+        "cash": 176
+      },
+      "state": null,
+      "periods": 22,
+      "scope": "Already available historical development diagnostics, not unseen external performance"
+    },
+    "buy_hold": {
+      "label": "baseline/buy_hold",
+      "equal_weight_mean_return": 0.716464512458306,
+      "worst_asset_drawdown": 0.396361169851973,
+      "per_symbol": {
+        "ADAUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1347.6677874166403,
+          "net_return": 0.3476677874166403,
+          "drawdown": 0.3553414227932429,
+          "costs": 23.513796032511316,
+          "orders": 2
+        },
+        "BTCUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1415.408930100425,
+          "net_return": 0.4154089301004251,
+          "drawdown": 0.12213539877847379,
+          "costs": 24.198049999014195,
+          "orders": 2
+        },
+        "DOGEUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1538.5137791757516,
+          "net_return": 0.5385137791757515,
+          "drawdown": 0.396361169851973,
+          "costs": 25.44153332300739,
+          "orders": 2
+        },
+        "ETHUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 2660.3328100543013,
+          "net_return": 1.6603328100543013,
+          "drawdown": 0.2090257065757707,
+          "costs": 36.773038685416985,
+          "orders": 2
+        },
+        "LINKUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1859.468145767456,
+          "net_return": 0.859468145767456,
+          "drawdown": 0.33007475560667054,
+          "costs": 28.6834966219135,
+          "orders": 2
+        },
+        "LTCUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1474.0941061284607,
+          "net_return": 0.4740941061284607,
+          "drawdown": 0.2380545264557805,
+          "costs": 24.790829554852934,
+          "orders": 2
+        },
+        "SOLUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1949.309485070773,
+          "net_return": 0.9493094850707731,
+          "drawdown": 0.28321088435374153,
+          "costs": 29.590984897704573,
+          "orders": 2
+        },
+        "XRPUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1486.9210559526405,
+          "net_return": 0.48692105595264046,
+          "drawdown": 0.22727016674177558,
+          "costs": 24.920394704592127,
+          "orders": 2
+        }
+      },
+      "action_counts": {
+        "buy_hold": 176
+      },
+      "state": null,
+      "periods": 22,
+      "scope": "Already available historical development diagnostics, not unseen external performance"
+    },
+    "sma_trend": {
+      "label": "baseline/sma_trend",
+      "equal_weight_mean_return": 0.05540919971249593,
+      "worst_asset_drawdown": 0.26670573534411934,
+      "per_symbol": {
+        "ADAUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 944.3333837483442,
+          "net_return": -0.05566661625165581,
+          "drawdown": 0.18857107315455623,
+          "costs": 39.80472203180377,
+          "orders": 4
+        },
+        "BTCUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1064.601960666375,
+          "net_return": 0.0646019606663748,
+          "drawdown": 0.1221353987784739,
+          "costs": 41.37018876897494,
+          "orders": 4
+        },
+        "DOGEUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 939.9619780627738,
+          "net_return": -0.06003802193722618,
+          "drawdown": 0.22966341834266357,
+          "costs": 19.395555533987412,
+          "orders": 2
+        },
+        "ETHUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1647.3434503942253,
+          "net_return": 0.6473434503942253,
+          "drawdown": 0.1981987015916572,
+          "costs": 26.540822931274803,
+          "orders": 2
+        },
+        "LINKUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 888.6365700790262,
+          "net_return": -0.11136342992097381,
+          "drawdown": 0.24822695035460984,
+          "costs": 18.877117069505115,
+          "orders": 2
+        },
+        "LTCUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 830.8943735531177,
+          "net_return": -0.16910562644688232,
+          "drawdown": 0.26670573534411934,
+          "costs": 39.084589872666285,
+          "orders": 4
+        },
+        "SOLUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1034.872357266991,
+          "net_return": 0.034872357266990894,
+          "drawdown": 0.22125252525252503,
+          "costs": 20.354246233019907,
+          "orders": 2
+        },
+        "XRPUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1092.6295239291146,
+          "net_return": 0.09262952392911461,
+          "drawdown": 0.21948295401424545,
+          "costs": 45.1182189988185,
+          "orders": 4
+        }
+      },
+      "action_counts": {
+        "sma_trend": 176
+      },
+      "state": null,
+      "periods": 22,
+      "scope": "Already available historical development diagnostics, not unseen external performance"
+    },
+    "donchian_breakout": {
+      "label": "baseline/donchian_breakout",
+      "equal_weight_mean_return": 0.1924312802879007,
+      "worst_asset_drawdown": 0.35418580646099607,
+      "per_symbol": {
+        "ADAUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 848.9455913580679,
+          "net_return": -0.1510544086419321,
+          "drawdown": 0.3070201457134226,
+          "costs": 33.710954656060544,
+          "orders": 4
+        },
+        "BTCUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1195.9342211769294,
+          "net_return": 0.1959342211769295,
+          "drawdown": 0.1221353987784739,
+          "costs": 21.981133747261715,
+          "orders": 2
+        },
+        "DOGEUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 950.0330642788261,
+          "net_return": -0.04996693572117383,
+          "drawdown": 0.35418580646099607,
+          "costs": 35.797988273128695,
+          "orders": 4
+        },
+        "ETHUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1761.8476731001315,
+          "net_return": 0.7618476731001316,
+          "drawdown": 0.20902570657577058,
+          "costs": 27.697431241435474,
+          "orders": 2
+        },
+        "LINKUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1331.0121767954433,
+          "net_return": 0.33101217679544326,
+          "drawdown": 0.33007475560667054,
+          "costs": 23.345557541388114,
+          "orders": 2
+        },
+        "LTCUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1041.0459669126485,
+          "net_return": 0.04104596691264861,
+          "drawdown": 0.2380545264557803,
+          "costs": 20.41660592641039,
+          "orders": 2
+        },
+        "SOLUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1380.1265963790293,
+          "net_return": 0.38012659637902924,
+          "drawdown": 0.2832108843537414,
+          "costs": 23.841662789707165,
+          "orders": 2
+        },
+        "XRPUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1030.5049523021294,
+          "net_return": 0.030504952302129462,
+          "drawdown": 0.22727016674177547,
+          "costs": 20.31013103135464,
+          "orders": 2
+        }
+      },
+      "action_counts": {
+        "donchian_breakout": 176
+      },
+      "state": null,
+      "periods": 22,
+      "scope": "Already available historical development diagnostics, not unseen external performance"
+    },
+    "pattern_memory_only": {
+      "label": "baseline/pattern_memory_only",
+      "equal_weight_mean_return": 0.2459151162466096,
+      "worst_asset_drawdown": 0.3695957204337681,
+      "per_symbol": {
+        "ADAUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1012.0395755701353,
+          "net_return": 0.012039575570135241,
+          "drawdown": 0.2646212839513409,
+          "costs": 119.98450750270142,
+          "orders": 12
+        },
+        "BTCUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1154.2248029718633,
+          "net_return": 0.15422480297186336,
+          "drawdown": 0.09120748143558322,
+          "costs": 92.29805620529962,
+          "orders": 8
+        },
+        "DOGEUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 849.3040967319644,
+          "net_return": -0.1506959032680356,
+          "drawdown": 0.3695957204337681,
+          "costs": 117.26145243195,
+          "orders": 12
+        },
+        "ETHUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 2177.803844860827,
+          "net_return": 1.177803844860827,
+          "drawdown": 0.1777814318177593,
+          "costs": 126.75637717777354,
+          "orders": 8
+        },
+        "LINKUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1475.5039772764187,
+          "net_return": 0.4755039772764187,
+          "drawdown": 0.24075124077161603,
+          "costs": 181.2332134928298,
+          "orders": 14
+        },
+        "LTCUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1234.7715315955413,
+          "net_return": 0.23477153159554143,
+          "drawdown": 0.19190536875229247,
+          "costs": 118.08562585723465,
+          "orders": 10
+        },
+        "SOLUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1182.8926151412832,
+          "net_return": 0.18289261514128308,
+          "drawdown": 0.24025917938462826,
+          "costs": 137.61927001528983,
+          "orders": 12
+        },
+        "XRPUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 880.7804858248439,
+          "net_return": -0.11921951417515608,
+          "drawdown": 0.26626190512780623,
+          "costs": 77.41656381131365,
+          "orders": 9
+        }
+      },
+      "action_counts": {
+        "cash": 65,
+        "donchian_breakout": 9,
+        "buy_hold": 56,
+        "bollinger_revert": 11,
+        "hold": 14,
+        "price_trend": 6,
+        "risk_scaled_trend": 3,
+        "sma_trend": 7,
+        "bullish_engulf": 4,
+        "hammer_rebound": 1
+      },
+      "state": null,
+      "periods": 22,
+      "scope": "Already available historical development diagnostics, not unseen external performance"
+    },
+    "same_architecture_untrained": {
+      "label": "baseline/same_architecture_untrained",
+      "equal_weight_mean_return": 0.31775351687823167,
+      "worst_asset_drawdown": 0.4066114754986089,
+      "per_symbol": {
+        "ADAUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 986.6585924871142,
+          "net_return": -0.013341407512885817,
+          "drawdown": 0.2920033370233408,
+          "costs": 96.14927046920326,
+          "orders": 10
+        },
+        "BTCUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1183.9839600295672,
+          "net_return": 0.18398396002956718,
+          "drawdown": 0.09120748143558322,
+          "costs": 69.34675526888537,
+          "orders": 6
+        },
+        "DOGEUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 812.298377616693,
+          "net_return": -0.187701622383307,
+          "drawdown": 0.4066114754986089,
+          "costs": 98.07983914812584,
+          "orders": 10
+        },
+        "ETHUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 2348.892320679923,
+          "net_return": 1.3488923206799233,
+          "drawdown": 0.14185458909734083,
+          "costs": 93.20474731898508,
+          "orders": 6
+        },
+        "LINKUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1817.7520591951095,
+          "net_return": 0.8177520591951095,
+          "drawdown": 0.30406212664277166,
+          "costs": 77.93537724897556,
+          "orders": 6
+        },
+        "LTCUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1460.1408865647459,
+          "net_return": 0.46014088656474583,
+          "drawdown": 0.2380545264557803,
+          "costs": 24.649887943098243,
+          "orders": 2
+        },
+        "SOLUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1050.7646335746508,
+          "net_return": 0.050764633574650775,
+          "drawdown": 0.30182321738640816,
+          "costs": 64.31683997013326,
+          "orders": 6
+        },
+        "XRPUSDT": {
+          "starting_equity": 1000.0,
+          "ending_equity": 881.5373048780496,
+          "net_return": -0.1184626951219504,
+          "drawdown": 0.26626190512780623,
+          "costs": 77.47457721351307,
+          "orders": 8
+        }
+      },
+      "action_counts": {
+        "cash": 51,
+        "hold": 41,
+        "sma_trend": 17,
+        "buy_hold": 38,
+        "bollinger_revert": 5,
+        "donchian_breakout": 13,
+        "price_trend": 7,
+        "bullish_engulf": 3,
+        "hammer_rebound": 1
+      },
+      "state": {
+        "updates": 0,
+        "frames": 0,
+        "replay": 0,
+        "weights_sha256": "7df389295c0d4fa68263b87ffe68531189199034d3624b8c1f18cce9980edf3a",
+        "knowledge_cutoff": 1743465600
+      },
+      "periods": 22,
+      "scope": "Already available historical development diagnostics, not unseen external performance"
+    }
+  },
+  "development_qualification_passed": false,
+  "restart_verified": true,
+  "teaching_examples": 47520,
+  "pattern_groups": 4320,
+  "actual_neural_updates_selected": 256,
+  "selected_state": {
+    "updates": 256,
+    "frames": 47520,
+    "replay": 4096,
+    "weights_sha256": "13bafbc9f1d3b1f1e6dd4cd9b69338f8f961128f234a7b0999c4d401789e4fe1",
+    "knowledge_cutoff": 1743465600
+  },
+  "external_profitability_proven": false,
+  "live_orders": false,
+  "decision_records": 3344,
+  "decision_ledger_tip": "db23a38746578586375aedb502a4f85ec733c09a52c0a4b35a5a75e5bfff719a"
+}

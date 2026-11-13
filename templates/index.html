@@ -3,7 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>AIscend</title>
+  <title>BEAN | AIscend · Autonomous Capital Research</title>
+  <meta name="theme-color" content="#050607">
+  <link rel="icon" type="image/webp" href="https://danieloculus0-bot.github.io/BEAN/bean-official.webp">
   <style>
     :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
     * { box-sizing: border-box; }
@@ -49,6 +51,10 @@
     details.panel > summary::after { content:'+'; float:right; color:#697586; }
     details.panel[open] > summary::after { content:'-'; }
     details.panel[open] > summary { margin-bottom:12px; }
+    .info-tip { display:inline-block; position:relative; font-weight:normal; letter-spacing:normal; text-transform:none; vertical-align:middle; }
+    .info-tip > summary { display:inline-block; list-style:none; cursor:help; padding:0 4px; }
+    .info-tip > summary::-webkit-details-marker { display:none; }
+    .info-tip .info-bubble { position:absolute; right:0; top:100%; z-index:20; width:min(320px,80vw); padding:12px; border:1px solid var(--line); border-radius:8px; background:var(--panel); box-shadow:var(--shadow); color:var(--text); font-size:12px; line-height:1.5; }
     .decision-current { padding:10px 8px; border-top:1px solid #262c34; border-bottom:1px solid #262c34; background:#10141a; }
     .asset-link { color:#a9c7ff; text-decoration:none; font-weight:700; }
     .asset-link:hover { text-decoration:underline; }
@@ -67,8 +73,8 @@
       box-shadow:inset 0 0 0 2px #050705;
     }
     #pet {
-      width:176px;
-      height:176px;
+      width:192px;
+      height:192px;
       image-rendering:pixelated;
       image-rendering:crisp-edges;
       display:block;
@@ -91,29 +97,254 @@
       font-size:12px;
     }
     @media(max-width:850px){ .grid{grid-template-columns:1fr 1fr}.layout{grid-template-columns:1fr} }
-  </style>
+    /* BEAN Strategy School — research-only control surface */
+    .bean-school { position:relative; overflow:hidden; border-color:#2e5644; background:linear-gradient(150deg,#14271f 0%,#15191f 58%); }
+    .bean-school:before { content:""; position:absolute; inset:0 0 auto; height:3px; background:linear-gradient(90deg,#8be4ac,#46976e,#193929); }
+    .bean-head { display:flex; align-items:start; justify-content:space-between; gap:10px; }
+    .bean-head h2 { margin:0 0 5px; color:#c8f5d6; }
+    .bean-tag { flex-shrink:0; border:1px solid #397759; background:#1b3f2d; color:#b2efc7; font-size:10px; padding:6px 9px; border-radius:100px; font-weight:800; letter-spacing:.04em; }
+    .bean-school .small { line-height:1.5; }
+    .bean-score { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin:14px 0; }
+    .bean-score > div { border:1px solid #33493c; background:#101c16; padding:12px; border-radius:9px; min-width:0; }
+    .bean-score strong { display:block; margin-top:5px; font-size:19px; font-variant-numeric:tabular-nums; }
+    .bean-actions { display:flex; gap:9px; }
+    .bean-actions button { margin-top:0; }
+    .bean-actions .primary { background:#23744d; border-color:#399d69; }
+    .bean-actions .primary:hover { background:#2e9060; }
+    .bean-actions button:disabled { cursor:default; opacity:.46; }
+    .bean-result { margin:12px 0; padding:10px 12px; border:1px solid #304536; border-radius:8px; background:#101b15; }
+    .bean-history { margin-top:10px; display:grid; gap:6px; }
+    .bean-history-row { display:flex; gap:8px; align-items:center; justify-content:space-between; border-top:1px solid #334036; padding-top:7px; font-size:12px; }
+    .bean-neg { color:#ffa09c; }
+    .bean-pos { color:#98efb6; }
+    @media(max-width:520px){ .bean-score{grid-template-columns:1fr 1fr}.bean-actions{flex-wrap:wrap} }
+
+    /* Inherited BEAN dark-Mint design system, matching the BEAN public site.
+       Execution semantics, data colors and the retro BEAN sprite stay unchanged. */
+    :root {
+      color-scheme:dark;
+      --bg:#101713; --bg-2:#19231c;
+      --panel:#202b23; --panel-soft:rgba(31,43,35,.88);
+      --line:#36483a; --line-strong:#5a795d;
+      --text:#ecf5ed; --muted:#b2c5b5;
+      --green:#91e274; --green-2:#7ed45f;
+      --green-deep:#aceb8d;
+      --shadow:0 16px 40px rgba(0,0,0,.26);
+    }
+    html { scroll-behavior:smooth; scroll-padding-top:82px; }
+    body {
+      min-height:100vh; color:var(--text); font-size:14px;
+      background:radial-gradient(ellipse at 8% 1%,rgba(90,168,77,.15),transparent 34%),
+                 radial-gradient(ellipse at 98% 16%,rgba(63,116,66,.12),transparent 31%),
+                 linear-gradient(170deg,#131d16 0%,#101713 49%,#141d17 100%);
+    }
+    .bean-site-header {
+      position:sticky;top:0;z-index:40;
+      background:rgba(15,23,18,.94); backdrop-filter:blur(14px);
+      border-bottom:1px solid rgba(103,154,101,.22);
+    }
+    .bean-site-nav {
+      max-width:1180px; margin:auto;min-height:70px;padding:10px 24px;
+      display:flex;gap:22px;align-items:center;justify-content:space-between;
+    }
+    .bean-brand {
+      display:inline-flex;align-items:center;gap:11px;min-width:0;
+      color:var(--text);text-decoration:none;font-weight:900;
+      letter-spacing:.055em;white-space:nowrap;
+    }
+    .bean-brand:hover{color:#fff}
+    .bean-brand-badge {
+      width:42px;height:42px;flex:0 0 42px;border-radius:14px;
+      background:linear-gradient(145deg,#28382c,#1b2720);
+      border:1px solid #3b5540;
+      display:grid;place-items:center;overflow:hidden;
+      box-shadow:0 6px 22px rgba(0,0,0,.14);
+    }
+    .bean-brand-badge img{width:34px;height:34px;object-fit:contain}
+    .bean-brand-name{font-size:16px}
+    .bean-brand-separator{width:1px;height:23px;margin:0 2px;background:#425a45}
+    .bean-brand-product{font-size:15px;color:#b9e9aa;font-weight:750;letter-spacing:.018em}
+    .bean-site-links{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:clamp(8px,1.65vw,22px)}
+    .bean-site-links a {
+      color:#c2d6c6;text-decoration:none;font-size:12px;font-weight:700;
+      padding:8px 0;transition:color .16s ease;
+    }
+    .bean-site-links a:hover,.bean-site-links a:focus-visible{color:#c1f6ab}
+    .wrap{max-width:1180px;padding:25px 24px 44px}
+    .top{margin-bottom:20px;align-items:flex-end;gap:18px}
+    .hero-ident{min-width:0}
+    .hero-eyebrow {
+      display:inline-flex;align-items:center;gap:9px;max-width:100%;
+      padding:7px 12px;border-radius:999px;
+      border:1px solid #3c5942;background:rgba(39,58,43,.85);
+      color:#b9f1a4;font-size:10px;font-weight:850;letter-spacing:.085em;
+      margin-bottom:9px;
+    }
+    .status-led{height:7px;width:7px;flex:0 0 7px;border-radius:50%;
+      background:#91e274;box-shadow:0 0 0 3px rgba(145,226,116,.13)}
+    h1{font-size:clamp(29px,3.1vw,42px);line-height:1.05;letter-spacing:-.035em;color:#eff8ef}
+    .sub{margin-top:7px;color:#b2c5b5;font-size:13px;line-height:1.45}
+    .pill,.bean-tag,.venue-badge {
+      background:rgba(38,56,43,.86);border-color:#405944;color:#bbf1a4;
+      border-radius:999px;box-shadow:none;
+    }
+    #runnerPill{font-weight:750;letter-spacing:.035em;white-space:nowrap}
+    .grid{gap:13px;margin-bottom:15px}
+    .card,.panel {
+      min-width:0; border:1px solid #3a5140;border-radius:16px;
+      background:linear-gradient(160deg,rgba(39,53,43,.96),rgba(27,39,31,.96));
+      box-shadow:var(--shadow);
+    }
+    .card{border-radius:15px;padding:17px 18px}
+    .panel{padding:18px}
+    .card:hover,.panel:hover{border-color:#536e57}
+    .layout{grid-template-columns:minmax(285px,350px) minmax(0,1fr);gap:15px}
+    .panel h2,details.panel > summary{color:#c5e7bd;letter-spacing:.07em;font-size:12px}
+    .label{color:#aec5b0;font-size:11px}
+    .value{color:#f0f8ed;font-variant-numeric:tabular-nums}
+    .small,label{color:#b2c5b5}
+    a{color:#b5ec9e}
+    a:hover{color:#dbfbd1}
+    input,select,button {
+      border-color:#48604d;background:#16221a;color:#eef7ed;border-radius:10px;
+    }
+    input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible {
+      outline:2px solid #91e274;outline-offset:2px;
+    }
+    button{background:#304133;border-color:#526d55;color:#e3f2df;transition:background .16s,border-color .16s}
+    button:hover:not(:disabled){background:#3c5340;border-color:#7aa37a}
+    button.primary,.bean-actions .primary {
+      background:linear-gradient(180deg,#a1ee7d,#7acf5c);
+      color:#102414;border-color:#9ee782;
+      box-shadow:0 8px 20px rgba(57,112,44,.20);
+    }
+    button.primary:hover:not(:disabled),.bean-actions .primary:hover:not(:disabled){
+      background:linear-gradient(180deg,#b3f49a,#91df74);border-color:#b3ee9c;
+    }
+    button.stop{background:#51282c;border-color:#7e494c;color:#ffe1de}
+    button.stop:hover:not(:disabled){background:#683036;border-color:#a65f65}
+    button:disabled{opacity:.45;cursor:default}
+    .progress{background:#17241c}
+    .progress > div{background:linear-gradient(90deg,#5faa50,#a5ed82)}
+    .venue-card,.bridge-status,.decision-current,.bean-result {
+      background:#17231b;border:1px solid #38513c;border-radius:10px;
+    }
+    .decision-current{border-left:2px solid #7ed45f}
+    .decision-scroll{border-radius:10px}
+    .decision-scroll thead th{background:#1b2820}
+    td,th{border-bottom-color:#395040}
+    th{color:#b7d2b8}
+    details.panel > summary{color:#c7e8c4}
+    details.panel > summary::after{color:#a4e78a}
+    .bean-school {
+      background:linear-gradient(152deg,#203a26,#1a2a20 60%,#17251c);
+      border-color:#53785b;
+    }
+    .bean-school:before{background:linear-gradient(90deg,#a7ee82,#5cbb51,#23452a)}
+    .bean-head h2{color:#dcf9d6}
+    .bean-score > div{background:#17291c;border-color:#456549;border-radius:12px}
+    .bean-tag{background:#2c4d32;border-color:#5f985d;color:#c0f4a9}
+    .bean-result{background:#17271b}
+    .bean-history-row{border-top-color:#425743}
+    .bean-pos{color:#a8ee92}
+    .bean-neg,.error{color:#ffaaa6}
+    .success,.venue-live{color:#a5ec90}
+    .petbox{background:#0c140d;border-color:#45664a;border-radius:10px}
+    @media(max-width:960px){
+      .bean-site-nav{align-items:flex-start;flex-wrap:wrap;gap:5px;padding:10px 20px}
+      .bean-site-links{width:100%;justify-content:flex-start;gap:10px 18px}
+      .bean-site-links a{font-size:12px;padding:4px 0}
+      .layout{grid-template-columns:minmax(275px,310px) minmax(0,1fr)}
+    }
+    @media(max-width:850px){
+      .layout{grid-template-columns:minmax(0,1fr)}
+      .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+    }
+    @media(max-width:520px){
+      .bean-site-nav{padding:10px 14px}
+      .bean-brand-badge{width:38px;height:38px;flex-basis:38px}
+      .bean-site-links{gap:6px 14px}
+      .bean-site-links a{font-size:11px}
+      .wrap{padding:18px 12px 35px}
+      .card,.panel{padding:15px}
+      .top{align-items:flex-start}
+      .hero-eyebrow{font-size:9px;letter-spacing:.04em}
+      #runnerPill{font-size:10px;padding:7px 9px}
+    }
+    @media(prefers-reduced-motion:reduce){
+      html{scroll-behavior:auto}
+      button,.bean-site-links a{transition:none}
+    }
+  
+/* Black canvas portfolio standard · neutral surfaces; project accents preserved */
+html,body{background:#050607}.card,.panel,.venue-card{background:#111417;border-color:#343a3d}input,select{background:#0c0e10;border-color:#343a3d}
+
+/* AIscend black-first skin: black workspace, charcoal surfaces, lime signals. */
+:root{--bg:#050607;--panel:#121619;--border:#30383b;--green:#9bef71;--shadow:0 12px 35px rgba(0,0,0,.55)}
+html{background-color:#050607}
+body{background:#050607;color:#edf4f0}
+.bean-site-nav,.topbar,header{background:#07090b;border-bottom-color:#30383b}
+.card,.panel,.bean-school{background:#121619;border-color:#30383b}
+.card:hover,.panel:hover{border-color:#59635e}
+input,select,textarea{background:#0d1113;border-color:#394346;color:#edf4f0}
+button:not(.primary):not(.stop){background:#191e21;border-color:#46514c;color:#edf4f0}
+button:not(.primary):not(.stop):hover{background:#242b2d}
+button.primary,.bean-actions .primary{background:#9bef71;color:#071007;border-color:#9bef71;box-shadow:0 7px 21px #0006}
+button.primary:hover,.bean-actions .primary:hover{background:#b7ffa0}
+.venue-card,.bridge-status,.decision-current,.bean-result,.bean-score>div,.petbox{background:#0e1215;border-color:#333c3e}
+.bean-tag,.venue-badge,.hero-eyebrow,.pill,.status,.bean-school{box-shadow:none}
+.bean-tag,.venue-badge,.hero-eyebrow,.pill{background:#191e21;border-color:#424e45}
+.decision-scroll thead th{background:#171b1e}
+.progress{background:#1d2326}
+@media(prefers-color-scheme:dark){html,body{background:#050607}}
+</style>
 </head>
 <body>
-<div class="wrap">
+  <header class="bean-site-header">
+    <div class="bean-site-nav">
+      <a class="bean-brand" href="https://danieloculus0-bot.github.io/BEAN/" title="BEAN main website" aria-label="BEAN main website">
+        <span class="bean-brand-badge">
+          <img src="https://danieloculus0-bot.github.io/BEAN/bean-official.webp" width="34" height="34" alt="BEAN mascot" decoding="async">
+        </span>
+        <span class="bean-brand-name">BEAN</span>
+        <span class="bean-brand-separator" aria-hidden="true"></span>
+        <span class="bean-brand-product">AIscend</span>
+      </a>
+      <nav class="bean-site-links" aria-label="AIscend sections">
+        <a href="#overview">Overview</a>
+        <a href="#research">Research</a>
+        <a href="#strategy-school">Strategy School</a>
+        <a href="#live-engine">Live Engine</a>
+        <a href="#decision-journal">Journal</a>
+        <a href="https://github.com/danieloculus0-bot/AIscend" target="_blank" rel="noopener noreferrer">GitHub</a>
+      </nav>
+    </div>
+  </header>
+<main class="wrap" id="overview">
   <div class="top">
     <div><h1>AIscend</h1></div>
+    <div class="hero-ident">
+      <div class="hero-eyebrow"><span class="status-led" aria-hidden="true"></span> BEAN INFRASTRUCTURE · CAPITAL RESEARCH MODULE</div>
+      <h1>AIscend</h1>
+      <div class="sub">Autonomous capital research and execution</div>
+    </div>
     <div id="runnerPill" class="pill">STOPPED</div>
   </div>
 
-  <div class="grid">
+<div class="grid">
     <div class="card"><div class="label">Net liquidation</div><div id="net" class="value">--</div></div>
     <div class="card"><div class="label">Cash / USDC</div><div id="cash" class="value">--</div></div>
-    <div class="card"><div class="label">P/L</div><div id="pnl" class="value">--</div></div>
+    <div class="card"><div class="label">Equity change* <span title="Change since first observed account value, not trading profit. Deposits, withdrawals and transfers are unreconciled." aria-label="Equity change explanation">ⓘ</span></div><div id="pnl" class="value">--</div></div>
     <div class="card"><div class="label">Wealth multiple</div><div id="multiple" class="value">--</div></div>
   </div>
 
   <div class="layout">
     <div>
       <div class="panel">
-        <h2 id="traderThingTitle">TRADER THING</h2>
+        <h2 id="traderThingTitle">BEAN</h2>
         <div class="petbox">
-          <canvas id="pet" width="144" height="144"></canvas>
-          <div class="petname">AIS-0</div>
+          <canvas id="pet" width="192" height="192" role="img" aria-label="BEAN retro pixel-art mascot with sprout and waving arms"></canvas>
+          <div class="petname">BEAN</div>
           <div id="petMood">just sitting there</div>
         </div>
       </div>
@@ -131,8 +362,8 @@
         <div id="levelProgress" class="small">Progress: --</div>
       </div>
 
-      <div class="panel" style="margin-top:14px">
-        <h2>LIVE ENGINE</h2>
+      <div class="panel" id="live-engine" style="margin-top:14px">
+        <h2>LIVE ENGINE <span title="START runs AIscend's live Coinbase trading loop. BEAN experiments are research-only and cannot place orders." aria-label="Live trading help">ⓘ</span></h2>
         <label>Execution rail</label>
         <select id="executionRail" onchange="refreshStatus()">
           <option value="auto" selected>Linked portfolio - auto choose rail</option>
@@ -155,6 +386,7 @@
         </div>
         <button class="stop" onclick="stopRunner()">STOP</button>
         <button onclick="refreshStatus()">REFRESH</button>
+        <div id="beanLivePolicy" class="small" style="margin-top:10px">BEAN advisory research: awaiting first observation.</div>
       </div>
 
       <div class="panel" style="margin-top:14px">
@@ -164,6 +396,7 @@
         <label>Wallet Secret</label>
         <input id="walletSecret" type="password" autocomplete="off">
         <button onclick="configure()" class="primary">CONNECT WALLET</button>
+        <div class="small">Saved securely for future launches on this Windows account.</div>
         <div id="wallet" class="small">Wallet: --</div>
         <div id="message"></div>
       </div>
@@ -174,6 +407,7 @@
         <label>Advanced Trade API key JSON</label>
         <input id="advancedKeyfile" type="file" accept=".json,application/json">
         <button onclick="configureAdvanced()" class="primary">CONNECT ADVANCED</button>
+        <div class="small">Saved securely for future launches on this Windows account.</div>
         <div id="advancedStatus" class="small">Advanced: not connected</div>
         <div id="bridgeStatus" class="small bridge-status">Bridge: checking...</div>
         <label>Bridge USDC amount</label>
@@ -188,13 +422,13 @@
 
       <div class="panel" style="margin-top:14px">
         <h2>REMOTE MONITOR</h2>
-        <div class="small">Read-only monitor at <b>/monitor</b>. The app already listens on all interfaces. Use the included Tailscale helper on the home PC for private remote viewing from work.</div>
+        <div class="small">Read-only monitor at <b>/monitor</b>. The local dashboard does not expose trading controls remotely. Use the Tailscale monitor helper with an access token for read-only viewing.</div>
         <button onclick="window.open('/monitor','_blank')">OPEN MONITOR</button>
       </div>
     </div>
 
     <div>
-      <div class="panel">
+      <div class="panel" id="research">
         <h2>RESEARCH BRAIN</h2>
         <div class="row">
           <div><div class="label">Prediction</div><div id="researchPrediction" class="value" style="font-size:20px">--</div></div>
@@ -238,6 +472,36 @@
         <div id="beanTrust" class="small" style="margin-top:8px">Trust model has no graded outcomes yet.</div>
       </details>
 
+      <section class="panel bean-school" id="strategy-school" style="margin-top:14px" aria-label="BEAN Strategy School">
+        <div class="bean-head">
+          <div>
+            <h2>BEAN STRATEGY SCHOOL · RESEARCH ONLY</h2>
+            <div class="small">A tiny, ruthless research laboratory. Real Coinbase candle tests, persistent lessons, no wallet orders.</div>
+          </div>
+          <span class="bean-tag" id="beanLabState">READY TO LEARN</span>
+        </div>
+        <div class="bean-score">
+          <div><div class="label">Experiments</div><strong id="beanLabCount">0</strong></div>
+          <div><div class="label">Candidates</div><strong id="beanLabCandidates">—</strong></div>
+          <div><div class="label">Historical holdout</div><strong id="beanLabReturn">—</strong></div>
+        </div>
+        <div class="bean-actions">
+          <button id="beanLabRun" class="primary" onclick="startBeanLab()">🌱 RUN RESEARCH (NO ORDERS)</button>
+          <button id="beanLabRetry" onclick="startBeanLab()" disabled>↻ TRY AGAIN</button>
+        </div>
+        <div id="beanLabResult" class="bean-result small" role="status" aria-live="polite">BEAN's first exam is ready. Each retry preserves previous findings and explores another Coinbase cohort.</div>
+        <div id="beanLabMemory" class="small" style="margin-top:8px">Archived strategy lessons: loading...</div>
+        <div id="beanFastResearch" class="small">New five-minute research status loading.</div>
+        <div id="beanFastPaper" class="small">Independent five-minute forward simulation loading.</div>
+        <div id="beanResearchWatch" class="small" style="margin-top:8px">Autonomous research: checking...</div>
+        <button id="beanResearchToggle" onclick="toggleBeanResearch()" style="max-width:240px;margin-top:7px">PAUSE AUTOMATIC RESEARCH</button>
+        <div id="beanLabGateStatus" class="bean-result small" style="margin-top:10px">Independent strategy gate: awaiting fresh candle evaluation.</div>
+        <div id="beanLabActivation" class="small" style="margin-top:5px">No approval required for research selection. The selected strategy can confirm or veto existing buys; it cannot originate live trades.</div>
+        <details style="margin-top:13px"><summary style="cursor:pointer;color:#b4dbc1;font-weight:700">LESSON JOURNAL · RECENT EXPERIMENTS</summary>
+          <div id="beanLabHistory" class="bean-history small">No lessons recorded yet.</div>
+        </details>
+      </section>
+
       <details class="panel" style="margin-top:14px">
         <summary>COINBASE ASSET UNIVERSE</summary>
         <div id="universeSummary" class="small">Universe not loaded yet.</div>
@@ -271,6 +535,20 @@
       </div>
 
       <div class="panel" style="margin-top:14px">
+      <div class="panel" id="primary-policy" style="margin-top:14px">
+        <h2>AIscend Trading Policy · LIVE
+          <details class="info-tip">
+            <summary title="Trading decision details" aria-label="Show trading decision details">ⓘ</summary>
+            <div class="info-bubble">
+              <div id="primaryPolicyReason">Awaiting first trading cycle.</div>
+              <div id="primaryPolicyEvidence" class="small"></div>
+            </div>
+          </details>
+        </h2>
+        <div id="primaryPolicyStatus" class="decision-current small">Checking trading status...</div>
+      </div>
+
+      <div class="panel" id="decision-journal" style="margin-top:14px">
         <h2>DECISION JOURNAL</h2>
         <div id="currentDecision" class="decision-current small">Current decision: --</div>
         <div class="decision-scroll">
@@ -282,7 +560,7 @@
       </div>
     </div>
   </div>
-</div>
+</main>
 <script>
 const $ = id => document.getElementById(id);
 const money = n => '$' + Number(n ?? 0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:6});
@@ -295,6 +573,110 @@ let previousPoints = null;
 let activeCandleProduct = null;
 let candleFetchInFlight = false;
 
+let beanLabLatest = null;
+let beanLabRunning = false;
+let beanResearchEnabled = true;
+let beanGateEvidence = null;
+function beanPct(n){ const x=Number(n); return Number.isFinite(x) ? (x>=0?'+':'')+(x*100).toFixed(2)+'%' : '—'; }
+function renderBeanLab(payload){
+  const latest=payload.latest||null;
+  beanLabLatest=latest;
+  beanLabRunning=!!payload.running;
+  const report=latest&&latest.report;
+  $('beanLabState').textContent=latest ? (latest.state==='AUTO_SELECTED'?'RESEARCH SELECTED':latest.state.replaceAll('_',' ')) : 'READY TO LEARN';
+  $('beanLabCount').textContent=String(payload.retained_events||0);
+  $('beanLabCandidates').textContent=report?String(report.unique_candidates||0):'—';
+  $('beanLabReturn').textContent=report?beanPct(report.holdout?.net_return):'—';
+  $('beanLabReturn').className=report?(report.holdout.net_return>0?'bean-pos':'bean-neg'):'';
+  const archived=Number(payload.retained_lessons||0);
+  const replayed=report?Number(report.memory_replayed||0):0;
+  $('beanLabMemory').textContent='Durable lessons: '+archived+' unique strategy candidates in SQLite'+
+    (report?' · '+replayed+' replayed in the latest training session':'')+
+    ' · older lessons rotate back into training.';
+  const watch=payload.research_watch || {};
+  beanResearchEnabled=!!watch.enabled;
+  $('beanResearchToggle').textContent=beanResearchEnabled?'PAUSE AUTOMATIC RESEARCH':'RESUME AUTOMATIC RESEARCH';
+  const next=watch.next_experiment_at
+    ? new Date(Number(watch.next_experiment_at)*1000).toLocaleTimeString():'—';
+  $('beanResearchWatch').textContent='Autonomous research: '+
+    (beanResearchEnabled?(watch.worker_running?'RUNNING':'STARTING'):'PAUSED')+
+    ' · '+(watch.last_action||'Awaiting first check')+
+    ' · next fresh-data trial '+next+
+    (watch.last_error?' · '+watch.last_error:'')+
+    ' · 7 causal rule families; rotating real Coinbase markets, no wallet orders.';
+  const fast5=watch.five_minute || {};
+  const latest5=(fast5.research || {}).latest || {};
+  const paper5=fast5.paper || {};
+  const due5=fast5.next_at ? new Date(Number(fast5.next_at)*1000).toLocaleTimeString() : '—';
+  $('beanFastResearch').textContent='Five-minute research · '+(fast5.last_action||'NOT STARTED')+
+    ' · '+Number((fast5.research||{}).retained_events||0)+' research windows · next '+due5+
+    (fast5.last_error?' · '+fast5.last_error:'')+' · latest '+(latest5.state||'N/A');
+  $('beanFastPaper').textContent='Five-minute forward paper · '+(paper5.status||'NO TRIAL')+
+    ' · '+Number(paper5.samples||0)+'/288 genuine forward bars · modeled '+
+    (paper5.net_return==null?'N/A':beanPct(paper5.net_return))+
+    ' vs BTC '+(paper5.btc_return==null?'N/A':beanPct(paper5.btc_return))+
+    ' · hypothetical fills '+Number(paper5.orders||0);
+  const gate=watch.policy || {};
+  beanGateEvidence=gate;
+  $('beanLabGateStatus').textContent=gate.status==='READY'
+    ? 'Independent BEAN gate: READY · exam #'+gate.experiment+
+      ' · target '+(gate.target||'CASH')+' · '+Number(gate.bars||0)+
+      ' completed hourly candles · advisory only (no buy veto)'
+    : 'Independent BEAN gate: '+(gate.status||'NOT EVALUATED')+
+      (gate.reason?' · '+gate.reason:'')+
+      '. This reading does not place or approve a real-money order.';
+  $('beanLabActivation').textContent=payload.live_strategy_activation==='BUY_CONFIRMATION_GATE'
+    ? 'Legacy BUY_CONFIRMATION_GATE flag detected; this is no longer an order authority. AIscend owns trading decisions.'
+    : 'Research-only. AIscend decides BUY/SELL/HOLD; BEAN cannot place or veto orders.';
+  $('beanLabRun').disabled=!!latest||beanLabRunning;
+  $('beanLabRetry').disabled=!latest||beanLabRunning;
+  if(!latest){ $('beanLabResult').textContent='Research only. BEAN can run an exam without placing a trade.'; }
+  else if(beanLabRunning){ $('beanLabResult').textContent='BEAN is researching Coinbase candles and evolving trading policies. You can keep using the dashboard.'; }
+  else if(latest.error){ $('beanLabResult').textContent='Experiment '+latest.ordinal+' failed: '+latest.error+'. Previous lessons are retained. Try again when ready.'; }
+  else if(report){
+    $('beanLabResult').textContent='Exam '+latest.ordinal+' · '+report.pairs.join(', ')+' · '+report.unique_candidates+
+      ' candidates · Holdout '+beanPct(report.holdout?.net_return)+' vs BTC '+beanPct(report.btc_return)+
+      ' · '+(report.beats_cash_and_btc?'Research-selected backtest only; no Coinbase fill or live authorization.':'Rejected by historical evidence; no live action.');
+  } else { $('beanLabResult').textContent='Experiment interrupted. Previous results are retained.'; }
+  const recent=(payload.history||[]).slice(0,8);
+  $('beanLabHistory').innerHTML=recent.length?recent.map(entry=>{
+    const p=entry.report;
+    const outcome=p?beanPct(p.holdout?.net_return):(entry.error?'FAILED':entry.state);
+    const cls=p&&p.holdout?.net_return>0?'bean-pos':'bean-neg';
+    return '<div class="bean-history-row"><span>Experiment #'+Number(entry.ordinal)+' · '+escapeHtml(entry.state)+'</span>'+
+      '<span class="'+cls+'">'+escapeHtml(outcome)+'</span></div>';
+  }).join(''):'No lessons recorded yet.';
+}
+async function refreshBeanLab(){
+  try{const r=await fetch('/api/bean-lab');const j=await r.json();
+    if(j.ok)renderBeanLab(j);
+  }catch(e){$('beanLabResult').textContent='BEAN Lab unavailable: '+e.message;}
+}
+async function startBeanLab(){
+  if(beanLabRunning)return;
+  $('beanLabResult').textContent='Initiating BEAN experiment...';
+  try{
+    const r=await fetch('/api/bean-lab/start',{method:'POST'});
+    const j=await r.json();
+    if(!j.ok){$('beanLabResult').textContent=j.error||'Experiment could not start';return;}
+    renderBeanLab(j);
+  }catch(e){$('beanLabResult').textContent='Unable to start: '+e.message;}
+}
+async function toggleBeanResearch(){
+  const button=$('beanResearchToggle');
+  button.disabled=true;
+  try{
+    const response=await fetch('/api/bean-research/enable',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({enabled:!beanResearchEnabled})
+    });
+    const result=await response.json();
+    if(!result.ok) throw Error(result.error||'Unable to update research mode');
+    await refreshBeanLab();
+  }catch(error){
+    $('beanResearchWatch').textContent='Research control error: '+error.message;
+  }finally{ button.disabled=false; }
+}
 function network(){ return $('network').value; }
 function rail(){ return $('executionRail').value; }
 function msg(text, ok=false){ $('message').className = ok ? 'success' : 'error'; $('message').textContent = text || ''; }
@@ -488,7 +870,8 @@ async function configureAdvanced(){
     if(!j.ok){ $('advancedStatus').textContent='Advanced: '+(j.error||'connection failed'); return; }
     const balances=(j.balances||[]).map(b=>b.currency+' '+b.available).join(' · ');
     $('advancedStatus').textContent='Advanced: connected · '+Number(j.tradable_spot_products||0)+' tradable spot products'+
-      (balances ? ' · '+balances : '');
+      (balances ? ' · '+balances : '')+' · saved';
+    $('advancedKeyfile').value='';
     fetch('/api/capabilities').then(r=>r.json()).then(renderCapabilities);
     refreshBridge();
   }catch(e){
@@ -521,8 +904,9 @@ async function configure(){
   const j = await r.json();
   if(!j.ok){ msg(j.error); petState='dead'; drawPet(); return; }
   $('walletSecret').value = '';
+  $('keyfile').value = '';
   $('wallet').textContent = 'Wallet: ' + j.address;
-  msg('Connected.', true);
+  msg('Connected. Credentials saved to Windows Credential Manager.', true);
   petState='idle';
   refreshStatus();
 }
@@ -533,15 +917,45 @@ async function refreshStatus(){
   const j = await r.json();
   if(!j.ok){ msg(j.error || 'Status unavailable'); renderRunner(j.runner); petState='dead'; drawPet(); return; }
 
-  if(requestedRail!=='auto' && j.suggested_rail && j.suggested_rail!==requestedRail && !(j.runner||{}).running){
-    $('executionRail').value=j.suggested_rail;
-    return refreshStatus();
-  }
-
+  // An explicit Coinbase execution-rail selection must never be silently
+  // overwritten by j.suggested_rail. Only 'auto' may choose a rail.
   msg('');
   renderDecisions(j.decisions || []);
   renderSnapshot(j.snapshot);
   renderRunner(j.runner);
+  refreshTradingDiagnostics();
+}
+
+async function refreshTradingDiagnostics(){
+  try {
+    const r=await fetch('/api/trading-diagnostics');
+    const j=await r.json();
+    if(!j.ok) throw new Error(j.error || 'Diagnostic endpoint unavailable');
+    const p=j.last_plan||{},run=j.runner||{};
+    const active=!!run.running;
+    const status=p.execution_status || 'NO_EXECUTION_YET';
+    const activeRail=run.active_rail||run.rail||'unknown';
+    const age=p.evaluated_at ? Math.round(Date.now()/1000 - Number(p.evaluated_at)) : null;
+    $('primaryPolicyStatus').textContent=
+      (active?'RUNNING':'NOT RUNNING')+' · actual rail '+activeRail+' · '+
+      (p.primary_engine || 'AIscend policy not executed yet')+
+      ' · '+status+(age!==null?' · last evaluated '+age+' seconds ago':'');
+    $('primaryPolicyReason').textContent=p.decision_reason ||
+      (active?'Awaiting first decision cycle.':'Live trading runner is stopped; dashboard alone never places orders.');
+    const skip=p.skipped||{};
+    $('primaryPolicyEvidence').textContent=
+      'Scanned '+Number(p.examined||0)+' · candidate signals '+
+      Number(p.candidate_signals||0)+' · costed routes '+
+      Number(p.costed_routes||0)+' · below total fees/spread '+
+      Number(skip.negative_net_edge||0)+' · quote path unavailable '+
+      Number(skip.no_quote_path||0)+' · order attempted '+
+      (!!p.order_attempted?'YES':'NO')+
+      (j.order_evidence?.state?' · Coinbase evidence '+j.order_evidence.state:'')+
+      (j.bean_bridge?.installed_verified?' · BEAN core checkout verified (manual research only)':' · BEAN local core NOT CONNECTED')+
+      (run.last_error?' · runner error '+run.last_error:'');
+  } catch(err) {
+    $('primaryPolicyStatus').textContent='Diagnostics unavailable: '+err.message;
+  }
 }
 
 function renderSnapshot(s){
@@ -551,6 +965,13 @@ function renderSnapshot(s){
   $('multiple').textContent = Number(s.multiple || 0).toFixed(4) + 'x';
   $('wallet').textContent = 'Wallet: ' + (s.wallet_address || '--');
 
+  const beanPolicy=(beanGateEvidence && beanGateEvidence.status!=='NOT_EVALUATED')
+    ? beanGateEvidence : (s.bean_policy || {});
+  $('beanLivePolicy').textContent=beanPolicy.status==='READY'
+    ? 'BEAN research READY · exam #'+beanPolicy.experiment+' · target '+(beanPolicy.target||'CASH')+
+      ' · '+Number(beanPolicy.bars||0)+' completed hourly candles · advisory only'
+    : 'BEAN research: '+(beanPolicy.status||'NOT EVALUATED')+
+      (beanPolicy.reason?' · '+beanPolicy.reason:'')+'. Unavailable policy never manufactures an order.';
   const r=s.research || {};
   $('researchPrediction').textContent = r.prediction || 'UNKNOWN';
   $('researchConfidence').textContent = r.available ? (Number(r.confidence || 0)*100).toFixed(1)+'%' : '--';
@@ -861,83 +1282,140 @@ function drawCandles(rows){
 function drawPet(){
   const canvas=$('pet');
   const ctx=canvas.getContext('2d');
-  const px=8;
-  const ink='#a7d49b';
-  const bg='#0b100b';
-  ctx.fillStyle=bg;
+  if(!ctx) return;
+  // 48x48 Game Boy-inspired pixel canvas, scaled without smoothing.
+  // BEAN's silhouette follows the official two-leaf sprout + waving body.
+  const unit=4, size=48;
+  const color={
+    bg:'#0b100b', outline:'#29482d', shadow:'#457c42',
+    bean:'#83ba60', light:'#a7d49b', shine:'#d7edba',
+    ink:'#081108', blush:'#619d51'
+  };
+  ctx.imageSmoothingEnabled=false;
+  ctx.fillStyle=color.bg;
   ctx.fillRect(0,0,canvas.width,canvas.height);
-  ctx.fillStyle=ink;
+  const pixel=(x,y,shade)=>{
+    x=Math.round(x); y=Math.round(y);
+    if(x<0||y<0||x>=size||y>=size) return;
+    ctx.fillStyle=shade;
+    ctx.fillRect(x*unit,y*unit,unit,unit);
+  };
+  const oval=(cx,cy,rx,ry,shade,rotation=0)=>{
+    const co=Math.cos(rotation), si=Math.sin(rotation);
+    const reach=Math.ceil(Math.max(rx,ry))+2;
+    for(let y=Math.floor(cy-reach);y<=cy+reach;y++){
+      for(let x=Math.floor(cx-reach);x<=cx+reach;x++){
+        const dx=x-cx, dy=y-cy;
+        const u=dx*co+dy*si, v=-dx*si+dy*co;
+        if(u*u/(rx*rx)+v*v/(ry*ry)<=1) pixel(x,y,shade);
+      }
+    }
+  };
+  const stroke=(ax,ay,bx,by,width,shade)=>{
+    const dx=bx-ax,dy=by-ay,len=dx*dx+dy*dy||1;
+    for(let y=Math.floor(Math.min(ay,by)-width-1);y<=Math.ceil(Math.max(ay,by)+width+1);y++){
+      for(let x=Math.floor(Math.min(ax,bx)-width-1);x<=Math.ceil(Math.max(ax,bx)+width+1);x++){
+        const t=Math.max(0,Math.min(1,((x-ax)*dx+(y-ay)*dy)/len));
+        if((x-ax-t*dx)**2+(y-ay-t*dy)**2<=width*width) pixel(x,y,shade);
+      }
+    }
+  };
 
-  const ox=0;
-  const oy=petBob?1:0;
-  const p=(x,y)=>ctx.fillRect((x+ox)*px,(y+oy)*px,px,px);
-  const line=(x1,x2,y)=>{ for(let x=x1;x<=x2;x++) p(x,y); };
+  // Two distinct leaves, curved stem, and chunky four-color foliage.
+  stroke(24,15,24,8,2.0,color.outline);
+  stroke(24,13,27,7,1.7,color.shadow);
+  oval(17.5,6.7,8.8,4.2,color.outline,0.34);
+  oval(17.5,6.2,7.5,3.1,color.bean,0.34);
+  oval(15.5,5.0,3.7,1.0,color.shine,0.34);
+  oval(32.2,7.0,8.2,4.0,color.outline,-0.32);
+  oval(32,6.4,7.0,2.9,color.bean,-0.32);
+  oval(34,5.1,3.6,1.0,color.light,-0.32);
+  stroke(24,14,24,9,1.1,color.light);
 
-  // SAME dumb little AIS-0 body. Do not improve it.
-  line(6,11,2); p(4,3); p(5,3); p(12,3); p(13,3);
-  p(3,4); p(14,4); p(2,5); p(15,5);
-  p(2,6); p(15,6); p(2,7); p(15,7); p(2,8); p(15,8);
-  p(2,9); p(15,9); p(3,10); p(14,10); p(4,11); p(5,11); p(12,11); p(13,11);
-  line(6,11,12);
+  // Arms remain visible outside the body. BEAN waves one hand.
+  const waving=['buy','win','point','up','interested'].includes(petState);
+  const handY=waving?13:16;
+  stroke(14,25,8,23,4,color.outline);
+  stroke(8,23,5,handY+3,3.5,color.outline);
+  oval(5.8,handY+1,3.7,4.2,color.outline,-0.15);
+  stroke(14,25,8,23,2.8,color.bean);
+  stroke(8,23,5,handY+3,2.3,color.bean);
+  oval(5.7,handY+1,2.5,3.1,color.bean,-0.15);
+  stroke(8,handY+1,10,handY+4,1.8,color.outline);
+  stroke(8,handY+1,10,handY+4,1.1,color.bean);
+  pixel(4,handY-1,color.light);
+  stroke(37,27,42,30,4,color.outline);
+  stroke(42,30,43,34,3.6,color.outline);
+  stroke(37,27,42,30,2.7,color.bean);
+  stroke(42,30,43,34,2.3,color.bean);
+  oval(43,34.5,3.4,3.4,color.outline);
+  oval(43,34,2.4,2.5,color.bean);
+  pixel(44,33,color.light);
 
-  line(6,11,13); p(5,14); p(12,14); p(5,15); p(12,15);
-  p(7,14); p(10,14); p(8,15); p(9,15);
-  p(6,16); p(7,16); p(10,16); p(11,16);
+  // Rounded bean body, rim light and belly shading. No black faceplate.
+  oval(24.5,27.6,14.6,15.7,color.outline);
+  oval(25,32,13.7,10.5,color.outline);
+  oval(24.5,27.1,13.2,14.4,color.shadow);
+  oval(25,32,12.3,9.5,color.shadow);
+  oval(23.2,26.4,11.5,12.7,color.bean);
+  oval(23.5,32,10.6,8.0,color.bean);
+  oval(20,22,6.9,6.0,color.light,-0.18);
+  oval(20,17.1,5.3,1.6,color.shine,-0.14);
+  oval(21,34,6.6,5.1,color.light,0.12);
+  oval(30.8,34,4.3,5.9,color.shadow,0.20);
+  oval(23,28,9,7,color.bean);
 
-  // Tiny expressions, still gloriously shitty.
-  if(petBlink){
-    line(5,6,6); line(11,12,6);
-  } else if(petState==='dead'){
-    p(5,5); p(6,6); p(6,5); p(5,6);
-    p(11,5); p(12,6); p(12,5); p(11,6);
-  } else if(petState==='sell' || petState==='down' || petState==='poop' || petState==='trouble'){
-    p(5,6); p(6,7); p(11,7); p(12,6);
-  } else if(petState==='interested'){
-    p(5,5); p(6,6); p(11,6); p(12,5);
-  } else if(petState==='curious' || petState==='bean'){
-    p(5,6); p(6,6); p(11,5); p(12,5);
-  } else if(petState==='point' || petState==='win'){
-    p(5,5); p(6,5); p(5,6); p(6,6);
-    p(11,5); p(12,5); p(11,6); p(12,6);
-  } else if(petState==='buy' || petState==='up'){
-    p(5,5); p(6,6); p(11,6); p(12,5);
-  } else {
-    p(5,6); p(6,6); p(11,6); p(12,6);
+  // Expressive DARK eyes set directly in the GREEN body, with tiny highlights.
+  const unhappy=['down','poop','sell','trouble'].includes(petState);
+  const happy=['up','buy','point','win','interested'].includes(petState);
+  if(petState==='dead'){
+    stroke(17,24,21,28,1.0,color.ink);
+    stroke(21,24,17,28,1.0,color.ink);
+    stroke(28,24,32,28,1.0,color.ink);
+    stroke(32,24,28,28,1.0,color.ink);
+  }else if(petBlink){
+    stroke(17,26,21,26,0.85,color.ink);
+    stroke(28,26,32,26,0.85,color.ink);
+  }else{
+    oval(19,26,2.7,3.2,color.ink);
+    oval(30,26,2.7,3.2,color.ink);
+    pixel(18,24,color.shine);
+    pixel(29,24,color.shine);
+    if(petState==='curious'){ pixel(31,25,color.light); }
+    if(unhappy){
+      stroke(17,22,21,23,0.7,color.outline);
+      stroke(28,23,32,22,0.7,color.outline);
+    }
+  }
+  // Rounded cheeks and a stateful pixel mouth preserve the familiar moods.
+  pixel(15,30,color.blush);
+  pixel(16,31,color.blush);
+  pixel(33,30,color.blush);
+  pixel(34,31,color.blush);
+  if(unhappy){
+    stroke(21,34,24,32,0.8,color.ink);
+    stroke(24,32,27,34,0.8,color.ink);
+  }else if(petState==='think'||petState==='bean'){
+    oval(24.5,33.5,1.8,2.2,color.ink);
+    pixel(38,15,color.light);
+    pixel(41,12,color.light);
+  }else if(petState==='dead'){
+    stroke(22,33,27,33,0.8,color.ink);
+  }else if(petState==='curious'){
+    oval(24.5,33,2.4,2.5,color.ink);
+  }else{
+    oval(24.5,33.3,happy?5.0:3.9,happy?2.9:2.2,color.ink);
+    oval(24.5,34.6,happy?2.7:2.0,0.9,color.blush);
   }
 
-  if(petState==='up' || petState==='buy' || petState==='point' || petState==='win'){
-    p(6,9); p(7,10); p(8,10); p(9,10); p(10,10); p(11,9);
-  } else if(petState==='down' || petState==='poop'){
-    p(6,10); p(7,9); p(8,9); p(9,9); p(10,9); p(11,10);
-  } else if(petState==='sell'){
-    p(6,9); p(7,9); p(10,10); p(11,10);
-  } else if(petState==='think' || petState==='bean'){
-    p(8,9); p(9,9);
-    p(16,4); p(17,3); // two stupid little thought pixels
-  } else if(petState==='curious'){
-    p(7,9); p(8,9); p(9,9);
-  } else if(petState==='interested'){
-    p(7,10); p(8,10); p(9,10); p(10,9);
-  } else if(petState==='trouble'){
-    p(7,10); p(8,9); p(9,10); p(10,9);
-  } else if(petState==='dead'){
-    line(7,10,10);
-  } else {
-    line(7,10,9);
-  }
-
-  if(petState==='point' || petState==='win'){
-    p(1,12); p(2,11); p(15,11); p(16,12);
-  } else if(petState==='poop'){
-    p(4,14); p(13,14);
-    // Tactical shit. Three pixels of dignity, gone forever.
-    p(16,13);
-    p(15,14); p(16,14);
-    p(14,15); p(15,15); p(16,15); p(17,15);
-    p(15,10); p(16,9); p(15,8); // stink
-  } else {
-    p(4,14); p(13,14);
-  }
+  // Independent little shoes, shaded like chunky original-game sprites.
+  oval(17.5,42.0,5.1,3.6,color.outline);
+  oval(31.3,42.0,5.1,3.6,color.outline);
+  oval(17.1,41.6,3.8,2.6,color.shadow);
+  oval(31.0,41.6,3.8,2.6,color.shadow);
+  oval(16,40.8,2.2,1.1,color.light);
+  oval(29.8,40.8,2.2,1.1,color.light);
+  pixel(14,43,color.bean); pixel(29,43,color.bean);
 
   const moods={
     idle:[
@@ -1012,22 +1490,22 @@ function drawPet(){
     ]
   };
   const labels={
-    idle:'TRADER THING',
-    think:'TRADER THING',
-    curious:'TRADER THING · WATCHING',
-    interested:'TRADER THING · INTERESTED',
-    bean:'TRADER THING · BEAN',
-    trouble:'TRADER THING · TROUBLESHOOTER',
-    poop:'TRADER THING · SOMETHING IS FUCKED',
-    buy:'TRADER THING · BUY',
-    sell:'TRADER THING · SELL',
-    up:'TRADER THING · SMUG',
-    down:'TRADER THING · PISSED',
-    point:'TRADER THING · POINT',
-    win:'TRADER THING · WINNER',
-    dead:'TRADER THING · DEAD'
+    idle:'BEAN',
+    think:'BEAN · THINKING',
+    curious:'BEAN · WATCHING',
+    interested:'BEAN · INTERESTED',
+    bean:'BEAN · LEARNING',
+    trouble:'BEAN · TROUBLESHOOTER',
+    poop:'BEAN · SOMETHING IS FUCKED',
+    buy:'BEAN · BUY',
+    sell:'BEAN · SELL',
+    up:'BEAN · SMUG',
+    down:'BEAN · PISSED',
+    point:'BEAN · POINT',
+    win:'BEAN · WINNER',
+    dead:'BEAN · DEAD'
   };
-  $('traderThingTitle').textContent=labels[petState] || 'TRADER THING';
+  $('traderThingTitle').textContent=labels[petState] || 'BEAN';
   const lines=moods[petState] || ['...'];
   $('petMood').textContent=lines[petQuipIndex % lines.length];
 }
@@ -1053,6 +1531,9 @@ setInterval(()=>{ if($('runnerPill').textContent.startsWith('RUNNING')) scanUniv
 fetch('/api/credentials').then(r=>r.json()).then(j=>{ if(j.configured) msg('CDP credentials detected.', true); });
 fetch('/api/capabilities').then(r=>r.json()).then(renderCapabilities).catch(()=>{ $('venueSummary').textContent='Venue capabilities unavailable.'; });
 scanUniverse();
+refreshBeanLab();
+setInterval(()=>{if(beanLabRunning) refreshBeanLab();},3000);
+setInterval(refreshBeanLab,15000);
 refreshAdvanced();
 refreshBridge();
 drawPet();

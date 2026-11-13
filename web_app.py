@@ -18,6 +18,12 @@ from flask import Flask, jsonify, render_template, request
 from src.advanced_live import AdvancedSpotEngine
 from src.audit import AuditTrail
 from src.bean import BeanMemory
+from src.bean_core_bridge import core_identity
+from src.bean_policy import BeanPolicyGate
+from src.bean_research_supervisor import BeanResearchSupervisor
+from src.bean_five_minute import FastPaperBook, collect_5m
+from src.bean_growth_adaptive import BeanAdaptiveGrowthGate
+from src.bean_strategy_lab import BeanStrategyLab
 from src.core import Decision, StateStore, app_data_dir
 from src.live import LiveEngine
 from src.opportunities import OpportunityUniverse
@@ -28,6 +34,14 @@ from src.wallets.cdp_wallet import CdpWallet, CredentialVault
 
 
 app = Flask(__name__)
+_bean_lab = BeanStrategyLab()
+_bean_policy = BeanPolicyGate(lab=_bean_lab)
+_bean_fast_lab = BeanStrategyLab(app_data_dir() / 'bean-five-minute-lab.sqlite3',
+                                 collector=collect_5m)
+_bean_paper = FastPaperBook()
+_bean_growth = BeanAdaptiveGrowthGate()
+_bean_supervisor = BeanResearchSupervisor(_bean_lab, _bean_policy,
+                                           fast_lab=_bean_fast_lab, paper=_bean_paper)
 
 _loop_lock = threading.Lock()
 _stop_event = threading.Event()
@@ -35,6 +49,8 @@ _loop_thread: threading.Thread | None = None
 _capital_lock = threading.Lock()
 _snapshot_cache_lock = threading.Lock()
 _snapshot_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+# A repeated infrastructure/SDK failure must not drive unattended retries forever.
+MAX_CONSECUTIVE_CYCLE_ERRORS = 5
 _loop_state: dict[str, Any] = {
     "running": False,
     "rail": "auto",
@@ -42,6 +58,12 @@ _loop_state: dict[str, Any] = {
     "interval": 60.0,
     "active_rail": None,
     "last_error": None,
+    "last_cycle_at": None,
+    "last_decision_action": None,
+    "last_decision_status": None,
+    "consecutive_errors": 0,
+    "last_failure_at": None,
+    "stop_reason": None,
 }
 
 
@@ -97,10 +119,14 @@ def _make_engine(network: str, rail: str = "base"):
             store=store,
             rail=AdvancedTradeSpot(),
             bean=BeanMemory(shared.conn),
+            policy_gate=_bean_policy,
+            growth_gate=_bean_growth,
         )
         setattr(engine, "_shared_memory_store", shared)
     else:
-        engine = LiveEngine(store=store, wallet=CdpWallet(network=network))
+        engine = LiveEngine(store=store, wallet=CdpWallet(network=network),
+                            policy_gate=_bean_policy,
+                            growth_gate=_bean_growth)
     return store, engine
 
 
@@ -185,10 +211,11 @@ def _portfolio_status(network: str, requested_rail: str) -> dict[str, Any]:
     else:
         active_rail = requested_rail
 
-    if active_rail == "advanced" and advanced is None and base is not None:
-        active_rail = "base"
-    elif active_rail == "base" and base is None and advanced is not None:
-        active_rail = "advanced"
+    if requested_rail == "auto":
+        if active_rail == "advanced" and advanced is None and base is not None:
+            active_rail = "base"
+        elif active_rail == "base" and base is None and advanced is not None:
+            active_rail = "advanced"
 
     game_store = StateStore(_db_path("base", "base"))
     try:
@@ -273,6 +300,8 @@ def _runner(network: str, interval: float, rail: str) -> None:
                 "interval": interval,
                 "active_rail": None,
                 "last_error": None,
+                "consecutive_errors": 0,
+                "stop_reason": None,
             }
         )
 
@@ -283,9 +312,23 @@ def _runner(network: str, interval: float, rail: str) -> None:
                 with _loop_lock:
                     _loop_state["active_rail"] = cycle.get("active_rail") or rail
                     _loop_state["last_error"] = None
+                    _loop_state["consecutive_errors"] = 0
+                    _loop_state["last_cycle_at"] = time.time()
+                    decision = cycle.get("decision") or {}
+                    _loop_state["last_decision_action"] = decision.get("action")
+                    _loop_state["last_decision_status"] = decision.get("status")
             except Exception as exc:
                 with _loop_lock:
-                    _loop_state["last_error"] = str(exc)
+                    _loop_state["last_error"] = f"{type(exc).__name__}: {str(exc)[:240]}"
+                    _loop_state["last_failure_at"] = time.time()
+                    _loop_state["consecutive_errors"] = (
+                        int(_loop_state.get("consecutive_errors") or 0) + 1)
+                    if (_loop_state["consecutive_errors"] >=
+                            MAX_CONSECUTIVE_CYCLE_ERRORS):
+                        _loop_state["stop_reason"] = "CONSECUTIVE_CYCLE_FAILURES"
+                        # Require an explicit restart after repeated exceptions;
+                        # never let unattended execution retry without a bound.
+                        break
             _stop_event.wait(interval)
     finally:
         with _loop_lock:
@@ -368,6 +411,25 @@ def _no_store_remote_monitor(response):
         response.headers["Cache-Control"] = "no-store, private"
         response.headers["Pragma"] = "no-cache"
     return response
+
+
+@app.before_request
+def _remote_read_only_boundary():
+    """A remote monitor client may not access dashboard credentials or trades.
+
+    Browser UI and trading controls are intentionally local-only. Tailscale
+    monitors get only the token-protected read-only monitor endpoints.
+    """
+    remote = (request.remote_addr or "").strip()
+    if remote in {"127.0.0.1", "::1"}:
+        return None
+    if request.method != "GET":
+        return jsonify({"ok": False, "error": "Remote trading controls are disabled"}), 403
+    if (request.path in {"/monitor", "/api/monitor/status"}
+            and os.getenv("AISCEND_REMOTE_TOKEN", "").strip()
+            and _monitor_token_ok()):
+        return None
+    return jsonify({"ok": False, "error": "Remote access is restricted to the read-only monitor"}), 401
 
 
 def _active_monitor_payload() -> dict[str, Any]:
@@ -468,6 +530,107 @@ def candles():
         return jsonify({"ok": True, "product": product, "candles": candles})
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
+@app.get("/api/bean-lab")
+def bean_lab_status():
+    status = _bean_lab.status()
+    status["live_strategy_activation"] = "RESEARCH_ONLY"
+    status["research_watch"] = _bean_supervisor.status()
+    status["adaptive_growth"] = _bean_growth.status()
+    return jsonify({"ok": True, **status})
+
+
+@app.post("/api/bean-lab/start")
+def bean_lab_start():
+    try:
+        return jsonify({"ok": True, **_bean_lab.start()}), 202
+    except RuntimeError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 409
+
+
+@app.post("/api/bean-research/enable")
+def bean_research_enable():
+    payload = request.get_json(silent=True) or {}
+    if type(payload.get("enabled")) is not bool:
+        return jsonify({"ok": False, "error": "enabled must be a boolean"}), 400
+    return jsonify({"ok": True, "research_watch":
+                    _bean_supervisor.set_enabled(payload["enabled"])})
+
+
+@app.get("/api/bean-growth")
+def bean_growth_status():
+    # Evidence of actual learned decisions, not just historical reward counts.
+    evidence = {}
+    for rail in ("advanced", "base"):
+        path = _db_path("base", rail)
+        if not path.is_file():
+            continue
+        store = StateStore(path)
+        try:
+            growth = json.loads(store.get_meta("bean_growth_latest") or "{}")
+            latest = store.latest_decisions(1)
+            decision = dict(latest[0]) if latest else None
+            rationale = str((decision or {}).get("rationale") or "")
+            plan = json.loads(store.get_meta("primary_trade_plan_latest") or "{}")
+            winner = plan.get("winner") or {}
+            reviews = plan.get("holding_reviews") or {}
+            # Advanced's real primary engine names Q-driven decisions AIscend,
+            # not "BEAN learned"; a rationale-prefix-only check falsely
+            # reported live learned decisions as disconnected.
+            learned_decision = (
+                rationale.startswith("BEAN learned ")
+                or (plan.get("decision") == "BUY"
+                    and str(winner.get("strategy") or "").startswith("bean_q_"))
+                or (plan.get("decision") == "SELL"
+                    and any((review or {}).get("exit_reason") ==
+                            "bean_q_policy_cash" for review in reviews.values()))
+            )
+            evidence[rail] = {
+                "last_policy_evaluation": growth,
+                "last_order_decision": decision,
+                "decision_derived_from_learned_policy": bool(learned_decision),
+                "execution_status": (decision or {}).get("status"),
+            }
+        finally:
+            store.close()
+    return jsonify({"ok": True, **_bean_growth.status(), "execution_evidence": evidence})
+
+
+@app.get("/api/trading-diagnostics")
+def trading_diagnostics():
+    """Inspectable, read-only proof of why funded capital did or didn't move."""
+    store = StateStore(_db_path("base", "advanced"))
+    try:
+        plan = json.loads(store.get_meta("primary_trade_plan_latest") or "{}")
+        decisions = [dict(row) for row in store.latest_decisions(10)]
+        order_evidence = json.loads(
+            store.get_meta("last_coinbase_submission_evidence") or "{}")
+        pending = json.loads(
+            store.get_meta("pending_coinbase_order") or "{}")
+    finally:
+        store.close()
+    bean_dir = os.getenv("BEAN_CORE_DIR", "").strip()
+    bridge = {"installed_verified": False, "runtime_invoked": False,
+              "role": "optional_manual_research", "status": "NOT_CONFIGURED"}
+    if bean_dir:
+        try:
+            identity = core_identity(bean_dir)
+            bridge.update({"installed_verified": True, "status": "CORE_CHECKOUT_VERIFIED",
+                           "core_sha": identity["sha"]})
+        except Exception as exc:
+            bridge["status"] = f"UNAVAILABLE: {type(exc).__name__}"
+    return jsonify({
+        "ok": True,
+        "primary_engine": plan.get("primary_engine", "not_yet_evaluated"),
+        "bean_role": plan.get("bean_role", "not_yet_evaluated"),
+        "version": (Path(__file__).parent / "VERSION").read_text(encoding="utf-8").strip(),
+        "bean_bridge": bridge,
+        "order_evidence": order_evidence,
+        "pending_coinbase_order": bool(pending),
+        "runner": dict(_loop_state),
+        "last_plan": plan,
+        "recent_decisions": decisions,
+        "note": "Order acceptance is NOT a confirmed fill. Filled quantity, fees and realized net P/L require authenticated Coinbase order/fill evidence.",
+    })
 
 
 @app.get("/api/runner")
@@ -513,10 +676,13 @@ def configure_advanced():
         if not api_key_id or not api_key_secret:
             raise ValueError("Advanced Trade key JSON is missing id/name or privateKey.")
 
+        # Validate a candidate key without putting it into process-wide env.
+        # Only authenticated, trade-capable keys are persisted.
+        status = AdvancedTradeSpot.validate_credentials(
+            api_key_id, api_key_secret)
         vault = AdvancedTradeVault()
-        vault.configure(api_key_id, api_key_secret)
-        status = AdvancedTradeSpot(vault).status()
-        return jsonify({"ok": True, **status.as_dict()})
+        vault.save(api_key_id, api_key_secret)
+        return jsonify({"ok": True, "persisted": True, **status.as_dict()})
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
 
@@ -704,8 +870,10 @@ def configure():
 
         import asyncio
 
-        address = asyncio.run(CdpWallet(network=network).ensure_account())
-        return jsonify({"ok": True, "address": address, "network": network})
+        vault = CredentialVault()
+        address = asyncio.run(CdpWallet(vault=vault, network=network).ensure_account())
+        vault.save(api_key_id, api_key_secret, wallet_secret)
+        return jsonify({"ok": True, "address": address, "network": network, "persisted": True})
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
 
@@ -787,6 +955,8 @@ def start():
                 "network": network,
                 "interval": interval,
                 "last_error": None,
+                "consecutive_errors": 0,
+                "stop_reason": None,
             }
         )
         _loop_thread = threading.Thread(
@@ -803,9 +973,18 @@ def start():
 @app.post("/api/stop")
 def stop():
     _stop_event.set()
+    with _loop_lock:
+        _loop_state["stop_reason"] = "USER_STOP_REQUESTED"
     return jsonify({"ok": True, "runner": dict(_loop_state)})
 
 
 if __name__ == "__main__":
+    # Research is a separate background process within the Flask server, with
+    # its own durable hourly cursor. No trading/autonomy runner is started here.
+    _bean_supervisor.start()
     port = int(os.getenv("PORT", "8000"))
-    app.run(host="0.0.0.0", port=port, debug=False, threaded=True)
+    try:
+        app.run(host=os.getenv("AISCEND_BIND_HOST", "127.0.0.1"),
+                port=port, debug=False, threaded=True)
+    finally:
+        _bean_supervisor.stop()

@@ -29,7 +29,13 @@
     .candle-wrap { height:220px; background:#10141a; border:1px solid #262c34; border-radius:8px; overflow:hidden; }
     #candleChart { width:100%; height:100%; display:block; }
     @media(max-width:800px){ .grid{grid-template-columns:1fr 1fr}.layout{grid-template-columns:1fr} }
-  </style>
+  
+/* Black-first companion to the public AIscend design. */
+html,body{background:#050607;color:#edf4f0}
+.card,.panel{background:#111519;border-color:#343a3d}
+th{background:#111519}
+.pill{background:#171c1f;border-color:#343a3d}
+</style>
 </head>
 <body>
 <div class="wrap">
@@ -44,7 +50,7 @@
   <div class="grid">
     <div class="card"><div class="label">Net liquidation</div><div id="net" class="value">--</div></div>
     <div class="card"><div class="label">Cash</div><div id="cash" class="value">--</div></div>
-    <div class="card"><div class="label">P/L</div><div id="pnl" class="value">--</div></div>
+    <div class="card"><div class="label" title="Unadjusted change since first observed account value, not verified trading profit.">Equity change*</div><div id="pnl" class="value">--</div></div>
     <div class="card"><div class="label">Rail</div><div id="rail" class="value" style="font-size:18px">--</div></div>
   </div>
 

@@ -1,0 +1,41 @@
+name: BEAN Archived Memory Strategy Hypotheses
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/bean_memory_hypotheses.py"
+      - "tests/test_bean_memory_hypotheses.py"
+      - ".github/workflows/bean-archived-memory-hypotheses.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  causal-retained-fold-replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run causal and control-parity unit regressions
+        run: python -m unittest discover -s tests -p 'test_bean_memory_hypotheses.py' -v
+      - name: Retrieve immutable historical 389-market ledger archive from its review branch
+        run: |
+          git fetch --depth 1 origin research/bean-five-year-40114799875
+          mkdir -p artifacts/retained
+          git show FETCH_HEAD:research/bean-five-year/run-40114799875.zip > artifacts/retained/corrected-389-research.zip
+          python -m scripts.bean_five_year_archive --verify artifacts/retained/corrected-389-research.zip
+          python -m zipfile -e artifacts/retained/corrected-389-research.zip artifacts/retained
+      - name: Run real fee-net hypotheses across every evaluable archived market
+        run: |
+          python -m scripts.bean_memory_hypotheses --db artifacts/retained/bean-5y-universe.sqlite3 --output artifacts/bean-new-memory-hypotheses.json
+          python -c "import json; p=json.load(open('artifacts/bean-new-memory-hypotheses.json')); q=p['policy_summary']; assert p['promotion_authorized'] is False; assert q['no_memory']['markets'] == 174; assert q['no_memory']['profitable_after_costs'] == 44; assert q['bean_existing']['profitable_after_costs'] == 44; print('All 174 archived completed-market controls replay exactly')"
+      - name: Preserve real per-market hypothesis and loss evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bean-causal-learning-ablation-${{ github.run_number }}
+          path: artifacts/bean-new-memory-hypotheses.json
+          retention-days: 90
+          if-no-files-found: warn

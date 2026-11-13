@@ -1,0 +1,27 @@
+{
+  "schema": "aiscend.bean.retained_teaching.v1",
+  "parent_source": "526d57a1927b627082c301fffc274e6d64346ff7",
+  "core": "887935ae816b4ce6175c6cde54d749f0e5cf3268",
+  "seeds": [
+    7,
+    41
+  ],
+  "cutoff": 1743465600,
+  "selection_end": 1759276800,
+  "audit_end": 1792800000,
+  "label_availability_guard_days": 7,
+  "training_arms": [
+    "grouped_raw",
+    "shuffled_raw",
+    "paired_advantage"
+  ],
+  "controls": "Same original examples, input identities, seed, architecture, costs and gradient budget. Shuffled raw and advantage arms share one paired lesson order per seed. Grouped state must equal the original cached implementation.",
+  "objective": "Immediate raw log wealth versus log wealth advantage of long over cash from the identical account/path; shared market movement and cost effects reconcile exactly.",
+  "memory": "Fixed unbiased reservoir of at most128 cases per visible exposure/trend/volatility/order-budget regime; at most2048 active cases. Existing PatternMemory recalls32 nearest mature cases excluding query asset in both feature and label sources. When at least16 and squared distance<=1, blend25% mean advantage with75% neural action advantage. Retain memory-only and label-shuffled placebo controls.",
+  "diagnostics": "Fixed sentinel panels from four source-order quartiles, before and after each training quarter. They are repeated training diagnostics, not new unseen cases.",
+  "selection": "Compact SQL signed incremental net return over fixed price_trend on April-September2025 training assets; tie lower drawdown then method. Freeze before later audit. Representative seed41 arms audited regardless of winner. Held-out asset identities never enter gradients or selection.",
+  "scope": "Previously inspected current-survivor historical development data, not independent forward proof",
+  "case_codes": "Two-character page references to original immutable paired lessons; full sources and failures retained",
+  "live_orders": false,
+  "protocol_sha256": "49bfdcdd257dbe278d2264d37cf63addd9504e2fe9a082b116b47232af5dcc6b"
+}

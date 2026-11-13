@@ -1,0 +1,96 @@
+{
+  "schema": "aiscend.bean.mentor_artifacts.v1",
+  "files": {
+    ".gitignore": {
+      "bytes": 56,
+      "sha256": "1508eca47a1100055c7e1a5501f3d1616c677c6158c019d77469c174541f8e29"
+    },
+    "RESULTS.md": {
+      "bytes": 4751,
+      "sha256": "56414cd3daab968743d881024602bcc93ad697fbe9b02aca568487cd2a7c7442"
+    },
+    "coached_advantage.sqlite3.gz": {
+      "bytes": 481704,
+      "sha256": "7ef46b0feef208682ff8c5b18c10171b18a3435363cb6d95c863622b4e0b00b3"
+    },
+    "coached_advantage_decision_explanations.jsonl.gz": {
+      "bytes": 68000,
+      "sha256": "6db5d0c65d7eb624f968f9f4cb63db515212ee08dfec91b4207e781d8d37339a"
+    },
+    "coached_advantage_mentor_receipts.jsonl.gz": {
+      "bytes": 427965,
+      "sha256": "44160b42d86648c9d09cd8a1509769976ba6f200eae63cfef01943d5ed8efb92"
+    },
+    "coached_advantage_recovery_receipt.json": {
+      "bytes": 450,
+      "sha256": "c19f4fece93827f13d69874868bb86bf8019e686e57115b958c7588c36f5490c"
+    },
+    "consolidated_after_feedback.sqlite3.gz": {
+      "bytes": 964522,
+      "sha256": "f68e2d29ced18d06a8efcd3e821cab2cecf86cc1c4eb8ed0f8d51c53ce35c7e7"
+    },
+    "consolidated_after_feedback_recovery_receipt.json": {
+      "bytes": 475,
+      "sha256": "57d107e5ae17a73e03999e308e315f02bb2a9c98d598a6cbede4cbd658a730f9"
+    },
+    "consolidation_receipt.json": {
+      "bytes": 962,
+      "sha256": "57facaabcdb213d317f433d0bbe2b71449c03c8627d4937738a9b3742c51bf52"
+    },
+    "decisions.jsonl.gz": {
+      "bytes": 473588,
+      "sha256": "6082d9c53fa2242f7478fb59cd447483e227a3acf371bf99c939834b21501c3e"
+    },
+    "decisions.metadata.json": {
+      "bytes": 12247,
+      "sha256": "80a0d8b18a1313ad7f49c675f9c6caccb64f9c521701ef415a243e9060f28727"
+    },
+    "decisions.sqlite3.gz": {
+      "bytes": 555798,
+      "sha256": "d97f204dbb6535812729a512dd6ca280b8754292bb64aed4e148d7cbc7cae8ff"
+    },
+    "matched_mentor_lessons.sqlite3.gz": {
+      "bytes": 2027353,
+      "sha256": "e925886ea1dc809ff7ee337229c025fa440066ac7d21d21b6f2828a6af833f35"
+    },
+    "matched_raw_reward.sqlite3.gz": {
+      "bytes": 487416,
+      "sha256": "4c60e82f775f1fa676dd9868e61c2b981c3c8fd0885736a1459086ad2336f4a8"
+    },
+    "matched_raw_reward_decision_explanations.jsonl.gz": {
+      "bytes": 64828,
+      "sha256": "c28be3350eb34fa0d4a659688616e848da68d4b29bb22db56cb13f5796b37dbe"
+    },
+    "matched_raw_reward_mentor_receipts.jsonl.gz": {
+      "bytes": 456613,
+      "sha256": "14f0575412cbf98f39a960e22fbd5f2be61bea19796f4ca3454ae91dd9595dcb"
+    },
+    "protocol.json": {
+      "bytes": 1373,
+      "sha256": "e2a50d470b35621fc2a9eb8d18a37631382391280b0cc0c6d3ccdc4f12d73817"
+    },
+    "results.json": {
+      "bytes": 16270,
+      "sha256": "8609e2db5e68bff8772accd63d9a9ef6a89fa884fc0f2ee27b8983d90714f9eb"
+    },
+    "retention_manifest.json": {
+      "bytes": 2055,
+      "sha256": "13e9114632629902532bb74ab49ee8698d33797f9750900d871f57b11216d3aa"
+    },
+    "student_feedback_lessons.jsonl.gz": {
+      "bytes": 99719,
+      "sha256": "cd5a1abf068e4f7466aa5179ff7639c5a3b3c9de32ce33f7531624da9531d245"
+    },
+    "student_vs_mentor_outcomes.jsonl.gz": {
+      "bytes": 15183,
+      "sha256": "83500c5995823752ea39d580dc85b10c3883c88c868976179350a7b93775a4ef"
+    }
+  },
+  "implementation_sources": {
+    "src/bean_strategy_coach.py": "0e8b6ae1ff84f5da33a4cf830f9e3ddf1ec3491ae9c1497d960375fd976cbd95",
+    "src/bean_mentor_worker.py": "4c651337a207d0727c8e7b00165133e984c780d79991f1bf174f153a2f6967db",
+    "scripts/consolidate_bean_mentor_feedback.py": "4d17bee00134dcbd45ec865d23d6efbfed126dc3e7bd9517cbc08d3a4a316207",
+    "scripts/bean_strategy_policy.py": "7f38fd2ac8f32af6617249b7015e5594f9639572d5ed7b390aff681996af4485",
+    "tests/test_bean_strategy_coach.py": "18f2a6de69e68808ad4140dad398aba12d46f6fde03029e92c48bfbc05066987"
+  }
+}

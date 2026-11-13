@@ -1,0 +1,14 @@
+{
+  "policy_id": "coached_advantage",
+  "module": "bean.optimization.sponge_dqn",
+  "knowledge_cutoff": "2025-04-01T00:00:00Z",
+  "updates": 1024,
+  "frames": 47520,
+  "replay_entries": 4096,
+  "weights_sha256": "ca1271b4793a306240a7fc770a15315f991515ceb31e90b32cf12ad20a61016e",
+  "optimizer_recovered": true,
+  "diagnostic_values_match": null,
+  "prediction_recovery": null,
+  "economic_qualification": "DEVELOPMENT_ONLY",
+  "live_orders": false
+}

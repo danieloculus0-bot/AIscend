@@ -1,0 +1,33 @@
+{
+  "records": 105,
+  "sources": [
+    {
+      "url": "https://cointelegraph.com/rss",
+      "status": "COLLECTED",
+      "headlines": 30,
+      "observed_at": "2026-10-24T19:43:16.501138+00:00",
+      "response_sha256": "f3593ad86e3fdb7cf4116b375bc42c50a636256cfaf7777ac3ff2640e5e7db11"
+    },
+    {
+      "url": "https://www.coindesk.com/arc/outboundfeeds/rss/",
+      "status": "COLLECTED",
+      "headlines": 25,
+      "observed_at": "2026-10-24T19:43:21.748739+00:00",
+      "response_sha256": "0234387b5605ad63a7dbeac84dc2d483a26a3a4f4294fb7a1ac494d93d6c7dc0"
+    },
+    {
+      "url": "https://decrypt.co/feed",
+      "status": "COLLECTED",
+      "headlines": 40,
+      "observed_at": "2026-10-24T19:43:23.961520+00:00",
+      "response_sha256": "c7a398743aa766bdd24106885055bb7ec58bc8e5b85cc6988d7b83d1028c9f3b"
+    },
+    {
+      "url": "https://cryptoslate.com/feed/",
+      "status": "COLLECTED",
+      "headlines": 10,
+      "observed_at": "2026-10-24T19:43:26.468970+00:00",
+      "response_sha256": "0866ed7bbdfd22618d39b717e4bd424af48c648c89d2d06e998f80e233ee1061"
+    }
+  ]
+}

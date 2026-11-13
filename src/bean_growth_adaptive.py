@@ -1,0 +1,380 @@
+"""Causal five-minute BEAN reward-learning gate for AIscend.
+
+Research uses completed public Coinbase candles and executes hypothetical
+positions for reward feedback. The adopted action actively chooses long/cash
+on the next live engine cycle. No wallet keys or exchange execution in module.
+"""
+from __future__ import annotations
+
+import hashlib
+from contextlib import contextmanager
+import json
+import math
+import random
+import sqlite3
+import threading
+import time
+from pathlib import Path
+
+from .bean_five_minute import BAR, fetch_5m
+from .core import app_data_dir
+from .primary_strategy import DEFAULT_TAKER_BPS
+
+ACTIONS = ("momentum", "reversion", "trend_3", "buy_hold", "cash")
+PAPER_COST_MODEL = "taker90bps_forward_context_reward_v5"
+# Match the primary engine's conservative taker fallback per BUY/SELL leg.
+# Actual account/pair fees can differ; neither this model nor rewards prove profit.
+MODEL_FEE = DEFAULT_TAKER_BPS / 10000.0
+LEARNING_RATE = .08
+PAPER_EXPLORATION = .12
+MIN_HISTORY = 12
+MIN_FORWARD_BARS = 6
+
+
+def _features(returns):
+    if len(returns) < MIN_HISTORY:
+        return "initial"
+    tail = returns[-11:]
+    same = sum(a * b > 0 for a, b in zip(tail[:-1], tail[1:]))
+    regime = "persistent" if same >= 7 else "alternating" if same <= 3 else "mixed"
+    return regime + ("/up" if returns[-1] > 0 else "/down")
+
+
+def _position(action, returns):
+    if action == "cash":
+        return 0
+    if action == "buy_hold":
+        return 1
+    if not returns:
+        return 0
+    if action == "momentum":
+        return int(returns[-1] > 0)
+    if action == "reversion":
+        return int(returns[-1] < 0)
+    if action == "trend_3":
+        return int(sum(returns[-3:]) > 0)
+    raise ValueError("unknown action")
+
+
+def _choose(state, context, *, explore, seed):
+    q = state["q"].get(context, {})
+    choice = max(ACTIONS, key=lambda a: (q.get(a, 0.0), -ACTIONS.index(a)))
+    if explore:
+        rng = random.Random(seed)
+        if rng.random() < PAPER_EXPLORATION:
+            return rng.choice(ACTIONS)
+    return choice
+
+
+def _fresh_state():
+    return {"schema": "aiscend.bean.growth.v2", "cost_model": PAPER_COST_MODEL,
+            "last_bar": None,
+            "last_close": None, "recent_returns": [], "pending": None,
+            "held": 0, "equity": 100.0, "peak": 100.0, "drawdown": 0.0,
+            "q": {}, "visits": {}, "wins": {}, "win_trials": {},
+            "forward_win_trials": {}, "paper_bars": 0, "forward_bars": 0,
+            "mock_trades": 0, "history_gaps": 0, "bootstrapped": False,
+            "equity_segment_restarts": 0,
+            "strategy_changes": 0, "last_action": None,
+            "behavior_revisions": 0, "forward_behavior_revisions": 0,
+            "last_behavior_revision": None}
+
+
+class BeanAdaptiveGrowthGate:
+    """Executes hypothetical positions, updates rewards, adopts scored policy.
+
+    Evaluation fetches completed five-minute public candles. First assessment
+    trains chronologically, subsequent assessments continue online learning.
+    Adopted exposure directly informs BUY, SELL or HOLD on the next cycle.
+    Money is handled only by the existing AIscend execution engines.
+    """
+    def __init__(self, *, path=None, fetcher=None, clock=None):
+        self.path = Path(path) if path else app_data_dir() / "bean-growth-policy.sqlite3"
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.fetcher = fetcher or fetch_5m
+        self.clock = clock or time.time
+        self._lock = threading.RLock()
+        with self._db() as db:
+            db.execute("CREATE TABLE IF NOT EXISTS policy (product TEXT PRIMARY KEY, state TEXT NOT NULL)")
+            db.execute("CREATE TABLE IF NOT EXISTS policy_archive ("
+                       "product TEXT NOT NULL, model_version TEXT NOT NULL, "
+                       "archived_at INTEGER NOT NULL, state TEXT NOT NULL, "
+                       "PRIMARY KEY (product, model_version))")
+
+
+    @contextmanager
+    def _db(self):
+        db = sqlite3.connect(str(self.path), timeout=15)
+        db.row_factory = sqlite3.Row
+        try:
+            with db:
+                yield db
+        finally:
+            db.close()
+
+    @staticmethod
+    def mode():
+        return "live"
+
+    @staticmethod
+    def _product(product):
+        name = str(product or "").upper().strip()
+        if name in ("ETH", "WETH", "WETH-USDC"):
+            return "ETH-USD"
+        if len(name) > 36 or not name or any(c not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-" for c in name):
+            raise ValueError("invalid market product")
+        if "-" not in name:
+            return name + "-USD"
+        if not name.endswith(("-USD", "-USDC")):
+            raise ValueError("unsupported quote currency")
+        return name
+
+    @staticmethod
+    def _apply_bar(state, bar, ts, product):
+        """One actual completed price bar, no future data in chosen action."""
+        opening, close = float(bar["open"]), float(bar["close"])
+        if not all(math.isfinite(v) and v > 0 for v in (opening, close)):
+            raise ValueError("invalid price")
+        prior = state["last_bar"]
+        if prior is not None and ts <= prior:
+            return False
+        if prior is not None and ts != prior + BAR:
+            # A missing bar may conceal a scheduled BUY or SELL fill. Never
+            # keep stale paper equity/held exposure while discarding its price.
+            raise ValueError("noncontiguous completed candle history")
+        pending = state["pending"]
+        if pending is not None:
+            held = int(state["held"])
+            target = int(pending["position"])
+            transaction_cost = MODEL_FEE if held != target else 0.0
+            # The action selected after the previous completed bar can only
+            # trade at THIS bar's open. Its open-to-close reward is causal;
+            # any gap owned by an existing long is accounted for below.
+            intrabar_return = (close / opening - 1.0) if target else 0.0
+            realized = (1 - transaction_cost) * (1 + intrabar_return) - 1
+            # But a position already held over the bar boundary owns the
+            # price movement from previous CLOSE to current OPEN. Omitting
+            # this gap fabricated paper equity after a jump or crash.
+            prior_close = state["last_close"]
+            held_gap_return = (opening / prior_close - 1.0) if (
+                held and prior_close is not None and prior_close > 0) else 0.0
+            equity_return = (1 + held_gap_return) * (1 + realized) - 1
+            state["equity"] *= 1 + equity_return
+            # The old Q reward ignored gaps even when a long policy stayed
+            # exposed, despite the paper equity correctly losing that money.
+            # A SELL cannot avoid the pre-open gap from the prior holding;
+            # do not incorrectly blame that gap on the new cash action.
+            policy_reward = equity_return if target else realized
+            if state["equity"] <= 0:
+                raise ValueError("simulated paper capital exhausted")
+            if transaction_cost:
+                state["mock_trades"] += 1
+            state["held"] = target
+            state["peak"] = max(state["peak"], state["equity"])
+            state["drawdown"] = max(state["drawdown"], 1-state["equity"]/state["peak"])
+            context, action = pending["context"], pending["action"]
+            preferred_before = _choose(state, context, explore=False, seed=0)
+            q = state["q"].setdefault(context, {})
+            old = float(q.get(action, 0.0))
+            q[action] = old + LEARNING_RATE * (policy_reward * 10000.0 - old)
+            counts = state["visits"].setdefault(context, {})
+            counts[action] = counts.get(action, 0) + 1
+            trials = state.setdefault("win_trials", {}).setdefault(context, {})
+            trials[action] = trials.get(action, 0) + 1
+            if state["bootstrapped"]:
+                # Historical bootstrap teaches Q but cannot qualify an
+                # adopted strategy for prospective live exposure.
+                forward = state.setdefault("forward_win_trials", {}).setdefault(context, {})
+                forward[action] = forward.get(action, 0) + 1
+            if policy_reward > 0:
+                wins = state.setdefault("wins", {}).setdefault(context, {})
+                wins[action] = wins.get(action, 0) + 1
+            preferred_after = _choose(state, context, explore=False, seed=0)
+            if preferred_before != preferred_after:
+                state["behavior_revisions"] = state.get("behavior_revisions", 0) + 1
+                if state["bootstrapped"]:
+                    state["forward_behavior_revisions"] = (
+                        state.get("forward_behavior_revisions", 0) + 1)
+                state["last_behavior_revision"] = {
+                    "bar": ts, "context": context,
+                    "before": preferred_before, "after": preferred_after,
+                    "realized_reward_bps": round(policy_reward * 10000, 4)}
+            state["paper_bars"] += 1
+            if state["bootstrapped"]:
+                state["forward_bars"] += 1
+        prior_close = state["last_close"]
+        returns = state["recent_returns"]
+        if prior_close is not None:
+            returns.append(close / prior_close - 1.0)
+            del returns[:-64]
+        state["last_close"], state["last_bar"] = close, ts
+        context = _features(returns)
+        salt = int(hashlib.sha256(f"{product}:{ts}".encode()).hexdigest()[:12], 16)
+        action = _choose(state, context, explore=True, seed=salt)
+        if state["last_action"] is not None and state["last_action"] != action:
+            state["strategy_changes"] += 1
+        state["last_action"] = action
+        state["pending"] = {"context": context, "action": action,
+                            "position": _position(action, returns)}
+        return True
+
+    def assess(self, product):
+        market = self._product(product)
+        end = int(self.clock() // BAR) * BAR
+        start = end - 280 * BAR
+        try:
+            data = self.fetcher(market, start, end)
+            valid_times = sorted(ts for ts in data
+                                 if start <= ts < end and ts % BAR == 0)
+            if len(valid_times) < 30 or valid_times[-1] != end - BAR:
+                raise ValueError("latest 5-minute market history incomplete")
+            # Only replay the latest contiguous suffix. A missing candle can
+            # hide an intended fill; do not score across an unknown interval.
+            breaks = [i for i in range(1, len(valid_times))
+                      if valid_times[i] - valid_times[i - 1] != BAR]
+            if breaks:
+                valid_times = valid_times[breaks[-1]:]
+            if len(valid_times) < 30:
+                raise ValueError("insufficient contiguous completed candles")
+            with self._lock, self._db() as db:
+                # Two Python desktop instances have distinct in-process locks.
+                # Reserve the SQLite write slot BEFORE reading the previous
+                # Q state, otherwise both can replay stale state and overwrite
+                # the other's newly completed rewards.
+                db.execute("BEGIN IMMEDIATE")
+                row = db.execute("SELECT state FROM policy WHERE product=?", (market,)).fetchone()
+                state = json.loads(row["state"]) if row else _fresh_state()
+                if row and state.get("cost_model") != PAPER_COST_MODEL:
+                    # Reward cost and forward-evidence models are versioned.
+                    # Archive previously learned scores; historical bootstrap
+                    # samples cannot masquerade as independently observed
+                    # forward evidence for funded policy adoption.
+                    db.execute(
+                        "INSERT OR IGNORE INTO policy_archive "
+                        "(product,model_version,archived_at,state) VALUES(?,?,?,?)",
+                        (market, str(state.get("cost_model") or "legacy_fee_7bps"),
+                         int(self.clock()), row["state"]))
+                    state = _fresh_state()
+                # A persisted simulated position cannot be carried over an
+                # offline/history gap: its next-open fill is unknowable.
+                # Archive that equity segment and restart it, but RETAIN the
+                # Q table and reward evidence learned on completed bars.
+                prior_bar = state.get("last_bar")
+                if prior_bar is not None and prior_bar > valid_times[-1]:
+                    raise ValueError("persisted learning clock is ahead of candles")
+                if prior_bar is not None and prior_bar < valid_times[0] - BAR:
+                    db.execute(
+                        "INSERT OR IGNORE INTO policy_archive "
+                        "(product,model_version,archived_at,state) VALUES(?,?,?,?)",
+                        (market, "history_gap_after_" + str(prior_bar),
+                         int(self.clock()), json.dumps(state, sort_keys=True)))
+                    previous = state
+                    state = _fresh_state()
+                    for key in ("q", "visits", "wins", "win_trials",
+                                "behavior_revisions", "forward_behavior_revisions",
+                                "last_behavior_revision"):
+                        if key in previous:
+                            state[key] = previous[key]
+                    state["history_gaps"] = previous.get("history_gaps", 0) + 1
+                    state["equity_segment_restarts"] = (
+                        previous.get("equity_segment_restarts", 0) + 1)
+                initial = not state["bootstrapped"]
+                for ts in valid_times:
+                    if state["last_bar"] is None or ts > state["last_bar"]:
+                        self._apply_bar(state, data[ts], ts, market)
+                state["bootstrapped"] = True
+                if initial:
+                    state["forward_bars"] = 0
+                db.execute("INSERT INTO policy(product,state) VALUES(?,?) "
+                           "ON CONFLICT(product) DO UPDATE SET state=excluded.state",
+                           (market, json.dumps(state, sort_keys=True)))
+                mode = "live"
+                ctxt = _features(state["recent_returns"])
+                adopted = _choose(state, ctxt, explore=False, seed=0)
+                target = _position(adopted, state["recent_returns"])
+                samples = int(state.get("win_trials", {}).get(ctxt, {}).get(adopted, 0))
+                # A global bar count is not evidence for the chosen policy in
+                # the current regime. Require direct observed rewards.
+                forward_samples = int(state.get("forward_win_trials", {})
+                                      .get(ctxt, {}).get(adopted, 0))
+                # Require observed rewards AFTER the historical bootstrap for
+                # this exact selected action and market regime.
+                enough = (state["paper_bars"] >= MIN_HISTORY and
+                          samples >= MIN_FORWARD_BARS and
+                          forward_samples >= MIN_FORWARD_BARS)
+                won = int(state.get("wins", {}).get(ctxt, {}).get(adopted, 0))
+                result = {"status": "READY" if enough else "WARMING_UP",
+                          "paper_cost_model": PAPER_COST_MODEL,
+                          "paper_taker_fee_bps": round(MODEL_FEE * 10000, 4),
+                          "mode": mode, "product": market,
+                          "trade_effect": "ADOPTED_LONG_CASH" if enough else "NONE",
+                          "learning_source": "completed_public_coinbase_5m_candles",
+                          "learned_strategy": adopted, "target_exposure": target,
+                          "allow_buy": bool(target),
+                          "observed_samples": samples,
+                          "observed_forward_samples": forward_samples,
+                          "adoption_evidence": (
+                              "POST_BOOTSTRAP_CONTEXT_ACTION_SAMPLES" if enough
+                              else "NOT_YET_POST_BOOTSTRAP_VERIFIED"),
+                          "observed_win_rate": (won / samples) if samples else None,
+                          "probability_note": "observed simulated bar win frequency, not calibrated future odds",
+                          "observed_through": state["last_bar"],
+                          "reward_updates": sum(sum(v.values()) for v in state["visits"].values()),
+                          "forward_bars": state["forward_bars"],
+                          "paper_equity": round(state["equity"], 6),
+                          "equity_segment_restarts": state.get("equity_segment_restarts", 0),
+                          "paper_drawdown": round(state["drawdown"], 6),
+                          "paper_trades": state["mock_trades"],
+                          "strategy_changes": state["strategy_changes"],
+                          "behavior_revisions": state.get("behavior_revisions", 0),
+                          "forward_behavior_revisions": state.get("forward_behavior_revisions", 0),
+                          "last_behavior_revision": state.get("last_behavior_revision"),
+                          "context": ctxt,
+                          "chosen_action_scores_bps": {
+                              k: round(float(v), 4)
+                              for k, v in state["q"].get(ctxt, {}).items()},
+                          "note": "Executed mock rewards; no verified live P/L"}
+                return result
+        except Exception as exc:
+            return {"status": "DATA_UNAVAILABLE", "mode": self.mode(),
+                    "trade_effect": "NONE", "product": market,
+                    "reason": f"{type(exc).__name__}: {str(exc)[:120]}"}
+
+    def status(self):
+        with self._lock, self._db() as db:
+            rows = db.execute("SELECT product,state FROM policy").fetchall()
+        markets = []
+        for row in rows:
+            state = json.loads(row["state"])
+            ctxt = _features(state["recent_returns"])
+            adopted = _choose(state, ctxt, explore=False, seed=0)
+            direct = int(state.get("win_trials", {}).get(ctxt, {}).get(adopted, 0))
+            observed = int(state.get("forward_win_trials", {})
+                           .get(ctxt, {}).get(adopted, 0))
+            ready = (state.get("cost_model") == PAPER_COST_MODEL
+                     and state.get("paper_bars", 0) >= MIN_HISTORY
+                     and direct >= MIN_FORWARD_BARS
+                     and observed >= MIN_FORWARD_BARS)
+            markets.append({
+                "product": row["product"],
+                "adoption_status": "READY" if ready else "WARMING_UP",
+                "selected_action_observed_samples": direct,
+                "selected_action_forward_samples": observed,
+                "paper_model": state.get("cost_model"),
+                "forward_bars": state["forward_bars"],
+                "reward_updates": sum(sum(v.values()) for v in state["visits"].values()),
+                "behavior_revisions": state.get("behavior_revisions", 0),
+                "forward_behavior_revisions": state.get("forward_behavior_revisions", 0),
+                "last_behavior_revision": state.get("last_behavior_revision"),
+                "learned_strategy": adopted,
+                "target_exposure": _position(adopted, state["recent_returns"]),
+                "context": ctxt,
+                "action_scores_bps": {k: round(float(v), 4)
+                                     for k, v in state["q"].get(ctxt, {}).items()},
+                "paper_equity": round(state["equity"], 6),
+                "equity_segment_restarts": state.get("equity_segment_restarts", 0),
+                "paper_drawdown": round(state["drawdown"], 6),
+                "paper_trades": state["mock_trades"],
+                "observed_through": state["last_bar"],
+            })
+        return {"mode": self.mode(), "markets": markets}

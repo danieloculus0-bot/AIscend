@@ -1,0 +1,57 @@
+name: BEAN $1000 Paired Capital Ledger Experiment
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/bean_capital_experiment.py'
+      - 'tests/test_bean_capital_experiment.py'
+      - '.github/workflows/bean-capital-ledger.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  paired-research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout AIscend PR source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Checkout real BEAN Core for independent advisory review
+        uses: actions/checkout@v4
+        with:
+          repository: danieloculus0-bot/BEAN
+          ref: main
+          path: _bean_core
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify native BEAN Core identity
+        run: |
+          python -c "from src.bean_core_bridge import core_identity; print(core_identity('_bean_core'))"
+      - name: Verify genuine Q training, holdout isolation and ledger integrity
+        run: |
+          python -m compileall -q scripts/bean_capital_experiment.py tests/test_bean_capital_experiment.py
+          python -m unittest discover -s tests -p 'test_bean_capital_experiment.py' -v
+      - name: Run 500 unseen $1000 synthetic episodes with matched controls
+        run: |
+          python -m scripts.bean_capital_experiment --capital 1000 --train-seeds 24 --holdout-seeds 125 --periods 300 --bean-core _bean_core --db artifacts/bean-capital-evidence.sqlite3 --output artifacts/bean-capital-report.json
+      - name: Independently replay the persisted hash chains
+        run: |
+          python -c "from scripts.bean_capital_experiment import verify_ledger; print(verify_ledger('artifacts/bean-capital-evidence.sqlite3'))"
+          python -c "import json; r=json.load(open('artifacts/bean-capital-report.json')); assert r['holdout_market_episodes']==500; assert r['evaluation_episodes']==2000; assert r['exchange_orders']==0; assert not r['adopt_for_live_trading']; assert r['bean_core_review']['trade_authorized'] is False"
+      - name: Preserve unmodified evidence, failures and aggregate scoreboard
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bean-capital-pairstudy-ledger
+          path: |
+            artifacts/bean-capital-evidence.sqlite3
+            artifacts/bean-capital-report.json
+            artifacts/bean-capital-core.sqlite3
+          if-no-files-found: warn
+          retention-days: 90

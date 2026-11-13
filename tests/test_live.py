@@ -64,6 +64,58 @@ class LiveEngineTests(unittest.TestCase):
         self.addCleanup(store.close)
         return store
 
+    def test_base_wallet_does_not_invent_purchase_cost_from_mark(self):
+        store = self.make_store()
+        wallet = FakeWallet()
+        wallet.weth = Decimal("0.005")
+        wallet.usdc = Decimal("0")
+        snap = LiveEngine(store, wallet).sync()
+        self.assertIn("WETH", snap["positions"])
+        self.assertIsNone(snap["positions"]["WETH"]["avg_cost"])
+        self.assertEqual(
+            snap["positions"]["WETH"]["cost_basis_status"],
+            "unverified_without_wallet_trade_lots")
+        self.assertEqual(snap["positions"]["WETH"]["mark_price"], 2500.0)
+
+    def test_live_buy_remains_executable_when_hourly_bean_disagrees(self):
+        class BeanDisagrees:
+            def assess(self):
+                return {"status": "READY", "experiment": 66,
+                        "target": "BTC-USD", "bars": 75}
+
+            def permits_buy(self, policy, symbol):
+                return symbol == "BTC-USD"
+
+        store = self.make_store()
+        wallet = FakeWallet()
+        engine = LiveEngine(store, wallet, BuyOnce(), policy_gate=BeanDisagrees())
+        after = engine.step()
+        self.assertEqual(after["cash"], 5.0)
+        self.assertIn("WETH", after["positions"])
+        row = store.latest_decisions(1)[0]
+        self.assertEqual(row["action"], "BUY")
+        self.assertEqual(row["status"], "LIVE_EXECUTED")
+        self.assertIn("BEAN exam #66 advisory", row["rationale"])
+        self.assertEqual(after["bean_policy"]["target"], "BTC-USD")
+        self.assertTrue(store.latest_ledger(1))
+
+    def test_live_buy_is_confirmed_when_bean_targets_eth(self):
+        class BeanAgrees:
+            def assess(self):
+                return {"status": "READY", "experiment": 66,
+                        "target": "ETH-USD", "bars": 75}
+
+            def permits_buy(self, policy, symbol):
+                return symbol == "WETH"
+
+        store = self.make_store()
+        wallet = FakeWallet()
+        engine = LiveEngine(store, wallet, BuyOnce(), policy_gate=BeanAgrees())
+        engine.step()
+        row = store.latest_decisions(1)[0]
+        self.assertEqual(row["status"], "LIVE_EXECUTED")
+        self.assertIn("BEAN exam #66 advisory (ETH-USD)", row["rationale"])
+
     def test_live_buy_executes_against_wallet_and_updates_snapshot(self):
         store = self.make_store()
         wallet = FakeWallet()

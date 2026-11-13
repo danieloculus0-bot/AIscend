@@ -1,0 +1,84 @@
+{
+  "files": {
+    ".gitignore": {
+      "bytes": 56,
+      "sha256": "1508eca47a1100055c7e1a5501f3d1616c677c6158c019d77469c174541f8e29"
+    },
+    "RESULTS.md": {
+      "bytes": 1281,
+      "sha256": "9f9ebd5cc8462650710974098ad40a7074c05417b941049da849d2ee221599b8"
+    },
+    "decisions.jsonl.gz": {
+      "bytes": 508912,
+      "sha256": "e3f612677d9c4f18bcc6022a50c799937c42df88bfef6cbc9a3b6c79a6a9c58d"
+    },
+    "decisions.metadata.json": {
+      "bytes": 242491,
+      "sha256": "d819644f23690123627283c407a3f075f243cf3bf75acf5fb65cd29ebab44611"
+    },
+    "decisions.sqlite3.gz": {
+      "bytes": 619993,
+      "sha256": "113a4d7304969e1037f2d95e2b5c7154750d30894b0761abf309963460f0fdda"
+    },
+    "fold-0-gross.sqlite3.gz": {
+      "bytes": 4590,
+      "sha256": "6437843fe86521f1db0f4e906287915e8eb5ba6fa9dbdc1dc702dc092466814e"
+    },
+    "fold-0-gross.training_state.json.gz": {
+      "bytes": 320947,
+      "sha256": "edd65a06c3f978e22a6475ccfb17a83ab2cf2f82b6e8d776b3dbd5e1fa2143f1"
+    },
+    "fold-0-net_liquidation.sqlite3.gz": {
+      "bytes": 4614,
+      "sha256": "2e6c1c479297a4a88e560db793fb63fc1da5860d1cccc1dd87f62d385b76e722"
+    },
+    "fold-0-net_liquidation.training_state.json.gz": {
+      "bytes": 321502,
+      "sha256": "76eab1443d71d0cd1fff155f168f3d933b3ea8611fddbdf26ca3476536fa551f"
+    },
+    "fold-1-gross.sqlite3.gz": {
+      "bytes": 6171,
+      "sha256": "6b44d7c5e879b52d9eadf268b8478f7e74a4217bb5667867dbc355097a2806f1"
+    },
+    "fold-1-gross.training_state.json.gz": {
+      "bytes": 320954,
+      "sha256": "1127d591395305c65956607b81601f44f224cec10c4d447ed65c9b936ef812b0"
+    },
+    "fold-1-net_liquidation.sqlite3.gz": {
+      "bytes": 6196,
+      "sha256": "49e2dde73977fad116bcd9452e338cb653dfac2d1e0bbe99430d65bdc1d768f0"
+    },
+    "fold-1-net_liquidation.training_state.json.gz": {
+      "bytes": 321043,
+      "sha256": "a195346cac296b8379a316bcd1741f647f660a6d4ef96f81b4ebba74256422d9"
+    },
+    "fold-2-gross.sqlite3.gz": {
+      "bytes": 7718,
+      "sha256": "ce7976866982e3c6376c3eb02e04a1ff9dd7952a053d9ad806e9b0ce541a9f48"
+    },
+    "fold-2-gross.training_state.json.gz": {
+      "bytes": 323715,
+      "sha256": "d65150568351061d764927f80d7133924df3e5580876db8e5e97f36737270756"
+    },
+    "fold-2-net_liquidation.sqlite3.gz": {
+      "bytes": 7736,
+      "sha256": "371f07f8238aa71415c5a00056cb23d83bfd4d0ff6146ad6f1c1f06950cde337"
+    },
+    "fold-2-net_liquidation.training_state.json.gz": {
+      "bytes": 322807,
+      "sha256": "4bd17153b4d955051e62186ec25dd18ab901a58867d0c389422427329856fa88"
+    },
+    "protocol.json": {
+      "bytes": 1817,
+      "sha256": "377d1a7c722af39a024c2bb5abebf7724b3291822549bdbc641251d00254c967"
+    },
+    "results.json": {
+      "bytes": 491417,
+      "sha256": "52d91663931ca6a69b35a2301c354551f1d40b772a728a1fbc6a04cdb611ec41"
+    },
+    "retention_manifest.json": {
+      "bytes": 483021,
+      "sha256": "6b14d21e9fc39ff8b93e68bb9a0d1e12d3ce6b096ae281c6b3ddb040e89eab1c"
+    }
+  }
+}

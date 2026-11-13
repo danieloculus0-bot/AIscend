@@ -1,0 +1,19 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "title":"Optional future model annotation of immutable narrative evidence",
+  "type":"object",
+  "additionalProperties":false,
+  "required":["document_id","model_id","model_revision","annotated_at","asset_ids","themes","claims","polarity_probabilities","calibration_status"],
+  "properties":{
+    "document_id":{"type":"string"},
+    "model_id":{"type":"string"},
+    "model_revision":{"type":"string"},
+    "annotated_at":{"type":"string","format":"date-time"},
+    "asset_ids":{"type":"array","items":{"type":"string"}},
+    "themes":{"type":"array","items":{"type":"string"}},
+    "claims":{"type":"array","items":{"type":"object","required":["statement","source_document_ids","status"],"properties":{"statement":{"type":"string"},"source_document_ids":{"type":"array","items":{"type":"string"}},"status":{"enum":["reported","confirmed_by_independent_primary_source","contradicted","uncertain"]},"contradicting_document_ids":{"type":"array","items":{"type":"string"}},"horizon_hours":{"type":"number","minimum":0}}}},
+    "polarity_probabilities":{"type":"object","required":["positive","neutral","negative"],"additionalProperties":false,"properties":{"positive":{"type":"number","minimum":0,"maximum":1},"neutral":{"type":"number","minimum":0,"maximum":1},"negative":{"type":"number","minimum":0,"maximum":1}}},
+    "calibration_status":{"enum":["uncalibrated","calibrated_on_prior_validation_only"]}
+  },
+  "$comment":"Proposal contract only, not an installed sentiment model. A consumer must additionally check probabilities sum to one, entity registry matches, model availability time, evidence links and calibration provenance. An annotation may never overwrite document published_at/first_seen_at/available_at."
+}

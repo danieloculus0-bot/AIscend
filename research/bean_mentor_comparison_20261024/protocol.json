@@ -1,0 +1,21 @@
+{
+  "schema": "aiscend.bean.strategy_coaching.v1",
+  "scope": "DEVELOPMENT_ONLY_ALREADY_INSPECTED_HISTORY",
+  "source_rows_sha256": "ef7870651655ce268e6ab055c1e24a12595ec4cc2a02a18401b810696dc955c5",
+  "train_knowledge_cutoff": 1743465600,
+  "audit_end": 1759276800,
+  "arms": [
+    "matched_raw_reward",
+    "coached_advantage"
+  ],
+  "seed": 41,
+  "updates_per_arm": 1024,
+  "shared_configuration": "Actual SpongeDQN gamma0, replay4096, batch64, lr0.0005; same examples/order/costs and inference reserve. The only reward difference is raw net log return versus log advantage over unchanged holding.",
+  "coaching": "Every action is explained by market PnL before/after delayed fill, paid costs, net return and matched advantage over hold. Worker validates accounting and maturity before actual updates. Past mentor comparisons accompany inference explanations; realized outcome components are never future decision inputs.",
+  "selection": "No candidate selection: report both arms even if coached training loses",
+  "source_code_sha256": "0e8b6ae1ff84f5da33a4cf830f9e3ddf1ec3491ae9c1497d960375fd976cbd95",
+  "worker_sha256": "4c651337a207d0727c8e7b00165133e984c780d79991f1bf174f153a2f6967db",
+  "core_revision": "887935ae816b4ce6175c6cde54d749f0e5cf3268",
+  "live_orders": false,
+  "protocol_sha256": "7b8ba5cd3f8fc10f5fc5a16e45f06998d6921c5cf3dabc8ac128b2732acc0bb3"
+}

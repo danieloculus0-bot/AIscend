@@ -58,6 +58,14 @@ class AssetUniverseTests(unittest.TestCase):
         batch=universe._next_batch(products)
         self.assertEqual([row["id"] for row in batch],["AAA-USD","CCC-USD","EEE-USD"])
 
+    def test_failed_cold_start_scans_do_not_starve_unseen_products(self):
+        universe = FakeUniverse()
+        products = [{"id": f"COIN{i}-USD"} for i in range(7)]
+        attempts = set()
+        for _ in range(7):
+            attempts.update(x["id"] for x in universe._next_batch(products))
+        self.assertEqual(attempts, {row["id"] for row in products})
+
     def test_buy_top_prefers_positive_signal_over_large_negative_move(self):
         class RankingUniverse(FakeUniverse):
             def _scan_product(self, product):
@@ -105,6 +113,46 @@ class AssetUniverseTests(unittest.TestCase):
         self.assertEqual(counts.get("BBB-USDC"),2)
         self.assertEqual(counts.get("AAA-USD"),1)
         self.assertEqual(counts.get("CCC-EUR"),1)
+    def test_default_scan_has_more_than_eight_slots(self):
+        self.assertGreater(CoinbaseAssetUniverse().batch_size, 8)
+        self.assertGreater(CoinbaseAssetUniverse().asset_cache_seconds, 600)
+
+    def test_priority_holding_refreshes_before_general_cache_expires(self):
+        from dataclasses import replace
+        universe=FakeUniverse()
+        universe.collect()
+        item=universe._cache["AAA-USD"]
+        stale=replace(item,score=-0.99,scanned_at=time.time()-90)
+        universe._cache["AAA-USD"]=stale
+        seen=[]
+        original_scan=universe._scan_product
+
+        def observe(product):
+            seen.append(product["id"])
+            return original_scan(product)
+
+        universe._scan_product=observe
+        universe.collect(priority_products=["AAA-USD"])
+        current=universe._cache["AAA-USD"]
+        self.assertIn("AAA-USD",seen)
+        self.assertGreater(current.scanned_at,stale.scanned_at)
+        self.assertNotEqual(current.score,-0.99)
+
+    def test_invalid_or_crossed_books_are_not_tradable_signals(self):
+        universe = FakeUniverse()
+        base_get = universe._get_json
+        for bid, ask in ((2.0, 1.0), (0.0, 1.0), (float("nan"), 1.0)):
+            def get_json(path, bid=bid, ask=ask):
+                if "book" in path:
+                    return {"bids": [[str(bid), "1", 1]],
+                            "asks": [[str(ask), "1", 1]]}
+                return base_get(path)
+            universe._get_json = get_json
+            self.assertIsNone(universe._scan_product(
+                {"id": "AAA-USD", "base_currency": "AAA",
+                 "quote_currency": "USD"}
+            ))
+        universe._get_json = base_get
 
     def test_liquidity_factor_hammers_thin_markets(self):
         universe=FakeUniverse()
@@ -132,6 +180,21 @@ class AssetUniverseTests(unittest.TestCase):
         self.assertIsNotNone(asset)
         self.assertEqual(asset.product,"SHIT-EUR")
         self.assertEqual(asset.return_6h,0.0)
+
+    def test_old_cached_asset_never_reenters_live_candidates(self):
+        from dataclasses import replace
+        universe=FakeUniverse()
+        universe.collect()
+        asset=universe._cache["AAA-USD"]
+        universe._cache["AAA-USD"]=replace(
+            asset, scanned_at=time.time()-700)
+        scan=universe._scan_product
+        universe._scan_product=lambda product: (
+            None if product["id"]=="AAA-USD" else scan(product))
+        result=universe.collect(priority_products=["AAA-USD"])
+        self.assertNotIn("AAA-USD", {x["product"] for x in result["scored"]})
+        self.assertGreaterEqual(result["stale_excluded"],1)
+
 
 
 if __name__ == "__main__":

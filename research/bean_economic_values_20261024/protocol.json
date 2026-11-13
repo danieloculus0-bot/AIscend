@@ -1,0 +1,49 @@
+{
+  "schema": "aiscend.bean.economic_values.v1",
+  "scope": "DEVELOPMENT_ONLY_HISTORY_ALREADY_SEEN",
+  "source_sha256": "ef7870651655ce268e6ab055c1e24a12595ec4cc2a02a18401b810696dc955c5",
+  "core_revision": "887935ae816b4ce6175c6cde54d749f0e5cf3268",
+  "implementation": {
+    "src/bean_economic_experiment.py": "15627bec4f03f80caf91ebdddde13aee29af0b9445b4554ff2c62669a028ee00",
+    "src/bean_economic_worker.py": "e8d32758d1d8b365f08684f855f9c0d6ed7df5777af307bd9db91a47fc0419e5",
+    "src/bean_economic_values.py": "ba8abed15ff3b7648bde1b62c5b863773dd5825946712d2456362e0cfb16da70"
+  },
+  "splits": [
+    [
+      "2023-04-01T00:00:00Z",
+      "2023-10-01T00:00:00Z"
+    ],
+    [
+      "2024-04-01T00:00:00Z",
+      "2024-10-01T00:00:00Z"
+    ],
+    [
+      "2025-04-01T00:00:00Z",
+      "2025-10-01T00:00:00Z"
+    ]
+  ],
+  "arms": [
+    "raw_limited",
+    "raw_full",
+    "factor"
+  ],
+  "seed": 41,
+  "updates": 1024,
+  "raw_supervision": "All 11 action labels at three prior exposures; legacy 4096 replay versus full replay, identical input order and update budget",
+  "factor_supervision": "Two mature market return components per distinct asset/period, 35 market-only inputs. Exact same funded cash/fee engine converts forecasts to action values. Log forecasts are scenarios, not calibrated expected cash returns.",
+  "decision_rule": "Choose a different action only when its modeled net log return exceeds the reference by .10 percentage points. All learned arms share this rule.",
+  "capital": 1000,
+  "allocation": "Equal fixed funded sleeves across eight present-selected symbols; not a full-universe qualification",
+  "cost_per_side": 0.01,
+  "expert_selection": "Best training-only net portfolio return among all 11 fixed experts; alphabetical tie. No later returns read.",
+  "override_gate": "Before 2025 audit: economic overlay must beat its training-selected expert on BOTH earlier development folds AND market forecast MSE must beat training-mean forecasts on BOTH. Otherwise retain the expert. No learned profit credit for expert fallback.",
+  "limitations": [
+    "All dates are previously inspected development history",
+    "Eight-symbol survivorship and venue bias",
+    "Daily reference-open simulation, no exchange fill claim",
+    "No independently audited competitor comparison",
+    "More epochs are not more independent market evidence"
+  ],
+  "live_orders": false,
+  "protocol_sha256": "b28135f7797eb206571c592f53f847ef79bd938f548e946b42b7e1f46c49d3a2"
+}

@@ -1,0 +1,54 @@
+{
+  "schema": "aiscend.bean.curriculum_retention.v1",
+  "policies": [
+    {
+      "id": "matched_raw_reward",
+      "file": "matched_raw_reward.sqlite3.gz",
+      "knowledge_cutoff": "2025-04-01T00:00:00Z",
+      "state": {
+        "updates": 1024,
+        "frames": 47520,
+        "replay": 4096,
+        "weights_sha256": "f7cb6f09fa8f19ed425692e1a7ce6ed13674a7e9bbb9200c498f7dc28f0245f6",
+        "knowledge_cutoff": 1743465600,
+        "mentor_lessons": 4320,
+        "mentor_receipt_chain": "279df01b1af3c7e9b4fec4bff27103c569943f279dc9613dd063e7b18d4a138b"
+      },
+      "economic_qualification": "DEVELOPMENT_ONLY",
+      "actual_weights_changed": true,
+      "file_sha256": "4c60e82f775f1fa676dd9868e61c2b981c3c8fd0885736a1459086ad2336f4a8"
+    },
+    {
+      "id": "coached_advantage",
+      "file": "coached_advantage.sqlite3.gz",
+      "knowledge_cutoff": "2025-04-01T00:00:00Z",
+      "state": {
+        "updates": 1024,
+        "frames": 47520,
+        "replay": 4096,
+        "weights_sha256": "ca1271b4793a306240a7fc770a15315f991515ceb31e90b32cf12ad20a61016e",
+        "knowledge_cutoff": 1743465600,
+        "mentor_lessons": 4320,
+        "mentor_receipt_chain": "279df01b1af3c7e9b4fec4bff27103c569943f279dc9613dd063e7b18d4a138b"
+      },
+      "economic_qualification": "DEVELOPMENT_ONLY",
+      "actual_weights_changed": true,
+      "file_sha256": "7ef46b0feef208682ff8c5b18c10171b18a3435363cb6d95c863622b4e0b00b3"
+    },
+    {
+      "id": "consolidated_after_feedback",
+      "file": "consolidated_after_feedback.sqlite3.gz",
+      "file_sha256": "f68e2d29ced18d06a8efcd3e821cab2cecf86cc1c4eb8ed0f8d51c53ce35c7e7",
+      "knowledge_cutoff": "2025-10-01T00:00:00Z",
+      "state": {
+        "updates": 1728,
+        "frames": 49456,
+        "replay": 4096,
+        "weights_sha256": "3bef097b33d94b8f4aab3d5781022b6471cd8af7d2deaf0c9a89a4a9c6d8f76b",
+        "knowledge_cutoff": 1759276800
+      },
+      "objective": "aiscend.mentor.unscored_training.v1",
+      "economic_qualification": "UNEVALUATED_AFTER_CONSOLIDATION"
+    }
+  ]
+}

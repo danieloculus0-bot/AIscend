@@ -1,0 +1,295 @@
+{
+  "schema": "aiscend.bean.pair_scores.v1",
+  "fields": [
+    "method",
+    "dataset",
+    "window",
+    "seed",
+    "cost",
+    "configuration",
+    "evidence",
+    "reason"
+  ],
+  "reasons": {
+    "P0": "positive return and improves on matched control",
+    "P1": "positive return but trails matched control",
+    "L0": "losing return but improves on matched control",
+    "L1": "losing return and trails matched control",
+    "T0": "exact matched tie",
+    "D0": "incomplete or unmatched evidence"
+  },
+  "dictionaries": {
+    "method": {
+      "00": "cash",
+      "01": "buy_hold",
+      "02": "price_trend",
+      "03": "donchian_breakout",
+      "04": "training_selected_expert",
+      "05": "immediate",
+      "06": "linked",
+      "07": "untrained"
+    },
+    "dataset": {
+      "00": {
+        "candles": 392099,
+        "catalog_markets": 389,
+        "known_assets": 318,
+        "listing_scope": "Current-vintage listings, not point-in-time or authenticated account permissions",
+        "market_data_status_counts": {
+          "OBSERVED": 389
+        },
+        "usd_funded_markets": 389,
+        "usdc_collected_not_funded": [],
+        "withheld_assets": 71
+      }
+    },
+    "window": {
+      "00": {
+        "cohort": "known_assets",
+        "end": 1775001600,
+        "period": "validation",
+        "start": 1759276800
+      },
+      "01": {
+        "cohort": "withheld_assets",
+        "end": 1775001600,
+        "period": "validation",
+        "start": 1759276800
+      },
+      "02": {
+        "cohort": "all_usd_assets",
+        "end": 1775001600,
+        "period": "validation",
+        "start": 1759276800
+      },
+      "03": {
+        "cohort": "known_assets",
+        "end": 1792800000,
+        "period": "historical_audit",
+        "start": 1775001600
+      },
+      "04": {
+        "cohort": "withheld_assets",
+        "end": 1792800000,
+        "period": "historical_audit",
+        "start": 1775001600
+      },
+      "05": {
+        "cohort": "all_usd_assets",
+        "end": 1792800000,
+        "period": "historical_audit",
+        "start": 1775001600
+      }
+    },
+    "seed": {
+      "00": 41
+    },
+    "cost": {
+      "00": 0.01
+    },
+    "configuration": {
+      "00": "e5758e68759ecb1f273d2dd53a2270261fcc86b43dec5156fe9f1aba7c19bcf4"
+    },
+    "evidence": {
+      "00": {
+        "pointer": "/results/0/results/cash",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "01": {
+        "pointer": "/results/0/results/buy_hold",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "02": {
+        "pointer": "/results/0/results/price_trend",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "03": {
+        "pointer": "/results/0/results/donchian_breakout",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "04": {
+        "pointer": "/results/0/results/training_selected_expert",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "05": {
+        "pointer": "/results/0/results/immediate",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "06": {
+        "pointer": "/results/0/results/linked",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "07": {
+        "pointer": "/results/0/results/untrained",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "08": {
+        "pointer": "/results/1/results/cash",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "09": {
+        "pointer": "/results/1/results/buy_hold",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0A": {
+        "pointer": "/results/1/results/price_trend",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0B": {
+        "pointer": "/results/1/results/donchian_breakout",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0C": {
+        "pointer": "/results/1/results/training_selected_expert",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0D": {
+        "pointer": "/results/1/results/immediate",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0E": {
+        "pointer": "/results/1/results/linked",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0F": {
+        "pointer": "/results/1/results/untrained",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0G": {
+        "pointer": "/results/2/results/cash",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0H": {
+        "pointer": "/results/2/results/buy_hold",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0I": {
+        "pointer": "/results/2/results/price_trend",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0J": {
+        "pointer": "/results/2/results/donchian_breakout",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0K": {
+        "pointer": "/results/2/results/training_selected_expert",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0L": {
+        "pointer": "/results/2/results/immediate",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0M": {
+        "pointer": "/results/2/results/linked",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0N": {
+        "pointer": "/results/2/results/untrained",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0O": {
+        "pointer": "/results/3/results/cash",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0P": {
+        "pointer": "/results/3/results/buy_hold",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0Q": {
+        "pointer": "/results/3/results/price_trend",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0R": {
+        "pointer": "/results/3/results/donchian_breakout",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0S": {
+        "pointer": "/results/3/results/training_selected_expert",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0T": {
+        "pointer": "/results/3/results/immediate",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0U": {
+        "pointer": "/results/3/results/linked",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0V": {
+        "pointer": "/results/3/results/untrained",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0W": {
+        "pointer": "/results/4/results/cash",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0X": {
+        "pointer": "/results/4/results/buy_hold",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0Y": {
+        "pointer": "/results/4/results/price_trend",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0Z": {
+        "pointer": "/results/4/results/donchian_breakout",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0a": {
+        "pointer": "/results/4/results/training_selected_expert",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0b": {
+        "pointer": "/results/4/results/immediate",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0c": {
+        "pointer": "/results/4/results/linked",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0d": {
+        "pointer": "/results/4/results/untrained",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0e": {
+        "pointer": "/results/5/results/cash",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0f": {
+        "pointer": "/results/5/results/buy_hold",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0g": {
+        "pointer": "/results/5/results/price_trend",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0h": {
+        "pointer": "/results/5/results/donchian_breakout",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0i": {
+        "pointer": "/results/5/results/training_selected_expert",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0j": {
+        "pointer": "/results/5/results/immediate",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0k": {
+        "pointer": "/results/5/results/linked",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      },
+      "0l": {
+        "pointer": "/results/5/results/untrained",
+        "sha256": "4a2477d6039e0eb824497da95adef8fc032c91d5f44a5e0691f2ec752273ee56"
+      }
+    },
+    "reason": {
+      "00": "P0",
+      "01": "T0",
+      "02": "L0",
+      "03": "P1",
+      "04": "L1"
+    }
+  }
+}

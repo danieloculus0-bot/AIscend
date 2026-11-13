@@ -1,0 +1,50 @@
+name: Archive full causal research price history
+on:
+  push:
+    branches: ['research/bean-causal-retention-20261024']
+    paths:
+      - 'scripts/collect_causal_price_history.py'
+      - '.github/workflows/bean-causal-market-history.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  source-history:
+    if: github.ref == 'refs/heads/research/bean-causal-retention-20261024'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Reacquire the exact frozen asset set and historical window
+        run: python -m scripts.collect_causal_price_history --asset-manifest research/causal_market_history_20261024/market_history_manifest.json --output artifacts/rebuilt-causal-market-history
+      - name: Verify data values match the experiment's original source
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          original=json.loads(Path('research/causal_market_history_20261024/market_history_manifest.json').read_text())
+          rebuilt=json.loads(Path('artifacts/rebuilt-causal-market-history/market_history_manifest.json').read_text())
+          assert rebuilt['semantic_observations_sha256']==original['semantic_observations_sha256'], 'Provider revised historical values; preserve original experiment and review source change.'
+          assert rebuilt['price_records']==1192530
+          assert rebuilt['total_metric_rows']==1261040
+          assert rebuilt['assets_with_price']==1141
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: causal-price-volume-history-20261024
+          path: artifacts/rebuilt-causal-market-history/*
+          retention-days: 90
+      - name: Preserve matching historical values on the research branch
+        run: |
+          cp artifacts/rebuilt-causal-market-history/daily_market_history.sqlite3.gz research/causal_market_history_20261024/daily_market_history.sqlite3.gz
+          cp artifacts/rebuilt-causal-market-history/market_history_manifest.json research/causal_market_history_20261024/rebuilt_market_history_manifest.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add research/causal_market_history_20261024/daily_market_history.sqlite3.gz research/causal_market_history_20261024/rebuilt_market_history_manifest.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'Archive matching full historical price-volume values for causal test'
+            git push origin HEAD:research/bean-causal-retention-20261024
+          fi

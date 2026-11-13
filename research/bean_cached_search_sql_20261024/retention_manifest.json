@@ -1,0 +1,59 @@
+{
+  "training": {
+    "source_rows": 151728,
+    "source_sha256": "1d4e43b7d90e80680eaf7328afa3c4357ce573365d5c703d28b6d70f9e84abfc",
+    "candidate_count": 4,
+    "gradient_updates_per_candidate": 2371,
+    "seconds": 32.80085628500001
+  },
+  "policies": [
+    {
+      "name": "seed7_gamma0.0",
+      "cutoff": 1743465600,
+      "rows": 151728,
+      "updates": 2371,
+      "sampled_all_source_rows": true,
+      "weights_changed": true,
+      "weights_sha256": "66aef6970ebdb8a92c25bfcc4f7242033c7c8487bb9f3857f6a599af331eeaba",
+      "state_file": "seed7_gamma0.0.training_state.json.gz",
+      "state_sha256": "ea85265575e4cbf52e68ca3ef4834ad151345d68afd3a9f79e32f86b7d5c5de4",
+      "full_state_recovered": true
+    },
+    {
+      "name": "seed7_gamma0.99",
+      "cutoff": 1743465600,
+      "rows": 151728,
+      "updates": 2371,
+      "sampled_all_source_rows": true,
+      "weights_changed": true,
+      "weights_sha256": "eddeda9eabf9531bfcb84df919ba6bf2a57279ddae1de69334c81d29635423a4",
+      "state_file": "seed7_gamma0.99.training_state.json.gz",
+      "state_sha256": "12e416a93202dba9847766f789fbeea9a993318511d7af6ccdbd14bf3a664972",
+      "full_state_recovered": true
+    },
+    {
+      "name": "seed41_gamma0.0",
+      "cutoff": 1743465600,
+      "rows": 151728,
+      "updates": 2371,
+      "sampled_all_source_rows": true,
+      "weights_changed": true,
+      "weights_sha256": "6c7183662635841f23ad63dfea7edf16095788fb786e44cbc6ddb5b70c078d29",
+      "state_file": "seed41_gamma0.0.training_state.json.gz",
+      "state_sha256": "b5871c4b096f5f5eb15c6cbc0d70ba883c06ca9adbf0adcf9ba43374d56e6b62",
+      "full_state_recovered": true
+    },
+    {
+      "name": "seed41_gamma0.99",
+      "cutoff": 1743465600,
+      "rows": 151728,
+      "updates": 2371,
+      "sampled_all_source_rows": true,
+      "weights_changed": true,
+      "weights_sha256": "3026c62b705d3bc6db72d3e565aa611563d8cbd869a0248bd3b7dd3a1d258b73",
+      "state_file": "seed41_gamma0.99.training_state.json.gz",
+      "state_sha256": "16f2b0bfc58f54de2a5ab865b559c7f6367e6ff59da6e1549d12ae6622321e5b",
+      "full_state_recovered": true
+    }
+  ]
+}
