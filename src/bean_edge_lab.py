@@ -21,7 +21,16 @@ DEFAULT_SPREAD_BPS = 10.0
 
 
 def normalize(raw):
-    rows = sorted((dict(v) for v in raw.values()), key=lambda row: row["ts"])
+    rows = [dict(v) for v in raw.values()]
+    # Reject malformed timestamps before sorting or continuity checks can mask them.
+    for row in rows:
+        try:
+            value = row["ts"]
+            if isinstance(value, bool) or not math.isfinite(float(value)) or not float(value).is_integer():
+                raise ValueError("INVALID_TIMESTAMP")
+        except (KeyError, TypeError, OverflowError) as exc:
+            raise ValueError("INVALID_TIMESTAMP") from exc
+    rows.sort(key=lambda row: float(row["ts"]))
     if not rows:
         raise ValueError("INSUFFICIENT_HISTORY")
     last = None
