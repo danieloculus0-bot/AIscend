@@ -85,14 +85,6 @@ def choose_execution_rail(
     )
     advanced_score = float(score_value or 0.0)
     if best:
-        route = best.get("funding_route") or {}
-        available_funding = float(route.get("available") or 0.0)
-        advanced_buy = (
-            advanced_score >= 0.18
-            and float(best.get("spread_bps") or 0.0) <= 50.0
-            and float(best.get("volume_ratio") or 0.0) >= 0.40
-            and bool(route)
-            and available_funding > 0.0
         product_id = str(best.get("product") or "").upper()
         _, _, quote = product_id.rpartition("-")
         quote_balances = advanced.get("cash_by_quote") or {}
