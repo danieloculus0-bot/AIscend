@@ -935,6 +935,19 @@ class AdvancedLiveTests(unittest.TestCase):
                 store,
                 rail=rail,
                 asset_universe=SwapUniverse(),
+                listing_sentinel=FakeListingSentinel(),
+                human_researcher=FakeHumanResearch(),
+            )
+            engine.step()
+            row = store.latest_decisions(1)[0]
+            self.assertEqual(row["action"], "BUY")
+            self.assertEqual(row["status"], "LIVE_EXECUTED")
+            self.assertTrue(rail.sells)
+            self.assertLess(rail.grove, Decimal("100"))
+            self.assertGreater(rail.trac, Decimal("0"))
+            self.assertIn("Direct crypto swap", row["rationale"])
+            store.close()
+
     def test_provider_rejection_does_not_enter_executed_ledger(self):
         class RejectingRail(FakeRail):
             def market_buy(self, product_id, quote_size, client_order_id):
@@ -948,12 +961,9 @@ class AdvancedLiveTests(unittest.TestCase):
             )
             engine.step()
             row = store.latest_decisions(1)[0]
-            self.assertEqual(row["action"], "BUY")
-            self.assertEqual(row["status"], "LIVE_EXECUTED")
-            self.assertTrue(rail.sells)
-            self.assertLess(rail.grove, Decimal("100"))
-            self.assertGreater(rail.trac, Decimal("0"))
-            self.assertIn("Direct crypto swap", row["rationale"])
+            self.assertNotEqual(row["status"], "LIVE_EXECUTED")
+            self.assertFalse(any(entry["event_type"] == "ADVANCED_ORDER_EXECUTED_BUY"
+                                 for entry in store.recent_ledger(50)))
             store.close()
 
     def test_buy_fraction_is_raised_to_coinbase_minimum_when_possible(self):
